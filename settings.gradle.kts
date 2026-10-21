@@ -5,11 +5,11 @@ dependencyResolutionManagement {
 }
 rootProject.name = "PhotoVault"
 
-// Android app and the Windows PC app share everything under core/designsystem and ui/.
 include(":app")
-include(":desktop")
+// The Windows PC app (desktop/) is paused until the phone app is finished and refined.
+// To resume: include(":desktop") and add jvm("desktop") back to the shared modules (docs/ARCHITECTURE.md).
 
-// Shared (Android + PC), Kotlin Multiplatform.
+// Shared code, kept in Kotlin Multiplatform form so the PC port stays a small step.
 include(":core:designsystem")
 include(":ui:shell")
 

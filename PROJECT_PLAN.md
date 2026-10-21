@@ -15,7 +15,8 @@ photo gallery and SMB backup app for several family members sharing one drive. F
 - Build 64-bit only (arm64-v8a, plus x86_64 for CI emulators).
 - PhotoVault will also run on a Windows PC. Put screens and logic in shared Kotlin Multiplatform modules
   (`commonMain`); put anything Android-only behind a small interface with an Android implementation
-  (docs/ARCHITECTURE.md, "Running on a PC"). The PC app must keep building in CI.
+  (docs/ARCHITECTURE.md, "Running on a PC"). PC builds are paused until the phone app is finished: do not
+  build or extend the PC app, but keep `commonMain` free of Android-only APIs.
 - End each phase with: files changed, commands run and their output, APK if built,
   open risks, and a request for approval to continue. Then stop.
 

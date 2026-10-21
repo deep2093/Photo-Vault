@@ -9,7 +9,7 @@ Kotlin 2.1.21, compileSdk 36, targetSdk 35), with minSdk 30.
 PhotoVault may be ported to a Windows PC, so it is built now to make that a small step:
 
 - **Shared by default.** Screens, design system, state and all logic that isn't tied to a device live in
-  Kotlin Multiplatform modules with two targets: `androidTarget()` and `jvm("desktop")`. CI builds and tests both.
+  Kotlin Multiplatform modules (`commonMain`). Today they build for Android only; the PC target is paused.
 - **Platform pieces behind interfaces.** Anything only one platform has gets a small interface in shared code and
   one implementation per platform. Example from Phase 1: `AppearanceStore` (Android SharedPreferences,
   PC Java preferences). Planned ones:
@@ -28,7 +28,9 @@ PhotoVault may be ported to a Windows PC, so it is built now to make that a smal
   `LanDiscovery` and `SmbReachability` use Android network APIs.
 - **Screens are written for both.** Mouse hover, keyboard focus and shortcuts (Ctrl+1..5, Ctrl +/-), resizable
   windows from 420 dp wide, and no Android-only APIs in `commonMain`.
-- `:desktop` is the PC app. CI builds it on Windows as a ready-to-run folder (`PhotoVault-windows`).
+- `:desktop` is the PC app. **Paused (22 Oct 2026)** until the phone app is finished and refined: it is not
+  built, the shared modules have only the Android target, and CI builds no Windows app. The shared-code
+  rule above still applies, so resuming means re-adding `jvm("desktop")` and `include(":desktop")`.
 
 ## Modules
 
@@ -37,7 +39,7 @@ Phase 0 creates the first four. The rest are added by the phase that needs them,
 | Module | Phase | Responsibility |
 | --- | --- | --- |
 | `:app` | 0 | Android host: activity, platform signals, Android implementations of shared interfaces |
-| `:desktop` | 1 | Windows PC host: window, keyboard shortcuts, PC implementations of shared interfaces |
+| `:desktop` | Paused | Windows PC host: window, keyboard shortcuts, PC implementations of shared interfaces |
 | `:core:security` | 0 | `SecretBox` (Keystore AES-GCM), `SmbCredentialStore`, `PathRules` |
 | `:core:smb` | 0 | `SmbConnection`, `SmbErrors`, `LanDiscovery` (from Veyra) |
 | `:core:vpn` | 0 | `WireGuardManager`, `WireGuardConfigStore`, `SmbReachability`, `ConfigText` (from Veyra) |

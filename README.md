@@ -5,14 +5,14 @@ on one shared SMB drive (for example a USB drive on the home router). Built on t
 code from Veyra (`deep2093/SmbVideoPlayer`).
 
 **Status: Phase 1 (design).** The Liquid Glass design, four themes and all main screens with sample data,
-on Android and as a Windows PC app. No real photos or backup yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
+on Android. No real photos or backup yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Layout
 
 | Path | What it holds |
 | --- | --- |
 | `app/` | The Android app |
-| `desktop/` | The Windows PC app (same screens) |
+| `desktop/` | Windows PC app, paused until the phone app is finished (not built) |
 | `core/designsystem/` | Shared: Liquid Glass components and the four themes |
 | `ui/shell/` | Shared: navigation and screens |
 | `core/security/` | Keystore encryption helper, drive credential store, path rules |
@@ -24,11 +24,9 @@ on Android and as a Windows PC app. No real photos or backup yet. See [docs/ROAD
 ## Building
 
 CI (`.github/workflows/android.yml`) is the build authority. It runs unit tests and lint for every
-module (Android and PC), builds the preview APK and the Windows app. From a run's artifacts:
-`PhotoVault-preview-arm64-apk` for phones and tablets, `PhotoVault-windows` for a PC (run `PhotoVault.exe`).
+module and builds the preview APK. Install `PhotoVault-preview-arm64-apk` from a run's artifacts.
 
-Locally: `./gradlew testDebugUnitTest desktopTest :app:assembleDebug` with JDK 17 and the Android SDK
-(platform 36). Run the PC app with `./gradlew :desktop:run`.
+Locally: `./gradlew testDebugUnitTest :app:assembleDebug` with JDK 17 and the Android SDK (platform 36).
 
 ## Workflow
 

@@ -9,7 +9,7 @@ kotlin {
     androidTarget {
         compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
     }
-    jvm("desktop")
+    // jvm("desktop")  PC target paused until the phone app is finished.
 
     sourceSets {
         commonMain.dependencies {
