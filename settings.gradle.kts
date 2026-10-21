@@ -11,6 +11,7 @@ include(":app")
 
 // Shared code, kept in Kotlin Multiplatform form so the PC port stays a small step.
 include(":core:designsystem")
+include(":core:media")
 include(":ui:shell")
 
 // Android-only for now. Ported from Veyra (deep2093/SmbVideoPlayer). See docs/REUSE_FROM_VEYRA.md

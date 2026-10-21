@@ -41,7 +41,7 @@ object Contrast {
     /** Wallpaper colours to test against. Adaptive: all hues at both saturation limits, under the lightest veil. */
     fun wallpaperColors(theme: GlassTheme): List<Color> {
         val style = theme.adaptive ?: return theme.wallpaper
-        val veil = Color.Black.copy(alpha = style.scrim * 0.6f)
+        val veil = style.veil.copy(alpha = style.scrim * 0.6f)
         val generated = (0 until 360 step 5).flatMap { hue ->
             listOf(style.minSaturation, style.maxSaturation).flatMap { s ->
                 style.values.map { v -> veil.compositeOver(Hsv.toColor(hue.toFloat(), s, v)) }

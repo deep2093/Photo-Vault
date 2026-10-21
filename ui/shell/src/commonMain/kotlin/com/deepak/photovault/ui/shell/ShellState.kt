@@ -8,6 +8,7 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,9 +48,62 @@ interface AppearanceStore {
  * All state the shell owns. Created by the platform app, so the PC app can drive it from keyboard
  * shortcuts and the Android app from the activity.
  */
+/** Full-screen pages opened over the main sections. Back closes the top one. */
+sealed interface Overlay {
+    /** The photo viewer, swiping through [ids] (the list it was opened from) starting at [startId]. */
+    data class Viewer(val ids: List<Long>, val startId: Long) : Overlay
+
+    data object Search : Overlay
+
+    data class Album(val kind: AlbumKind) : Overlay
+
+    data object RecentlyDeleted : Overlay
+}
+
+sealed interface AlbumKind {
+    data class Phone(val albumId: String, val name: String) : AlbumKind
+
+    data object Favourites : AlbumKind
+
+    data object Videos : AlbumKind
+}
+
 @Stable
 class ShellState(private val store: AppearanceStore) {
     var destination by mutableStateOf(Destination.PHOTOS)
+
+    /** Open pages, newest last. */
+    val overlays = mutableStateListOf<Overlay>()
+
+    /** Photos picked by long-press. Empty means not selecting. */
+    var selected by mutableStateOf<Set<Long>>(emptySet())
+
+    val selecting: Boolean get() = selected.isNotEmpty()
+
+    /** Back has something to close: a page, a selection, or a section other than Photos. */
+    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting
+
+    fun open(overlay: Overlay) {
+        selected = emptySet()
+        overlays.add(overlay)
+    }
+
+    /** Closes the selection first, then the top page. Returns false when there was nothing to close. */
+    fun back(): Boolean = when {
+        selecting -> {
+            selected = emptySet()
+            true
+        }
+        overlays.isNotEmpty() -> {
+            overlays.removeAt(overlays.lastIndex)
+            true
+        }
+        else -> false
+    }
+
+    fun toggleSelected(id: Long) {
+        selected = if (id in selected) selected - id else selected + id
+    }
 
     var appearance by mutableStateOf(store.load())
         private set

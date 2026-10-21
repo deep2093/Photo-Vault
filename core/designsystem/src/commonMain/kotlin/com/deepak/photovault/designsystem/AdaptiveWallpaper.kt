@@ -38,7 +38,12 @@ data class AdaptiveStyle(
     val scrim: Float,
     /** Used before any photo is on screen. */
     val fallback: List<Color>,
-)
+    /** Light adaptive themes: pastel colours under a white veil, with dark text. */
+    val light: Boolean = false,
+) {
+    /** The readability veil: dark for light text, white for dark text. */
+    val veil: Color get() = if (light) Color.White else Color.Black
+}
 
 /** Colours of the photos currently on screen. Each shown photo adds one colour and removes it when it leaves. */
 class ScreenColors {
@@ -161,6 +166,6 @@ internal fun DrawScope.drawAdaptiveWallpaper(colors: List<Color>, style: Adaptiv
             radius = size.maxDimension * 0.75f,
         ),
     )
-    // Darker towards the bottom, where the navigation bar sits.
-    drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = style.scrim * 0.6f), Color.Black.copy(alpha = style.scrim))))
+    // Stronger towards the bottom, where the navigation bar sits.
+    drawRect(Brush.verticalGradient(listOf(style.veil.copy(alpha = style.scrim * 0.6f), style.veil.copy(alpha = style.scrim))))
 }

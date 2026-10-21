@@ -14,6 +14,14 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(project(":core:designsystem"))
+            api(project(":core:media"))
+            // Thumbnails and full photos. Coil 3 is multiplatform, so this stays shared code.
+            implementation("io.coil-kt.coil3:coil-compose:3.2.0")
+        }
+        androidMain.dependencies {
+            // Video playback in the viewer (same player library as Veyra).
+            implementation("androidx.media3:media3-exoplayer:1.6.1")
+            implementation("androidx.media3:media3-ui:1.6.1")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

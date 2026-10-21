@@ -1,167 +1,124 @@
 package com.deepak.photovault.ui.shell
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.deepak.photovault.designsystem.AdaptiveLayout
-import com.deepak.photovault.designsystem.BackupStatus
-import com.deepak.photovault.designsystem.ContributeScreenColor
+import com.deepak.photovault.core.media.LibraryCounts
+import com.deepak.photovault.core.media.MediaAccess
+import com.deepak.photovault.core.media.MediaItem
+import com.deepak.photovault.core.media.Timeline
+import com.deepak.photovault.core.media.TimelineGrouping
+import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassChip
 import com.deepak.photovault.designsystem.GlassIconButton
-import com.deepak.photovault.designsystem.LocalGlassTheme
-import com.deepak.photovault.designsystem.SectionHeader
-import com.deepak.photovault.designsystem.StatusBadge
-
-private enum class TimelineGrouping(val label: String) { DAY("Day"), MONTH("Month"), YEAR("Year") }
+import com.deepak.photovault.designsystem.WarningNote
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
 
 @Composable
-fun PhotosScreen(state: ShellState) {
-    var grouping by rememberSaveable { mutableStateOf(TimelineGrouping.DAY) }
-    val waiting = SampleData.days.sumOf { day -> day.photos.count { it.status == BackupStatus.PHONE_ONLY } }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val width = maxWidth.value.toInt()
-        val maxColumns = AdaptiveLayout.maxColumns(width)
-        val columns = state.gridColumns?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
-        val currentColumns by rememberUpdatedState(columns)
-        val currentMax by rememberUpdatedState(maxColumns)
-        GlassScreen(
-            title = "Photos",
-            subtitle = "Synced safely · $waiting waiting to back up",
-            // Pinch changes photo size; there are no zoom buttons (feedback 22 Oct).
-            actions = { GlassIconButton(Icons.Rounded.Search, "Search", onClick = {}) },
-        ) { padding ->
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
+fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions) {
+    val zone = remember { TimeZone.currentSystemDefault() }
+    val today = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
+    val sections = remember(gallery.items, gallery.grouping, today) { Timeline.group(gallery.items, gallery.grouping, zone, today) }
+    SelectableScreen(
+        title = "Photos",
+        subtitle = if (gallery.access == MediaAccess.NONE) null else LibraryCounts.summary(gallery.items),
+        state = state,
+        gallery = gallery,
+        actions = actions,
+        normalActions = { GlassIconButton(Icons.Rounded.Search, "Search", onClick = { state.open(Overlay.Search) }) },
+    ) { padding ->
+        when {
+            gallery.access == MediaAccess.NONE -> EmptyState(
+                title = "See your photos here",
+                body = "PhotoVault needs access to your photos and videos to show them and, later, back them up. " +
+                    "They stay on your phone and your own drive.",
+                action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
+            )
+            gallery.loaded && gallery.items.isEmpty() -> EmptyState(
+                title = "No photos yet",
+                body = "Photos and videos you take will appear here.",
+            )
+            else -> MediaGrid(
+                sections = sections,
+                state = state,
+                gallery = gallery,
                 contentPadding = padding,
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pinchToZoom { zoomIn -> state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax) },
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-                        TimelineGrouping.entries.forEach { option ->
-                            GlassChip(option.label, selected = grouping == option, onClick = { grouping = option })
+                onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
+                header = {
+                    item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
+                        androidx.compose.foundation.layout.Column {
+                            if (gallery.access == MediaAccess.PARTIAL) {
+                                WarningNote("You've shared only some photos with PhotoVault. Allow all to see and back up everything.")
+                                GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
+                                listOf(TimelineGrouping.DAY to "Day", TimelineGrouping.MONTH to "Month", TimelineGrouping.YEAR to "Year")
+                                    .forEach { (option, label) ->
+                                        GlassChip(label, selected = gallery.grouping == option, onClick = { gallery.grouping = option })
+                                    }
+                            }
                         }
                     }
-                }
-                SampleData.days.forEach { day ->
-                    item(key = "header-${day.label}", span = { GridItemSpan(maxLineSpan) }) {
-                        SectionHeader(day.label, Modifier.padding(start = 4.dp, top = 12.dp))
-                    }
-                    items(day.photos, key = { it.id }) { photo -> PhotoTile(photo) }
-                }
-            }
+                },
+            )
         }
     }
 }
 
 /**
- * A two-finger pinch steps the grid one column at a time. Only acts when two or more fingers are down,
- * so one-finger scrolling is untouched.
+ * A screen whose grid supports selection: while photos are selected, the top bar shows how many with
+ * Share, Favourite and Recently deleted actions, and back clears the selection.
  */
-private fun Modifier.pinchToZoom(onStep: (zoomIn: Boolean) -> Unit): Modifier = pointerInput(Unit) {
-    awaitEachGesture {
-        awaitFirstDown(requireUnconsumed = false)
-        var accumulated = 1f
-        do {
-            val event = awaitPointerEvent()
-            if (event.changes.count { it.pressed } >= 2) {
-                accumulated *= event.calculateZoom()
-                if (accumulated > 1.25f) {
-                    onStep(true)
-                    accumulated = 1f
-                } else if (accumulated < 0.8f) {
-                    onStep(false)
-                    accumulated = 1f
-                }
-                event.changes.forEach { if (it.positionChanged()) it.consume() }
-            }
-        } while (event.changes.any { it.pressed })
-    }
-}
-
-/** A sample photo. The photo itself is never glass: only the small status badge sits on top. */
 @Composable
-private fun PhotoTile(photo: SamplePhoto) {
-    val theme = LocalGlassTheme.current
-    val hues = theme.sampleHues
-    val a = hues[photo.hue % hues.size]
-    val b = hues[(photo.hue + 2) % hues.size]
-    // Adaptive themes colour the wallpaper from the photos on screen.
-    ContributeScreenColor(lerp(a, b, photo.shade))
-    val description = buildString {
-        append(if (photo.isVideo) "Video" else "Photo")
-        append(", ").append(photo.status.description)
-        if (photo.favourite) append(", favourite")
-    }
-    Box(
-        Modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(6.dp))
-            .background(Brush.linearGradient(listOf(lerp(a, b, photo.shade), lerp(b, Color.White, 0.25f))))
-            .semantics { contentDescription = description },
-    ) {
-        if (photo.isVideo) {
-            Text(
-                "0:${(10 + photo.id % 50).toString().padStart(2, '0')}",
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 4.dp, vertical = 1.dp),
-            )
-        }
-        if (photo.favourite) {
-            Icon(
-                Icons.Rounded.Favorite,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.align(Alignment.BottomStart).padding(4.dp).size(16.dp),
-            )
-        }
-        StatusBadge(photo.status, Modifier.align(Alignment.BottomEnd).padding(4.dp))
-    }
+fun SelectableScreen(
+    title: String,
+    subtitle: String?,
+    state: ShellState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    onBack: (() -> Unit)? = null,
+    normalActions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    selectionActions: (@Composable androidx.compose.foundation.layout.RowScope.(List<MediaItem>) -> Unit)? = null,
+    content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
+) {
+    val selectedItems = state.selected.mapNotNull(gallery::find)
+    // One GlassScreen for both modes, so the grid keeps its scroll position when selection starts.
+    GlassScreen(
+        title = if (state.selecting) "${state.selected.size} selected" else title,
+        subtitle = if (state.selecting) null else subtitle,
+        onBack = if (state.selecting) null else onBack,
+        actions = {
+            if (!state.selecting) {
+                normalActions()
+            } else {
+                if (selectionActions != null) {
+                    selectionActions(selectedItems)
+                } else {
+                    GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selectedItems) })
+                    GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
+                        gallery.toggleFavourite(selectedItems)
+                        state.selected = emptySet()
+                    })
+                    GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = {
+                        actions.moveToRecentlyDeleted(selectedItems)
+                        state.selected = emptySet()
+                    })
+                }
+                GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { state.selected = emptySet() })
+            }
+        },
+        content = content,
+    )
 }
-

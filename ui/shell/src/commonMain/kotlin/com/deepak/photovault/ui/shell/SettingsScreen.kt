@@ -40,11 +40,6 @@ fun SettingsScreen(state: ShellState) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 ThemeRow(GlassThemes.adaptiveThemes, state)
-                Text(
-                    "Coming next: Adaptive Light, Translucent and Frosted.",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                 GlassSwitchRow(
                     "Glass blur",

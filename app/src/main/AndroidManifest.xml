@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Phase 0 declares only what the ported SMB and VPN modules need.
-         Photo access (READ_MEDIA_*) is added in Phase 2, background backup permissions in Phase 5. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Reading the phone's photos and videos (Phase 2). Asked for only when the user taps "Allow access".
+         Android 11-12 use storage access; 13+ ask for images and videos; 14+ may share only selected photos. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <!-- Background backup permissions arrive with backup in Phase 4. -->
 
     <application
         android:allowBackup="false"

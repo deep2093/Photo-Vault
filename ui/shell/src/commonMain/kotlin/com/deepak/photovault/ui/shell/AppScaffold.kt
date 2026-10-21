@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +37,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import coil3.compose.setSingletonImageLoaderFactory
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -62,9 +66,20 @@ import dev.chrisbanes.haze.HazeState
 /** Space each screen must leave around its scrolling content (system bars, floating navigation). */
 val LocalScreenInsets = staticCompositionLocalOf { PaddingValues(0.dp) }
 
-/** The whole app: theme, wallpaper, adaptive navigation and the current screen. Same on Android and PC. */
+/**
+ * The whole app: theme, wallpaper, adaptive navigation, the current section and any open page on top.
+ * Same on Android and PC; the platform supplies [gallery] (its photo library) and [actions].
+ */
 @Composable
-fun PhotoVaultApp(state: ShellState, signals: PlatformSignals = PlatformSignals()) {
+fun PhotoVaultApp(
+    state: ShellState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    signals: PlatformSignals = PlatformSignals(),
+) {
+    setSingletonImageLoaderFactory { context -> createImageLoader(context) }
+    // Load the phone's photos, and reload whenever they change or access is granted.
+    LaunchedEffect(gallery, gallery.access) { gallery.watch() }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         CompositionLocalProvider(LocalHazeState provides hazeState) {
@@ -72,8 +87,43 @@ fun PhotoVaultApp(state: ShellState, signals: PlatformSignals = PlatformSignals(
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val system = WindowInsets.safeDrawing.asPaddingValues()
                     when (AdaptiveLayout.navigationFor(maxWidth.value.toInt())) {
-                        NavigationLayout.BOTTOM_BAR -> BottomBarLayout(state, system)
-                        NavigationLayout.SIDE_RAIL -> SideRailLayout(state, system)
+                        NavigationLayout.BOTTOM_BAR -> BottomBarLayout(state, gallery, actions, system)
+                        NavigationLayout.SIDE_RAIL -> SideRailLayout(state, gallery, actions, system)
+                    }
+                    OverlayHost(state, gallery, actions, system)
+                }
+            }
+        }
+    }
+}
+
+/** Pages opened on top (viewer, album, search, Recently deleted), animated in and out. */
+@Composable
+private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: MediaActions, system: PaddingValues) {
+    val enter = motionSpec<Float>(260)
+    val exit = motionSpec<Float>(180)
+    AnimatedContent(
+        targetState = state.overlays.lastOrNull(),
+        transitionSpec = {
+            (fadeIn(enter) + scaleIn(enter, initialScale = 0.94f)) togetherWith (fadeOut(exit) + scaleOut(exit, targetScale = 0.97f))
+        },
+        label = "overlay",
+    ) { overlay ->
+        if (overlay == null) return@AnimatedContent
+        // Each page blurs only its own content, never the section underneath it.
+        CompositionLocalProvider(
+            LocalHazeState provides remember { HazeState() },
+            LocalScreenInsets provides system,
+        ) {
+            if (overlay is Overlay.Viewer) {
+                ViewerScreen(overlay, state, gallery, actions)
+            } else {
+                GlassBackground(Modifier.fillMaxSize()) {
+                    when (overlay) {
+                        is Overlay.Album -> AlbumScreen(overlay.kind, state, gallery, actions)
+                        Overlay.RecentlyDeleted -> RecentlyDeletedScreen(state, gallery, actions)
+                        Overlay.Search -> SearchScreen(state, gallery, actions)
+                        is Overlay.Viewer -> Unit
                     }
                 }
             }
@@ -82,7 +132,7 @@ fun PhotoVaultApp(state: ShellState, signals: PlatformSignals = PlatformSignals(
 }
 
 @Composable
-private fun BottomBarLayout(state: ShellState, system: PaddingValues) {
+private fun BottomBarLayout(state: ShellState, gallery: GalleryState, actions: MediaActions, system: PaddingValues) {
     val barSpace = 88.dp
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
@@ -93,11 +143,14 @@ private fun BottomBarLayout(state: ShellState, system: PaddingValues) {
                 bottom = system.calculateBottomPadding() + barSpace,
             ),
         ) {
-            ScreenHost(state)
+            ScreenHost(state, gallery, actions)
         }
         FloatingNavigationBar(
             selected = state.destination,
-            onSelect = { state.destination = it },
+            onSelect = {
+                state.selected = emptySet()
+                state.destination = it
+            },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
@@ -106,11 +159,14 @@ private fun BottomBarLayout(state: ShellState, system: PaddingValues) {
 }
 
 @Composable
-private fun SideRailLayout(state: ShellState, system: PaddingValues) {
+private fun SideRailLayout(state: ShellState, gallery: GalleryState, actions: MediaActions, system: PaddingValues) {
     Row(Modifier.fillMaxSize()) {
         SideRail(
             selected = state.destination,
-            onSelect = { state.destination = it },
+            onSelect = {
+                state.selected = emptySet()
+                state.destination = it
+            },
             modifier = Modifier
                 .fillMaxHeight()
                 .padding(
@@ -126,13 +182,13 @@ private fun SideRailLayout(state: ShellState, system: PaddingValues) {
                 bottom = system.calculateBottomPadding(),
             ),
         ) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { ScreenHost(state) }
+            Box(Modifier.weight(1f).fillMaxHeight()) { ScreenHost(state, gallery, actions) }
         }
     }
 }
 
 @Composable
-private fun ScreenHost(state: ShellState) {
+private fun ScreenHost(state: ShellState, gallery: GalleryState, actions: MediaActions) {
     val enter = motionSpec<Float>()
     val exit = motionSpec<Float>(150)
     AnimatedContent(
@@ -141,8 +197,8 @@ private fun ScreenHost(state: ShellState) {
         label = "destination",
     ) { destination ->
         when (destination) {
-            Destination.PHOTOS -> PhotosScreen(state)
-            Destination.ALBUMS -> AlbumsScreen()
+            Destination.PHOTOS -> PhotosScreen(state, gallery, actions)
+            Destination.ALBUMS -> AlbumsScreen(state, gallery, actions)
             Destination.BACKUP -> BackupScreen()
             Destination.FAMILY -> FamilyScreen()
             Destination.SETTINGS -> SettingsScreen(state)

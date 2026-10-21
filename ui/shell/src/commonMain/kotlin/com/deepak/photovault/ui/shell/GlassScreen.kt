@@ -1,6 +1,13 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextOverflow
+import com.deepak.photovault.designsystem.GlassIconButton
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -41,6 +48,7 @@ import dev.chrisbanes.haze.hazeSource
 fun GlassScreen(
     title: String,
     subtitle: String?,
+    onBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -56,9 +64,19 @@ fun GlassScreen(
         Box(Modifier.fillMaxSize().then(if (haze != null) Modifier.hazeSource(haze) else Modifier)) {
             content(contentPadding)
         }
+        // A soft fade behind the status bar, so the clock and icons stay readable over scrolling photos.
+        val theme = LocalGlassTheme.current
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(insets.calculateTopPadding() + 20.dp)
+                .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
+        )
         GlassTopBar(
             title = title,
             subtitle = subtitle,
+            onBack = onBack,
             actions = actions,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -72,7 +90,13 @@ fun GlassScreen(
 }
 
 @Composable
-private fun GlassTopBar(title: String, subtitle: String?, actions: @Composable RowScope.() -> Unit, modifier: Modifier) {
+private fun GlassTopBar(
+    title: String,
+    subtitle: String?,
+    onBack: (() -> Unit)?,
+    actions: @Composable RowScope.() -> Unit,
+    modifier: Modifier,
+) {
     val theme = LocalGlassTheme.current
     Row(
         modifier
@@ -83,16 +107,27 @@ private fun GlassTopBar(title: String, subtitle: String?, actions: @Composable R
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (onBack != null) {
+            GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onClick = onBack)
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 title,
                 color = theme.onGlass,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() },
             )
             if (subtitle != null) {
-                Text(subtitle, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                Text(
+                    subtitle,
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         actions()
@@ -101,8 +136,8 @@ private fun GlassTopBar(title: String, subtitle: String?, actions: @Composable R
 
 /** A vertically scrolling list screen (Backup, Family, Settings). Cards are capped in width on wide windows. */
 @Composable
-fun GlassListScreen(title: String, subtitle: String?, items: LazyListScope.() -> Unit) {
-    GlassScreen(title, subtitle) { padding ->
+fun GlassListScreen(title: String, subtitle: String?, onBack: (() -> Unit)? = null, items: LazyListScope.() -> Unit) {
+    GlassScreen(title, subtitle, onBack = onBack) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = padding,

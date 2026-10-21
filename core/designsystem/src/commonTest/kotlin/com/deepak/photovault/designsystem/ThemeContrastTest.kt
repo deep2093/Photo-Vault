@@ -51,23 +51,24 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun blurTintIsStrongEnoughToHideBusyPhotos() {
-        // Below about 80% opacity, text over a busy photo stops being reliably readable.
+    fun blurTintIsNeverTooThin() {
+        // The contrast tests above check text over pure black and pure white photos, which is the real guard.
+        // This floor stops a theme from relying on blur alone; Translucent sits just above it on purpose.
         GlassThemes.all.forEach { theme ->
-            assertTrue(theme.glassTint.alpha >= 0.79f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            assertTrue(theme.glassTint.alpha >= 0.6f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
     }
 }
 
 class ThemeCatalogTest {
     @Test
-    fun hasTheFourAgreedThemesPlusThreeAdaptiveWithUniqueIds() {
+    fun hasTheAgreedGlassAndAdaptiveThemesWithUniqueIds() {
         assertEquals(
-            listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass"),
+            listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass", "Translucent", "Frosted"),
             GlassThemes.fixed.map { it.displayName },
         )
         assertEquals(
-            listOf("Adaptive Glow", "Adaptive Midnight", "Adaptive Vivid"),
+            listOf("Adaptive Glow", "Adaptive Midnight", "Adaptive Vivid", "Adaptive Light"),
             GlassThemes.adaptiveThemes.map { it.displayName },
         )
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
@@ -135,6 +136,21 @@ class AdaptivePaletteTest {
     }
 
     @Test
+    fun frostedBlursMoreThanTranslucent() {
+        assertTrue(GlassThemes.Frosted.blurRadius > GlassThemes.Translucent.blurRadius)
+        assertTrue(GlassThemes.Frosted.grain > GlassThemes.Translucent.grain)
+        assertTrue(GlassThemes.Translucent.glassTint.alpha < GlassThemes.Frosted.glassTint.alpha)
+    }
+
+    @Test
+    fun adaptiveLightUsesAWhiteVeilAndDarkText() {
+        val style = GlassThemes.AdaptiveLight.adaptive!!
+        assertTrue(style.light)
+        assertEquals(Color.White, style.veil)
+        assertTrue(Contrast.relativeLuminance(GlassThemes.AdaptiveLight.onGlass) < 0.05)
+    }
+
+    @Test
     fun noPhotosOnScreenUsesTheFallback() {
         GlassThemes.adaptiveThemes.forEach { theme ->
             val style = theme.adaptive!!
@@ -154,12 +170,12 @@ class AdaptivePaletteTest {
     }
 
     @Test
-    fun brightPhotosNeverMakeTheWallpaperTooLightForText() {
+    fun extremePhotosNeverMakeTheWallpaperUnreadable() {
         GlassThemes.adaptiveThemes.forEach { theme ->
             val style = theme.adaptive!!
-            val palette = adaptivePalette(listOf(Color.White, Color.Yellow, Color.Cyan), style)
-            // As drawn: under the wallpaper's veil, at its lightest (the top of the screen).
-            val veil = Color.Black.copy(alpha = style.scrim * 0.6f)
+            val palette = adaptivePalette(listOf(Color.White, Color.Yellow, Color.Cyan, Color.Blue, Color.Black), style)
+            // As drawn: under the wallpaper's veil, at its weakest (the top of the screen).
+            val veil = style.veil.copy(alpha = style.scrim * 0.6f)
             palette.forEach { c ->
                 val ratio = Contrast.ratio(theme.onGlass, veil.compositeOver(c))
                 assertTrue(ratio >= Contrast.TEXT, "${theme.displayName}: text on wallpaper $ratio")
