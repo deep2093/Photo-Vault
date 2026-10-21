@@ -4,8 +4,9 @@ An Android 11+ photo and video gallery that backs up each family member's phone 
 on one shared SMB drive (for example a USB drive on the home router). Built on the SMB and WireGuard
 code from Veyra (`deep2093/SmbVideoPlayer`).
 
-**Status: Phase 1 (design).** The Liquid Glass design, four glass themes, three adaptive themes and all main
-screens with sample data, on Android. No real photos or backup yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phase 2 (phone gallery).** Your real photos and videos: timeline, viewer, albums, search,
+favourites, sharing and Recently deleted, in ten glass and adaptive themes. Backup and family screens still
+show sample data until Phases 3-4. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Layout
 
@@ -14,6 +15,7 @@ screens with sample data, on Android. No real photos or backup yet. See [docs/RO
 | `app/` | The Android app |
 | `desktop/` | Windows PC app, paused until the phone app is finished (not built) |
 | `core/designsystem/` | Shared: Liquid Glass components and the four themes |
+| `core/media/` | Shared: photo model, timeline, search, albums; Android MediaStore source |
 | `ui/shell/` | Shared: navigation and screens |
 | `core/security/` | Keystore encryption helper, drive credential store, path rules |
 | `core/smb/` | SMB2/3 connection, error messages, LAN discovery (from Veyra) |

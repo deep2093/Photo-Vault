@@ -19,7 +19,8 @@ builds on backup.
 | 9 Remote access | WireGuard (from Veyra), backup away from home, app-only routing | Reconnects; only app traffic uses VPN | |
 | 10 Family sharing | Shared albums on the same drive, viewer/contributor, remove access | Removed members lose access | |
 | 11 Editor and duplicates | Crop, rotate, light and colour, filters (saved as a copy), duplicate finder | Originals never changed | |
-| 12 Release | Full tests, speed and battery check, security review, Play Store readiness | All critical tests pass | |
+| 12 Motion and smoothness | A full pass over the whole app: shared-element transitions (photo grid to viewer), smoother pinch, 120 Hz scrolling, startup and scroll profiles, jank checks on a mid-range phone | No dropped frames in the main flows; every animation respects reduce motion | |
+| 13 Release | Full tests, speed and battery check, security review, Play Store readiness | All critical tests pass | |
 
 **Later:** NAS support (real per-person logins, second backup copy), the Windows PC app (paused; code stays
 shared, see ARCHITECTURE.md), invite links for people outside home, optional encryption of the whole library.
@@ -36,4 +37,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
   can be seen and opened.
 - **New themes with real photos (2):** Adaptive Light, Translucent and Frosted only show their character over
   real photos, so they arrive with the gallery and are tested against it.
+- **Animations everywhere, then a dedicated pass (every phase + 12):** each phase animates its own screens
+  (asked 22 Oct). Phase 12 then tunes the whole app together, measured on a real mid-range phone, just
+  before release.
 - **Secured folder after backup (8):** its copies on the drive reuse the verified backup engine, encrypted.

@@ -45,10 +45,12 @@ private fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpoc
 @Composable
 fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actions: MediaActions) {
     val zone = remember { TimeZone.currentSystemDefault() }
-    val (title, items) = when (kind) {
-        is AlbumKind.Phone -> kind.name to gallery.items.filter { it.albumId == kind.albumId }
-        AlbumKind.Favourites -> "Favourites" to gallery.items.filter { gallery.isFavourite(it) }
-        AlbumKind.Videos -> "Videos" to gallery.items.filter { it.isVideo }
+    val (title, items) = remember(kind, gallery.items, gallery.favourites) {
+        when (kind) {
+            is AlbumKind.Phone -> kind.name to gallery.items.filter { it.albumId == kind.albumId }
+            AlbumKind.Favourites -> "Favourites" to gallery.items.filter { it.id in gallery.favourites }
+            AlbumKind.Videos -> "Videos" to gallery.items.filter { it.isVideo }
+        }
     }
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
     SelectableScreen(title, LibraryCounts.summary(items), state, gallery, actions, onBack = { state.back() }) { padding ->

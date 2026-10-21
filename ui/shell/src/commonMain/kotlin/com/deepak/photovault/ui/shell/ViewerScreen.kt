@@ -89,7 +89,7 @@ import kotlinx.datetime.toLocalDateTime
 @Composable
 fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
     // Photos deleted while the viewer is open drop out of the list.
-    val ids = viewer.ids.filter { gallery.find(it) != null }
+    val ids = remember(viewer.ids, gallery.items) { viewer.ids.filter { gallery.find(it) != null } }
     if (ids.isEmpty()) {
         LaunchedEffect(Unit) { state.back() }
         return

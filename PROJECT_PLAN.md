@@ -17,6 +17,8 @@ photo gallery and SMB backup app for several family members sharing one drive. F
   (`commonMain`); put anything Android-only behind a small interface with an Android implementation
   (docs/ARCHITECTURE.md, "Running on a PC"). PC builds are paused until the phone app is finished: do not
   build or extend the PC app, but keep `commonMain` free of Android-only APIs.
+- Animate every new screen and state change smoothly (Deepak, 22 Oct): use `motionSpec()` from the design
+  system so reduce motion is always respected, keep animations short (150-300 ms), and never block input.
 - End each phase with: files changed, commands run and their output, APK if built,
   open risks, and a request for approval to continue. Then stop.
 
