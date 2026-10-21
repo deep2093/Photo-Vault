@@ -40,3 +40,20 @@ open every folder from a computer. Setup tells the family this once, in plain wo
 Keystore AES-256-GCM for secrets, `allowBackup=false` plus data-extraction rules, path containment in
 `SmbConnection.safePath`, SMB signing/encryption options, error messages that never include paths or
 credentials, WireGuard config imported with a 64 KiB limit and never logged.
+
+## Secured folder (Phase 8)
+
+- Each secured photo is encrypted with AES-256-GCM. The folder key is wrapped by an Android Keystore key that
+  needs the PIN or fingerprint (BiometricPrompt with device credential) to use.
+- The folder key is also wrapped by a recovery code shown once at setup, so a new phone can open the drive
+  copies. Lost phone and lost code = the secured photos cannot be opened by anyone, including the family.
+- Drive copies are stored already encrypted in `users/<user-id>/secured/`; file names are random IDs.
+- Excluded from: MediaStore, the timeline, search, Places, memories, adaptive colours, share sheets, recent
+  apps previews (FLAG_SECURE) and every thumbnail cache outside the folder.
+- Locks again when the app goes to the background or after a short timeout.
+- Fingerprint unlock is a convenience on top of encryption, not a replacement for it.
+
+## Places (Phase 7)
+
+Reading photo location needs Android's ACCESS_MEDIA_LOCATION permission, asked only when Places is opened.
+Coordinates are kept in the local database only; map tiles are fetched without sending photo locations.

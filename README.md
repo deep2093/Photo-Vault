@@ -4,14 +4,17 @@ An Android 11+ photo and video gallery that backs up each family member's phone 
 on one shared SMB drive (for example a USB drive on the home router). Built on the SMB and WireGuard
 code from Veyra (`deep2093/SmbVideoPlayer`).
 
-**Status: Phase 0 (foundation).** There is no gallery or backup yet. This build proves the project,
-the ported core modules and CI work. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phase 1 (design).** The Liquid Glass design, four glass themes, three adaptive themes and all main
+screens with sample data, on Android. No real photos or backup yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Layout
 
 | Path | What it holds |
 | --- | --- |
-| `app/` | The Android app (Phase 0: a shell screen) |
+| `app/` | The Android app |
+| `desktop/` | Windows PC app, paused until the phone app is finished (not built) |
+| `core/designsystem/` | Shared: Liquid Glass components and the four themes |
+| `ui/shell/` | Shared: navigation and screens |
 | `core/security/` | Keystore encryption helper, drive credential store, path rules |
 | `core/smb/` | SMB2/3 connection, error messages, LAN discovery (from Veyra) |
 | `core/vpn/` | WireGuard tunnel manager, encrypted config store, reachability (from Veyra) |
@@ -21,7 +24,7 @@ the ported core modules and CI work. See [docs/ROADMAP.md](docs/ROADMAP.md).
 ## Building
 
 CI (`.github/workflows/android.yml`) is the build authority. It runs unit tests and lint for every
-module, then builds the preview APK. Install `PhotoVault-preview-arm64-apk` from the run's artifacts.
+module and builds the preview APK. Install `PhotoVault-preview-arm64-apk` from a run's artifacts.
 
 Locally: `./gradlew testDebugUnitTest :app:assembleDebug` with JDK 17 and the Android SDK (platform 36).
 

@@ -10,6 +10,8 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 | `:core:security` | `PathRulesTest`: root normalisation, rejects `..`, `.`, empty segments | Per-user path containment (Phase 4) |
 | `:core:smb` | `SmbErrorsTest`: transient vs permanent, no secrets in messages; `SmbProfileTest`: password never in `toString()` | Publish-without-overwrite, temp naming (Phase 5) |
 | `:core:vpn` | `ConfigTextTest`: app-only rewrite (from Veyra) | Hold/back-off policy (Phase 7) |
+| `:core:designsystem` | Phase 1: `ThemeContrastTest` (every text colour ≥ 4.5:1 on its worst background: glass over black and white, glass over wallpaper, bare wallpaper; for adaptive themes every hue the palette can make), `ThemeCatalogTest`, `AdaptivePaletteTest`, `AdaptiveLayoutTest` (tablets zoom out to ~48 dp tiles, saved sizes clamped on rotation) | |
+| `:ui:shell` | Phase 1: `ShellStateTest` (battery saver turns blur off, reduce motion, settings saved, grid zoom limits, agreed warning text) | |
 
 ## Device and integration tests (from the phase that needs them)
 
@@ -22,10 +24,15 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 - App-only routing: other apps' traffic does not enter the tunnel. (7)
 - Remove a family member from a shared album while they view it. (8)
 - Reinstall, new phone, lost phone. (10)
-- 4K video, 20,000+ photo libraries, tablet, dark/light, reduce motion. (2, 10)
+- 4K video, 20,000+ photo libraries, tablet, dark/light, adaptive themes, reduce motion. (2, 12)
+- Delete → Recently deleted → restore, and items purge after 30 days (phone and drive). (2, 5)
+- Space limit: backup pauses at the limit, warns at 90%, never deletes to make room; limit change takes effect. (3, 4)
+- Places: no location permission → Places explains and asks; shared copies have no location. (7)
+- Secured folder: never appears in timeline, search, Places, adaptive colours, thumbnails or recent apps;
+  recovery code opens drive copies on a new phone; wrong PIN locks out. (8)
 
 ## CI
 
-Unit tests and lint for every module, debug (preview-signed) and release (shrinker) builds,
-arm64 preview APK as an artifact. Emulator tests with a throwaway SMB share are added in Phase 3,
+Unit tests and lint for every module, debug (preview-signed) and release
+(shrinker) builds, arm64 preview APK as an artifact. Emulator tests with a throwaway SMB share are added in Phase 3,
 reusing Veyra's `tools/start_test_share.sh` approach.
