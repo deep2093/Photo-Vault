@@ -42,7 +42,15 @@ jobs:
       - name: Build preview APKs
         run: ./gradlew :app:assembleDebug --stacktrace
       - name: Build release (shrinker check, unsigned unless a release key is configured)
-        run: ./gradlew :app:assembleRelease --stacktrace
+        run: |
+          if ! ./gradlew :app:assembleRelease --stacktrace > release.log 2>&1; then
+            # Surface the cause as annotations so it is readable without the full log.
+            grep -E '^e: |ERROR|Missing class|What went wrong|Error: |Lint found' -A2 release.log | grep -v '^--$' | head -40 | sed -e 's#/home/runner/work/[^/]*/[^/]*/##' | while IFS= read -r line; do echo "::error::${line}"; done
+            report=$(ls app/build/intermediates/lint_vital_intermediate_text_report/release/*/lint-results-release.txt 2>/dev/null | head -1)
+            [ -n "$report" ] && grep -E ': Error: ' "$report" | head -20 | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -60 release.log
+            exit 1
+          fi
       - name: Report APK size
         run: |
           apk=app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
