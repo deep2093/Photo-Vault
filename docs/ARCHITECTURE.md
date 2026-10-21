@@ -43,17 +43,19 @@ Phase 0 creates the first four. The rest are added by the phase that needs them,
 | `:core:security` | 0 | `SecretBox` (Keystore AES-GCM), `SmbCredentialStore`, `PathRules` |
 | `:core:smb` | 0 | `SmbConnection`, `SmbErrors`, `LanDiscovery` (from Veyra) |
 | `:core:vpn` | 0 | `WireGuardManager`, `WireGuardConfigStore`, `SmbReachability`, `ConfigText` (from Veyra) |
-| `:core:designsystem` | 1 | **Shared.** Liquid Glass components, 4 themes, contrast checks, motion, adaptive layout rules |
+| `:core:designsystem` | 1 | **Shared.** Liquid Glass components, 4 glass + 3 adaptive themes, contrast checks, motion, adaptive layout rules |
 | `:ui:shell` | 1 | **Shared.** App scaffold, navigation, screens (sample data until Phase 2) |
 | `:core:database` | 2 | Room: media index, albums, backup jobs, manifests cache, audit |
 | `:core:media` | 2 | MediaStore discovery, thumbnails |
 | `:feature:gallery`, `:feature:viewer`, `:feature:albums`, `:feature:search` | 2 | Local gallery |
-| `:data:remote` | 3 | Remote index and thumbnail cache over `:core:smb` |
-| `:core:household` | 4 | User/device IDs, per-person folder layout and containment |
-| `:data:backup`, `:feature:backup` | 5 | Backup engine, schedule, restore, dashboard |
+| `:data:remote` | 5 | Remote index and thumbnail cache over `:core:smb` |
+| `:core:household` | 3 | User/device IDs, per-person folder layout, containment, space limits |
+| `:data:backup`, `:feature:backup` | 4 | Backup engine, schedule, space limits, restore, dashboard |
 | `:feature:cleanup` | 6 | Retention, re-verification, delete consent |
-| `:feature:remoteaccess` | 7 | VPN settings UI over `:core:vpn` |
-| `:feature:sharing` | 8 | Shared albums |
+| `:feature:places` | 7 | Location index, map, Places album |
+| `:feature:secured` | 8 | Secured folder: encryption, lock, recovery |
+| `:feature:remoteaccess` | 9 | VPN settings UI over `:core:vpn` |
+| `:feature:sharing` | 10 | Shared albums |
 
 Dependency direction: `feature → data → core`. Features never talk to each other directly.
 Dependency injection: a small hand-written service locator, as in Veyra, until it stops being enough.
@@ -66,12 +68,15 @@ PhotoVault/
   users/<user-id>/
     originals/YYYY/MM/    photos
     videos/YYYY/MM/
+    recently-deleted/     drive copies deleted by the person, removed after 30 days
+    secured/              secured folder, already encrypted (Phase 8)
     manifests/            one manifest per phone, append-only records
     thumbnails/
   shared/<album-id>/      shared album copies (Phase 8)
 ```
 
-IDs are random UUIDs. Display names are stored in the household file, never used as paths.
+IDs are random UUIDs. Display names and each person's space limit (default 100 GB) are stored in the
+household file, never used as paths.
 
 ## Background work
 

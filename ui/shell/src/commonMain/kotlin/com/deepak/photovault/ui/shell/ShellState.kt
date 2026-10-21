@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.deepak.photovault.designsystem.AdaptiveLayout
 import com.deepak.photovault.designsystem.GlassSettings
 import com.deepak.photovault.designsystem.GlassTheme
 import com.deepak.photovault.designsystem.GlassThemes
@@ -53,7 +54,7 @@ class ShellState(private val store: AppearanceStore) {
     var appearance by mutableStateOf(store.load())
         private set
 
-    /** Photo grid columns chosen by pinch, zoom buttons or Ctrl +/-; null means "fit the window". */
+    /** Photo grid columns chosen by pinching; null means "fit the screen". */
     var gridColumns by mutableStateOf<Int?>(null)
 
     val theme: GlassTheme get() = GlassThemes.byId(appearance.themeId)
@@ -69,14 +70,9 @@ class ShellState(private val store: AppearanceStore) {
         reduceMotion = appearance.reduceMotion || signals.systemReduceMotion,
     )
 
-    /** Fewer, larger photos (positive) or more, smaller photos (negative). */
-    fun zoomGrid(step: Int, currentColumns: Int) {
-        gridColumns = (currentColumns - step).coerceIn(MIN_COLUMNS, MAX_COLUMNS)
-    }
-
-    companion object {
-        const val MIN_COLUMNS = 2
-        const val MAX_COLUMNS = 10
+    /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */
+    fun zoomGrid(step: Int, currentColumns: Int, maxColumns: Int) {
+        gridColumns = (currentColumns - step).coerceIn(AdaptiveLayout.MIN_COLUMNS, maxColumns)
     }
 }
 

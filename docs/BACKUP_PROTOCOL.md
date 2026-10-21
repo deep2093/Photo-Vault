@@ -44,6 +44,21 @@ published, verified file whose manifest entry is re-derived by re-checking its h
 | Two phones of one person upload the same photo | Same hash → second one is recorded as already backed up |
 | Drive offline at schedule time | Wait for the conditions; never mark anything VERIFIED |
 
+## Space limit (100 GB per person by default)
+
+- Before each run and before each file: used space in the person's folder (originals, videos, recently
+  deleted) plus the file's size must stay within their limit. Otherwise the file waits and the run reports
+  "Your space is full".
+- Used space is measured from the manifest and checked against the drive listing at the start of each run.
+- Warn at 90%. Never delete anything to make room.
+
+## Recently deleted on the drive
+
+- "Delete from phone and drive" moves the drive copy into `users/<user-id>/recently-deleted/` by rename,
+  recorded in the manifest with the date.
+- Items older than 30 days are removed at the start of a backup run. Nothing younger is ever removed.
+- Restore renames it back; the never-overwrite rule applies.
+
 ## Restore
 
 Read from the drive into a new MediaStore entry, verify its hash, and never overwrite a newer phone file.

@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import com.deepak.photovault.designsystem.AdaptiveLayout
 import com.deepak.photovault.designsystem.GlassThemeId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,12 +36,12 @@ class ShellStateTest {
     @Test
     fun gridZoomStaysWithinLimits() {
         val state = ShellState(MemoryAppearanceStore())
-        state.zoomGrid(+1, currentColumns = 3)
+        state.zoomGrid(+1, currentColumns = 3, maxColumns = 7)
         assertEquals(2, state.gridColumns)
-        state.zoomGrid(+1, currentColumns = 2)
-        assertEquals(ShellState.MIN_COLUMNS, state.gridColumns)
-        state.zoomGrid(-1, currentColumns = ShellState.MAX_COLUMNS)
-        assertEquals(ShellState.MAX_COLUMNS, state.gridColumns)
+        state.zoomGrid(+1, currentColumns = 2, maxColumns = 7)
+        assertEquals(AdaptiveLayout.MIN_COLUMNS, state.gridColumns)
+        state.zoomGrid(-1, currentColumns = 22, maxColumns = 22)
+        assertEquals(22, state.gridColumns)
     }
 
     @Test

@@ -4,7 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /** Stable IDs: saved in settings, so never rename them. */
-enum class GlassThemeId { AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS }
+enum class GlassThemeId { AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS, ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
 @Immutable
@@ -23,7 +23,7 @@ data class GlassTheme(
     val displayName: String,
     val bestFor: String,
     val isDark: Boolean,
-    /** Wallpaper gradient, top-left to bottom-right. */
+    /** Wallpaper gradient, top-left to bottom-right. Adaptive themes use it until a photo is on screen. */
     val wallpaper: List<Color>,
     val glows: List<Glow>,
     /** Laid over the blurred content behind floating bars. */
@@ -44,6 +44,8 @@ data class GlassTheme(
     val onBadge: Color,
     /** Placeholder tiles for sample photos (Phase 1 only). */
     val sampleHues: List<Color>,
+    /** Adaptive themes: the wallpaper takes its colours from the photos on screen (as in Veyra). */
+    val adaptive: AdaptiveStyle? = null,
 )
 
 object GlassThemes {
@@ -145,7 +147,55 @@ object GlassThemes {
         sampleHues = listOf(Color(0xFF4FB7B3), Color(0xFF7FD3CF), Color(0xFF2A8C9A), Color(0xFFA5E4E0), Color(0xFF3F9E8F)),
     )
 
-    val all: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass)
+    /**
+     * Adaptive themes, ported from Veyra: smoky dark glass over a wallpaper made from the photos on screen,
+     * easing between colours as you scroll. All keep the wallpaper dark enough for light text
+     * ([ThemeContrastTest] checks every hue).
+     */
+    private fun adaptive(id: GlassThemeId, name: String, bestFor: String, style: AdaptiveStyle) = GlassTheme(
+        id = id,
+        displayName = name,
+        bestFor = bestFor,
+        isDark = true,
+        wallpaper = style.fallback,
+        glows = emptyList(),
+        glassTint = Color(0xCC101016),
+        glassFallback = Color(0xF21B1B24),
+        glassRim = Color(0xFF8A8A9E),
+        onGlass = Color(0xFFF5F5FA),
+        onGlassSecondary = Color(0xFFD4D2E0),
+        accent = Color(0xFFFFD27A),
+        onAccent = Color(0xFF2A1D00),
+        badgeBackedUp = Color(0xFF1B6E45),
+        badgePhoneOnly = Color(0xFF8A4B00),
+        badgeOnDrive = Color(0xFF3B5BA8),
+        onBadge = Color(0xFFFFFFFF),
+        // Colourful samples, so the adaptive wallpaper visibly follows the screen.
+        sampleHues = listOf(Color(0xFFE07A5F), Color(0xFF3D9970), Color(0xFF6A4C93), Color(0xFFF2B134), Color(0xFF1982C4)),
+        adaptive = style,
+    )
+
+    val AdaptiveGlow = adaptive(
+        GlassThemeId.ADAPTIVE_GLOW, "Adaptive Glow", "Colours follow your photos",
+        AdaptiveStyle(listOf(0.34f, 0.24f, 0.14f), 0.35f, 0.75f, glow = 0.35f, scrim = 0.25f,
+            fallback = listOf(Color(0xFF3A2A5A), Color(0xFF1E3A4A), Color(0xFF241A30))),
+    )
+
+    val AdaptiveMidnight = adaptive(
+        GlassThemeId.ADAPTIVE_MIDNIGHT, "Adaptive Midnight", "Darker, follows your photos",
+        AdaptiveStyle(listOf(0.20f, 0.13f, 0.08f), 0.25f, 0.55f, glow = 0.22f, scrim = 0.35f,
+            fallback = listOf(Color(0xFF1C2333), Color(0xFF14202A), Color(0xFF15131C))),
+    )
+
+    val AdaptiveVivid = adaptive(
+        GlassThemeId.ADAPTIVE_VIVID, "Adaptive Vivid", "Bolder colours from your photos",
+        AdaptiveStyle(listOf(0.46f, 0.32f, 0.18f), 0.5f, 0.9f, glow = 0.45f, scrim = 0.38f,
+            fallback = listOf(Color(0xFF6A2C5C), Color(0xFF1F4F6E), Color(0xFF3A1E40))),
+    )
+
+    val fixed: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass)
+    val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid)
+    val all: List<GlassTheme> = fixed + adaptiveThemes
     val default: GlassTheme = AuroraFrost
 
     /** Unknown or missing IDs (an older or newer saved setting) fall back to the default. */

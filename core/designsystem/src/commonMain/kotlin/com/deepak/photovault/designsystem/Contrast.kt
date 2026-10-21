@@ -27,10 +27,28 @@ object Contrast {
         return (hi + 0.05) / (lo + 0.05)
     }
 
-    /** Every opaque background that text on this theme's glass can end up on. */
-    fun glassBackgrounds(theme: GlassTheme): List<Color> =
-        listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(Color.White)) +
-            theme.wallpaper.map { theme.glassFallback.compositeOver(it) }
+    /**
+     * Every opaque background that text can end up on: glass over the busiest photos (black and white),
+     * glass over the wallpaper, and the bare wallpaper (photo date headers sit straight on it).
+     * For adaptive themes the wallpaper is every hue the palette can produce, at its brightest.
+     */
+    fun glassBackgrounds(theme: GlassTheme): List<Color> {
+        val walls = wallpaperColors(theme)
+        return listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(Color.White)) +
+            walls.map { theme.glassFallback.compositeOver(it) } + walls
+    }
+
+    /** Wallpaper colours to test against. Adaptive: all hues at both saturation limits, under the lightest veil. */
+    fun wallpaperColors(theme: GlassTheme): List<Color> {
+        val style = theme.adaptive ?: return theme.wallpaper
+        val veil = Color.Black.copy(alpha = style.scrim * 0.6f)
+        val generated = (0 until 360 step 5).flatMap { hue ->
+            listOf(style.minSaturation, style.maxSaturation).flatMap { s ->
+                style.values.map { v -> veil.compositeOver(Hsv.toColor(hue.toFloat(), s, v)) }
+            }
+        }
+        return theme.wallpaper + generated
+    }
 
     /** The lowest contrast [foreground] reaches on any background in [glassBackgrounds]. */
     fun worstOnGlass(theme: GlassTheme, foreground: Color): Double =

@@ -11,6 +11,7 @@ import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,19 +31,20 @@ fun SettingsScreen(state: ShellState) {
     GlassListScreen(title = "Settings", subtitle = null) {
         item {
             GlassCard(Modifier.cardWidth()) {
-                SectionHeader("Theme")
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()).selectableGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    GlassThemes.all.forEach { option ->
-                        ThemeSwatch(
-                            option,
-                            selected = option.id == state.theme.id,
-                            onClick = { state.updateAppearance { it.copy(themeId = option.id.name) } },
-                        )
-                    }
-                }
+                SectionHeader("Glass themes")
+                ThemeRow(GlassThemes.fixed, state)
+                SectionHeader("Adaptive themes")
+                Text(
+                    "The background takes its colours from the photos on screen.",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ThemeRow(GlassThemes.adaptiveThemes, state)
+                Text(
+                    "Coming next: Adaptive Light, Translucent and Frosted.",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                 GlassSwitchRow(
                     "Glass blur",
@@ -64,10 +66,27 @@ fun SettingsScreen(state: ShellState) {
             GlassCard(Modifier.cardWidth()) {
                 SectionHeader("Coming in later phases")
                 InfoRow(Icons.Rounded.Dns, "Drive connection", "Phase 3")
-                InfoRow(Icons.Rounded.Schedule, "Backup rules", "Phase 5")
-                InfoRow(Icons.Rounded.VpnKey, "Remote access (VPN)", "Phase 7")
-                InfoRow(Icons.Rounded.Lock, "Private mode (encryption)", "Later")
+                InfoRow(Icons.Rounded.Storage, "Space per person ($DEFAULT_STORAGE_LIMIT_GB GB)", "Phase 3")
+                InfoRow(Icons.Rounded.Schedule, "Backup rules", "Phase 4")
+                InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
+                InfoRow(Icons.Rounded.VpnKey, "Remote access (VPN)", "Phase 9")
             }
+        }
+    }
+}
+
+@Composable
+private fun ThemeRow(themes: List<com.deepak.photovault.designsystem.GlassTheme>, state: ShellState) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        themes.forEach { option ->
+            ThemeSwatch(
+                option,
+                selected = option.id == state.theme.id,
+                onClick = { state.updateAppearance { it.copy(themeId = option.id.name) } },
+            )
         }
     }
 }

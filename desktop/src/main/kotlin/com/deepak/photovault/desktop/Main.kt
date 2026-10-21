@@ -47,11 +47,11 @@ fun main() = application {
                     true
                 }
                 event.key == Key.Equals || event.key == Key.Plus || event.key == Key.NumPadAdd -> {
-                    state.zoomGrid(+1, state.gridColumns ?: DEFAULT_PC_COLUMNS)
+                    state.zoomGrid(+1, state.gridColumns ?: DEFAULT_PC_COLUMNS, MAX_PC_COLUMNS)
                     true
                 }
                 event.key == Key.Minus || event.key == Key.NumPadSubtract -> {
-                    state.zoomGrid(-1, state.gridColumns ?: DEFAULT_PC_COLUMNS)
+                    state.zoomGrid(-1, state.gridColumns ?: DEFAULT_PC_COLUMNS, MAX_PC_COLUMNS)
                     true
                 }
                 else -> false
@@ -65,6 +65,7 @@ fun main() = application {
 
 /** Columns the grid starts from when zooming before the user has chosen a size. */
 private const val DEFAULT_PC_COLUMNS = 8
+private const val MAX_PC_COLUMNS = 24
 
 /** Appearance choices in the per-user Java preferences (the Windows registry on a PC). Not secret. */
 private class JavaPrefsAppearanceStore : AppearanceStore {

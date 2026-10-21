@@ -1,6 +1,7 @@
 package com.deepak.photovault.designsystem
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -60,18 +61,27 @@ class ThemeContrastTest {
 
 class ThemeCatalogTest {
     @Test
-    fun hasTheFourAgreedThemesWithUniqueIds() {
+    fun hasTheFourAgreedThemesPlusThreeAdaptiveWithUniqueIds() {
         assertEquals(
             listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass"),
-            GlassThemes.all.map { it.displayName },
+            GlassThemes.fixed.map { it.displayName },
+        )
+        assertEquals(
+            listOf("Adaptive Glow", "Adaptive Midnight", "Adaptive Vivid"),
+            GlassThemes.adaptiveThemes.map { it.displayName },
         )
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
+        assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
+        assertTrue(GlassThemes.fixed.all { it.adaptive == null })
     }
 
     @Test
-    fun auroraFrostIsTheDefaultAndOnlyMidnightPrismIsDark() {
+    fun auroraFrostIsTheDefaultAndDarkThemesAreMidnightAndAdaptive() {
         assertEquals(GlassThemeId.AURORA_FROST, GlassThemes.default.id)
-        assertEquals(listOf(GlassThemeId.MIDNIGHT_PRISM), GlassThemes.all.filter { it.isDark }.map { it.id })
+        assertEquals(
+            listOf(GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID),
+            GlassThemes.all.filter { it.isDark }.map { it.id },
+        )
     }
 
     @Test
@@ -92,8 +102,68 @@ class AdaptiveLayoutTest {
     }
 
     @Test
-    fun gridColumnsStayInRange() {
+    fun defaultGridFitsTheWidth() {
         assertEquals(3, AdaptiveLayout.defaultColumns(320))
-        assertEquals(10, AdaptiveLayout.defaultColumns(4000))
+        assertEquals(10, AdaptiveLayout.defaultColumns(1100))
+    }
+
+    @Test
+    fun tabletsZoomOutToSmallPhotosToo() {
+        // Feedback 22 Oct: on a tablet the smallest photos were still too big. Tiles now shrink to about 48 dp.
+        assertEquals(7, AdaptiveLayout.maxColumns(360))
+        assertEquals(22, AdaptiveLayout.maxColumns(1100))
+        assertTrue(1100 / AdaptiveLayout.maxColumns(1100) <= 50)
+    }
+
+    @Test
+    fun savedColumnsAreClampedAfterRotation() {
+        assertEquals(7, AdaptiveLayout.clampColumns(22, 360))
+        assertEquals(AdaptiveLayout.MIN_COLUMNS, AdaptiveLayout.clampColumns(1, 1100))
+    }
+}
+
+class AdaptivePaletteTest {
+    @Test
+    fun hsvRoundTrips() {
+        listOf(Color(0xFFE07A5F), Color(0xFF3D9970), Color(0xFF1982C4), Color(0xFF808080)).forEach { c ->
+            val (h, s, v) = Hsv.of(c).let { Triple(it[0], it[1], it[2]) }
+            val back = Hsv.toColor(h, s, v)
+            assertEquals(c.red, back.red, 0.01f)
+            assertEquals(c.green, back.green, 0.01f)
+            assertEquals(c.blue, back.blue, 0.01f)
+        }
+    }
+
+    @Test
+    fun noPhotosOnScreenUsesTheFallback() {
+        GlassThemes.adaptiveThemes.forEach { theme ->
+            val style = theme.adaptive!!
+            assertEquals(style.fallback, adaptivePalette(emptyList(), style))
+        }
+    }
+
+    @Test
+    fun paletteKeepsTheStylesBrightnessWhateverThePhotos() {
+        val photos = listOf(Color.White, Color.Yellow, Color(0xFFFF00FF), Color(0xFF00FFFF))
+        GlassThemes.adaptiveThemes.forEach { theme ->
+            val style = theme.adaptive!!
+            val palette = adaptivePalette(photos, style)
+            assertEquals(3, palette.size)
+            palette.forEachIndexed { i, c -> assertEquals(style.values[i], Hsv.of(c)[2], 0.01f) }
+        }
+    }
+
+    @Test
+    fun brightPhotosNeverMakeTheWallpaperTooLightForText() {
+        GlassThemes.adaptiveThemes.forEach { theme ->
+            val style = theme.adaptive!!
+            val palette = adaptivePalette(listOf(Color.White, Color.Yellow, Color.Cyan), style)
+            // As drawn: under the wallpaper's veil, at its lightest (the top of the screen).
+            val veil = Color.Black.copy(alpha = style.scrim * 0.6f)
+            palette.forEach { c ->
+                val ratio = Contrast.ratio(theme.onGlass, veil.compositeOver(c))
+                assertTrue(ratio >= Contrast.TEXT, "${theme.displayName}: text on wallpaper $ratio")
+            }
+        }
     }
 }

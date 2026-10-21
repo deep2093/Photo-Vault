@@ -57,7 +57,8 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
         modifier = modifier.padding(top = 8.dp, bottom = 4.dp).semantics { heading() },
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
-        color = LocalGlassTheme.current.onGlassSecondary,
+        // Primary colour: headers also sit straight on the wallpaper (photo dates), including adaptive wallpapers.
+        color = LocalGlassTheme.current.onGlass,
     )
 }
 

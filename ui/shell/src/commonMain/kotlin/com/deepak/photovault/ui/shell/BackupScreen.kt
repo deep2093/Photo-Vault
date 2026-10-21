@@ -111,10 +111,16 @@ fun BackupScreen() {
         }
         item {
             GlassCard(Modifier.cardWidth()) {
-                SectionHeader("Drive")
-                InfoRow(Icons.Rounded.Storage, "Router drive", "1.2 TB free of 2 TB")
-                Spacer(Modifier.height(8.dp))
-                GlassProgressBar(0.4f, label = "Drive 40 percent full")
+                SectionHeader("Your space")
+                InfoRow(Icons.Rounded.Storage, "Used", "38 GB of $DEFAULT_STORAGE_LIMIT_GB GB")
+                GlassProgressBar(0.38f, label = "Your space, 38 of $DEFAULT_STORAGE_LIMIT_GB gigabytes used")
+                Text(
+                    "Backup pauses and tells you before your space runs out. The limit can be changed in Settings.",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                InfoRow(Icons.Rounded.Storage, "Whole drive", "1.2 TB free of 2 TB")
             }
         }
         item {

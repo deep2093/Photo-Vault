@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -24,11 +26,23 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 
-/** The theme's wallpaper behind everything: gradient, soft glows and a faint diagonal sheen. */
+/**
+ * The theme's wallpaper behind everything: gradient, soft glows and a faint diagonal sheen. Adaptive themes
+ * paint a gradient made from the photos on screen instead, which [ContributeScreenColor] feeds.
+ */
 @Composable
 fun GlassBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val theme = LocalGlassTheme.current
-    Box(modifier.drawBehind { drawWallpaper(theme) }, content = content)
+    val registry = remember { ScreenColors() }
+    CompositionLocalProvider(LocalScreenColors provides registry) {
+        val style = theme.adaptive
+        if (style != null) {
+            val colors = rememberAdaptiveColors(style)
+            Box(modifier.drawBehind { drawAdaptiveWallpaper(colors.map { it.value }, style) }, content = content)
+        } else {
+            Box(modifier.drawBehind { drawWallpaper(theme) }, content = content)
+        }
+    }
 }
 
 internal fun DrawScope.drawWallpaper(theme: GlassTheme) {

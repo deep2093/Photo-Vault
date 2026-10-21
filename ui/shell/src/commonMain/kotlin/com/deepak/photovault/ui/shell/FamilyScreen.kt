@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassCard
+import com.deepak.photovault.designsystem.GlassProgressBar
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.SectionHeader
 
@@ -53,6 +55,11 @@ fun FamilyScreen() {
         item {
             GlassCard(Modifier.cardWidth()) {
                 SectionHeader("People")
+                Text(
+                    "Each person gets $DEFAULT_STORAGE_LIMIT_GB GB on the drive. Change it per person in Settings.",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 SampleData.members.forEach { member -> MemberRow(member) }
                 Spacer(Modifier.padding(4.dp))
                 GlassButton("Add a family member", onClick = {}, icon = Icons.Rounded.PersonAdd)
@@ -93,6 +100,12 @@ private fun MemberRow(member: SampleMember) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text("Last backup ${member.lastBackup}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(6.dp))
+            GlassProgressBar(
+                member.usedGb / member.limitGb.toFloat(),
+                label = "${member.name}: ${member.usedGb} of ${member.limitGb} GB used",
+            )
+            Text("${member.usedGb} GB of ${member.limitGb} GB", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         }
         Icon(Icons.Rounded.Folder, contentDescription = "Own folder", tint = theme.onGlassSecondary)
     }

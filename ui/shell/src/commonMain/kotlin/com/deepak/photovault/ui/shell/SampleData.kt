@@ -21,7 +21,18 @@ data class SampleDay(val label: String, val photos: List<SamplePhoto>)
 
 data class SampleAlbum(val name: String, val count: Int, val shared: Boolean, val coverHues: List<Int>)
 
-data class SampleMember(val name: String, val isYou: Boolean, val photos: Int, val phones: List<String>, val lastBackup: String)
+data class SampleMember(
+    val name: String,
+    val isYou: Boolean,
+    val photos: Int,
+    val phones: List<String>,
+    val lastBackup: String,
+    val usedGb: Int,
+    val limitGb: Int = DEFAULT_STORAGE_LIMIT_GB,
+)
+
+/** Each person's space on the drive unless changed in Settings (agreed 22 Oct 2026). */
+const val DEFAULT_STORAGE_LIMIT_GB = 100
 
 data class SamplePhone(val name: String, val progress: Float, val detail: String)
 
@@ -62,9 +73,9 @@ object SampleData {
     )
 
     val members = listOf(
-        SampleMember("You", isYou = true, photos = 1_248, phones = listOf("Pixel phone", "Tablet"), lastBackup = "Today, 2:04 am"),
-        SampleMember("Alex", isYou = false, photos = 2_310, phones = listOf("Galaxy phone"), lastBackup = "Yesterday, 2:11 am"),
-        SampleMember("Sam", isYou = false, photos = 640, phones = listOf("Pixel phone"), lastBackup = "3 days ago"),
+        SampleMember("You", isYou = true, photos = 1_248, phones = listOf("Pixel phone", "Tablet"), lastBackup = "Today, 2:04 am", usedGb = 38),
+        SampleMember("Alex", isYou = false, photos = 2_310, phones = listOf("Galaxy phone"), lastBackup = "Yesterday, 2:11 am", usedGb = 71),
+        SampleMember("Sam", isYou = false, photos = 640, phones = listOf("Pixel phone"), lastBackup = "3 days ago", usedGb = 19),
     )
 
     val phones = listOf(

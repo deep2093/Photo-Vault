@@ -20,8 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.ZoomIn
-import androidx.compose.material.icons.rounded.ZoomOut
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +42,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.deepak.photovault.designsystem.AdaptiveLayout
 import com.deepak.photovault.designsystem.BackupStatus
+import com.deepak.photovault.designsystem.ContributeScreenColor
 import com.deepak.photovault.designsystem.GlassChip
 import com.deepak.photovault.designsystem.GlassIconButton
 import com.deepak.photovault.designsystem.LocalGlassTheme
@@ -57,17 +56,16 @@ fun PhotosScreen(state: ShellState) {
     var grouping by rememberSaveable { mutableStateOf(TimelineGrouping.DAY) }
     val waiting = SampleData.days.sumOf { day -> day.photos.count { it.status == BackupStatus.PHONE_ONLY } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val autoColumns = AdaptiveLayout.defaultColumns(maxWidth.value.toInt())
-        val columns = state.gridColumns ?: autoColumns
+        val width = maxWidth.value.toInt()
+        val maxColumns = AdaptiveLayout.maxColumns(width)
+        val columns = state.gridColumns?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
         val currentColumns by rememberUpdatedState(columns)
+        val currentMax by rememberUpdatedState(maxColumns)
         GlassScreen(
             title = "Photos",
             subtitle = "Synced safely · $waiting waiting to back up",
-            actions = {
-                GlassIconButton(Icons.Rounded.ZoomOut, "Smaller photos", onClick = { state.zoomGrid(-1, columns) })
-                GlassIconButton(Icons.Rounded.ZoomIn, "Larger photos", onClick = { state.zoomGrid(+1, columns) })
-                GlassIconButton(Icons.Rounded.Search, "Search", onClick = {})
-            },
+            // Pinch changes photo size; there are no zoom buttons (feedback 22 Oct).
+            actions = { GlassIconButton(Icons.Rounded.Search, "Search", onClick = {}) },
         ) { padding ->
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
@@ -76,7 +74,7 @@ fun PhotosScreen(state: ShellState) {
                 verticalArrangement = Arrangement.spacedBy(3.dp),
                 modifier = Modifier
                     .fillMaxSize()
-                    .pinchToZoom { zoomIn -> state.zoomGrid(if (zoomIn) +1 else -1, currentColumns) },
+                    .pinchToZoom { zoomIn -> state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax) },
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
@@ -128,6 +126,8 @@ private fun PhotoTile(photo: SamplePhoto) {
     val hues = theme.sampleHues
     val a = hues[photo.hue % hues.size]
     val b = hues[(photo.hue + 2) % hues.size]
+    // Adaptive themes colour the wallpaper from the photos on screen.
+    ContributeScreenColor(lerp(a, b, photo.shade))
     val description = buildString {
         append(if (photo.isVideo) "Video" else "Photo")
         append(", ").append(photo.status.description)
