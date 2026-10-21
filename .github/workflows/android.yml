@@ -27,10 +27,20 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
       - name: Verify preview keystore loads
         run: keytool -list -keystore .ci/preview-signing.p12 -storetype PKCS12 -storepass android
-      - name: Unit tests (all modules)
-        run: ./gradlew testDebugUnitTest --stacktrace
+      - name: Unit tests (all modules, Android and PC targets)
+        run: |
+          if ! ./gradlew testDebugUnitTest desktopTest --stacktrace > unit-tests.log 2>&1; then
+            grep -E '^e: |FAILED|AssertionError|What went wrong' -A2 unit-tests.log | grep -v '^--$' | head -40 | sed -e 's#/home/runner/work/[^/]*/[^/]*/##' | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -40 unit-tests.log
+            exit 1
+          fi
       - name: Android lint
-        run: ./gradlew lintDebug --stacktrace
+        run: |
+          if ! ./gradlew lintDebug --stacktrace > lint.log 2>&1; then
+            { grep -hE ': Error: ' $(find . -path '*lint*' -name '*.txt' 2>/dev/null) 2>/dev/null; grep -E '^e: |What went wrong' -A2 lint.log; } | grep -v '^--$' | head -40 | sed -e 's#/home/runner/work/[^/]*/[^/]*/##' | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -40 lint.log
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -40,7 +50,12 @@ jobs:
             **/build/test-results/
             **/build/reports/lint-results-debug.*
       - name: Build preview APKs
-        run: ./gradlew :app:assembleDebug --stacktrace
+        run: |
+          if ! ./gradlew :app:assembleDebug --stacktrace > debug.log 2>&1; then
+            grep -E '^e: |ERROR|What went wrong' -A2 debug.log | grep -v '^--$' | head -40 | sed -e 's#/home/runner/work/[^/]*/[^/]*/##' | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -40 debug.log
+            exit 1
+          fi
       - name: Build release (shrinker check, unsigned unless a release key is configured)
         run: |
           if ! ./gradlew :app:assembleRelease --stacktrace > release.log 2>&1; then
@@ -60,4 +75,31 @@ jobs:
           # The one to install on phones and tablets.
           name: PhotoVault-preview-arm64-apk
           path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+          if-no-files-found: error
+
+  # The same screens as a Windows PC app. Proves the shared code builds for the PC port.
+  windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build Windows app (ready-to-run folder with its own Java runtime)
+        shell: bash
+        run: |
+          if ! ./gradlew :desktop:createDistributable --stacktrace > desktop.log 2>&1; then
+            grep -E '^e: |ERROR|What went wrong' -A2 desktop.log | grep -v '^--$' | head -40 | while IFS= read -r line; do echo "::error::${line}"; done
+            tail -40 desktop.log
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          # Unzip and run PhotoVault.exe. Not signed, so Windows SmartScreen may ask once.
+          name: PhotoVault-windows
+          path: desktop/build/compose/binaries/main/app/PhotoVault/
           if-no-files-found: error

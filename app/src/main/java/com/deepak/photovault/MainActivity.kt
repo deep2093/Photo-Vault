@@ -1,48 +1,94 @@
 package com.deepak.photovault
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Color
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import com.deepak.photovault.ui.shell.AppearanceSettings
+import com.deepak.photovault.ui.shell.AppearanceStore
+import com.deepak.photovault.ui.shell.PhotoVaultApp
+import com.deepak.photovault.ui.shell.PlatformSignals
+import com.deepak.photovault.ui.shell.ShellState
 
-/**
- * Phase 0 shell: proves the app and the ported core modules build and install.
- * The Liquid Glass design system and real screens arrive in Phase 1.
- */
+/** Android host for the shared PhotoVault shell (the same screens run in the PC app). */
 class MainActivity : ComponentActivity() {
+    private var signals by mutableStateOf(PlatformSignals())
+
+    private val powerSaveReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = refreshSignals()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        val state = ShellState(PrefsAppearanceStore(this))
+        refreshSignals()
         setContent {
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
-                Surface(Modifier.fillMaxSize()) { FoundationScreen() }
+            val dark = state.theme.isDark
+            // Status and navigation bar icons follow the PhotoVault theme, not the system theme.
+            LaunchedEffect(dark) {
+                val transparent = Color.TRANSPARENT
+                val style = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
+            PhotoVaultApp(state, signals)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        ContextCompat.registerReceiver(
+            this,
+            powerSaveReceiver,
+            IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        // "Remove animations" has no broadcast; re-read it whenever the app comes back.
+        refreshSignals()
+    }
+
+    override fun onStop() {
+        unregisterReceiver(powerSaveReceiver)
+        super.onStop()
+    }
+
+    private fun refreshSignals() {
+        val power = getSystemService(PowerManager::class.java)
+        val animatorScale = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        signals = PlatformSignals(
+            powerSaveMode = power?.isPowerSaveMode == true,
+            systemReduceMotion = animatorScale == 0f,
+        )
     }
 }
 
-@Composable
-private fun FoundationScreen() {
-    Column(
-        modifier = Modifier.safeDrawingPadding().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
-        Text(stringResource(R.string.foundation_message), style = MaterialTheme.typography.bodyLarge)
+/** Appearance choices in SharedPreferences. Not secret, so no encryption. */
+private class PrefsAppearanceStore(context: Context) : AppearanceStore {
+    private val prefs = context.applicationContext.getSharedPreferences("appearance", Context.MODE_PRIVATE)
+
+    override fun load() = AppearanceSettings(
+        themeId = prefs.getString("theme", null) ?: AppearanceSettings().themeId,
+        blurOn = prefs.getBoolean("blur", true),
+        reduceMotion = prefs.getBoolean("reduce_motion", false),
+    )
+
+    override fun save(settings: AppearanceSettings) {
+        prefs.edit()
+            .putString("theme", settings.themeId)
+            .putBoolean("blur", settings.blurOn)
+            .putBoolean("reduce_motion", settings.reduceMotion)
+            .apply()
     }
 }

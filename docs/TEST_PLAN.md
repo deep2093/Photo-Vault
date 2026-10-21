@@ -10,6 +10,8 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 | `:core:security` | `PathRulesTest`: root normalisation, rejects `..`, `.`, empty segments | Per-user path containment (Phase 4) |
 | `:core:smb` | `SmbErrorsTest`: transient vs permanent, no secrets in messages; `SmbProfileTest`: password never in `toString()` | Publish-without-overwrite, temp naming (Phase 5) |
 | `:core:vpn` | `ConfigTextTest`: app-only rewrite (from Veyra) | Hold/back-off policy (Phase 7) |
+| `:core:designsystem` (Android + PC) | Phase 1: `ThemeContrastTest` (every text colour ≥ 4.5:1 on its worst glass background, accent ≥ 3:1, badges, blur tint strength), `ThemeCatalogTest`, `AdaptiveLayoutTest` | |
+| `:ui:shell` (Android + PC) | Phase 1: `ShellStateTest` (battery saver turns blur off, reduce motion, settings saved, grid zoom limits, agreed warning text) | |
 
 ## Device and integration tests (from the phase that needs them)
 
@@ -26,6 +28,6 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 
 ## CI
 
-Unit tests and lint for every module, debug (preview-signed) and release (shrinker) builds,
-arm64 preview APK as an artifact. Emulator tests with a throwaway SMB share are added in Phase 3,
+Unit tests (Android and PC targets) and lint for every module, debug (preview-signed) and release
+(shrinker) builds, arm64 preview APK as an artifact, and a Windows build of the PC app. Emulator tests with a throwaway SMB share are added in Phase 3,
 reusing Veyra's `tools/start_test_share.sh` approach.
