@@ -200,6 +200,7 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 item(key = "query", span = { GridItemSpan(maxLineSpan) }) {
                     androidx.compose.foundation.layout.Row(
                         Modifier
+                            .padding(horizontal = SCREEN_MARGIN)
                             .fillMaxWidth()
                             .heightIn(min = 52.dp)
                             .glassPanel(RoundedCornerShape(26.dp))

@@ -134,14 +134,14 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             sections = sections,
                             state = state,
                             gallery = gallery,
-                            contentPadding = padding,
+                            screenPadding = padding,
                             onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
                             jumpTo = gallery.jumpTo,
                             onJumped = { gallery.jumpTo = null },
                             onZoomOutPastMax = { gallery.view = LibraryView.MONTHS },
                             header = {
                                 item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
-                                    androidx.compose.foundation.layout.Column {
+                                    androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = SCREEN_MARGIN)) {
                                         if (gallery.access == MediaAccess.PARTIAL) {
                                             WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
                                             GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))

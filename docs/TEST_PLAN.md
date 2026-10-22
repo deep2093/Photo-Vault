@@ -145,6 +145,9 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Settings > Storage: Phone / Drive; usage bar, file-type ring, by-year bars, biggest albums.
 - Small vibration on buttons, switches, chips, tabs, pinch steps and the time wheels.
 - Schedule weekly: several days can be picked.
+- Photos, albums and search (23 Oct): photos run edge to edge with thin gaps and square corners; dates, the
+  search box and notes keep their margin; the slider floats over the photos and still drags; slide-select picks
+  the right photo, including in the first and last columns.
 
 ## Device and integration tests (from the phase that needs them)
 

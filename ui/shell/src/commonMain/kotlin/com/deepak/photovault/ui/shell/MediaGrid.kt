@@ -106,7 +106,7 @@ fun MediaGrid(
     sections: List<TimelineSection>,
     state: ShellState,
     gallery: GalleryState,
-    contentPadding: PaddingValues,
+    screenPadding: PaddingValues,
     onOpen: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
     tileLabel: TileLabel? = null,
@@ -118,6 +118,14 @@ fun MediaGrid(
     /** Pinching out past the smallest photos (Photos: goes to Months). */
     onZoomOutPastMax: (() -> Unit)? = null,
 ) {
+    // Photos run edge to edge like Samsung Gallery (23 Oct): only the system's own side insets stay
+    // (landscape cut-outs); headers and controls keep the screen margin themselves.
+    val contentPadding = PaddingValues(
+        start = (screenPadding.calculateStartPadding(LayoutDirection.Ltr) - SCREEN_MARGIN).coerceAtLeast(0.dp),
+        end = (screenPadding.calculateEndPadding(LayoutDirection.Ltr) - SCREEN_MARGIN).coerceAtLeast(0.dp),
+        top = screenPadding.calculateTopPadding(),
+        bottom = screenPadding.calculateBottomPadding(),
+    )
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth.value.toInt()
         val maxColumns = AdaptiveLayout.maxColumns(width)
@@ -238,7 +246,7 @@ fun MediaGrid(
             header?.invoke(this)
             sections.forEach { section ->
                 item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                    SectionHeader(section.label, Modifier.padding(start = 4.dp, top = 12.dp))
+                    SectionHeader(section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp))
                 }
                 items(section.items, key = { it.id }, contentType = { "tile" }) { item ->
                     PhotoTile(
@@ -268,7 +276,8 @@ fun MediaGrid(
     }
 }
 
-private val GRID_SPACING = 3.dp
+/** Thin gaps between photos, as in Samsung Gallery (was 3 dp). */
+private val GRID_SPACING = 1.5.dp
 
 /**
  * A slider on the right edge for moving quickly through a big library (feedback 22 Oct). Hidden until the
@@ -354,7 +363,7 @@ private fun FastScroller(
                         .padding(top = thumbY, end = 4.dp)
                         .size(width = 8.dp, height = thumbHeight)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (dragging) theme.accent else theme.onGlass.copy(alpha = 0.55f)),
+                        .background(if (dragging) theme.accent else theme.accent.copy(alpha = 0.8f)),
                 )
                 if (dragging && label.isNotEmpty()) {
                     Text(
@@ -405,7 +414,7 @@ private fun PhotoTile(
     Box(
         modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(6.dp))
+            // Square tiles: rounded corners look odd with hairline gaps (23 Oct).
             .background(theme.onGlass.copy(alpha = 0.08f))
             .semantics {
                 // Touch is handled by the grid (tap, long-press, slide-select); TalkBack uses these actions.

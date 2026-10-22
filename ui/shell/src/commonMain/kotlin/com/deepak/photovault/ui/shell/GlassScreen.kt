@@ -117,8 +117,8 @@ fun GlassScreen(
         // The pill and the bar take the same room, so starting a selection on Photos doesn't shift the grid.
         val barRoom = if (title != null || floatingActions != null || floatingStartActions != null) TopBarHeight + 20.dp else 12.dp
         val contentPadding = PaddingValues(
-            start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
-            end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
+            start = insets.calculateStartPadding(LayoutDirection.Ltr) + SCREEN_MARGIN,
+            end = insets.calculateEndPadding(LayoutDirection.Ltr) + SCREEN_MARGIN,
             top = insets.calculateTopPadding() + barRoom,
             bottom = insets.calculateBottomPadding() + 24.dp,
         )
@@ -279,3 +279,6 @@ fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = n
 internal val CardMaxWidth = 720.dp
 
 internal fun Modifier.cardWidth(): Modifier = this.widthIn(max = CardMaxWidth).fillMaxWidth()
+
+/** Side margin of screen content. The photo grid ignores it and runs edge to edge. */
+internal val SCREEN_MARGIN = 12.dp
