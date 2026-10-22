@@ -51,6 +51,7 @@ Phase 0 creates the first four. The rest are added by the phase that needs them,
 | `:core:database` | 4 | Room: backup jobs, manifests cache, drive index, audit. Not needed in Phase 2: MediaStore is already an index, read directly |
 | `:data:remote` | 5 | Remote index and thumbnail cache over `:core:smb` |
 | `:core:household` | 3 | **Shared.** The family on the drive: versioned household files, join requests, owner PIN, space limits, per-person folders (HOUSEHOLD_PROTOCOL.md) |
+| `:core:backup` | 4 | **Shared.** Verified backup: stream, read back, compare SHA-256, publish without replacing, manifests; schedule maths, retry rule, restore (BACKUP_PROTOCOL.md). Android parts (MediaStore reading, WorkManager, notifications) live in `app/.../backup` |
 | `:data:backup`, `:feature:backup` | 4 | Backup engine, schedule, space limits, restore, dashboard |
 | `:feature:cleanup` | 6 | Retention, re-verification, delete consent |
 | `:feature:places` | 7 | Location index, map, Places album |

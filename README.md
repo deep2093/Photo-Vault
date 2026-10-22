@@ -1,11 +1,14 @@
-# PhotoVault
+# Pixallery (code name PhotoVault)
 
 An Android 11+ photo and video gallery that backs up each family member's phone into their own folder
 on one shared SMB drive (for example a USB drive on the home router). Built on the SMB and WireGuard
 code from Veyra (`deep2093/SmbVideoPlayer`).
 
-**Status: Phase 3 (drive and family).** Connect the shared drive, set up the family (owner PIN, approving new
-phones, space per person), on top of the Phase 2 gallery. The backup itself arrives in Phase 4. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phase 4 (verified backup), built and waiting for testing.** Each phone backs up into its person's folder:
+every file is read back and checked before it counts, nothing on the drive is ever overwritten, scheduled
+backups (Sunday 2 am by default) wait for Wi-Fi and a charger, and backed-up photos can be restored.
+The app was renamed Pixallery on 24 Oct 2026; the repository, package and code keep the PhotoVault name for now.
+See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/BACKUP_PROTOCOL.md](docs/BACKUP_PROTOCOL.md).
 
 ## Layout
 
@@ -16,7 +19,8 @@ phones, space per person), on top of the Phase 2 gallery. The backup itself arri
 | `core/designsystem/` | Shared: Liquid Glass components and themes |
 | `core/media/` | Shared: photo model, timeline, search, albums; Android MediaStore source |
 | `core/drive/` | Shared: drive file access the app needs (create without overwriting) |
-| `core/household/` | Shared: the family on the drive, owner PIN, space limits |
+| `core/household/` | Shared: the family on the drive, owner PIN, space limits, profile pictures |
+| `core/backup/` | Shared: verified backup engine, schedule, restore |
 | `ui/shell/` | Shared: navigation and screens |
 | `core/security/` | Keystore encryption helper, drive credential store, path rules |
 | `core/smb/` | SMB2/3 connection, error messages, LAN discovery (from Veyra) |

@@ -54,6 +54,43 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 - No top bars on Photos, Albums, Backup, Family, Settings. Photos: floating pill (cloud opens Backup, search,
   ⋮ shows counts and Day / Month / Year). Selecting photos shows the selection bar without the grid jumping.
 
+## Phase 4 device checks: backup and the 24 Oct fixes
+
+Backup (Wi-Fi at home, drive connected, family joined):
+- Backup shows "x of y checked and saved". Back up now: progress, the file name, Stop works; History gets a line.
+- Default folders: only Camera. Choose folders adds WhatsApp Images; numbers change. Videos switch off by default.
+- On the drive: users/<id>/originals/2026/10/IMG_....jpg, a manifests/<phone id>/m-...json, nothing left in .incoming.
+- Copy a photo with the same name but different content into that folder from a PC first: the backup saves
+  "name (2).jpg" and the PC file is unchanged.
+- Turn the router off mid-backup: "Couldn't reach the drive"; turn it on, Back up now continues without duplicates.
+- Set your space to 1 GB: backup stops with "Your space on the drive is full".
+- Change the drive password on the router: "The drive refused the password".
+- Schedule: set Daily a few minutes ahead with Only while charging on and the phone unplugged: nothing happens;
+  plug in: it starts. Weekly Sunday 2:00 am is the default on a new install.
+- Scheduled failure (router off at the time): one retry an hour later, then the "Backup didn't finish"
+  notification with the reason; tapping it opens Backup.
+- Use mobile data asks first. On mobile data with it off, Back up now says it will wait for Wi-Fi.
+- Storage saver on: a 50 MP or 200 MP photo arrives much smaller, rotated correctly, with date and location.
+- Your phones: each of your phones with its last backup time. Restore: delete a backed-up photo on the phone,
+  Check the drive shows 1, Restore brings it back into "Pixallery Restored"; checking again shows 0.
+- Reinstall the app (or a second phone of the same person): the first backup uploads nothing already there.
+
+24 Oct fixes:
+- Home screen name "Pixallery" (preview build "Pixallery Preview"); no "Veyra" or "PhotoVault" text in the app
+  (the drive folder default stays "PhotoVault" so existing families still match).
+- Opening animation: on a fresh start the icon's pieces spiral in and join (about a second), matching the chosen
+  icon; not when returning from the background; none with reduce motion.
+- Photos: no cloud icon; Day / Month / Year pill at the top left; scrolling down hides both pills and the
+  bottom bar, scrolling up / tapping Photos / selecting brings them back. Same for Albums (bar only).
+- A new install starts on Transparent; someone who picked a theme keeps it.
+- Family > People: tidy rows, "Counting..." while measuring, real phone name (e.g. Galaxy S26 Ultra), Change
+  space on its own line, profile pictures (own without PIN; owner sets anyone's with the PIN).
+- Owner phone: a dot on Family while a phone waits to join; it goes once approved or declined.
+- Joining with a different folder name: "No family found in this folder" with the folder names, before Create.
+- Settings > Drive shows the shared folder and the Pixallery folder on separate lines. Drive setup: Need help tips.
+- Tablet: compact see-through side menu labelled Pixallery; Settings > Appearance > Menu at the bottom moves it
+  to a floating bottom bar (that tablet only).
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)
