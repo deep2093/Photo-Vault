@@ -9,6 +9,8 @@ Status: **plan only, nothing built.** Deepak's answers (24 Oct):
 - Phone navigation: **Photos | Collections | Backup | Family**, with Settings behind a button.
 - Themes: add **Follow system** (a chosen light and dark theme that switch with the phone's dark mode).
 - Timing: **wait**. Test Phase 4 first, then decide when to build.
+- Built early on request (24 Oct): Years / Months / All with tap-through, pinch between levels and the zoom
+  animation. The rest of Milestone A (aspect ratio, filter & sort, view options, badges) still waits.
 
 ## How Apple's Library works (what we learn from it)
 

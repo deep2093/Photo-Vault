@@ -111,6 +111,11 @@ fun MediaGrid(
     tileLabel: TileLabel? = null,
     header: (LazyGridScope.() -> Unit)? = null,
     headerItems: Int = if (header != null) 1 else 0,
+    /** A section key to scroll to (coming from a month card); [onJumped] clears it once done. */
+    jumpTo: String? = null,
+    onJumped: () -> Unit = {},
+    /** Pinching out past the smallest photos (Photos: goes to Months). */
+    onZoomOutPastMax: (() -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth.value.toInt()
@@ -121,6 +126,19 @@ fun MediaGrid(
         val tileDp = maxWidth / columns
         val gridState = rememberLazyGridState()
         ScrollToTopEffect(gridState)
+        LaunchedEffect(jumpTo, sections) {
+            val key = jumpTo ?: return@LaunchedEffect
+            var index = headerItems
+            for (section in sections) {
+                if (section.key == key) {
+                    gridState.scrollToItem(index)
+                    break
+                }
+                index += 1 + section.items.size
+            }
+            onJumped()
+        }
+        val currentZoomOut by rememberUpdatedState(onZoomOutPastMax)
         val reduceMotion = LocalGlassSettings.current.reduceMotion
         val density = LocalDensity.current
         val haptics = LocalHapticFeedback.current
@@ -211,7 +229,10 @@ fun MediaGrid(
             modifier = Modifier
                 .fillMaxSize()
                 .photoGridGestures(gridState, handler)
-                .pinchToZoom { zoomIn -> state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax) },
+                .pinchToZoom { zoomIn ->
+                    val past = currentZoomOut
+                    if (!zoomIn && currentColumns >= currentMax && past != null) past() else state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax)
+                },
         ) {
             header?.invoke(this)
             sections.forEach { section ->

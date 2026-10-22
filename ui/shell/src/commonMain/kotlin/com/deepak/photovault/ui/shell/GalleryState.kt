@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.deepak.photovault.core.media.FavouritesStore
 import com.deepak.photovault.core.media.MediaAccess
+import com.deepak.photovault.core.media.LibraryView
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.MediaDetailsSource
 import com.deepak.photovault.core.media.MediaLibrary
@@ -70,7 +71,11 @@ class GalleryState(
 ) {
     var access by mutableStateOf(MediaAccess.NONE)
 
-    var grouping by mutableStateOf(TimelineGrouping.DAY)
+    /** Years, Months or All on Photos (24 Oct; replaced Day / Month / Year headings). */
+    var view by mutableStateOf(LibraryView.ALL)
+
+    /** A day section for All to scroll to once it shows (after tapping a month card). */
+    var jumpTo by mutableStateOf<String?>(null)
 
     var items by mutableStateOf<List<MediaItem>>(emptyList())
         private set

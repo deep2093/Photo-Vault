@@ -40,6 +40,18 @@ import com.deepak.photovault.core.media.MediaAccess
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.core.media.TimelineGrouping
+import com.deepak.photovault.core.media.LibraryLevels
+import com.deepak.photovault.core.media.LibraryView
+import com.deepak.photovault.core.media.MonthSummary
+import com.deepak.photovault.designsystem.motionSpec
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassChip
 import com.deepak.photovault.designsystem.GlassIconButton
@@ -48,22 +60,38 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 
 /**
- * The photo timeline. No top bar (feedback 23 Oct): a small glass pill floats at the top right, as in Samsung
- * Gallery, with search and a menu; Day / Month / Year sit in their own pill at the top left (24 Oct). The
- * backup cloud was removed (Backup is in the navigation bar). Pinch still changes the size.
+ * The photo timeline. No top bar (feedback 23 Oct): small glass pills float at the top, as in Samsung Gallery.
+ *
+ * Years / Months / All (24 Oct, after the Apple Photos video): Years shows a card per year, Months a card per
+ * month, All every photo by day. Tapping a year opens its months; tapping a month opens All at that month.
+ * Pinching moves between them too (spread to go in, pinch to come out), and the change animates as a zoom.
  */
 @Composable
 fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState) {
     val zone = remember { TimeZone.currentSystemDefault() }
     val today = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
-    val sections = remember(gallery.items, gallery.grouping, today) { Timeline.group(gallery.items, gallery.grouping, zone, today) }
+    val sections = remember(gallery.items, today) { Timeline.group(gallery.items, TimelineGrouping.DAY, zone, today) }
+    val months = remember(gallery.items) { LibraryLevels.months(gallery.items, zone) }
+    val years = remember(gallery.items, today) { LibraryLevels.years(gallery.items, zone, today) }
+    // Kept here, so going Years -> Months -> back to Years returns to the same place.
+    val yearsGrid = rememberLazyGridState()
+    val monthsGrid = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
+    fun openYear(year: Int) {
+        gallery.view = LibraryView.MONTHS
+        scope.launch { monthsGrid.scrollToItem(LibraryLevels.firstMonthOf(year, months)) }
+    }
+    fun openMonth(month: MonthSummary) {
+        gallery.jumpTo = month.firstDayKey
+        gallery.view = LibraryView.ALL
+    }
     SelectableScreen(
         title = null,
         subtitle = null,
         state = state,
         gallery = gallery,
         actions = actions,
-        floatingStartActions = { GroupingButtons(gallery) },
+        floatingStartActions = { ViewButtons(gallery) },
         floatingActions = {
             GlassIconButton(Icons.Rounded.Search, "Search", onClick = { state.open(Overlay.Search) })
             PhotosMenu(gallery)
@@ -72,7 +100,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         when {
             gallery.access == MediaAccess.NONE -> EmptyState(
                 title = "See your photos here",
-                body = "Pixallery needs access to your photos and videos to show them and, later, back them up. " +
+                body = "Pixallery needs access to your photos and videos to show them and back them up. " +
                     "They stay on your phone and your own drive.",
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
@@ -80,53 +108,81 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 title = "No photos yet",
                 body = "Photos and videos you take will appear here.",
             )
-            else -> MediaGrid(
-                sections = sections,
-                state = state,
-                gallery = gallery,
-                contentPadding = padding,
-                onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
-                header = {
-                    item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
-                        androidx.compose.foundation.layout.Column {
-                            if (gallery.access == MediaAccess.PARTIAL) {
-                                WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
-                                GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
+            else -> {
+                val spec = motionSpec<Float>(LEVEL_MS)
+                androidx.compose.animation.AnimatedContent(
+                    targetState = gallery.view,
+                    transitionSpec = {
+                        // Going in (Years -> Months -> All) zooms in; coming out zooms out.
+                        val deeper = targetState.ordinal > initialState.ordinal
+                        (fadeIn(spec) + scaleIn(spec, initialScale = if (deeper) 0.92f else 1.08f)) togetherWith
+                            (fadeOut(spec) + scaleOut(spec, targetScale = if (deeper) 1.08f else 0.92f))
+                    },
+                    label = "library level",
+                ) { view ->
+                    when (view) {
+                        LibraryView.YEARS -> YearsGrid(years, yearsGrid, padding, onOpen = { openYear(it.year) }) { zoomIn ->
+                            if (zoomIn) gallery.view = LibraryView.MONTHS
+                        }
+                        LibraryView.MONTHS -> MonthsGrid(months, monthsGrid, padding, onOpen = ::openMonth) { zoomIn ->
+                            if (zoomIn) {
+                                months.getOrNull(monthsGrid.firstVisibleItemIndex)?.let(::openMonth) ?: run { gallery.view = LibraryView.ALL }
+                            } else {
+                                gallery.view = LibraryView.YEARS
                             }
                         }
+                        LibraryView.ALL -> MediaGrid(
+                            sections = sections,
+                            state = state,
+                            gallery = gallery,
+                            contentPadding = padding,
+                            onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
+                            jumpTo = gallery.jumpTo,
+                            onJumped = { gallery.jumpTo = null },
+                            onZoomOutPastMax = { gallery.view = LibraryView.MONTHS },
+                            header = {
+                                item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
+                                    androidx.compose.foundation.layout.Column {
+                                        if (gallery.access == MediaAccess.PARTIAL) {
+                                            WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
+                                            GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
+                                        }
+                                    }
+                                }
+                            },
+                        )
                     }
-                },
-            )
+                }
+            }
         }
     }
 }
 
-/**
- * Day / Month / Year as three small buttons in their own pill at the top left (24 Oct), opposite search and the
- * menu. The chosen one is filled.
- */
+private const val LEVEL_MS = 300
+
+/** Years / Months / All as three small buttons in their own pill at the top left. The chosen one is filled. */
 @Composable
-private fun GroupingButtons(gallery: GalleryState) {
+private fun ViewButtons(gallery: GalleryState) {
     val theme = LocalGlassTheme.current
     Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        listOf(TimelineGrouping.DAY to "Day", TimelineGrouping.MONTH to "Month", TimelineGrouping.YEAR to "Year").forEach { (option, label) ->
-            val selected = gallery.grouping == option
+        LibraryView.entries.forEach { option ->
+            val selected = gallery.view == option
             val background by androidx.compose.animation.animateColorAsState(
                 if (selected) theme.accent else androidx.compose.ui.graphics.Color.Transparent,
-                com.deepak.photovault.designsystem.motionSpec(),
-                label = "grouping",
+                motionSpec(),
+                label = "view",
             )
             Box(
                 Modifier
                     .heightIn(min = 40.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(background)
-                    .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.grouping = option })
+                    .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.view = option })
                     .padding(horizontal = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    label,
+                    option.label,
                     color = if (selected) theme.onAccent else theme.onGlass,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,

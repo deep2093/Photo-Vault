@@ -130,3 +130,45 @@ class MainColorTest {
         assertEquals(paleBlue, MainColor.pick(intArrayOf(nearBlackRed, paleBlue)))
     }
 }
+
+class LibraryLevelsTest {
+    private val items = listOf(
+        item(1, at(2026, 10, 22, 9)),
+        item(2, at(2026, 10, 3)),
+        item(3, at(2026, 9, 1), video = true),
+        item(4, at(2025, 10, 20)),
+        item(5, at(2025, 2, 1)),
+        item(6, at(2024, 6, 6), video = true),
+    )
+
+    @Test
+    fun monthsNewestFirstWithCountsCoversAndTheirFirstDay() {
+        val months = LibraryLevels.months(items, zone)
+        assertEquals(listOf("October 2026", "September 2026", "October 2025", "February 2025", "June 2024"), months.map { it.label })
+        assertEquals(2, months[0].count)
+        assertEquals(listOf(1L, 2L), months[0].covers.map { it.id })
+        assertEquals("2026-10-22", months[0].firstDayKey)
+        // A month of only videos still gets a cover.
+        assertEquals(listOf(3L), months[1].covers.map { it.id })
+        assertEquals(2, LibraryLevels.firstMonthOf(2025, months))
+    }
+
+    @Test
+    fun yearsShowThePhotoClosestToTodaysDate() {
+        val years = LibraryLevels.years(items, zone, today)
+        assertEquals(listOf(2026, 2025, 2024), years.map { it.year })
+        assertEquals(1L, years[0].cover.id)
+        assertEquals(4L, years[1].cover.id) // 20 Oct beats 1 Feb for "around 22 October"
+        assertEquals(6L, years[2].cover.id) // only a video that year
+        assertEquals(2, years[1].months)
+    }
+
+    @Test
+    fun spreadPicksFromAcrossTheMonth() {
+        val many = (1L..40L).map { item(it, at(2026, 10, 1) + it) }
+        val picked = LibraryLevels.spread(many, 4)
+        assertEquals(4, picked.size)
+        assertEquals(many.first(), picked.first())
+        assertEquals(many.last(), picked.last())
+    }
+}

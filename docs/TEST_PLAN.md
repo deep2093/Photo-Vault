@@ -104,6 +104,10 @@ Backup (Wi-Fi at home, drive connected, family joined):
   in the circle before saving. Buttons never wrap.
 - Family settings (PIN, approving phones, space for new members) are in Family, owner only, and no longer in
   Settings. Drive space card only for the owner.
+- Photos: Years / Months / All pill. Years: a big card per year (photo from around today's date that year).
+  Tap a year → its months; tap a month → All at that month. Spread two fingers to go in, pinch to come out
+  (All at the smallest photos → Months → Years). Each change zooms; instant with reduce motion. Years ← Months
+  keeps its place.
 
 ## Device and integration tests (from the phase that needs them)
 
