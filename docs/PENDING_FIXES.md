@@ -67,4 +67,7 @@ bar option on tablets only; short setup tips now; videos off by default).
       the plain icon for a moment first). Respects reduce motion (no animation). Decided 24 Oct: about 1 second;
       plays only on a fresh start (not when coming back from the background); no tap to skip.
 
+- [ ] Album cover (asked 24 Oct, next build): on an album, "Choose cover" lets you pick 1 to 4 photos from it. One
+      photo fills the card; 2 to 4 make a small mosaic. Saved on this phone; "Use newest" goes back to automatic.
+
 (More bugs from testing go here.)
