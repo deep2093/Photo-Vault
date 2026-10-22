@@ -55,11 +55,14 @@ object DetailsFormat {
         return when {
             m.isEmpty() && k.isEmpty() -> null
             m.isEmpty() -> k
-            // Many phones already start the model with the make ("Galaxy S26 Ultra" vs "samsung").
-            k.isEmpty() || m.lowercase().startsWith(k.lowercase()) || k.equals("samsung", ignoreCase = true) -> m
+            // Phones name themselves by model ("Galaxy S26 Ultra", "Pixel 9", "iPhone 16"), and some cameras
+            // already start the model with the make ("Canon EOS R6").
+            k.isEmpty() || m.lowercase().startsWith(k.lowercase()) || k.lowercase() in PHONE_MAKES -> m
             else -> "${k.replaceFirstChar { it.uppercase() }} $m"
         }
     }
+
+    private val PHONE_MAKES = setOf("samsung", "google", "apple")
 
     /** "Ultra wide-angle lens", "Wide-angle lens", "Telephoto lens" from the 35 mm focal length. */
     fun lensKind(focal35: Int?): String? = when {
