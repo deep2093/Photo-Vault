@@ -50,4 +50,9 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
 - [ ] In-app "How to set this up" guide (Phase 13, see ROADMAP.md): drive, WireGuard on the router, importing the config,
       adding family. Reachable from the drive setup screen.
 
+- [ ] Plan change (24 Oct): Remote access (old Phase 9) and Invites are merged into Phase 5 so 1-2 other people can
+      join and see the library sooner. WireGuard rules: connects only while the app is on screen; disconnects as soon
+      as the app is minimised, left or closed; Settings options "Use VPN for this app only" and "Connect
+      automatically". Open question: away-from-home scheduled backup cannot run in the background under this rule.
+
 (More bugs from testing go here.)
