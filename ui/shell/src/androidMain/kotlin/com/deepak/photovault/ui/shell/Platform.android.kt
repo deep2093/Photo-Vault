@@ -31,6 +31,8 @@ import com.deepak.photovault.core.media.Thumb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+// setShutterBackgroundColor is marked unstable in Media3; it is the documented way to avoid the black flash.
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @Composable
 actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier) {
     val context = LocalContext.current
