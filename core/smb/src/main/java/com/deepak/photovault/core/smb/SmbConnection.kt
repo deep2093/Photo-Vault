@@ -202,6 +202,109 @@ class SmbConnection(private val profile: SmbProfile) : Closeable {
         }
     }
 
+    // ---- PhotoVault writes (Phase 3). Each one stays inside safePath and never replaces an existing file. ----
+
+    /** Creates [path] and missing parents. */
+    fun mkdirs(path: String) {
+        val disk = share ?: throw IOException("Not connected")
+        val parts = path.replace('\\', '/').trim('/').split('/').filter { it.isNotEmpty() }
+        var current = ""
+        for (part in parts) {
+            current = if (current.isEmpty()) part else "$current/$part"
+            val p = safePath(current)
+            if (!disk.folderExists(p)) {
+                try {
+                    disk.mkdir(p)
+                } catch (e: SMBApiException) {
+                    // Another phone may have created it a moment ago.
+                    if (e.status != NtStatus.STATUS_OBJECT_NAME_COLLISION) throw e
+                }
+            }
+        }
+    }
+
+    /** Reads a whole small file. Refuses anything over [limit] bytes. */
+    fun readBytes(path: String, limit: Int = 4 * 1024 * 1024): ByteArray = openFile(safePath(path).replace('\\', '/')).use { file ->
+        file.inputStream.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                if (out.size() + n > limit) throw IOException("File too large")
+                out.write(buffer, 0, n)
+            }
+            out.toByteArray()
+        }
+    }
+
+    /**
+     * Atomic create-new: writes a private temporary file, then renames it into place without replacing.
+     * Returns false when [path] already exists. Readers never see a half-written file.
+     */
+    fun createNewFile(path: String, bytes: ByteArray): Boolean {
+        val disk = share ?: throw IOException("Not connected")
+        val target = safePath(path)
+        if (disk.fileExists(target) || disk.folderExists(target)) return false
+        val parent = path.replace('\\', '/').trim('/').substringBeforeLast('/', "")
+        val temp = listOf(parent, ".pv-tmp-" + java.util.UUID.randomUUID()).filter { it.isNotEmpty() }.joinToString("/")
+        disk.openFile(
+            safePath(temp),
+            EnumSet.of(AccessMask.GENERIC_WRITE),
+            null,
+            SMB2ShareAccess.ALL,
+            SMB2CreateDisposition.FILE_CREATE,
+            null,
+        ).use { file -> file.outputStream.use { it.write(bytes); it.flush() } }
+        return try {
+            renamePath(temp, path)
+            true
+        } catch (e: IllegalArgumentException) {
+            if (e.message != "Destination already exists") throw e
+            false
+        } catch (e: SMBApiException) {
+            if (e.status != NtStatus.STATUS_OBJECT_NAME_COLLISION) throw e
+            false
+        } finally {
+            runCatching { if (disk.fileExists(safePath(temp))) disk.rm(safePath(temp)) }
+        }
+    }
+
+    /** Deletes one file. Never folders. Does nothing when it is already gone. */
+    fun deleteFile(path: String) {
+        val disk = share ?: throw IOException("Not connected")
+        val p = safePath(path)
+        if (disk.fileExists(p)) disk.rm(p)
+    }
+
+    /** Total size of files under [path]; skips links. */
+    fun folderSize(path: String, depthLimit: Int = 64): Long {
+        var total = 0L
+        val pending = ArrayDeque<Pair<String, Int>>()
+        pending.add(path.trim('/') to 0)
+        while (pending.isNotEmpty()) {
+            val (folder, depth) = pending.removeFirst()
+            if (depth > depthLimit) continue
+            val entries = try {
+                list(folder)
+            } catch (e: SMBApiException) {
+                if (e.status == NtStatus.STATUS_OBJECT_NAME_NOT_FOUND || e.status == NtStatus.STATUS_OBJECT_PATH_NOT_FOUND) continue else throw e
+            }
+            for (entry in entries) {
+                if (entry.isReparsePoint) continue
+                if (entry.isDirectory) pending.add("$folder/${entry.name}".trim('/') to depth + 1) else total += entry.size
+            }
+        }
+        return total
+    }
+
+    /** Total and free bytes on the share's disk. */
+    fun space(): Pair<Long, Long> {
+        val disk = share ?: throw IOException("Not connected")
+        val info = disk.shareInformation
+        return info.totalSpace to info.freeSpace
+    }
+
     override fun close() {
         runCatching { share?.close() }
         runCatching { session?.close() }

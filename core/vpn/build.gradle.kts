@@ -21,6 +21,6 @@ dependencies {
     implementation(project(":core:security"))
     // Official WireGuard userspace tunnel (GoBackend), same version as Veyra. Apache-2.0.
     api("com.wireguard.android:tunnel:1.0.20260102")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     testImplementation("junit:junit:4.13.2")
 }
