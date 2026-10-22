@@ -55,8 +55,7 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
       as the app is minimised, left or closed; Settings options "Use VPN for this app only" and "Connect
       automatically". Decided: per-phone toggle "Back up away from home in background" (off by default) lets scheduled backup start the VPN by itself and stop it after.
 
-- [ ] Under discussion (24 Oct, not decided): compressed "Storage saver" backup, per phone, default Original. If added:
-      "Free up space" is allowed with Storage saver on, but only after a clear warning pop-up that the full-quality
-      original will be gone for good (decided).
+- [ ] Storage saver (decided 24 Oct, Phase 4): see ROADMAP.md. Photos only, per phone, off by default; videos never
+      compressed; warning pop-up before Free up space removes an original when it is on.
 
 (More bugs from testing go here.)
