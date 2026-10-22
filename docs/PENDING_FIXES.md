@@ -43,4 +43,8 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
       and the owner can set one for anyone. Stored as a small cropped picture (about 256 px) on the drive next to the
       family file, so it appears on every phone. Open question: who may change a photo, see the question to the owner.
 
+- [ ] Invites (later, not this build): see ROADMAP.md. Invite file + QR locked with a code, one-use, expires in days,
+      cancel before use; after Phase 9. Play Store link version at release. The owner attaches a per-person
+      WireGuard config made on the router (the app cannot create router users).
+
 (More bugs from testing go here.)

@@ -22,6 +22,11 @@ builds on backup.
 | 12 Motion and smoothness | A full pass over the whole app: shared-element transitions (photo grid to viewer), smoother pinch, 120 Hz scrolling, startup and scroll profiles, jank checks on a mid-range phone | No dropped frames in the main flows; every animation respects reduce motion | |
 | 13 Release | Full tests, speed and battery check, security review, Play Store readiness | All critical tests pass | |
 
+**Invites (decided 23 Oct):** the owner makes an invite (drive details, optional WireGuard config) locked with a code and
+shared as a file and QR over WhatsApp; the new person joins in one step with no approval wait. Built right after
+Phase 9, because the VPN part has to be real. The Play Store link version (installs the app, carries the invite
+over) comes at release, once there is a store listing. See the notes in docs/PENDING_FIXES.md.
+
 **Later:** NAS support (real per-person logins, second backup copy), the Windows PC app (paused; code stays
 shared, see ARCHITECTURE.md), invite links for people outside home, optional encryption of the whole library.
 
