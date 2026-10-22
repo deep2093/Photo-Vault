@@ -17,4 +17,9 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
       open) it checks the drive; a dot shows on the Family tab while a join request is waiting, and goes away once
       the owner has approved or declined it. Owner's phone only.
 
+- [ ] Rename the app to **Pixallery** (decided 23 Oct): home-screen name (was "Veyra Photos", preview build
+      "Pixallery Preview"), and replace "Veyra" / "Veyra Photos" with "Pixallery" everywhere it appears in the app
+      (screens, settings, About, strings, icon labels). Repo, package and code names stay PhotoVault for now;
+      credits to the Veyra app's code in docs stay as history.
+
 (More bugs from testing go here.)
