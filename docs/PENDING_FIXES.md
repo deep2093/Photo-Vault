@@ -53,6 +53,6 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
 - [ ] Plan change (24 Oct): Remote access (old Phase 9) and Invites are merged into Phase 5 so 1-2 other people can
       join and see the library sooner. WireGuard rules: connects only while the app is on screen; disconnects as soon
       as the app is minimised, left or closed; Settings options "Use VPN for this app only" and "Connect
-      automatically". Open question: away-from-home scheduled backup cannot run in the background under this rule.
+      automatically". Decided: per-phone toggle "Back up away from home in background" (off by default) lets scheduled backup start the VPN by itself and stop it after.
 
 (More bugs from testing go here.)
