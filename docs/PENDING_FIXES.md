@@ -38,4 +38,9 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
       Create family behind it. Show the folder name clearly in Settings > Drive for comparing devices.
       (Tablet landed on Create family because its folder name differed from the phone's, 23 Oct.)
 
+- [ ] Family > People: redo the layout so each person is a clean row (see the People card item above), and add profile
+      photos: a person can pick a photo for themselves (their own phone), shown in a circle in place of the letter,
+      and the owner can set one for anyone. Stored as a small cropped picture (about 256 px) on the drive next to the
+      family file, so it appears on every phone. Open question: who may change a photo, see the question to the owner.
+
 (More bugs from testing go here.)
