@@ -19,6 +19,8 @@ photo gallery and SMB backup app for several family members sharing one drive. F
   build or extend the PC app, but keep `commonMain` free of Android-only APIs.
 - Animate every new screen and state change smoothly (Deepak, 22 Oct): use `motionSpec()` from the design
   system so reduce motion is always respected, keep animations short (150-300 ms), and never block input.
+- What's new (Deepak, 24 Oct): every build that adds or changes a feature also adds a short entry to the in-app
+  What's new list (features only, never fixes). See docs/PENDING_FIXES.md, "What's new".
 - End each phase with: files changed, commands run and their output, APK if built,
   open risks, and a request for approval to continue. Then stop.
 
