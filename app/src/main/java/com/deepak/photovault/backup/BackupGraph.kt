@@ -21,12 +21,12 @@ import kotlinx.coroutines.launch
  */
 class BackupGraph private constructor(context: Context) {
     private val app = context.applicationContext
-    val settings = BackupSettingsStore(app)
+    val settings: BackupSettingsStore = BackupSettingsStore(app)
     private val history = BackupHistoryStore(app)
     private val index = FileBackupIndex(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    private val platform = object : BackupPlatform {
+    private val platform: BackupPlatform = object : BackupPlatform {
         override fun loadSettings(): BackupSettings = settings.load()
 
         override fun saveSettings(settings: BackupSettings) {
@@ -55,8 +55,8 @@ class BackupGraph private constructor(context: Context) {
         override fun now(): Long = System.currentTimeMillis()
     }
 
-    val state = BackupState(platform)
-    val runner = BackupRunner(app, state, settings, history, index)
+    val state: BackupState = BackupState(platform)
+    val runner: BackupRunner = BackupRunner(app, state, settings, history, index)
 
     /** At app start: notification channels, and a scheduled backup waiting if the schedule is on. */
     fun start() {

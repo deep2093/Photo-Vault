@@ -29,6 +29,7 @@ import com.deepak.photovault.core.backup.BackupSettings
 import com.deepak.photovault.core.backup.BackupTrigger
 import com.deepak.photovault.core.backup.RetryPolicy
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import java.util.concurrent.TimeUnit
@@ -92,7 +93,7 @@ object BackupScheduler {
     /** At app start: makes sure a scheduled backup is waiting (they are kept across restarts by Android). */
     suspend fun ensureScheduled(context: Context, settings: BackupSettings) = withContext(Dispatchers.IO) {
         if (!settings.schedule.enabled) return@withContext
-        val waiting = WorkManager.getInstance(context).getWorkInfosByTag(TAG_SCHEDULED).get()
+        val waiting = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG_SCHEDULED).first()
             .any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }
         if (!waiting) scheduleNext(context, settings, exceptId = null)
     }
@@ -100,7 +101,7 @@ object BackupScheduler {
     suspend fun scheduleNext(context: Context, settings: BackupSettings, exceptId: java.util.UUID?) = withContext(Dispatchers.IO) {
         val wm = WorkManager.getInstance(context)
         // Cancel waiting ones only, never a backup that is running right now.
-        wm.getWorkInfosByTag(TAG_SCHEDULED).get()
+        wm.getWorkInfosByTagFlow(TAG_SCHEDULED).first()
             .filter { it.id != exceptId && it.state == WorkInfo.State.ENQUEUED }
             .forEach { wm.cancelWorkById(it.id) }
         if (!settings.schedule.enabled) return@withContext
