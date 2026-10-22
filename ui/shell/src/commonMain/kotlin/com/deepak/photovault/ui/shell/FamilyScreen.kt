@@ -1,6 +1,9 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PersonRemove
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -62,7 +66,7 @@ import kotlinx.coroutines.launch
 
 /** Shown in setup and on this screen: v1 keeps folders apart, it does not keep them secret. */
 const val FOLDER_PRIVACY_NOTE =
-    "Each person's photos go into their own folder, and PhotoVault only shows you yours. Anyone who knows " +
+    "Each person's photos go into their own folder, and Pixallery only shows you yours. Anyone who knows " +
         "the drive password can still open every folder from a computer, so this works for a family that trusts each other."
 
 /** Owner-only actions waiting for the PIN. */
@@ -75,10 +79,11 @@ private sealed interface OwnerTask {
     data class Limit(val member: Member) : OwnerTask
     data class Remove(val member: Member) : OwnerTask
     data class RemovePhone(val deviceId: String, val name: String) : OwnerTask
+    data class Photo(val member: Member) : OwnerTask
 }
 
 @Composable
-fun FamilyScreen(state: ShellState, drive: DriveState) {
+fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = NoMediaActions) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     // Fresh numbers when the screen opens, then every 20 seconds (new requests, space used).
@@ -93,6 +98,11 @@ fun FamilyScreen(state: ShellState, drive: DriveState) {
     var message by remember { mutableStateOf<String?>(null) }
 
     fun run(t: OwnerTask) {
+        // Changing your own picture never needs the PIN.
+        if (t is OwnerTask.Photo && t.member.userId == drive.joined?.me?.userId) {
+            task = t
+            return
+        }
         if (!drive.ownerUnlocked) {
             pinFor = t
             return
@@ -100,7 +110,7 @@ fun FamilyScreen(state: ShellState, drive: DriveState) {
         when (t) {
             is OwnerTask.Approve -> scope.launch { message = drive.approve(t.request) }
             is OwnerTask.Decline -> scope.launch { message = drive.decline(t.request) }
-            is OwnerTask.Limit, is OwnerTask.Remove, is OwnerTask.RemovePhone -> task = t
+            is OwnerTask.Limit, is OwnerTask.Remove, is OwnerTask.RemovePhone, is OwnerTask.Photo -> task = t
             OwnerTask.Unlock -> Unit
         }
     }
@@ -151,6 +161,8 @@ fun FamilyScreen(state: ShellState, drive: DriveState) {
                         onLimit = { run(OwnerTask.Limit(member)) },
                         onRemove = { run(OwnerTask.Remove(member)) },
                         onRemovePhone = { id, name -> run(OwnerTask.RemovePhone(id, name)) },
+                        drive = drive,
+                        onPhoto = if (drive.canChangePhoto(member.userId)) ({ run(OwnerTask.Photo(member)) }) else null,
                     )
                 }
             }
@@ -188,6 +200,18 @@ fun FamilyScreen(state: ShellState, drive: DriveState) {
             confirm = "Remove",
             onDismiss = { task = null },
         ) { scope.launch { message = drive.removeDevice(t.deviceId); task = null } }
+        is OwnerTask.Photo -> PhotoDialog(
+            member = t.member,
+            onDismiss = { task = null },
+            onChoose = {
+                task = null
+                actions.pickProfilePhoto { jpeg -> scope.launch { message = drive.setPhoto(t.member.userId, jpeg) } }
+            },
+            onRemove = {
+                task = null
+                scope.launch { message = drive.clearPhoto(t.member.userId) }
+            },
+        )
         else -> Unit
     }
 }
@@ -212,7 +236,7 @@ private fun NotConnectedCard(state: ShellState, drive: DriveState) {
             )
         }
         Text(
-            "PhotoVault keeps each person's photos in their own folder on the shared drive at home.",
+            "Pixallery keeps each person's photos in their own folder on the shared drive at home.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(vertical = 8.dp),
@@ -257,6 +281,10 @@ private fun RequestRow(request: JoinRequest, joined: Membership.Joined, onApprov
     }
 }
 
+/**
+ * One person (tidied 24 Oct): picture and name, their space with the amount underneath, Change space on its own
+ * line, then their phones. Nothing sits side by side that could squeeze or overlap on a narrow phone.
+ */
 @Composable
 private fun MemberRow(
     member: Member,
@@ -268,49 +296,122 @@ private fun MemberRow(
     onLimit: () -> Unit,
     onRemove: () -> Unit,
     onRemovePhone: (String, String) -> Unit,
+    drive: DriveState,
+    onPhoto: (() -> Unit)?,
 ) {
     val theme = LocalGlassTheme.current
-    Column(Modifier.padding(vertical = 10.dp)) {
+    Column(Modifier.padding(vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(CircleShape).background(theme.accent), contentAlignment = Alignment.Center) {
-                Text(member.name.take(1).uppercase(), color = theme.onAccent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.width(16.dp))
+            Avatar(member, drive, onPhoto)
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    member.name + listOfNotNull(if (isMe) "you" else null, if (isOwner) "owner" else null).let { if (it.isEmpty()) "" else " (${it.joinToString(", ")})" },
+                    member.name,
                     color = theme.onGlass,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
-                Text("${member.devices.size} ${if (member.devices.size == 1) "phone" else "phones"}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                val tags = listOfNotNull(if (isMe) "You" else null, if (isOwner) "Owner" else null)
+                Text(
+                    (tags + "${member.devices.size} ${if (member.devices.size == 1) "phone" else "phones"}").joinToString(" · "),
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
             if (ownerControls && !isOwner) GlassIconButton(Icons.Rounded.PersonRemove, "Remove ${member.name}", onClick = onRemove)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         val limit = usage?.limitBytes ?: (member.limitGb * DriveState.GB)
         val used = usage?.usedBytes
-        GlassProgressBar((used ?: 0L) / limit.toFloat(), label = "${member.name}: ${used?.let(DetailsFormat::size) ?: "unknown"} of ${member.limitGb} GB used")
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "${used?.let(DetailsFormat::size) ?: "..."} of ${member.limitGb} GB",
-                color = theme.onGlassSecondary,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.weight(1f),
-            )
-            if (ownerControls) GlassButton("Change space", onClick = onLimit, icon = Icons.Rounded.Storage)
+        GlassProgressBar(
+            ((used ?: 0L) / limit.toFloat()).coerceIn(0f, 1f),
+            label = "${member.name}: ${used?.let(DetailsFormat::size) ?: "counting"} of ${member.limitGb} GB used",
+        )
+        Text(
+            if (used == null) "Counting..." else "${DetailsFormat.size(used)} of ${member.limitGb} GB used",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        if (ownerControls) {
+            GlassButton("Change space", onClick = onLimit, icon = Icons.Rounded.Storage, modifier = Modifier.padding(top = 8.dp))
         }
         member.devices.forEach { d ->
-            Row(Modifier.padding(start = 60.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(top = 6.dp).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Icon(
+                    Icons.Rounded.PhoneAndroid,
+                    contentDescription = null,
+                    tint = theme.onGlassSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(10.dp))
                 Text(
                     d.name + if (d.deviceId == thisDevice) " (this phone)" else "",
                     color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
                 if (ownerControls && d.deviceId != thisDevice) GlassIconButton(Icons.Rounded.Close, "Remove ${d.name}", onClick = { onRemovePhone(d.deviceId, d.name) })
             }
         }
+    }
+}
+
+/** A person's picture in a circle, or their first letter. Tappable when this phone may change it. */
+@Composable
+internal fun Avatar(member: Member, drive: DriveState, onClick: (() -> Unit)?, size: androidx.compose.ui.unit.Dp = 48.dp) {
+    val theme = LocalGlassTheme.current
+    val path = member.photo
+    LaunchedEffect(path) { if (path != null) drive.loadPhoto(path) }
+    val bytes = path?.let { drive.photos[it] }
+    Box(
+        Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(theme.accent)
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Change ${member.name}'s picture", onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bytes != null) {
+            coil3.compose.AsyncImage(
+                model = bytes,
+                contentDescription = "${member.name}'s picture",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Text(member.name.take(1).uppercase(), color = theme.onAccent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        if (onClick != null) {
+            Box(
+                Modifier.align(Alignment.BottomEnd).size(18.dp).clip(CircleShape).background(theme.onGlass),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.material3.Icon(Icons.Rounded.PhotoCamera, contentDescription = null, tint = theme.accent, modifier = Modifier.size(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoDialog(member: Member, onDismiss: () -> Unit, onChoose: () -> Unit, onRemove: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    GlassDialog(
+        title = "${member.name}'s picture",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton("Cancel", onClick = onDismiss)
+            if (member.photo != null) GlassButton("Remove", onClick = onRemove)
+            GlassButton("Choose photo", primary = true, onClick = onChoose)
+        },
+    ) {
+        Text(
+            "Shown on every phone in the family, so it's easy to see who is using how much space. It's saved small on the drive.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

@@ -29,11 +29,49 @@ interface DriveFileSystem {
     /** Deletes a file. Does nothing when it is already gone. Never deletes folders. */
     suspend fun delete(path: String)
 
+    /**
+     * Streams [source] into a new file at [path]. Fails (returns false) when anything already exists there.
+     * Not atomic: only used for private temporary files, which are checked and then published with [rename].
+     */
+    suspend fun writeNew(path: String, source: ByteSource): Boolean
+
+    /** Reads a file of any size from start to end, handing each chunk to [sink]. Throws [DriveNotFound]. */
+    suspend fun readStream(path: String, sink: (ByteArray, Int) -> Unit)
+
+    /**
+     * Renames a file, never replacing: returns false when [to] already exists. This is how a verified backup is
+     * published, so a different file on the drive can never be overwritten.
+     */
+    suspend fun rename(from: String, to: String): Boolean
+
     /** Total size of all files under [path], 0 when it does not exist. */
     suspend fun folderSize(path: String): Long
 
     /** Space on the whole drive (shared by everyone and everything on it). */
     suspend fun space(): DriveSpace
+}
+
+/**
+ * A file being read from the phone, chunk by chunk. [read] blocks (it is always called on a background thread)
+ * and returns -1 at the end, like an input stream.
+ */
+interface ByteSource : AutoCloseable {
+    fun read(buffer: ByteArray): Int
+}
+
+/** A [ByteSource] over bytes already in memory (tests, small files). */
+class BytesSource(private val bytes: ByteArray) : ByteSource {
+    private var position = 0
+
+    override fun read(buffer: ByteArray): Int {
+        if (position >= bytes.size) return -1
+        val n = minOf(buffer.size, bytes.size - position)
+        bytes.copyInto(buffer, 0, position, position + n)
+        position += n
+        return n
+    }
+
+    override fun close() = Unit
 }
 
 data class DriveEntry(val name: String, val isFolder: Boolean, val size: Long)

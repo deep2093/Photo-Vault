@@ -16,6 +16,7 @@ kotlin {
             api(project(":core:designsystem"))
             api(project(":core:media"))
             api(project(":core:household"))
+            api(project(":core:backup"))
             // Thumbnails and full photos. Coil 3 is multiplatform, so this stays shared code.
             implementation("io.coil-kt.coil3:coil-compose:3.2.0")
         }

@@ -41,6 +41,47 @@ class DriveStateTest {
     private val connection = DriveConnection(host = "192.168.1.1", share = "usb", username = "admin", password = "x")
 
     @Test
+    fun profilePicturesOwnFreelyOthersOnlyAsUnlockedOwner() = runTest {
+        val disk = MemoryDrive()
+        val owner = DriveState(FakePhone(disk, "device-owner-1"))
+        owner.connect(connection)
+        owner.createFamily("Deepak", "4821")
+        owner.updateSettings { it.copy(approveNewPhones = false) }
+        val asha = DriveState(FakePhone(disk, "device-second-2"))
+        asha.connect(connection)
+        asha.join(newName = "Asha")
+        val ashaId = asha.joined!!.me.userId
+        // Asha sets her own picture without any PIN.
+        assertNull(asha.setPhoto(ashaId, byteArrayOf(1, 2)))
+        assertNotNull(asha.joined!!.me.photo)
+        // She can't change the owner's.
+        assertFalse(asha.canChangePhoto(owner.joined!!.me.userId))
+        assertNotNull(asha.setPhoto(owner.joined!!.me.userId, byteArrayOf(3)))
+        // The owner can change hers while the owner controls are open.
+        owner.refresh()
+        assertTrue(owner.canChangePhoto(ashaId))
+        assertNull(owner.setPhoto(ashaId, byteArrayOf(4)))
+        owner.lockOwner()
+        assertNotNull(owner.clearPhoto(ashaId))
+        // Pictures load once and are kept.
+        val path = owner.joined!!.household.member(ashaId)!!.photo!!
+        owner.loadPhoto(path)
+        assertEquals(listOf<Byte>(4), owner.photos[path]!!.toList())
+    }
+
+    @Test
+    fun aPhoneWithAnOldModelCodeNameIsRenamedToItsRealName() = runTest {
+        val disk = MemoryDrive()
+        val old = FakePhone(disk, "device-owner-1", deviceName = "Samsung SM-S948B")
+        val state = DriveState(old)
+        state.connect(connection)
+        state.createFamily("Deepak", null)
+        val renamed = DriveState(FakePhone(disk, "device-owner-1", deviceName = "Galaxy S26 Ultra"))
+        renamed.connect(connection)
+        assertEquals("Galaxy S26 Ultra", renamed.joined!!.me.devices.single().name)
+    }
+
+    @Test
     fun ownerSetsUpAndApprovesASecondPhone() = runTest {
         val disk = MemoryDrive()
         val ownerPhone = FakePhone(disk, "device-owner-1")

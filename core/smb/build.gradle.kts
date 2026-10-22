@@ -32,5 +32,7 @@ dependencies {
     implementation("org.slf4j:slf4j-android:1.7.36")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     testImplementation("junit:junit:4.13.2")
+    // The backup engine run against the real Samba share in CI.
+    testImplementation(project(":core:backup"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }

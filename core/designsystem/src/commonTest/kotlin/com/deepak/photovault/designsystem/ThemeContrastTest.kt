@@ -96,8 +96,8 @@ class ThemeCatalogTest {
     }
 
     @Test
-    fun auroraFrostIsTheDefaultAndDarkThemesAreMidnightAndAdaptive() {
-        assertEquals(GlassThemeId.AURORA_FROST, GlassThemes.default.id)
+    fun transparentIsTheDefaultAndDarkThemesAreMidnightAndAdaptive() {
+        assertEquals(GlassThemes.Transparent, GlassThemes.default)
         assertEquals(
             listOf(GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID),
             GlassThemes.all.filter { it.isDark }.map { it.id },

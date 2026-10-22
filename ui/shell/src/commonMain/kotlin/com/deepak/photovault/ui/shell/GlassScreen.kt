@@ -73,8 +73,12 @@ fun GlassScreen(
     pinned: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
     floatingActions: (@Composable RowScope.() -> Unit)? = null,
+    /** A second pill at the top left (Photos: Day / Month / Year). */
+    floatingStartActions: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
+    // Photos and Albums: scrolling down tucks the pills and the navigation bar away; scrolling up brings them back.
+    val chrome = LocalChrome.current
     val insets = LocalScreenInsets.current
     val haze = LocalHazeState.current
     val density = LocalDensity.current
@@ -86,6 +90,10 @@ fun GlassScreen(
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 // Follow the finger: content moving up hides the bar, moving down shows it. Nothing is consumed.
                 offset = (offset + available.y).coerceIn(-hidePx, 0f)
+                if (chrome != null && source == NestedScrollSource.UserInput) {
+                    if (available.y < -CHROME_SCROLL_PX) chrome.hidden = true
+                    if (available.y > CHROME_SCROLL_PX) chrome.hidden = false
+                }
                 return Offset.Zero
             }
         }
@@ -93,13 +101,14 @@ fun GlassScreen(
     // Bring the bar back when it must be visible: selection mode, or tapping the section again (scroll to top).
     val scrollToTop = LocalScrollToTop.current
     LaunchedEffect(pinned, scrollToTop) {
+        if (pinned || scrollToTop > 0) chrome?.hidden = false
         if (pinned || scrollToTop > 0) {
             if (reduceMotion) offset = 0f else animate(offset, 0f, animationSpec = tween(250)) { v, _ -> offset = v }
         }
     }
     Box(Modifier.fillMaxSize()) {
         // The pill and the bar take the same room, so starting a selection on Photos doesn't shift the grid.
-        val barRoom = if (title != null || floatingActions != null) TopBarHeight + 20.dp else 12.dp
+        val barRoom = if (title != null || floatingActions != null || floatingStartActions != null) TopBarHeight + 20.dp else 12.dp
         val contentPadding = PaddingValues(
             start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
             end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
@@ -129,18 +138,17 @@ fun GlassScreen(
             top = insets.calculateTopPadding() + 8.dp,
         )
         if (title == null) {
+            val tucked = chrome?.hidden == true && !pinned
+            val shift by androidx.compose.animation.core.animateFloatAsState(if (tucked) -hidePx else 0f, com.deepak.photovault.designsystem.motionSpec(220), label = "pills")
+            val pillMotion = Modifier.graphicsLayer {
+                translationY = shift
+                alpha = 1f - (-shift / hidePx).coerceIn(0f, 1f)
+            }
+            if (floatingStartActions != null) {
+                FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding), floatingStartActions)
+            }
             if (floatingActions != null) {
-                Row(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .then(barPadding)
-                        .heightIn(min = TopBarHeight)
-                        .glassChrome(RoundedCornerShape(percent = 50), elevation = 10.dp)
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    content = floatingActions,
-                )
+                FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding), floatingActions)
             }
             return@Box
         }
@@ -163,6 +171,23 @@ fun GlassScreen(
         )
     }
 }
+
+/** A small floating glass pill of buttons (Samsung Gallery style), used instead of a top bar on Photos. */
+@Composable
+private fun FloatingPill(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier
+            .heightIn(min = TopBarHeight)
+            .glassChrome(RoundedCornerShape(percent = 50), elevation = 10.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        content = content,
+    )
+}
+
+/** How far a finger must move in one step before the pills and bar react, so tiny jitters don't flicker them. */
+private const val CHROME_SCROLL_PX = 6f
 
 @Composable
 private fun GlassTopBar(

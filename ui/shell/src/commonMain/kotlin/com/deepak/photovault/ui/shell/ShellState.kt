@@ -24,12 +24,29 @@ enum class Destination(val label: String, val icon: ImageVector) {
     BACKUP("Backup", Icons.Rounded.Backup),
     FAMILY("Family", Icons.Rounded.Groups),
     SETTINGS("Settings", Icons.Rounded.Settings),
+    ;
+
+    companion object {
+        /** Sections whose top pills and navigation bar slide away while scrolling down (24 Oct). */
+        val hidesChrome = setOf(PHOTOS, ALBUMS)
+    }
 }
+
+/** Whether the floating pills and navigation bar are tucked away while scrolling. */
+@Stable
+class ChromeState {
+    var hidden by mutableStateOf(false)
+}
+
+/** Given only to sections that hide their chrome on scroll; null elsewhere. */
+val LocalChrome = androidx.compose.runtime.staticCompositionLocalOf<ChromeState?> { null }
 
 /** What the platform reports. Android: battery saver and "remove animations"; PC: both false for now. */
 data class PlatformSignals(
     val powerSaveMode: Boolean = false,
     val systemReduceMotion: Boolean = false,
+    /** The app is on screen. Drive checks pause while it is in the background. */
+    val foreground: Boolean = true,
 )
 
 /** Appearance choices that are saved between launches. */
@@ -37,6 +54,10 @@ data class AppearanceSettings(
     val themeId: String = GlassThemes.default.id.name,
     val blurOn: Boolean = true,
     val reduceMotion: Boolean = false,
+    /** Tablets only: the floating bottom bar instead of the side menu (24 Oct). Saved per device. */
+    val tabletBottomBar: Boolean = false,
+    /** The person picked a theme themselves. Until then they follow the default (Transparent since 24 Oct). */
+    val themeChosen: Boolean = false,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
@@ -85,12 +106,15 @@ class ShellState(private val store: AppearanceStore) {
     /** A navigation tap: opens another section, or scrolls the open one back to the top. */
     fun tapSection(target: Destination) {
         selected = emptySet()
+        chrome.hidden = false
         if (target == destination) {
             reselects[target] = (reselects[target] ?: 0) + 1
         } else {
             destination = target
         }
     }
+
+    val chrome = ChromeState()
 
     /** Photos picked by long-press. Empty means not selecting. */
     var selected by mutableStateOf<Set<Long>>(emptySet())
@@ -136,7 +160,7 @@ class ShellState(private val store: AppearanceStore) {
     /** Photo grid columns chosen by pinching; null means "fit the screen". */
     var gridColumns by mutableStateOf<Int?>(null)
 
-    val theme: GlassTheme get() = GlassThemes.byId(appearance.themeId)
+    val theme: GlassTheme get() = if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default
 
     fun updateAppearance(change: (AppearanceSettings) -> AppearanceSettings) {
         appearance = change(appearance)

@@ -9,12 +9,15 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Cloud
-import androidx.compose.material.icons.rounded.CloudDone
-import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -46,7 +49,8 @@ import kotlinx.datetime.TimeZone
 
 /**
  * The photo timeline. No top bar (feedback 23 Oct): a small glass pill floats at the top right, as in Samsung
- * Gallery, with backup status, search and a menu holding Day / Month / Year. Pinch still changes the size.
+ * Gallery, with search and a menu; Day / Month / Year sit in their own pill at the top left (24 Oct). The
+ * backup cloud was removed (Backup is in the navigation bar). Pinch still changes the size.
  */
 @Composable
 fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState) {
@@ -59,14 +63,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         state = state,
         gallery = gallery,
         actions = actions,
+        floatingStartActions = { GroupingButtons(gallery) },
         floatingActions = {
-            val (cloud, cloudLabel) = when {
-                !drive.isSetUp -> Icons.Rounded.CloudOff to "Backup: no drive connected"
-                drive.problem != null -> Icons.Rounded.CloudOff to "Backup: can't reach the drive"
-                drive.joined != null -> Icons.Rounded.CloudDone to "Backup: connected to your drive"
-                else -> Icons.Rounded.Cloud to "Backup: finish joining your family"
-            }
-            GlassIconButton(cloud, cloudLabel, onClick = { state.tapSection(Destination.BACKUP) })
             GlassIconButton(Icons.Rounded.Search, "Search", onClick = { state.open(Overlay.Search) })
             PhotosMenu(gallery)
         },
@@ -74,7 +72,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         when {
             gallery.access == MediaAccess.NONE -> EmptyState(
                 title = "See your photos here",
-                body = "PhotoVault needs access to your photos and videos to show them and, later, back them up. " +
+                body = "Pixallery needs access to your photos and videos to show them and, later, back them up. " +
                     "They stay on your phone and your own drive.",
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
@@ -92,7 +90,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
                         androidx.compose.foundation.layout.Column {
                             if (gallery.access == MediaAccess.PARTIAL) {
-                                WarningNote("You've shared only some photos with PhotoVault. Allow all to see and back up everything.")
+                                WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
                                 GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
                             }
                         }
@@ -103,7 +101,42 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     }
 }
 
-/** The ⋮ menu: how many photos and videos, and Day / Month / Year. */
+/**
+ * Day / Month / Year as three small buttons in their own pill at the top left (24 Oct), opposite search and the
+ * menu. The chosen one is filled.
+ */
+@Composable
+private fun GroupingButtons(gallery: GalleryState) {
+    val theme = LocalGlassTheme.current
+    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        listOf(TimelineGrouping.DAY to "Day", TimelineGrouping.MONTH to "Month", TimelineGrouping.YEAR to "Year").forEach { (option, label) ->
+            val selected = gallery.grouping == option
+            val background by androidx.compose.animation.animateColorAsState(
+                if (selected) theme.accent else androidx.compose.ui.graphics.Color.Transparent,
+                com.deepak.photovault.designsystem.motionSpec(),
+                label = "grouping",
+            )
+            Box(
+                Modifier
+                    .heightIn(min = 40.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(background)
+                    .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.grouping = option })
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    color = if (selected) theme.onAccent else theme.onGlass,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
+/** The ⋮ menu: how many photos and videos. */
 @Composable
 private fun PhotosMenu(gallery: GalleryState) {
     val theme = LocalGlassTheme.current
@@ -124,17 +157,6 @@ private fun PhotosMenu(gallery: GalleryState) {
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
-            listOf(TimelineGrouping.DAY to "Day", TimelineGrouping.MONTH to "Month", TimelineGrouping.YEAR to "Year").forEach { (option, label) ->
-                val selected = gallery.grouping == option
-                DropdownMenuItem(
-                    text = { Text(label, color = theme.onGlass, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal) },
-                    trailingIcon = { if (selected) Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = theme.accent) },
-                    onClick = {
-                        gallery.grouping = option
-                        open = false
-                    },
-                )
-            }
         }
     }
 }
@@ -153,6 +175,7 @@ fun SelectableScreen(
     onBack: (() -> Unit)? = null,
     normalActions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
     floatingActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
+    floatingStartActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
     selectionActions: (@Composable androidx.compose.foundation.layout.RowScope.(List<MediaItem>) -> Unit)? = null,
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) {
@@ -164,6 +187,7 @@ fun SelectableScreen(
         onBack = if (state.selecting) null else onBack,
         pinned = state.selecting,
         floatingActions = floatingActions,
+        floatingStartActions = floatingStartActions,
         actions = {
             if (!state.selecting) {
                 normalActions()

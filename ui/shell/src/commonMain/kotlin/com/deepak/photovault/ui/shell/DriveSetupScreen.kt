@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,10 +63,11 @@ fun DriveSetupScreen(state: ShellState, drive: DriveState) {
     ) {
         if (editing || membership == null) {
             item { ConnectCard(drive, onConnected = { editing = false }) }
+            item { HelpCard() }
         } else {
             item {
                 when (membership) {
-                    Membership.NoHousehold -> CreateFamilyCard(drive)
+                    Membership.NoHousehold -> NoFamilyCard(drive, onChangeDrive = { editing = true })
                     is Membership.NotJoined -> JoinCard(drive, membership)
                     is Membership.Removed -> JoinCard(drive, Membership.NotJoined(membership.household), removed = true)
                     is Membership.Pending -> PendingCard(drive, membership)
@@ -121,7 +124,7 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
         }
         GlassTextField(host, { host = it.trim() }, "Address", placeholder = "192.168.1.1", keyboardType = KeyboardType.Uri)
         GlassTextField(share, { share = it.trim() }, "Shared folder", placeholder = "usb or media")
-        GlassTextField(folder, { folder = it }, "PhotoVault folder inside it", supporting = "Created if it doesn't exist. Everyone in the family must use the same one.")
+        GlassTextField(folder, { folder = it }, "Pixallery folder inside it", supporting = "Created if it doesn't exist. Everyone in the family must use the same one.")
         GlassTextField(user, { user = it }, "Username", placeholder = "Leave empty for guest access")
         GlassTextField(password, { password = it }, "Password", password = true)
         GlassSwitchRow(
@@ -147,6 +150,67 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
             },
             modifier = Modifier.padding(top = 8.dp),
         )
+    }
+}
+
+/**
+ * The drive has no family in this folder (24 Oct: a tablet joining landed straight on "Create family" because its
+ * folder name differed). Warn first, show the folder, and only then offer to create a new family.
+ */
+@Composable
+private fun NoFamilyCard(drive: DriveState, onChangeDrive: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    var create by rememberSaveable { mutableStateOf(false) }
+    if (create) {
+        CreateFamilyCard(drive)
+        return
+    }
+    val c = drive.connection
+    GlassCard(Modifier.cardWidth()) {
+        Text("No family found in this folder", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            "If you already set up Pixallery on another phone, this phone is probably looking in a different folder. " +
+                "Check that the shared folder and Pixallery folder match the other phone exactly (Settings > Drive on that phone).",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(vertical = 8.dp),
+        )
+        if (c != null) {
+            InfoRow(Icons.Rounded.Dns, "Address", c.host)
+            InfoRow(Icons.Rounded.Folder, "Shared folder", c.share)
+            InfoRow(Icons.Rounded.Folder, "Pixallery folder", c.folder)
+        }
+        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlassButton("Change folder", primary = true, onClick = onChangeDrive)
+            GlassButton("Create a new family", onClick = { create = true })
+        }
+    }
+}
+
+/** Short tips before the full "How to set this up" guide arrives (Phase 13). */
+@Composable
+private fun HelpCard() {
+    val theme = LocalGlassTheme.current
+    var open by rememberSaveable { mutableStateOf(false) }
+    GlassCard(Modifier.cardWidth()) {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            GlassIcon(Icons.AutoMirrored.Rounded.HelpOutline, tint = theme.accent)
+            Spacer(Modifier.size(12.dp))
+            Text("Need help?", color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            GlassButton(if (open) "Hide" else "Show tips", onClick = { open = !open })
+        }
+        if (open) {
+            listOf(
+                "Plug the USB drive into the router and turn on file sharing (SMB, sometimes called \"Samba\" or \"USB sharing\") in the router's settings.",
+                "Address: the router's address, often 192.168.0.1 or 192.168.1.1. Tap Find drives to look for it.",
+                "Shared folder: the name the router gives the USB drive (for example \"usb\", \"G\" or \"volume1\").",
+                "Username and password: the ones set for file sharing on the router. Leave empty if it allows guests.",
+                "Every phone in the family must use the same shared folder and the same Pixallery folder, written exactly the same.",
+                "Be on the home Wi-Fi while setting up. Using the drive away from home (VPN) comes later.",
+            ).forEach { tip ->
+                Text("• $tip", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
     }
 }
 
@@ -261,7 +325,7 @@ private fun PendingCard(drive: DriveState, pending: Membership.Pending) {
             Text("Waiting for approval", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
         Text(
-            "Ask ${pending.household.owner?.name ?: "the owner"} to open PhotoVault and approve " +
+            "Ask ${pending.household.owner?.name ?: "the owner"} to open Pixallery and approve " +
                 "\"${pending.request.deviceName}\" in Family. This page updates by itself.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodyMedium,

@@ -318,7 +318,8 @@ object GlassThemes {
     val fixed: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass, Frosted)
     val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight, Transparent)
     val all: List<GlassTheme> = fixed + adaptiveThemes
-    val default: GlassTheme = AuroraFrost
+    /** Transparent for everyone who hasn't picked a theme (decided 24 Oct; was Aurora Frost). */
+    val default: GlassTheme = Transparent
 
     /** Unknown or missing IDs (an older or newer saved setting) fall back to the default. */
     fun byId(id: String?): GlassTheme = all.firstOrNull { it.id.name == id } ?: default

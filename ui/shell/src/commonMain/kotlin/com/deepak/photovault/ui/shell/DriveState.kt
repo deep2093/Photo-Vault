@@ -4,7 +4,10 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.deepak.photovault.core.backup.BackupCatalog
+import com.deepak.photovault.core.backup.RestoreEngine
 import com.deepak.photovault.core.drive.DriveFileSystem
+import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.drive.DriveSpace
 import com.deepak.photovault.core.household.HouseholdSettings
 import com.deepak.photovault.core.household.HouseholdStore
@@ -33,6 +36,7 @@ data class DriveConnection(
     override fun toString() = "DriveConnection(host=$host, share=$share, folder=$folder, username=$username, password=***)"
 
     companion object {
+        /** Kept as "PhotoVault" after the rename to Pixallery: families already set up use this folder. */
         const val DEFAULT_FOLDER = "PhotoVault"
     }
 }
@@ -154,9 +158,19 @@ class DriveState(private val platform: DrivePlatform) {
         if (m is Membership.Joined) platform.rememberUserId(m.me.userId)
         if (m is Membership.Removed) platform.rememberUserId(null)
         requests = if (m is Membership.Joined && m.isOwner) s.pendingRequests() else emptyList()
-        space = runCatching { drive?.space() }.getOrNull()
+        // Keep this phone's name current in the family (older versions saved model codes like "SM-S948B").
         if (m is Membership.Joined) {
-            usage = m.household.members.associate { member ->
+            val mine = m.me.devices.firstOrNull { it.deviceId == platform.deviceId }
+            if (mine != null && mine.name != platform.deviceName) {
+                runCatching { s.renameDevice(platform.deviceId, platform.deviceName) }.getOrNull()?.let { h ->
+                    h.memberForDevice(platform.deviceId)?.let { membership = Membership.Joined(h, it) }
+                }
+            }
+        }
+        space = runCatching { drive?.space() }.getOrNull()
+        val current = membership
+        if (current is Membership.Joined) {
+            usage = current.household.members.associate { member ->
                 member.userId to MemberUsage(runCatching { s.usedBytes(member.userId) }.getOrNull(), member.limitGb * GB)
             }
         }
@@ -226,6 +240,50 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun setPin(newPin: String): String? = ownerAction {
         it.setPin(auth(), newPin)
         unlock(newPin)
+    }
+
+    // ---- Profile pictures (24 Oct) ----
+
+    /** Pictures already read from the drive, by path. Paths change with every new picture, so this never goes stale. */
+    val photos = androidx.compose.runtime.mutableStateMapOf<String, ByteArray>()
+
+    /** Reads [path] once and keeps it; null while it is loading or if it can't be read. */
+    suspend fun loadPhoto(path: String) {
+        if (path in photos) return
+        val s = runCatching { ensureStore() }.getOrNull() ?: return
+        runCatching { s.readPhoto(path) }.getOrNull()?.let { photos[path] = it }
+    }
+
+    /** Someone's own picture, or the owner setting anyone's (owner controls must be open for someone else). */
+    suspend fun setPhoto(userId: String, jpeg: ByteArray): String? = guarded {
+        if (userId != joined?.me?.userId && !ownerUnlocked) throw NotAllowed("Enter the owner PIN first")
+        ensureStore()!!.setPhoto(platform.deviceId, userId, jpeg, ownerPin)
+        refreshLocked()
+    }
+
+    suspend fun clearPhoto(userId: String): String? = guarded {
+        if (userId != joined?.me?.userId && !ownerUnlocked) throw NotAllowed("Enter the owner PIN first")
+        ensureStore()!!.clearPhoto(platform.deviceId, userId, ownerPin)
+        refreshLocked()
+    }
+
+    /** Can this phone change [userId]'s picture right now (own, or owner)? */
+    fun canChangePhoto(userId: String): Boolean = joined?.me?.userId == userId || isOwner
+
+    // ---- Backup figures from the drive ----
+
+    /** When each of my phones last backed up (deviceId to time). Empty if the drive can't be read. */
+    suspend fun lastBackups(): Map<String, Long> {
+        val me = joined?.me ?: return emptyMap()
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return emptyMap()
+        return runCatching { BackupCatalog(fs, me.userId).lastBackups() }.getOrDefault(emptyMap())
+    }
+
+    /** How many backed-up photos aren't on this phone; null if the drive can't be read. */
+    suspend fun missingOnPhone(onPhone: List<MediaItem>): Int? {
+        val me = joined?.me ?: return null
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
+        return runCatching { RestoreEngine(fs, me.userId).missing(onPhone).size }.getOrNull()
     }
 
     suspend fun renameMe(name: String): String? = guarded {

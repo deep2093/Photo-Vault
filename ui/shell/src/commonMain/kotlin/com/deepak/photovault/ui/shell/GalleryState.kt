@@ -34,6 +34,15 @@ interface MediaActions {
     fun moveToRecentlyDeleted(items: List<MediaItem>)
     fun restore(items: List<MediaItem>)
     fun deleteForever(items: List<MediaItem>)
+
+    /** Android 13+: ask to show notifications (backup progress and failed backups). */
+    fun requestNotifications() = Unit
+
+    /** Opens the phone's battery settings so scheduled backups aren't held back. */
+    fun openBatterySettings() = Unit
+
+    /** Lets the person pick a photo and hands back a small square JPEG (about 256 px) for a profile picture. */
+    fun pickProfilePhoto(onPicked: (ByteArray) -> Unit) = Unit
 }
 
 /** Does nothing; for previews and tests. */

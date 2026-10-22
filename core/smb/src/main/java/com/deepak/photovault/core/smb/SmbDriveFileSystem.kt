@@ -1,5 +1,6 @@
 package com.deepak.photovault.core.smb
 
+import com.deepak.photovault.core.drive.ByteSource
 import com.deepak.photovault.core.drive.DriveEntry
 import com.deepak.photovault.core.drive.DriveFileSystem
 import com.deepak.photovault.core.drive.DriveNotFound
@@ -8,6 +9,8 @@ import com.deepak.photovault.core.drive.DriveSpace
 import com.hierynomus.mserref.NtStatus
 import com.hierynomus.mssmb2.SMBApiException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -69,6 +72,40 @@ class SmbDriveFileSystem(private val profile: SmbProfile, root: String) : DriveF
     }
 
     override suspend fun createNew(path: String, bytes: ByteArray): Boolean = call { c -> c.createNewFile(full(path), bytes) }
+
+    override suspend fun writeNew(path: String, source: ByteSource): Boolean {
+        val job = currentCoroutineContext()[Job]
+        // A big upload must not be retried halfway by [call]; the backup engine decides what to do on failure.
+        return once { c -> c.writeNewFile(full(path), source) { job?.isActive == false } }
+    }
+
+    override suspend fun readStream(path: String, sink: (ByteArray, Int) -> Unit) {
+        val job = currentCoroutineContext()[Job]
+        once { c ->
+            try {
+                c.readStream(full(path), { job?.isActive == false }, sink)
+            } catch (e: SMBApiException) {
+                if (e.notFound()) throw DriveNotFound(path) else throw e
+            }
+        }
+    }
+
+    override suspend fun rename(from: String, to: String): Boolean = call { c -> c.renameNoReplace(full(from), full(to)) }
+
+    /** Like [call] but without the automatic retry (for streams, which can't be replayed). Reconnects first if needed. */
+    private suspend fun <T> once(block: (SmbConnection) -> T): T = lock.withLock {
+        withContext(Dispatchers.IO) {
+            try {
+                block(connected())
+            } catch (e: Throwable) {
+                if (SmbErrors.isTransient(e)) {
+                    connection?.close()
+                    connection = null
+                }
+                throw e
+            }
+        }
+    }
 
     override suspend fun delete(path: String) = call { c -> c.deleteFile(full(path)) }
 

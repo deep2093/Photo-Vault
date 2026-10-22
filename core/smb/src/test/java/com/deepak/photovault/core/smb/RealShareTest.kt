@@ -68,6 +68,63 @@ class RealShareTest {
         }
     }
 
+    @Test
+    fun streamsBigFilesAndRenamesWithoutReplacing() = runBlocking {
+        SmbDriveFileSystem(profile, root).use { drive ->
+            drive.mkdirs("users/u1/.incoming")
+            drive.mkdirs("users/u1/originals")
+            // Bigger than one 256 KB chunk, so the stream really loops.
+            val big = ByteArray(1_300_000) { (it * 31 % 251).toByte() }
+            assertTrue(drive.writeNew("users/u1/.incoming/a.part", com.deepak.photovault.core.drive.BytesSource(big)))
+            assertFalse(drive.writeNew("users/u1/.incoming/a.part", com.deepak.photovault.core.drive.BytesSource(ByteArray(3))))
+            val back = java.io.ByteArrayOutputStream()
+            drive.readStream("users/u1/.incoming/a.part") { b, n -> back.write(b, 0, n) }
+            assertArrayEquals(big, back.toByteArray())
+            assertTrue(drive.rename("users/u1/.incoming/a.part", "users/u1/originals/a.jpg"))
+            // A second file can never replace the first.
+            drive.writeNew("users/u1/.incoming/b.part", com.deepak.photovault.core.drive.BytesSource(ByteArray(10)))
+            assertFalse(drive.rename("users/u1/.incoming/b.part", "users/u1/originals/a.jpg"))
+            assertEquals(1_300_000L, drive.list("users/u1/originals").single().size)
+        }
+    }
+
+    @Test
+    fun backupEngineVerifiesAndPublishesOnARealShare() = runBlocking {
+        SmbDriveFileSystem(profile, root).use { drive ->
+            val photos = (1L..3L).associateWith { id -> ByteArray(400_000 + id.toInt()) { (it * id % 253).toByte() } }
+            val items = photos.map { (id, bytes) ->
+                com.deepak.photovault.core.media.MediaItem(
+                    id, "content://$id", com.deepak.photovault.core.media.MediaType.PHOTO, "IMG_$id.jpg", 1_792_058_400_000L + id,
+                    bytes.size.toLong(), 1, 1, albumId = "camera", albumName = "Camera", mimeType = "image/jpeg",
+                )
+            }
+            val reader = object : com.deepak.photovault.core.backup.MediaReader {
+                override suspend fun open(item: com.deepak.photovault.core.media.MediaItem, storageSaver: Boolean) =
+                    com.deepak.photovault.core.backup.PreparedFile(
+                        com.deepak.photovault.core.drive.BytesSource(photos.getValue(item.id)), item.displayName, item.mimeType, item.sizeBytes, false,
+                    )
+            }
+            // A different file already has one of the names: it must survive untouched.
+            drive.mkdirs("users/u1/originals/2026/10")
+            drive.createNew("users/u1/originals/2026/10/IMG_1.jpg", "not yours".encodeToByteArray())
+            val index = com.deepak.photovault.core.backup.MemoryBackupIndex()
+            val engine = com.deepak.photovault.core.backup.BackupEngine(
+                drive, "u1", "phone-test-0001", reader, index, System::currentTimeMillis, kotlinx.datetime.TimeZone.UTC,
+            )
+            val run = engine.run(items, com.deepak.photovault.core.backup.BackupSettings(), 10_000_000_000L, com.deepak.photovault.core.backup.BackupTrigger.MANUAL)
+            assertTrue(run.toString(), run.succeeded)
+            assertEquals(3, run.uploaded)
+            assertArrayEquals("not yours".encodeToByteArray(), drive.read("users/u1/originals/2026/10/IMG_1.jpg"))
+            val back = java.io.ByteArrayOutputStream()
+            drive.readStream("users/u1/originals/2026/10/IMG_1 (2).jpg") { b, n -> back.write(b, 0, n) }
+            assertArrayEquals(photos.getValue(1L), back.toByteArray())
+            assertTrue(drive.list("users/u1/.incoming").isEmpty())
+            assertEquals(1, drive.list("users/u1/manifests/phone-test-0001").size)
+            // Again: nothing new.
+            assertEquals(0, engine.run(items, com.deepak.photovault.core.backup.BackupSettings(), 10_000_000_000L, com.deepak.photovault.core.backup.BackupTrigger.MANUAL).uploaded)
+        }
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun pathsCannotEscapeThePhotoVaultFolder() = runBlocking<Unit> {
         SmbDriveFileSystem(profile, root).use { it.read("../outside.txt") }

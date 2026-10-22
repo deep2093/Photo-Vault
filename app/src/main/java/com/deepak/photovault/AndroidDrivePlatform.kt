@@ -2,6 +2,7 @@ package com.deepak.photovault
 
 import android.content.Context
 import android.os.Build
+import android.provider.Settings
 import com.deepak.photovault.core.drive.DriveFileSystem
 import com.deepak.photovault.core.drive.DriveNotFound
 import com.deepak.photovault.core.household.AlreadySetUp
@@ -30,8 +31,15 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         prefs.getString(KEY_DEVICE, null) ?: UUID.randomUUID().toString().also { prefs.edit().putString(KEY_DEVICE, it).apply() }
     }
 
+    /**
+     * The phone's own name as its owner sees it in Android settings (for example "Galaxy S26 Ultra"), falling back
+     * to maker and model code (24 Oct: "Samsung SM-S948B" meant nothing to people).
+     */
     override val deviceName: String
         get() {
+            val friendly = runCatching { Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME) }.getOrNull()
+                ?.trim()?.takeIf { it.isNotEmpty() }
+            if (friendly != null) return friendly.take(40)
             val maker = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
             val name = if (Build.MODEL.startsWith(Build.MANUFACTURER, ignoreCase = true)) Build.MODEL else "$maker ${Build.MODEL}"
             return name.take(40)
@@ -88,6 +96,26 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         return fs
     }
 
+    /** A separate connection for background backup, so it never closes the one the screens are using. */
+    suspend fun openDetached(connection: DriveConnection): SmbDriveFileSystem {
+        val fs = SmbDriveFileSystem(profileOf(connection), connection.folder.trim().trim('/'))
+        try {
+            fs.check()
+        } catch (e: Throwable) {
+            fs.close()
+            throw e
+        }
+        return fs
+    }
+
+    private fun profileOf(connection: DriveConnection) = SmbProfile(
+        host = connection.host.trim(),
+        share = connection.share.trim(),
+        rootPath = "",
+        username = connection.username.trim(),
+        password = connection.password,
+    )
+
     override suspend fun discover(knownHost: String): List<String> = LanDiscovery.find(context, knownHost).hosts
 
     override fun rememberedUserId(): String? = prefs.getString(KEY_USER, null)
@@ -97,7 +125,7 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
     }
 
     override fun describe(error: Throwable): String = when (error) {
-        is AlreadySetUp -> "This drive already has a PhotoVault family. Join it instead."
+        is AlreadySetUp -> "This drive already has a Pixallery family. Join it instead."
         is DriveNotFound -> "Something on the drive is missing. Refresh and try again."
         is IllegalStateException -> error.message?.takeIf { it.startsWith("The family settings are busy") } ?: SmbErrors.describe(error)
         else -> SmbErrors.describe(error)

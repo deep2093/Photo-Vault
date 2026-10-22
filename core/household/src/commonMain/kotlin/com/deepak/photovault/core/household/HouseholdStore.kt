@@ -164,6 +164,57 @@ class HouseholdStore(
         return commit { h -> h.copy(members = h.members.map { if (it.userId == userId) it.copy(name = clean) else it }) }
     }
 
+    /**
+     * Sets a person's profile picture (24 Oct): anyone may set their own, the owner (with the PIN) anyone's.
+     * [jpeg] is a small square picture; it is saved as a new file, never over an old one.
+     */
+    suspend fun setPhoto(deviceId: String, userId: String, jpeg: ByteArray, pin: String? = null): Household {
+        require(jpeg.size in 1..MAX_PHOTO_BYTES) { "That picture is too big" }
+        authorizeSelfOrOwner(deviceId, userId, pin)
+        drive.mkdirs(PEOPLE_DIR)
+        var path: String
+        do {
+            path = "$PEOPLE_DIR/$userId-${now()}-${newId().take(6)}.jpg"
+        } while (!drive.createNew(path, jpeg))
+        val old = load()?.member(userId)?.photo
+        val household = commit { h -> h.copy(members = h.members.map { if (it.userId == userId) it.copy(photo = path) else it }) }
+        if (old != null && old != path) runCatching { drive.delete(old) }
+        return household
+    }
+
+    /** Back to the first letter. Same rule as [setPhoto]. */
+    suspend fun clearPhoto(deviceId: String, userId: String, pin: String? = null): Household {
+        authorizeSelfOrOwner(deviceId, userId, pin)
+        val old = load()?.member(userId)?.photo
+        val household = commit { h -> h.copy(members = h.members.map { if (it.userId == userId) it.copy(photo = null) else it }) }
+        if (old != null) runCatching { drive.delete(old) }
+        return household
+    }
+
+    /** Reads a profile picture. Only files in the people folder can be read this way. */
+    suspend fun readPhoto(path: String): ByteArray {
+        require(path.startsWith("$PEOPLE_DIR/") && !path.removePrefix("$PEOPLE_DIR/").contains('/')) { "Not a profile picture" }
+        return drive.read(path)
+    }
+
+    /** A phone keeps its own name up to date (e.g. "Galaxy S26 Ultra" instead of a model code). */
+    suspend fun renameDevice(deviceId: String, name: String): Household? {
+        val clean = cleanDevice(name)
+        val current = load() ?: return null
+        val device = current.members.flatMap { it.devices }.firstOrNull { it.deviceId == deviceId } ?: return null
+        if (device.name == clean) return current
+        return commit { h ->
+            h.copy(members = h.members.map { m -> m.copy(devices = m.devices.map { if (it.deviceId == deviceId) it.copy(name = clean) else it }) })
+        }
+    }
+
+    private suspend fun authorizeSelfOrOwner(deviceId: String, userId: String, pin: String?) {
+        val household = load() ?: throw NotAllowed("No family on this drive")
+        val actor = household.memberForDevice(deviceId) ?: throw NotAllowed("This phone isn't in the family")
+        require(household.member(userId) != null) { "That person is not in the family" }
+        if (actor.userId != userId) authorize(OwnerAuth(deviceId, pin))
+    }
+
     /** Checks a PIN without changing anything (to unlock the owner controls on screen). */
     suspend fun checkOwner(auth: OwnerAuth) = authorize(auth)
 
@@ -251,6 +302,8 @@ class HouseholdStore(
     companion object {
         const val HOUSEHOLD_DIR = "system/household"
         const val REQUESTS_DIR = "system/requests"
+        const val PEOPLE_DIR = "system/people"
+        const val MAX_PHOTO_BYTES = 512 * 1024
         val USER_FOLDERS = listOf("originals", "videos", "manifests", "thumbnails", "recently-deleted")
         private const val MAX_ATTEMPTS = 8
         private const val KEEP_VERSIONS = 20

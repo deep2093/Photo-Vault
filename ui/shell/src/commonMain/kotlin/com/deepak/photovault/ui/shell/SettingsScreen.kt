@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.ViewDay
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.Info
@@ -97,6 +99,15 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             icon = Icons.Rounded.Animation,
             description = "Also follows the system setting",
         )
+        if (LocalTablet.current) {
+            GlassSwitchRow(
+                "Menu at the bottom",
+                state.appearance.tabletBottomBar,
+                { on -> state.updateAppearance { it.copy(tabletBottomBar = on) } },
+                icon = Icons.Rounded.ViewDay,
+                description = "A floating bar at the bottom, as on phones, instead of the side menu. This tablet only.",
+            )
+        }
         AppIconPicker(iconSwitcher)
     }
 }
@@ -105,12 +116,12 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
 private fun ThemeRow(themes: List<GlassTheme>, state: ShellState) {
     Row(Modifier.horizontalScroll(rememberScrollState()).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         themes.forEach { option ->
-            ThemeSwatch(option, selected = option.id == state.theme.id, onClick = { state.updateAppearance { it.copy(themeId = option.id.name) } })
+            ThemeSwatch(option, selected = option.id == state.theme.id, onClick = { state.updateAppearance { it.copy(themeId = option.id.name, themeChosen = true) } })
         }
     }
 }
 
-/** Leaf (default) or Petals, on Light, Dark, Colourful or Clear. Android 13+ can also theme them. */
+/** Four Seasons (default), Bloom, Leaf or Petals, on Light, Dark, Colourful or Clear. Android 13+ can also theme them. */
 @Composable
 private fun AppIconPicker(switcher: AppIconSwitcher) {
     val theme = LocalGlassTheme.current
@@ -164,7 +175,13 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
     ) {
         if (c?.isComplete == true) {
             InfoRow(Icons.Rounded.Dns, "Address", c.host)
-            InfoRow(Icons.Rounded.Storage, "Shared folder", "${c.share} / ${c.folder}")
+            InfoRow(Icons.Rounded.Storage, "Shared folder", c.share)
+            InfoRow(Icons.Rounded.Folder, "Pixallery folder", c.folder)
+            Text(
+                "Every phone in the family must use the same shared folder and Pixallery folder. Compare these on each phone if one can't find the family.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
             drive.problem?.let { WarningNote("Can't reach the drive: $it") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GlassButton("Change", onClick = { state.open(Overlay.DriveSetup) })
@@ -174,7 +191,7 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
             Text("Connect the shared drive at home to back up and share with your family.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
             GlassButton("Connect drive", primary = true, onClick = { state.open(Overlay.DriveSetup) }, modifier = Modifier.padding(top = 8.dp))
         }
-        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Phase 9")
+        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Phase 5")
     }
     if (confirmForget) {
         ConfirmDialog(
@@ -298,10 +315,10 @@ private fun NewPinDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 
 @Composable
 private fun AboutSection() {
-    CollapsibleSection("About and coming soon", Icons.Rounded.Info, Modifier.cardWidth(), summary = "What's next for PhotoVault") {
-        InfoRow(Icons.Rounded.Schedule, "Backup to the drive", "Phase 4")
+    CollapsibleSection("About and coming soon", Icons.Rounded.Info, Modifier.cardWidth(), summary = "What's next for $APP_NAME") {
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Phase 5")
+        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN) and invites", "Phase 5")
+        InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
-        InfoRow(Icons.Rounded.VpnKey, "Remote access (VPN)", "Phase 9")
     }
 }

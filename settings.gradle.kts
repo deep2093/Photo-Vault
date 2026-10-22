@@ -14,6 +14,7 @@ include(":core:designsystem")
 include(":core:media")
 include(":core:drive")
 include(":core:household")
+include(":core:backup")
 include(":ui:shell")
 
 // Android-only for now. Ported from Veyra (deep2093/SmbVideoPlayer). See docs/REUSE_FROM_VEYRA.md

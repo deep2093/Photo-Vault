@@ -112,6 +112,38 @@ class HouseholdStoreTest {
     }
 
     @Test
+    fun profilePhotosEachPersonOwnAndTheOwnerAnyones() = runTest {
+        ownerSetUp()
+        store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
+        val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
+        val owner = store().load()!!.ownerUserId
+        // Sam sets his own.
+        val first = store().setPhoto(SAM_PHONE, sam.userId, byteArrayOf(1, 2, 3)).member(sam.userId)!!.photo!!
+        assertTrue(first.startsWith("system/people/"))
+        assertEquals(listOf<Byte>(1, 2, 3), store().readPhoto(first).toList())
+        // Sam can't change the owner's.
+        assertFailsWith<NotAllowed> { store().setPhoto(SAM_PHONE, owner, byteArrayOf(9)) }
+        // The owner changes Sam's with the PIN; the old picture is removed, never overwritten.
+        assertFailsWith<NotAllowed> { store().setPhoto(OWNER_PHONE, sam.userId, byteArrayOf(4), pin = "0000") }
+        val second = store().setPhoto(OWNER_PHONE, sam.userId, byteArrayOf(4), pin = "2468").member(sam.userId)!!.photo!!
+        assertTrue(second != first)
+        assertTrue(!drive.exists(first))
+        store().clearPhoto(SAM_PHONE, sam.userId)
+        assertNull(store().load()!!.member(sam.userId)!!.photo)
+        assertFailsWith<IllegalArgumentException> { store().readPhoto("users/$owner/originals/a.jpg") }
+    }
+
+    @Test
+    fun aPhoneUpdatesItsOwnName() = runTest {
+        ownerSetUp()
+        store().renameDevice(OWNER_PHONE, "Galaxy S26 Ultra")
+        assertEquals("Galaxy S26 Ultra", store().load()!!.owner!!.devices.single().name)
+        val revision = store().load()!!.revision
+        store().renameDevice(OWNER_PHONE, "Galaxy S26 Ultra")
+        assertEquals(revision, store().load()!!.revision)
+    }
+
+    @Test
     fun twoPhonesChangingAtOnceNeverLoseAChange() = runTest {
         ownerSetUp()
         store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }

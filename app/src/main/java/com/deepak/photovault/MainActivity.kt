@@ -42,9 +42,31 @@ import com.deepak.photovault.ui.shell.MediaActions
 import com.deepak.photovault.ui.shell.PhotoVaultApp
 import com.deepak.photovault.ui.shell.PlatformSignals
 import com.deepak.photovault.ui.shell.ShellState
+import com.deepak.photovault.ui.shell.Destination
+import com.deepak.photovault.ui.shell.IconGlyph
+import com.deepak.photovault.ui.shell.OpeningAnimation
+import com.deepak.photovault.backup.BackupGraph
+import android.graphics.BitmapFactory
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Android host for the shared PhotoVault shell (the same screens are written to run in a PC app later). */
 class MainActivity : ComponentActivity(), MediaActions {
+    companion object {
+        const val EXTRA_OPEN_BACKUP = "open_backup"
+
+        /** The opening animation has played in this run of the app. */
+        private var introPlayed = false
+    }
+
     private var signals by mutableStateOf(PlatformSignals())
     private lateinit var gallery: GalleryState
     private lateinit var drive: DriveState
@@ -62,14 +84,41 @@ class MainActivity : ComponentActivity(), MediaActions {
      * the library notices the change by itself. */
     private val consentLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { }
 
+    private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Waiting for the photo picker to hand back a profile picture. */
+    private var onProfilePhoto: ((ByteArray) -> Unit)? = null
+
+    private val photoPicker = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val done = onProfilePhoto
+        onProfilePhoto = null
+        if (uri != null && done != null) {
+            lifecycleScope.launch {
+                val jpeg = withContext(Dispatchers.IO) { runCatching { ProfilePicture.from(contentResolver, uri) }.getOrNull() }
+                if (jpeg != null) done(jpeg)
+            }
+        }
+    }
+
+    private lateinit var shell: ShellState
+    private var showIntro by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val state = ShellState(PrefsAppearanceStore(this))
+        shell = state
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this))
         drive = DriveState(AndroidDrivePlatform(this))
+        val backup = BackupGraph.get(this).state
         runCatching { iconSwitcher.tidyUp() }
         refreshSignals()
         refreshAccess()
+        openFromIntent(intent)
+        // The opening animation plays once per fresh start of the app, never with reduce motion (24 Oct).
+        showIntro = savedInstanceState == null && !introPlayed && !state.glassSettings(signals).reduceMotion
+        introPlayed = true
+        val glyph = iconSwitcher.current().glyph
+        val introIcon = if (showIntro) introBitmap(glyph) else null
         setContent {
             val dark = state.theme.isDark
             // Status and navigation bar icons follow the PhotoVault theme, not the system theme.
@@ -79,12 +128,41 @@ class MainActivity : ComponentActivity(), MediaActions {
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
             BackHandler(enabled = state.canGoBack) { state.back() }
-            PhotoVaultApp(state, gallery, this, drive, signals, iconSwitcher)
+            Box(Modifier.fillMaxSize()) {
+                PhotoVaultApp(state, gallery, this@MainActivity, drive, backup, signals, iconSwitcher)
+                if (showIntro && introIcon != null) {
+                    OpeningAnimation(
+                        icon = introIcon,
+                        glyph = glyph,
+                        background = if (dark) androidx.compose.ui.graphics.Color(0xFF0B0E14) else androidx.compose.ui.graphics.Color(0xFFF7F9FC),
+                        onDone = { showIntro = false },
+                    )
+                }
+            }
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openFromIntent(intent)
+    }
+
+    /** A backup notification opens the Backup section. */
+    private fun openFromIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_BACKUP, false) == true) {
+            shell.overlays.clear()
+            shell.destination = Destination.BACKUP
+        }
+    }
+
+    private fun introBitmap(glyph: IconGlyph): ImageBitmap? = runCatching {
+        val id = resources.getIdentifier("ic_${glyph.name.lowercase()}_foreground", "drawable", packageName)
+        BitmapFactory.decodeResource(resources, id)?.asImageBitmap()
+    }.getOrNull()
+
     override fun onStart() {
         super.onStart()
+        foreground = true
         ContextCompat.registerReceiver(
             this,
             powerSaveReceiver,
@@ -97,6 +175,8 @@ class MainActivity : ComponentActivity(), MediaActions {
     }
 
     override fun onStop() {
+        foreground = false
+        refreshSignals()
         unregisterReceiver(powerSaveReceiver)
         super.onStop()
     }
@@ -183,7 +263,24 @@ class MainActivity : ComponentActivity(), MediaActions {
         consentLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
     }
 
+    // ---- Backup and family ----
+
+    override fun requestNotifications() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    override fun openBatterySettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+    }
+
+    override fun pickProfilePhoto(onPicked: (ByteArray) -> Unit) {
+        onProfilePhoto = onPicked
+        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+
     // ---- Platform signals ----
+
+    private var foreground = false
 
     private fun refreshSignals() {
         val power = getSystemService(PowerManager::class.java)
@@ -191,7 +288,29 @@ class MainActivity : ComponentActivity(), MediaActions {
         signals = PlatformSignals(
             powerSaveMode = power?.isPowerSaveMode == true,
             systemReduceMotion = animatorScale == 0f,
+            foreground = foreground,
         )
+    }
+}
+
+/** A small square JPEG (256 px, centre crop) from a picked photo, for a profile picture. */
+private object ProfilePicture {
+    private const val SIZE = 256
+
+    fun from(resolver: android.content.ContentResolver, uri: Uri): ByteArray {
+        val bitmap = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
+            decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+            // Decode small straight away: the short side becomes 256 px.
+            val shortSide = minOf(info.size.width, info.size.height).coerceAtLeast(1)
+            val scale = SIZE.toFloat() / shortSide
+            if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(SIZE), (info.size.height * scale).toInt().coerceAtLeast(SIZE))
+        }
+        val side = minOf(bitmap.width, bitmap.height)
+        val square = android.graphics.Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
+        val scaled = android.graphics.Bitmap.createScaledBitmap(square, SIZE, SIZE, true)
+        val out = java.io.ByteArrayOutputStream()
+        scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+        return out.toByteArray()
     }
 }
 
@@ -248,6 +367,9 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         themeId = prefs.getString("theme", null) ?: AppearanceSettings().themeId,
         blurOn = prefs.getBoolean("blur", true),
         reduceMotion = prefs.getBoolean("reduce_motion", false),
+        tabletBottomBar = prefs.getBoolean("tablet_bottom_bar", false),
+        // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
+        themeChosen = prefs.getBoolean("theme_chosen", false),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -255,6 +377,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putString("theme", settings.themeId)
             .putBoolean("blur", settings.blurOn)
             .putBoolean("reduce_motion", settings.reduceMotion)
+            .putBoolean("tablet_bottom_bar", settings.tabletBottomBar)
+            .putBoolean("theme_chosen", settings.themeChosen)
             .apply()
     }
 }

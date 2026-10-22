@@ -67,6 +67,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -85,7 +88,24 @@ import com.deepak.photovault.designsystem.motionSpec
 import dev.chrisbanes.haze.HazeState
 
 private const val OVERLAY_MS = 320
+private const val DRIVE_REFRESH_MS = 60_000L
+
+/** Everything a section needs, passed around together. */
+private class Screens(
+    val state: ShellState,
+    val gallery: GalleryState,
+    val actions: MediaActions,
+    val drive: DriveState,
+    val backup: BackupState,
+    val iconSwitcher: AppIconSwitcher,
+) {
+    /** A dot on Family while a phone is waiting for the owner. */
+    val familyDot: Boolean get() = drive.isOwner && drive.requests.isNotEmpty()
+}
 private const val OVERLAY_SCALE = 0.9f
+
+/** True on tablets and wide windows (the side-menu layout), whichever menu style is chosen. */
+val LocalTablet = staticCompositionLocalOf { false }
 
 /** Space each screen must leave around its scrolling content (system bars, floating navigation). */
 val LocalScreenInsets = staticCompositionLocalOf { PaddingValues(0.dp) }
@@ -100,23 +120,36 @@ fun PhotoVaultApp(
     gallery: GalleryState,
     actions: MediaActions,
     drive: DriveState,
+    backup: BackupState,
     signals: PlatformSignals = PlatformSignals(),
     iconSwitcher: AppIconSwitcher = NoAppIconSwitcher,
 ) {
     setSingletonImageLoaderFactory { context -> createImageLoader(context) }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
-    // Check the family drive once at start so Backup, Family and Settings show real figures.
-    LaunchedEffect(drive) { if (drive.isSetUp) drive.refresh() }
+    // Check the family drive when the app opens, then every minute while it is on screen, so Backup, Family and
+    // Settings show real figures and the owner sees the dot on Family when a phone asks to join (24 Oct: no push).
+    LaunchedEffect(drive, signals.foreground) {
+        while (signals.foreground && drive.isSetUp) {
+            drive.refresh()
+            kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
+        }
+    }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         CompositionLocalProvider(LocalHazeState provides hazeState) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val system = WindowInsets.safeDrawing.asPaddingValues()
-                    when (AdaptiveLayout.navigationFor(maxWidth.value.toInt())) {
-                        NavigationLayout.BOTTOM_BAR -> BottomBarLayout(state, gallery, actions, drive, iconSwitcher, system)
-                        NavigationLayout.SIDE_RAIL -> SideRailLayout(state, gallery, actions, drive, iconSwitcher, system)
+                    val screens = Screens(state, gallery, actions, drive, backup, iconSwitcher)
+                    val layout = AdaptiveLayout.navigationFor(maxWidth.value.toInt())
+                    CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL)) {
+                        // Tablets can move the side menu to a floating bar at the bottom (Settings > Appearance).
+                        if (layout == NavigationLayout.BOTTOM_BAR || state.appearance.tabletBottomBar) {
+                            BottomBarLayout(screens, system)
+                        } else {
+                            SideRailLayout(screens, system)
+                        }
                     }
                     OverlayHost(state, gallery, actions, drive, system)
                 }
@@ -182,16 +215,15 @@ private fun Modifier.blockTouchesBelow(): Modifier = pointerInput(Unit) {
 }
 
 @Composable
-private fun BottomBarLayout(
-    state: ShellState,
-    gallery: GalleryState,
-    actions: MediaActions,
-    drive: DriveState,
-    iconSwitcher: AppIconSwitcher,
-    system: PaddingValues,
-) {
+private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
+    val state = screens.state
     val barSpace = 88.dp
     val nav = rememberSectionNav(state)
+    // Photos and Albums: the bar slides away while scrolling down and comes back on scrolling up (24 Oct).
+    val hidden = state.chrome.hidden && !state.selecting && state.destination in Destination.hidesChrome
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
+    val shift by androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, motionSpec(CHROME_MS), label = "bar")
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -201,40 +233,40 @@ private fun BottomBarLayout(
                 bottom = system.calculateBottomPadding() + barSpace,
             ),
         ) {
-            SectionPager(nav.pager, state, gallery, actions, drive, iconSwitcher)
+            SectionPager(nav.pager, screens)
         }
         FloatingNavigationBar(
             indicator = nav.indicator.value,
             onSelect = state::tapSection,
+            familyDot = screens.familyDot,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .graphicsLayer {
+                    translationY = shift
+                    alpha = 1f - (shift / travel).coerceIn(0f, 1f)
+                }
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
         )
     }
 }
 
 @Composable
-private fun SideRailLayout(
-    state: ShellState,
-    gallery: GalleryState,
-    actions: MediaActions,
-    drive: DriveState,
-    iconSwitcher: AppIconSwitcher,
-    system: PaddingValues,
-) {
+private fun SideRailLayout(screens: Screens, system: PaddingValues) {
+    val state = screens.state
     val nav = rememberSectionNav(state)
     Row(Modifier.fillMaxSize()) {
-        SideRail(
-            indicator = nav.indicator.value,
-            onSelect = state::tapSection,
-            modifier = Modifier
+        Box(
+            Modifier
                 .fillMaxHeight()
                 .padding(
                     start = system.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
                     top = system.calculateTopPadding() + 12.dp,
                     bottom = system.calculateBottomPadding() + 12.dp,
                 ),
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            SideRail(indicator = nav.indicator.value, onSelect = state::tapSection, familyDot = screens.familyDot)
+        }
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
                 top = system.calculateTopPadding(),
@@ -242,7 +274,7 @@ private fun SideRailLayout(
                 bottom = system.calculateBottomPadding(),
             ),
         ) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { SectionPager(nav.pager, state, gallery, actions, drive, iconSwitcher) }
+            Box(Modifier.weight(1f).fillMaxHeight()) { SectionPager(nav.pager, screens) }
         }
     }
 }
@@ -307,6 +339,7 @@ private fun rememberSectionNav(state: ShellState): SectionNav {
             val landed = Destination.entries[page]
             if (landed != state.destination && !pager.isScrollInProgress && !nav.jumping) {
                 state.selected = emptySet()
+                state.chrome.hidden = false
                 state.destination = landed
             }
         }
@@ -317,14 +350,8 @@ private fun rememberSectionNav(state: ShellState): SectionNav {
 private const val SECTION_MS = 340
 
 @Composable
-private fun SectionPager(
-    pager: PagerState,
-    state: ShellState,
-    gallery: GalleryState,
-    actions: MediaActions,
-    drive: DriveState,
-    iconSwitcher: AppIconSwitcher,
-) {
+private fun SectionPager(pager: PagerState, screens: Screens) {
+    val state = screens.state
     HorizontalPager(
         state = pager,
         key = { it },
@@ -334,13 +361,16 @@ private fun SectionPager(
         modifier = Modifier.fillMaxSize(),
     ) { page ->
         val destination = Destination.entries[page]
-        CompositionLocalProvider(LocalScrollToTop provides (state.reselects[destination] ?: 0)) {
+        CompositionLocalProvider(
+            LocalScrollToTop provides (state.reselects[destination] ?: 0),
+            LocalChrome provides if (destination in Destination.hidesChrome) state.chrome else null,
+        ) {
             when (destination) {
-                Destination.PHOTOS -> PhotosScreen(state, gallery, actions, drive)
-                Destination.ALBUMS -> AlbumsScreen(state, gallery, actions)
-                Destination.BACKUP -> BackupScreen(drive)
-                Destination.FAMILY -> FamilyScreen(state, drive)
-                Destination.SETTINGS -> SettingsScreen(state, drive, iconSwitcher)
+                Destination.PHOTOS -> PhotosScreen(state, screens.gallery, screens.actions, screens.drive)
+                Destination.ALBUMS -> AlbumsScreen(state, screens.gallery, screens.actions)
+                Destination.BACKUP -> BackupScreen(screens.drive, screens.backup, screens.gallery, screens.actions)
+                Destination.FAMILY -> FamilyScreen(state, screens.drive, screens.actions)
+                Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher)
             }
         }
     }
@@ -348,7 +378,7 @@ private fun SectionPager(
 
 /** Phones: a floating glass capsule with one highlight that slides between sections. */
 @Composable
-private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> Unit, modifier: Modifier = Modifier) {
+private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> Unit, familyDot: Boolean, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
     BoxWithConstraints(
@@ -369,47 +399,60 @@ private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> U
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->
-                NavItem(destination, indicator, { onSelect(destination) }, Modifier.weight(1f))
+                NavItem(destination, indicator, { onSelect(destination) }, Modifier.weight(1f), dot = familyDot && destination == Destination.FAMILY)
             }
         }
     }
 }
 
-/** Tablets and PC: a fixed glass side menu with the same sliding highlight. Never collapses. */
+/**
+ * Tablets and PC: a compact glass side menu that floats beside the content (24 Oct: smaller, and see-through
+ * in the Transparent theme like the phone's bar). Never collapses; Settings can move it to the bottom instead.
+ */
 @Composable
-private fun SideRail(indicator: Float, onSelect: (Destination) -> Unit, modifier: Modifier = Modifier) {
+private fun SideRail(indicator: Float, onSelect: (Destination) -> Unit, familyDot: Boolean, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     Column(
         modifier
-            .width(112.dp)
-            .glassPanel(RoundedCornerShape(28.dp))
-            .padding(vertical = 16.dp, horizontal = 8.dp),
+            .width(88.dp)
+            .glassChrome(RoundedCornerShape(28.dp), elevation = 10.dp)
+            .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            "PhotoVault",
+            APP_NAME,
             color = theme.onGlass,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp),
+            maxLines = 1,
+            modifier = Modifier.padding(bottom = 8.dp),
         )
         Box {
             Box(
                 Modifier
-                    .offset { IntOffset(0, (NAV_ITEM_HEIGHT * indicator).roundToPx()) }
+                    .offset { IntOffset(0, (RAIL_ITEM_HEIGHT * indicator).roundToPx()) }
                     .fillMaxWidth()
-                    .height(NAV_ITEM_HEIGHT)
-                    .clip(RoundedCornerShape(24.dp))
+                    .height(RAIL_ITEM_HEIGHT)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(theme.accent),
             )
             Column(Modifier.selectableGroup()) {
                 Destination.entries.forEach { destination ->
-                    NavItem(destination, indicator, { onSelect(destination) }, Modifier.fillMaxWidth())
+                    NavItem(
+                        destination, indicator, { onSelect(destination) }, Modifier.fillMaxWidth(),
+                        height = RAIL_ITEM_HEIGHT, dot = familyDot && destination == Destination.FAMILY,
+                    )
                 }
             }
         }
     }
 }
+
+/** The app's name as people see it (renamed from Veyra Photos on 24 Oct). */
+const val APP_NAME = "Pixallery"
+
+private val RAIL_ITEM_HEIGHT = 54.dp
+private const val CHROME_MS = 220
 
 private val NAV_ITEM_HEIGHT = 58.dp
 
@@ -418,20 +461,40 @@ private val NAV_ITEM_HEIGHT = 58.dp
  * "selected" and "not selected" mid-swipe.
  */
 @Composable
-private fun NavItem(destination: Destination, indicator: Float, onClick: () -> Unit, modifier: Modifier) {
+private fun NavItem(
+    destination: Destination,
+    indicator: Float,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    height: Dp = NAV_ITEM_HEIGHT,
+    dot: Boolean = false,
+) {
     val theme = LocalGlassTheme.current
     val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
     val fg = lerp(theme.onGlass, theme.onAccent, closeness)
     val selected = closeness > 0.5f
     Column(
         modifier
-            .height(NAV_ITEM_HEIGHT)
+            .height(height)
             .clip(RoundedCornerShape(24.dp))
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick),
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .then(if (dot) Modifier.semantics { stateDescription = "A phone is waiting for approval" } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        GlassIcon(destination.icon, tint = fg)
+        Box {
+            GlassIcon(destination.icon, tint = fg)
+            if (dot) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 4.dp, y = (-2).dp)
+                        .size(10.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(theme.badgePhoneOnly),
+                )
+            }
+        }
         Spacer(Modifier.height(2.dp))
         Text(destination.label, color = fg, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }

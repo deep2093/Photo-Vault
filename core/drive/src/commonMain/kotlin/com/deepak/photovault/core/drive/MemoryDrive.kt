@@ -62,6 +62,70 @@ class MemoryDrive(
         true
     }
 
+    /** Test hook: flips one byte of every file written by [writeNew] after this is set, like a bad cable. */
+    var corruptWrites = false
+
+    /** Test hook: the drive "unplugs" after this many more [writeNew] calls. */
+    var failAfterWrites: Int? = null
+
+    override suspend fun writeNew(path: String, source: ByteSource): Boolean {
+        val buffer = ByteArray(8192)
+        // Read outside the lock, as a real upload would.
+        val chunks = ArrayList<ByteArray>()
+        while (true) {
+            val n = source.read(buffer)
+            if (n < 0) break
+            chunks.add(buffer.copyOf(n))
+        }
+        val bytes = ByteArray(chunks.sumOf { it.size })
+        var offset = 0
+        chunks.forEach { c ->
+            c.copyInto(bytes, offset)
+            offset += c.size
+        }
+        return lock.withLock {
+            failAfterWrites?.let { left ->
+                if (left <= 0) offline = true
+                failAfterWrites = left - 1
+            }
+            online()
+            val p = DrivePaths.check(path)
+            require(DrivePaths.parent(p) in folders) { "Folder missing" }
+            if (p in files || p in folders) return@withLock false
+            if (corruptWrites && bytes.isNotEmpty()) bytes[bytes.size / 2] = (bytes[bytes.size / 2] + 1).toByte()
+            files[p] = bytes
+            true
+        }
+    }
+
+    override suspend fun readStream(path: String, sink: (ByteArray, Int) -> Unit) {
+        val bytes = lock.withLock {
+            online()
+            files[DrivePaths.check(path)]?.copyOf() ?: throw DriveNotFound(path)
+        }
+        var o = 0
+        while (o < bytes.size) {
+            val n = minOf(8192, bytes.size - o)
+            sink(bytes.copyOfRange(o, o + n), n)
+            o += n
+        }
+    }
+
+    override suspend fun rename(from: String, to: String): Boolean = lock.withLock {
+        online()
+        val f = DrivePaths.check(from)
+        val t = DrivePaths.check(to)
+        val bytes = files[f] ?: throw DriveNotFound(from)
+        require(DrivePaths.parent(t) in folders) { "Folder missing" }
+        if (t in files || t in folders) return@withLock false
+        files.remove(f)
+        files[t] = bytes
+        true
+    }
+
+    /** Test helper: every file path, sorted. */
+    suspend fun allFiles(): List<String> = lock.withLock { files.keys.sorted() }
+
     override suspend fun delete(path: String) = lock.withLock {
         online()
         files.remove(DrivePaths.check(path))

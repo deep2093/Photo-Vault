@@ -270,6 +270,69 @@ class SmbConnection(private val profile: SmbProfile) : Closeable {
         }
     }
 
+    /**
+     * Streams [source] into a new file (FILE_CREATE: fails if anything is there). Returns false when [path]
+     * already exists. Used for backup's private temporary files; publishing is a separate no-replace rename.
+     * [cancelled] is checked between chunks so a stopped backup ends quickly.
+     */
+    fun writeNewFile(path: String, source: com.deepak.photovault.core.drive.ByteSource, cancelled: () -> Boolean = { false }): Boolean {
+        val disk = share ?: throw IOException("Not connected")
+        val target = safePath(path)
+        if (disk.fileExists(target) || disk.folderExists(target)) return false
+        try {
+            disk.openFile(
+                target,
+                EnumSet.of(AccessMask.GENERIC_WRITE),
+                null,
+                SMB2ShareAccess.ALL,
+                SMB2CreateDisposition.FILE_CREATE,
+                null,
+            ).use { file ->
+                file.outputStream.use { out ->
+                    val buffer = ByteArray(256 * 1024)
+                    while (true) {
+                        if (cancelled()) throw java.io.InterruptedIOException("Backup stopped")
+                        val n = source.read(buffer)
+                        if (n < 0) break
+                        if (n > 0) out.write(buffer, 0, n)
+                    }
+                    out.flush()
+                }
+            }
+        } catch (e: SMBApiException) {
+            if (e.status == NtStatus.STATUS_OBJECT_NAME_COLLISION) return false
+            throw e
+        }
+        return true
+    }
+
+    /** Reads a file of any size, chunk by chunk, into [sink]. */
+    fun readStream(path: String, cancelled: () -> Boolean = { false }, sink: (ByteArray, Int) -> Unit) {
+        openFile(safePath(path).replace('\\', '/')).use { file ->
+            file.inputStream.use { input ->
+                val buffer = ByteArray(256 * 1024)
+                while (true) {
+                    if (cancelled()) throw java.io.InterruptedIOException("Backup stopped")
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    if (n > 0) sink(buffer, n)
+                }
+            }
+        }
+    }
+
+    /** Renames a file without ever replacing; false when [to] already exists. */
+    fun renameNoReplace(from: String, to: String): Boolean = try {
+        renamePath(from, to)
+        true
+    } catch (e: IllegalArgumentException) {
+        if (e.message != "Destination already exists") throw e
+        false
+    } catch (e: SMBApiException) {
+        if (e.status != NtStatus.STATUS_OBJECT_NAME_COLLISION) throw e
+        false
+    }
+
     /** Deletes one file. Never folders. Does nothing when it is already gone. */
     fun deleteFile(path: String) {
         val disk = share ?: throw IOException("Not connected")

@@ -48,6 +48,8 @@ data class Member(
     val limitGb: Int = DEFAULT_LIMIT_GB,
     val joinedAtMillis: Long,
     val devices: List<Device> = emptyList(),
+    /** Profile picture on the drive (system/people/...jpg), about 256 px, or null for the first letter. */
+    val photo: String? = null,
 )
 
 @Serializable

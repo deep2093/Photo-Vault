@@ -18,7 +18,7 @@ android {
         versionCode = providers.gradleProperty("previewVersionCode").orNull?.toInt()
             ?: (1000 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0) * 2)
         versionName = "0.0.1"
-        resValue("string", "app_name", "Veyra Photos")
+        resValue("string", "app_name", "Pixallery")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -61,7 +61,7 @@ android {
         debug {
             applicationIdSuffix = ".preview"
             versionNameSuffix = "-preview"
-            resValue("string", "app_name", "Veyra Photos Preview")
+            resValue("string", "app_name", "Pixallery Preview")
             signingConfig = signingConfigs.getByName("preview")
         }
         release {
@@ -111,6 +111,10 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    // Scheduled and background backups (Phase 4).
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    // Keeps date, camera and location details when Storage saver shrinks a photo.
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 
     testImplementation("junit:junit:4.13.2")
 }
