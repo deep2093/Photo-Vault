@@ -47,4 +47,7 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
       cancel before use; after Phase 9. Play Store link version at release. The owner attaches a per-person
       WireGuard config made on the router (the app cannot create router users).
 
+- [ ] In-app "How to set this up" guide (Phase 13, see ROADMAP.md): drive, WireGuard on the router, importing the config,
+      adding family. Reachable from the drive setup screen.
+
 (More bugs from testing go here.)
