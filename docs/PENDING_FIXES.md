@@ -61,7 +61,7 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
 - [ ] App opening animation (asked 24 Oct): the pieces of the current app icon (Four Seasons: 4 leaves; Bloom and
       Leaf: 5 petals and the stem; Petals: 4 rounded tiles) fly in from all sides of the screen in a spiral and join
       into the icon, then the app appears. Follows the chosen icon. Starts from Android's own splash (it always shows
-      the plain icon for a moment first). Respects reduce motion (no animation). Open questions: length, every
-      opening or only a fresh start, tap to skip.
+      the plain icon for a moment first). Respects reduce motion (no animation). Decided 24 Oct: about 1 second;
+      plays only on a fresh start (not when coming back from the background); no tap to skip.
 
 (More bugs from testing go here.)
