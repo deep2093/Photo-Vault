@@ -85,6 +85,13 @@ class SmbCredentialStore(context: Context) {
         editor.apply()
     }
 
+    /** Forgets the drive on this phone, password included. Nothing on the drive changes. */
+    @Synchronized
+    fun clear() {
+        prefs.edit().clear().apply()
+        sessionPassword = ""
+    }
+
     /** Non-secret host only, for reachability checks. Needs no Keystore access. */
     fun host(): String = prefs.getString(KEY_HOST, "") ?: ""
 

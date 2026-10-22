@@ -27,6 +27,8 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
       - name: Verify preview keystore loads
         run: keytool -list -keystore .ci/preview-signing.p12 -storetype PKCS12 -storepass android
+      - name: Start a throwaway Samba share (real-drive tests)
+        run: bash tools/start_test_share.sh
       - name: Unit tests (all modules)
         run: |
           if ! ./gradlew testDebugUnitTest --stacktrace > unit-tests.log 2>&1; then
@@ -34,6 +36,24 @@ jobs:
             tail -40 unit-tests.log
             exit 1
           fi
+      - name: Report test counts
+        if: always()
+        run: |
+          python3 - <<'PYX'
+          import glob, xml.etree.ElementTree as ET
+          total = {}
+          for f in glob.glob('**/build/test-results/**/TEST-*.xml', recursive=True):
+              r = ET.parse(f).getroot()
+              name = r.get('name').split('.')[-1]
+              t, s, fl = int(r.get('tests')), int(r.get('skipped')), int(r.get('failures')) + int(r.get('errors'))
+              a = total.setdefault(name, [0, 0, 0]); a[0] += t; a[1] += s; a[2] += fl
+          ran = sum(v[0] - v[1] for v in total.values())
+          print(f"::notice title=Unit tests::{ran} ran, {sum(v[1] for v in total.values())} skipped, {sum(v[2] for v in total.values())} failed")
+          for name in ('RealShareTest', 'HouseholdStoreTest'):
+              if name in total:
+                  t, s, fl = total[name]
+                  print(f"::notice title={name}::{t - s} ran, {s} skipped, {fl} failed")
+          PYX
       - name: Android lint
         run: |
           if ! ./gradlew lintDebug --stacktrace > lint.log 2>&1; then

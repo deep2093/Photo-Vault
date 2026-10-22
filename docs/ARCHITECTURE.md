@@ -42,14 +42,15 @@ Phase 0 creates the first four. The rest are added by the phase that needs them,
 | `:app` | 0 | Android host: activity, platform signals, Android implementations of shared interfaces |
 | `:desktop` | Paused | Windows PC host: window, keyboard shortcuts, PC implementations of shared interfaces |
 | `:core:security` | 0 | `SecretBox` (Keystore AES-GCM), `SmbCredentialStore`, `PathRules` |
-| `:core:smb` | 0 | `SmbConnection`, `SmbErrors`, `LanDiscovery` (from Veyra) |
+| `:core:smb` | 0, 3 | `SmbConnection`, `SmbErrors`, `LanDiscovery` (from Veyra); `SmbDriveFileSystem` (Phase 3) |
+| `:core:drive` | 3 | **Shared.** `DriveFileSystem`: the few file steps the app needs, including create-new-without-overwrite; `MemoryDrive` for tests |
 | `:core:vpn` | 0 | `WireGuardManager`, `WireGuardConfigStore`, `SmbReachability`, `ConfigText` (from Veyra) |
 | `:core:designsystem` | 1 | **Shared.** Liquid Glass components, 4 glass + 3 adaptive themes, contrast checks, motion, adaptive layout rules |
 | `:ui:shell` | 1 | **Shared.** App scaffold, navigation, screens (sample data until Phase 2) |
 | `:core:media` | 2 | **Shared.** Media model, timeline grouping, search, phone albums, photo main colour; Android MediaStore source (androidMain) |
 | `:core:database` | 4 | Room: backup jobs, manifests cache, drive index, audit. Not needed in Phase 2: MediaStore is already an index, read directly |
 | `:data:remote` | 5 | Remote index and thumbnail cache over `:core:smb` |
-| `:core:household` | 3 | User/device IDs, per-person folder layout, containment, space limits |
+| `:core:household` | 3 | **Shared.** The family on the drive: versioned household files, join requests, owner PIN, space limits, per-person folders (HOUSEHOLD_PROTOCOL.md) |
 | `:data:backup`, `:feature:backup` | 4 | Backup engine, schedule, space limits, restore, dashboard |
 | `:feature:cleanup` | 6 | Retention, re-verification, delete consent |
 | `:feature:places` | 7 | Location index, map, Places album |
@@ -77,7 +78,8 @@ Dependency injection: a small hand-written service locator, as in Veyra, until i
 
 ```
 PhotoVault/
-  system/                 format version, household file
+  system/household/       family, one new file per change (v000001.json, ...)
+  system/requests/        phones asking to join
   users/<user-id>/
     originals/YYYY/MM/    photos
     videos/YYYY/MM/

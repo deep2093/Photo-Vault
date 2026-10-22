@@ -13,6 +13,22 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 | `:core:designsystem` | Phase 1: `ThemeContrastTest` (every text colour ≥ 4.5:1 on its worst background: glass over black and white, glass over wallpaper, bare wallpaper; for adaptive themes every hue the palette can make), `ThemeCatalogTest`, `AdaptivePaletteTest`, `AdaptiveLayoutTest` (tablets zoom out to ~48 dp tiles, saved sizes clamped on rotation) | |
 | `:core:media` | Phase 2: `DetailsFormatTest` (Samsung-style labels), `TimelineTest` (day/month/year labels, time zone at midnight, durations, days left, 20,000 photos), `SearchAndAlbumsTest`, `MainColorTest` | |
 | `:ui:shell` | Phase 1: `ShellStateTest` (battery saver turns blur off, reduce motion, settings saved, grid zoom limits, agreed warning text) | |
+| `:core:household` | Phase 3: `HouseholdStoreTest` (setup once, join with and without approval, six racing joins, owner-only actions, wrong PIN, limits, removal keeps photos, damaged newest version), `PinTest` | |
+| `:core:smb` (real share) | Phase 3: `RealShareTest` against a throwaway Samba share started in CI: create-new never overwrites, two phones racing for one name, sizes and free space, paths can't escape the folder. Skipped (and reported) when no share is running | |
+
+## Phase 3 device checks (with the real router drive)
+
+- Settings → Drive → Connect: Find drives lists the router; wrong password and wrong share show clear messages.
+- First phone: create the family, set a PIN. Second phone: "I'm new" → waits → owner approves on Family → joined.
+- Turn "Approve new phones" off → a third phone joins straight away. Turn "Owner PIN" off → no PIN asked.
+- Change someone's space; Backup shows the new limit and the real used space; Family shows the whole drive.
+- Remove a phone and a person: their folder stays on the drive. Wrong PIN 5 times → wait shown.
+- Forget the drive → connect again → same person, no new approval needed.
+- Each section of Settings opens and closes; it remembers which are open after rotating.
+- Back swipe from either edge on a full album (Camera) closes it without opening a photo (bug 22 Oct).
+- Viewer filmstrip: scroll it and the photo follows; tap a thumbnail to jump; swipe the photo and the strip
+  follows; one tap fades strip and actions away and back.
+- App icon: after updating, only one icon on the home screen; Four Seasons and Bloom in Settings; label "Veyra Photos".
 
 ## Phase 2 device checks (on Deepak's phone and tablet)
 
@@ -49,5 +65,6 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 ## CI
 
 Unit tests and lint for every module, debug (preview-signed) and release
-(shrinker) builds, arm64 preview APK as an artifact. Emulator tests with a throwaway SMB share are added in Phase 3,
-reusing Veyra's `tools/start_test_share.sh` approach.
+(shrinker) builds, arm64 preview APK as an artifact. Since Phase 3 a throwaway Samba share
+(`tools/start_test_share.sh`) runs before the unit tests, and the "Report test counts" step shows how many
+real-share tests ran, so a skipped run can't pass silently.

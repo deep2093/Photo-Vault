@@ -99,12 +99,15 @@ fun PhotoVaultApp(
     state: ShellState,
     gallery: GalleryState,
     actions: MediaActions,
+    drive: DriveState,
     signals: PlatformSignals = PlatformSignals(),
     iconSwitcher: AppIconSwitcher = NoAppIconSwitcher,
 ) {
     setSingletonImageLoaderFactory { context -> createImageLoader(context) }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
+    // Check the family drive once at start so Backup, Family and Settings show real figures.
+    LaunchedEffect(drive) { if (drive.isSetUp) drive.refresh() }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         CompositionLocalProvider(LocalHazeState provides hazeState) {
@@ -112,10 +115,10 @@ fun PhotoVaultApp(
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val system = WindowInsets.safeDrawing.asPaddingValues()
                     when (AdaptiveLayout.navigationFor(maxWidth.value.toInt())) {
-                        NavigationLayout.BOTTOM_BAR -> BottomBarLayout(state, gallery, actions, iconSwitcher, system)
-                        NavigationLayout.SIDE_RAIL -> SideRailLayout(state, gallery, actions, iconSwitcher, system)
+                        NavigationLayout.BOTTOM_BAR -> BottomBarLayout(state, gallery, actions, drive, iconSwitcher, system)
+                        NavigationLayout.SIDE_RAIL -> SideRailLayout(state, gallery, actions, drive, iconSwitcher, system)
                     }
-                    OverlayHost(state, gallery, actions, system)
+                    OverlayHost(state, gallery, actions, drive, system)
                 }
             }
         }
@@ -124,7 +127,7 @@ fun PhotoVaultApp(
 
 /** Pages opened on top (viewer, album, search, Recently deleted), animated in and out. */
 @Composable
-private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: MediaActions, system: PaddingValues) {
+private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState, system: PaddingValues) {
     // Opening and closing mirror each other at the same speed (feedback 22 Oct: closing was too fast).
     val spec = motionSpec<Float>(OVERLAY_MS)
     AnimatedContent(
@@ -158,6 +161,7 @@ private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: Media
                         is Overlay.Album -> AlbumScreen(overlay.kind, state, gallery, actions)
                         Overlay.RecentlyDeleted -> RecentlyDeletedScreen(state, gallery, actions)
                         Overlay.Search -> SearchScreen(state, gallery, actions)
+                        Overlay.DriveSetup -> DriveSetupScreen(state, drive)
                         is Overlay.Viewer -> Unit
                     }
                 }
@@ -182,6 +186,7 @@ private fun BottomBarLayout(
     state: ShellState,
     gallery: GalleryState,
     actions: MediaActions,
+    drive: DriveState,
     iconSwitcher: AppIconSwitcher,
     system: PaddingValues,
 ) {
@@ -196,7 +201,7 @@ private fun BottomBarLayout(
                 bottom = system.calculateBottomPadding() + barSpace,
             ),
         ) {
-            SectionPager(nav.pager, state, gallery, actions, iconSwitcher)
+            SectionPager(nav.pager, state, gallery, actions, drive, iconSwitcher)
         }
         FloatingNavigationBar(
             indicator = nav.indicator.value,
@@ -213,6 +218,7 @@ private fun SideRailLayout(
     state: ShellState,
     gallery: GalleryState,
     actions: MediaActions,
+    drive: DriveState,
     iconSwitcher: AppIconSwitcher,
     system: PaddingValues,
 ) {
@@ -236,7 +242,7 @@ private fun SideRailLayout(
                 bottom = system.calculateBottomPadding(),
             ),
         ) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { SectionPager(nav.pager, state, gallery, actions, iconSwitcher) }
+            Box(Modifier.weight(1f).fillMaxHeight()) { SectionPager(nav.pager, state, gallery, actions, drive, iconSwitcher) }
         }
     }
 }
@@ -316,6 +322,7 @@ private fun SectionPager(
     state: ShellState,
     gallery: GalleryState,
     actions: MediaActions,
+    drive: DriveState,
     iconSwitcher: AppIconSwitcher,
 ) {
     HorizontalPager(
@@ -331,9 +338,9 @@ private fun SectionPager(
             when (destination) {
                 Destination.PHOTOS -> PhotosScreen(state, gallery, actions)
                 Destination.ALBUMS -> AlbumsScreen(state, gallery, actions)
-                Destination.BACKUP -> BackupScreen()
-                Destination.FAMILY -> FamilyScreen()
-                Destination.SETTINGS -> SettingsScreen(state, iconSwitcher)
+                Destination.BACKUP -> BackupScreen(drive)
+                Destination.FAMILY -> FamilyScreen(state, drive)
+                Destination.SETTINGS -> SettingsScreen(state, drive, iconSwitcher)
             }
         }
     }

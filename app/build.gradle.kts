@@ -18,7 +18,7 @@ android {
         versionCode = providers.gradleProperty("previewVersionCode").orNull?.toInt()
             ?: (1000 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0) * 2)
         versionName = "0.0.1"
-        resValue("string", "app_name", "PhotoVault")
+        resValue("string", "app_name", "Veyra Photos")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -61,7 +61,7 @@ android {
         debug {
             applicationIdSuffix = ".preview"
             versionNameSuffix = "-preview"
-            resValue("string", "app_name", "PhotoVault Preview")
+            resValue("string", "app_name", "Veyra Photos Preview")
             signingConfig = signingConfigs.getByName("preview")
         }
         release {
