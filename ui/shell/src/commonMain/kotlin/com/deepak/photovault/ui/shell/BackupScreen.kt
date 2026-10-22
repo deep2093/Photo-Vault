@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import com.deepak.photovault.core.media.DetailsFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
