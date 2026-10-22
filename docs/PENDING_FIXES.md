@@ -13,9 +13,7 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
 - [ ] Backup folders: only Camera is selected by default; the user can add any other phone folder (Screenshots,
       WhatsApp Images, ...) from a picker listing the phone's albums. Saved per phone.
 
-- [ ] Join requests (decided 23 Oct: safe option, nothing leaves the phone and the drive): the background job
-      that backup uses also checks the drive for waiting requests every 15-30 min and shows a notification
-      ("Asha's phone wants to join"); a red dot on the Family tab shows while one is waiting. No Firebase or other
-      push service. Over VPN the check switches the tunnel on briefly. Firebase/ntfy stay under "Later", off by default.
+- [ ] Join request notifications: UNDECIDED (23 Oct). Options discussed: periodic background check plus a Family-tab
+      dot, or a push service. Nothing to build until the owner decides.
 
 (More bugs from testing go here.)
