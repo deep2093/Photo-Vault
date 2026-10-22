@@ -78,9 +78,11 @@ const val FOLDER_PRIVACY_NOTE =
 @Composable
 fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = NoMediaActions) {
     val scope = rememberCoroutineScope()
-    // Fresh numbers when the screen opens, then every 20 seconds (new requests, space used).
-    LaunchedEffect(drive.connection) {
-        while (drive.isSetUp) {
+    // Fresh numbers when the screen opens, then every 20 seconds (new requests, space used). Only while
+    // Family is on screen: sections stay ready in the background and this reads the drive (23 Oct).
+    val onScreen = state.destination == Destination.FAMILY
+    LaunchedEffect(drive.connection, onScreen) {
+        while (onScreen && drive.isSetUp) {
             drive.refresh()
             delay(20_000)
         }

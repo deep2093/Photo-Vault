@@ -239,7 +239,8 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val hidden = state.selecting || (state.chrome.hidden && state.destination in Destination.hidesChrome)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
-    val shift by androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, motionSpec(CHROME_MS), label = "bar")
+    // Read only while drawing, so the slide doesn't recompose the screens on every frame.
+    val shift = androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, motionSpec(CHROME_MS), label = "bar")
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -252,14 +253,14 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             SectionPager(nav.pager, screens)
         }
         FloatingNavigationBar(
-            indicator = nav.indicator.value,
+            indicator = { nav.indicator.value },
             onSelect = state::tapSection,
             familyDot = screens.familyDot,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .graphicsLayer {
-                    translationY = shift
-                    alpha = 1f - (shift / travel).coerceIn(0f, 1f)
+                    translationY = shift.value
+                    alpha = 1f - (shift.value / travel).coerceIn(0f, 1f)
                 }
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
         )
@@ -281,6 +282,12 @@ private class SectionNav(val pager: PagerState, initial: Int) {
 
     /** True while a navigation tap is moving the pager; the highlight then animates on its own. */
     var jumping by mutableStateOf(false)
+
+    /**
+     * Which tap is moving the pager. A quick second tap cancels the first; the first must not clear
+     * [jumping] while the second is still moving (that made the app jump back to a section, 23 Oct).
+     */
+    var jumpId = 0
 }
 
 @Composable
@@ -291,10 +298,13 @@ private fun rememberSectionNav(state: ShellState): SectionNav {
     // Navigation tap -> highlight glides, pager jumps next to the target and slides in.
     LaunchedEffect(state.destination) {
         val target = state.destination.ordinal
-        if (pager.currentPage == target && !pager.isScrollInProgress) {
+        // Already there and resting exactly on the page. (A cancelled slide can stop between two
+        // sections; that page still counts as current, so check the offset too, or it stays stuck.)
+        if (pager.currentPage == target && pager.currentPageOffsetFraction == 0f && !pager.isScrollInProgress) {
             nav.indicator.snapTo(target.toFloat())
             return@LaunchedEffect
         }
+        val id = ++nav.jumpId
         nav.jumping = true
         try {
             coroutineScope {
@@ -311,7 +321,7 @@ private fun rememberSectionNav(state: ShellState): SectionNav {
                 }
             }
         } finally {
-            nav.jumping = false
+            if (nav.jumpId == id) nav.jumping = false
         }
     }
     // Finger swipes -> the highlight follows the pager exactly.
@@ -342,8 +352,9 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
     HorizontalPager(
         state = pager,
         key = { it },
-        // Neighbouring sections are ready before they slide in, so swipes don't stutter on first frame.
-        beyondViewportPageCount = 1,
+        // All four sections stay ready, so switching never builds a screen from scratch mid-slide
+        // (quick taps between far sections stuttered, 23 Oct). Off-screen ones aren't drawn.
+        beyondViewportPageCount = Destination.entries.size - 1,
         userScrollEnabled = !state.selecting,
         modifier = Modifier.fillMaxSize(),
     ) { page ->
@@ -364,7 +375,7 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
 
 /** Phones: a floating glass capsule with one highlight that slides between sections. */
 @Composable
-private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> Unit, familyDot: Boolean, modifier: Modifier = Modifier) {
+private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
     BoxWithConstraints(
@@ -378,14 +389,14 @@ private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> U
         val itemWidth = maxWidth / Destination.entries.size
         Box(
             Modifier
-                .offset { IntOffset((itemWidth * indicator).roundToPx(), 0) }
+                .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
                 .size(itemWidth, NAV_ITEM_HEIGHT)
                 .clip(RoundedCornerShape(24.dp))
                 .background(theme.accent),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->
-                NavItem(destination, indicator, { onSelect(destination) }, Modifier.weight(1f), dot = familyDot && destination == Destination.FAMILY)
+                NavItem(destination, indicator(), { onSelect(destination) }, Modifier.weight(1f), dot = familyDot && destination == Destination.FAMILY)
             }
         }
     }

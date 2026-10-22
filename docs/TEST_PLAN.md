@@ -148,6 +148,8 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Photos, albums and search (23 Oct): photos run edge to edge with thin gaps and square corners; dates, the
   search box and notes keep their margin; the slider floats over the photos and still drags; slide-select picks
   the right photo, including in the first and last columns.
+- Tap between sections fast (Photos ↔ Settings, back and forth, several times): slides stay smooth, never stop
+  halfway between two sections and never land on a section you didn't tap. Family still updates while open.
 
 ## Device and integration tests (from the phase that needs them)
 
