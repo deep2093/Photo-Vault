@@ -24,8 +24,17 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.Brush
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -100,8 +109,8 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 /**
- * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to show or hide the actions,
- * play videos. Photos are shown on black, never tinted. There is no top bar: back is the system back gesture.
+ * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to fade the filmstrip and actions
+ * in or out, play videos. Photos are shown on black, never tinted. There is no top bar: back is the system back gesture.
  *
  * Swipe up (or tap Details) to slide the photo up and reveal the details panel, as in Samsung Gallery
  * (feedback 22 Oct). Swipe down, tap the photo or press back to close it.
@@ -189,20 +198,31 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                     .draggable(state = drag, orientation = Orientation.Vertical, onDragStopped = { settle(it) }),
             )
 
+            // A tap on the photo fades the filmstrip and actions away and back, as in Samsung Gallery.
             AnimatedVisibility(
                 visible = barsVisible && !state.detailsOpen,
-                enter = fadeIn(motionSpec()) + slideInVertically(motionSpec()) { it / 2 },
-                exit = fadeOut(motionSpec()) + slideOutVertically(motionSpec()) { it / 2 },
+                enter = fadeIn(motionSpec()),
+                exit = fadeOut(motionSpec()),
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
-                ViewerActions(
-                    favourite = gallery.isFavourite(current),
-                    onShare = { actions.share(listOf(current)) },
-                    onFavourite = { gallery.toggleFavourite(listOf(current)) },
-                    onInfo = { state.detailsOpen = true },
-                    onDelete = { actions.moveToRecentlyDeleted(listOf(current)) },
-                    modifier = Modifier.padding(bottom = system.calculateBottomPadding() + 12.dp),
-                )
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        // A soft shade so the strip and buttons stay visible over bright photos.
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))))
+                        .padding(top = 24.dp, bottom = system.calculateBottomPadding() + 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    if (ids.size > 1) Filmstrip(ids, gallery, pager)
+                    ViewerActions(
+                        favourite = gallery.isFavourite(current),
+                        onShare = { actions.share(listOf(current)) },
+                        onFavourite = { gallery.toggleFavourite(listOf(current)) },
+                        onInfo = { state.detailsOpen = true },
+                        onDelete = { actions.moveToRecentlyDeleted(listOf(current)) },
+                    )
+                }
             }
         }
     }
@@ -210,6 +230,88 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 
 private const val DETAILS_MS = 320
 private const val DETAILS_SHARE = 0.56f
+
+private val THUMB_W = 42.dp
+private val THUMB_H = 56.dp
+private val THUMB_GAP = 4.dp
+
+/**
+ * Samsung-style filmstrip (feedback 22 Oct): every photo in the album or section, the current one centred and
+ * outlined. Scroll it to move through photos, or tap one to jump there. Swiping the photo moves the strip too.
+ */
+@Composable
+private fun Filmstrip(ids: List<Long>, gallery: GalleryState, pager: PagerState) {
+    val strip = rememberLazyListState(initialFirstVisibleItemIndex = pager.currentPage.coerceIn(ids.indices))
+    val scope = rememberCoroutineScope()
+    val pitchPx = with(LocalDensity.current) { (THUMB_W + THUMB_GAP).toPx() }
+    val reduceMotion = LocalGlassSettings.current.reduceMotion
+    // True from the moment a finger drags the strip until its fling settles: the strip leads, the photo follows.
+    var stripLeads by remember { mutableStateOf(false) }
+    val dragged by strip.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(dragged) { if (dragged) stripLeads = true }
+    LaunchedEffect(strip) {
+        snapshotFlow { strip.isScrollInProgress }.collect { scrolling -> if (!scrolling) stripLeads = false }
+    }
+    // Strip -> photo: the thumbnail in the middle is the photo shown.
+    LaunchedEffect(strip, ids) {
+        snapshotFlow { strip.firstVisibleItemIndex to strip.firstVisibleItemScrollOffset }.collect { (index, offset) ->
+            if (!stripLeads) return@collect
+            val centred = (index + (offset / pitchPx).roundToInt()).coerceIn(ids.indices)
+            if (centred != pager.currentPage) pager.scrollToPage(centred)
+        }
+    }
+    // Photo -> strip: swiping the photo slides the strip along.
+    LaunchedEffect(pager.currentPage) {
+        if (stripLeads) return@LaunchedEffect
+        val target = pager.currentPage.coerceIn(ids.indices)
+        if (reduceMotion) strip.scrollToItem(target) else strip.animateScrollToItem(target)
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Padding on both sides lets the first and last photos sit in the middle too.
+        val side = ((maxWidth - THUMB_W) / 2).coerceAtLeast(0.dp)
+        LazyRow(
+            state = strip,
+            contentPadding = PaddingValues(horizontal = side),
+            horizontalArrangement = Arrangement.spacedBy(THUMB_GAP),
+            flingBehavior = rememberSnapFlingBehavior(strip),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().height(THUMB_H + 8.dp),
+        ) {
+            itemsIndexed(ids, key = { _, id -> id }) { index, id ->
+                val item = gallery.find(id)
+                val isCurrent = index == pager.currentPage
+                val shape = RoundedCornerShape(6.dp)
+                Box(
+                    Modifier
+                        .size(THUMB_W, THUMB_H)
+                        .graphicsLayer {
+                            val grow = if (isCurrent) 1.12f else 1f
+                            scaleX = grow
+                            scaleY = grow
+                            alpha = if (isCurrent) 1f else 0.8f
+                        }
+                        .clip(shape)
+                        .background(Color(0xFF1C1C21))
+                        .then(if (isCurrent) Modifier.border(2.dp, Color.White, shape) else Modifier)
+                        .clickable(role = Role.Button) {
+                            stripLeads = false
+                            scope.launch { pager.scrollToPage(index) }
+                        }
+                        .semantics { contentDescription = if (item != null) "Show ${whenTaken(item)}" else "Show photo" },
+                ) {
+                    if (item != null) {
+                        AsyncImage(
+                            model = Thumb(item.uri, item.isVideo, 160),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun ViewerActions(

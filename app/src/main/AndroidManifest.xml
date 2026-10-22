@@ -28,8 +28,8 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="@string/app_name"
-        android:icon="@mipmap/ic_leaf_light"
-        android:roundIcon="@mipmap/ic_leaf_light"
+        android:icon="@mipmap/ic_four_seasons_light"
+        android:roundIcon="@mipmap/ic_four_seasons_light"
         android:supportsRtl="true"
         android:theme="@style/Theme.PhotoVault">
 
@@ -39,11 +39,107 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- App icons. Exactly one is enabled at a time; Settings > App icon switches between them.
-             Leaf on light is the default. -->
+        <!-- App icons. Exactly one is enabled at a time; Settings > Appearance > App icon switches between them.
+             Four Seasons on light is the default (Veyra Photos icon kit, 22 Oct 2026). -->
+        <activity-alias
+            android:name=".IconFourSeasonsLight"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_four_seasons_light"
+            android:roundIcon="@mipmap/ic_four_seasons_light"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconFourSeasonsDark"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_four_seasons_dark"
+            android:roundIcon="@mipmap/ic_four_seasons_dark"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconFourSeasonsColourful"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_four_seasons_colourful"
+            android:roundIcon="@mipmap/ic_four_seasons_colourful"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconFourSeasonsClear"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_four_seasons_clear"
+            android:roundIcon="@mipmap/ic_four_seasons_clear"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconBloomLight"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_bloom_light"
+            android:roundIcon="@mipmap/ic_bloom_light"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconBloomDark"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_bloom_dark"
+            android:roundIcon="@mipmap/ic_bloom_dark"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconBloomColourful"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_bloom_colourful"
+            android:roundIcon="@mipmap/ic_bloom_colourful"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconBloomClear"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_bloom_clear"
+            android:roundIcon="@mipmap/ic_bloom_clear"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <activity-alias
             android:name=".IconLeafLight"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_leaf_light"
             android:roundIcon="@mipmap/ic_leaf_light"

@@ -25,6 +25,10 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 - Remove a phone and a person: their folder stays on the drive. Wrong PIN 5 times → wait shown.
 - Forget the drive → connect again → same person, no new approval needed.
 - Each section of Settings opens and closes; it remembers which are open after rotating.
+- Back swipe from either edge on a full album (Camera) closes it without opening a photo (bug 22 Oct).
+- Viewer filmstrip: scroll it and the photo follows; tap a thumbnail to jump; swipe the photo and the strip
+  follows; one tap fades strip and actions away and back.
+- App icon: after updating, only one icon on the home screen; Four Seasons and Bloom in Settings; label "Veyra Photos".
 
 ## Phase 2 device checks (on Deepak's phone and tablet)
 

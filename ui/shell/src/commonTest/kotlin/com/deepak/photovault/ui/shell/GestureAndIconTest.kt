@@ -43,10 +43,12 @@ class DragSelectTest {
 
 class AppIconTest {
     @Test
-    fun eightIconsWithLeafOnLightAsDefault() {
-        assertEquals(8, AppIconChoice.all.size)
-        assertEquals("IconLeafLight", AppIconChoice().aliasName)
+    fun sixteenIconsWithFourSeasonsOnLightAsDefault() {
+        assertEquals(16, AppIconChoice.all.size)
+        assertEquals("IconFourSeasonsLight", AppIconChoice().aliasName)
+        assertEquals("ic_four_seasons_light", AppIconChoice().resourceName)
         assertEquals("IconPetalsColourful", AppIconChoice(IconGlyph.PETALS, IconBackground.COLOURFUL).aliasName)
+        assertEquals("ic_bloom_clear", AppIconChoice(IconGlyph.BLOOM, IconBackground.CLEAR).resourceName)
     }
 }
 

@@ -67,7 +67,12 @@ fun Modifier.photoGridGestures(grid: LazyGridState, handler: PhotoGridGestureHan
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 if (event.changes.count { it.pressed } > 1) return@withTimeoutOrNull PressResult.CANCEL
                 val change = event.changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull PressResult.CANCEL
-                if (!change.pressed) return@withTimeoutOrNull PressResult.TAP
+                // A release that arrives already consumed is Android cancelling the touch, e.g. when a swipe
+                // from the screen edge turns into the system back gesture. It must not open the photo under the
+                // finger (bug 22 Oct: back on a full album opened a photo, then closed it).
+                if (!change.pressed) {
+                    return@withTimeoutOrNull if (change.isConsumed) PressResult.CANCEL else PressResult.TAP
+                }
                 if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
                     return@withTimeoutOrNull PressResult.CANCEL
                 }

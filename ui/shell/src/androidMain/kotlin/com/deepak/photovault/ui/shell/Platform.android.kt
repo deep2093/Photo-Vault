@@ -89,7 +89,7 @@ private object ThumbKeyer : Keyer<Thumb> {
 @Composable
 actual fun AppIconPreview(choice: AppIconChoice, modifier: Modifier) {
     val context = LocalContext.current
-    val name = "ic_${choice.glyph.name.lowercase()}_${choice.background.name.lowercase()}"
+    val name = choice.resourceName
     val bitmap = remember(name) {
         val id = context.resources.getIdentifier(name, "mipmap", context.packageName)
         if (id == 0) {

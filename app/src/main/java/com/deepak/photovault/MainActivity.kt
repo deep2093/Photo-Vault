@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         val state = ShellState(PrefsAppearanceStore(this))
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this))
         drive = DriveState(AndroidDrivePlatform(this))
+        runCatching { iconSwitcher.tidyUp() }
         refreshSignals()
         refreshAccess()
         setContent {
@@ -203,21 +204,39 @@ private class LauncherIconSwitcher(private val context: Context) : AppIconSwitch
 
     private fun component(choice: AppIconChoice) = ComponentName(context, "com.deepak.photovault.${choice.aliasName}")
 
-    override fun current(): AppIconChoice = AppIconChoice.all.firstOrNull { choice ->
-        when (pm.getComponentEnabledSetting(component(choice))) {
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
-            // "Default" means as declared in the manifest, where only Leaf on Light is enabled.
-            PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> choice == AppIconChoice()
-            else -> false
-        }
-    } ?: AppIconChoice()
+    private fun state(choice: AppIconChoice) = pm.getComponentEnabledSetting(component(choice))
+
+    /** Shown on the home screen: switched on in Settings, or (never switched) the manifest default. */
+    private fun enabled(choice: AppIconChoice) = when (state(choice)) {
+        PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+        PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> choice == AppIconChoice()
+        else -> false
+    }
+
+    // A choice made in Settings wins over the manifest default.
+    override fun current(): AppIconChoice =
+        AppIconChoice.all.firstOrNull { state(it) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED && it != AppIconChoice() }
+            ?: AppIconChoice.all.firstOrNull(::enabled)
+            ?: AppIconChoice()
 
     override fun set(choice: AppIconChoice) {
-        // Enable the new one first, so there is never a moment with no launcher entry.
-        pm.setComponentEnabledSetting(component(choice), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
-        AppIconChoice.all.filter { it != choice }.forEach {
-            pm.setComponentEnabledSetting(component(it), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+        val changes = AppIconChoice.all.map { it to if (it == choice) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // One change for all icons, so the home screen never shows two or none.
+            pm.setComponentEnabledSettings(changes.map { (c, s) -> PackageManager.ComponentEnabledSetting(component(c), s, PackageManager.DONT_KILL_APP) })
+        } else {
+            // Enable the new one first, so there is never a moment with no launcher entry.
+            pm.setComponentEnabledSetting(component(choice), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+            changes.filter { it.first != choice }.forEach { (c, s) -> pm.setComponentEnabledSetting(component(c), s, PackageManager.DONT_KILL_APP) }
         }
+    }
+
+    /**
+     * After an update that changes the default icon, someone who had picked an icon in Settings would see two
+     * (theirs and the new default). Keep only theirs.
+     */
+    fun tidyUp() {
+        if (AppIconChoice.all.count(::enabled) > 1) set(current())
     }
 }
 

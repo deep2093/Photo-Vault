@@ -140,11 +140,22 @@ internal fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
     Row(Modifier.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = theme.onGlassSecondary)
         Spacer(Modifier.width(16.dp))
-        Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text(value, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        if (value.length > INFO_ROW_INLINE_CHARS) {
+            // A long value goes under the title, so the title never gets squeezed into a narrow column
+            // (feedback 22 Oct: "Folders" wrapped letter by letter beside the folder list).
+            Column(Modifier.weight(1f)) {
+                Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
+                Text(value, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+            }
+        } else {
+            Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
+            Text(value, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 
+private const val INFO_ROW_INLINE_CHARS = 20
 
 /** Real figures once this phone has joined the family (Phase 3); the backup itself arrives in Phase 4. */
 @Composable
