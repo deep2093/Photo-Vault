@@ -13,7 +13,8 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
 - [ ] Backup folders: only Camera is selected by default; the user can add any other phone folder (Screenshots,
       WhatsApp Images, ...) from a picker listing the phone's albums. Saved per phone.
 
-- [ ] Join request notifications: UNDECIDED (23 Oct). Options discussed: periodic background check plus a Family-tab
-      dot, or a push service. Nothing to build until the owner decides.
+- [ ] Join requests (decided 23 Oct): no push notifications and no Firebase. When the app is opened (and while it is
+      open) it checks the drive; a dot shows on the Family tab while a join request is waiting, and goes away once
+      the owner has approved or declined it. Owner's phone only.
 
 (More bugs from testing go here.)
