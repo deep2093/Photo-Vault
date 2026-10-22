@@ -45,6 +45,7 @@ import com.deepak.photovault.ui.shell.ShellState
 import com.deepak.photovault.ui.shell.Destination
 import com.deepak.photovault.ui.shell.IconGlyph
 import com.deepak.photovault.ui.shell.OpeningAnimation
+import com.deepak.photovault.ui.shell.PickedImage
 import com.deepak.photovault.backup.BackupGraph
 import android.graphics.BitmapFactory
 import androidx.activity.result.PickVisualMediaRequest
@@ -87,15 +88,15 @@ class MainActivity : ComponentActivity(), MediaActions {
     private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     /** Waiting for the photo picker to hand back a profile picture. */
-    private var onProfilePhoto: ((ByteArray) -> Unit)? = null
+    private var onProfilePhoto: ((PickedImage) -> Unit)? = null
 
     private val photoPicker = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         val done = onProfilePhoto
         onProfilePhoto = null
         if (uri != null && done != null) {
             lifecycleScope.launch {
-                val jpeg = withContext(Dispatchers.IO) { runCatching { ProfilePicture.from(contentResolver, uri) }.getOrNull() }
-                if (jpeg != null) done(jpeg)
+                val image = withContext(Dispatchers.IO) { runCatching { ProfilePicture.load(contentResolver, uri) }.getOrNull() }
+                if (image != null) done(image)
             }
         }
     }
@@ -273,9 +274,16 @@ class MainActivity : ComponentActivity(), MediaActions {
         runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
     }
 
-    override fun pickProfilePhoto(onPicked: (ByteArray) -> Unit) {
+    override fun pickProfilePhoto(onPicked: (PickedImage) -> Unit) {
         onProfilePhoto = onPicked
         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+
+    override fun cropProfilePhoto(image: PickedImage, left: Int, top: Int, side: Int, onDone: (ByteArray) -> Unit) {
+        lifecycleScope.launch {
+            val jpeg = withContext(Dispatchers.Default) { runCatching { ProfilePicture.crop(image, left, top, side) }.getOrNull() }
+            if (jpeg != null) onDone(jpeg)
+        }
     }
 
     // ---- Platform signals ----
@@ -293,20 +301,31 @@ class MainActivity : ComponentActivity(), MediaActions {
     }
 }
 
-/** A small square JPEG (256 px, centre crop) from a picked photo, for a profile picture. */
+/** Profile pictures: the picked photo at screen size (upright), then the square chosen in the app at 256 px. */
 private object ProfilePicture {
     private const val SIZE = 256
+    private const val MAX_SIDE = 1600
 
-    fun from(resolver: android.content.ContentResolver, uri: Uri): ByteArray {
+    fun load(resolver: android.content.ContentResolver, uri: Uri): PickedImage {
         val bitmap = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
             decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
-            // Decode small straight away: the short side becomes 256 px.
-            val shortSide = minOf(info.size.width, info.size.height).coerceAtLeast(1)
-            val scale = SIZE.toFloat() / shortSide
-            if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(SIZE), (info.size.height * scale).toInt().coerceAtLeast(SIZE))
+            val longSide = maxOf(info.size.width, info.size.height).coerceAtLeast(1)
+            if (longSide > MAX_SIDE) {
+                val scale = MAX_SIDE.toFloat() / longSide
+                decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
+            }
         }
-        val side = minOf(bitmap.width, bitmap.height)
-        val square = android.graphics.Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
+        val out = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+        return PickedImage(out.toByteArray(), bitmap.width, bitmap.height)
+    }
+
+    fun crop(image: PickedImage, left: Int, top: Int, side: Int): ByteArray {
+        val bitmap = BitmapFactory.decodeByteArray(image.jpeg, 0, image.jpeg.size)
+        val s = side.coerceIn(1, minOf(bitmap.width, bitmap.height))
+        val l = left.coerceIn(0, bitmap.width - s)
+        val t = top.coerceIn(0, bitmap.height - s)
+        val square = android.graphics.Bitmap.createBitmap(bitmap, l, t, s, s)
         val scaled = android.graphics.Bitmap.createScaledBitmap(square, SIZE, SIZE, true)
         val out = java.io.ByteArrayOutputStream()
         scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)

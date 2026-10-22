@@ -13,6 +13,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Compress
@@ -70,13 +75,16 @@ const val MOBILE_DATA_WARNING =
     "Backing up on mobile data uses about twice the size of each photo or video, because the app checks " +
         "every file after uploading. Large videos can use a lot of data."
 
-/** Real backup (Phase 4): status, schedule, what to back up, space, phones, history and restore. */
+/**
+ * Backup (Phase 4, made compact 24 Oct): status at the top, then one card of short rows (schedule and folders open
+ * their own small windows), your space and phones, a short history and restore. Details live one tap away.
+ */
 @Composable
 fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, actions: MediaActions) {
-    val theme = LocalGlassTheme.current
     val settings = backup.settings
     var confirmMobile by remember { mutableStateOf(false) }
     var pickFolders by remember { mutableStateOf(false) }
+    var scheduleOpen by remember { mutableStateOf(false) }
     // What is backed up changes after every run; refresh when the screen opens and when a run ends.
     LaunchedEffect(backup.running, backup.history.size) { backup.refreshKeys() }
     val eligible = remember(gallery.items, settings) { BackupSelection.eligible(gallery.items, settings) }
@@ -86,74 +94,45 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
         item { StatusCard(drive, backup, gallery, actions, eligible.size, done) }
         item {
             GlassCard(Modifier.cardWidth()) {
-                SectionHeader("Schedule")
-                GlassSwitchRow(
-                    "Back up automatically",
-                    settings.schedule.enabled,
-                    { on ->
-                        backup.update { it.copy(schedule = it.schedule.copy(enabled = on)) }
-                        if (on && !backup.notificationsAllowed()) actions.requestNotifications()
-                    },
-                    icon = Icons.Rounded.Schedule,
-                    description = settings.schedule.takeIf { it.enabled }?.describe() ?: "Only when you tap Back up now",
+                SettingRow(Icons.Rounded.Schedule, "Schedule", scheduleSummary(settings), onClick = { scheduleOpen = true })
+                SettingRow(
+                    Icons.Rounded.Folder,
+                    "Folders",
+                    chosenFolders(gallery.albums, settings.folders).joinToString(", ").ifEmpty { "None" },
+                    onClick = { pickFolders = true },
                 )
-                if (settings.schedule.enabled) ScheduleControls(backup)
-                GlassSwitchRow(
-                    "Only while charging",
-                    settings.chargingOnly,
-                    { on -> backup.update { it.copy(chargingOnly = on) } },
-                    icon = Icons.Rounded.BatteryChargingFull,
-                    description = if (settings.chargingOnly) "Not charging at the set time? It starts as soon as the phone is charging on Wi-Fi."
-                    else "Starts at the set time once the phone is on Wi-Fi.",
-                )
-                GlassSwitchRow(
-                    "Use mobile data",
-                    settings.mobileData,
-                    { on -> if (on) confirmMobile = true else backup.update { it.copy(mobileData = false, videosOnMobile = false) } },
-                    icon = Icons.Rounded.SignalCellularAlt,
-                    description = if (settings.mobileData) null else "Off: backs up on any Wi-Fi only",
-                    warning = MOBILE_DATA_WARNING,
-                )
-                if (settings.mobileData && settings.videos) {
-                    GlassSwitchRow("Videos on mobile data", settings.videosOnMobile, { on -> backup.update { it.copy(videosOnMobile = on) } }, icon = Icons.Rounded.Movie)
-                }
-                if (backup.batteryRestricted()) {
-                    WarningNote("Android may delay backups for apps it puts to sleep. Let Pixallery run in the background so backups start on time.")
-                    GlassButton("Allow in background", onClick = actions::openBatterySettings, modifier = Modifier.padding(top = 4.dp))
-                }
-            }
-        }
-        item {
-            GlassCard(Modifier.cardWidth()) {
-                SectionHeader("What to back up")
                 GlassSwitchRow("Photos", settings.photos, { on -> backup.update { it.copy(photos = on) } }, icon = Icons.Rounded.Photo)
                 GlassSwitchRow(
                     "Videos",
                     settings.videos,
                     { on -> backup.update { it.copy(videos = on, videosOnMobile = if (on) it.videosOnMobile else false) } },
                     icon = Icons.Rounded.Movie,
-                    description = "Off to start with. Videos are uploaded as they are, never compressed.",
                 )
-                val chosen = chosenFolders(gallery.albums, settings.folders)
-                InfoRow(Icons.Rounded.Folder, "Folders", chosen.joinToString(", ").ifEmpty { "None chosen" })
-                GlassButton("Choose folders", icon = Icons.Rounded.Add, onClick = { pickFolders = true })
                 GlassSwitchRow(
                     "Storage saver",
                     settings.storageSaver,
                     { on -> backup.update { it.copy(storageSaver = on) } },
                     icon = Icons.Rounded.Compress,
-                    description = if (settings.storageSaver) "Photos are shrunk to about 12 megapixels before upload: about half the size, hard to tell apart on a phone or TV. The copy on the drive is smaller than the original."
-                    else "Off: photos are backed up exactly as they are.",
+                    description = if (settings.storageSaver) "Photos about half the size, about 12 MP" else null,
                 )
+                GlassSwitchRow(
+                    "Mobile data",
+                    settings.mobileData,
+                    { on -> if (on) confirmMobile = true else backup.update { it.copy(mobileData = false, videosOnMobile = false) } },
+                    icon = Icons.Rounded.SignalCellularAlt,
+                )
+                if (settings.mobileData && settings.videos) {
+                    GlassSwitchRow("Videos on mobile data", settings.videosOnMobile, { on -> backup.update { it.copy(videosOnMobile = on) } }, icon = Icons.Rounded.Movie)
+                }
+                if (!backup.notificationsAllowed()) {
+                    SettingRow(Icons.Rounded.Notifications, "Notifications are off", "Allow", onClick = actions::requestNotifications)
+                }
+                if (backup.batteryRestricted()) {
+                    SettingRow(Icons.Rounded.BatteryChargingFull, "Run on time in background", "Allow", onClick = actions::openBatterySettings)
+                }
             }
         }
-        item {
-            GlassCard(Modifier.cardWidth()) {
-                SectionHeader("Your space")
-                YourSpace(drive)
-            }
-        }
-        if (drive.joined != null) item { PhonesCard(drive, backup, eligible.size, done) }
+        if (drive.joined != null) item { SpaceAndPhonesCard(drive, backup, eligible.size, done) }
         if (backup.history.isNotEmpty()) item { HistoryCard(backup.history) }
         if (drive.joined != null) item { RestoreCard(drive, backup, gallery) }
     }
@@ -175,6 +154,75 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
             pickFolders = false
         }
     }
+    if (scheduleOpen) {
+        ScheduleDialog(backup, actions, onDismiss = { scheduleOpen = false })
+    }
+}
+
+/** "Sun · 2:00 am · charging", or "Off". */
+private fun scheduleSummary(settings: com.deepak.photovault.core.backup.BackupSettings): String {
+    val s = settings.schedule
+    if (!s.enabled) return "Off"
+    val day = when (s.frequency) {
+        Frequency.DAILY -> "Daily"
+        Frequency.WEEKLY -> BackupSchedule.DAY_NAMES[s.dayOfWeek - 1].take(3)
+        Frequency.MONTHLY -> "Day ${s.dayOfMonth}"
+    }
+    return listOfNotNull(day, BackupSchedule.timeLabel(s.hour, s.minute), if (settings.chargingOnly) "charging" else null).joinToString(" · ")
+}
+
+/** A short row: icon, title, current value and an arrow; opens its own window. */
+@Composable
+private fun SettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String, onClick: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .clickable(onClickLabel = title, onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Icon(icon, contentDescription = null, tint = theme.onGlassSecondary)
+        Spacer(Modifier.width(16.dp))
+        Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(
+            value,
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 180.dp),
+        )
+        androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = theme.onGlassSecondary)
+    }
+}
+
+/** Everything about when backups run, in one small window. */
+@Composable
+private fun ScheduleDialog(backup: BackupState, actions: MediaActions, onDismiss: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val settings = backup.settings
+    GlassDialog(title = "Schedule", onDismiss = onDismiss, buttons = { GlassButton("Done", primary = true, onClick = onDismiss) }) {
+        GlassSwitchRow(
+            "Back up automatically",
+            settings.schedule.enabled,
+            { on ->
+                backup.update { it.copy(schedule = it.schedule.copy(enabled = on)) }
+                if (on && !backup.notificationsAllowed()) actions.requestNotifications()
+            },
+        )
+        if (settings.schedule.enabled) {
+            ScheduleControls(backup)
+            GlassSwitchRow("Only while charging", settings.chargingOnly, { on -> backup.update { it.copy(chargingOnly = on) } })
+            Text(
+                if (settings.chargingOnly) "Not charging then? It starts once the phone is charging on Wi-Fi." else "Starts at that time once on Wi-Fi.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 private fun chosenFolders(albums: List<PhoneAlbum>, folders: Set<String>?): List<String> =
@@ -185,21 +233,24 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
     val theme = LocalGlassTheme.current
     var note by remember { mutableStateOf<String?>(null) }
     GlassCard(Modifier.cardWidth()) {
-        val progress = backup.progress
+        val p = backup.progress
         when {
             backup.running -> {
-                Text("Backing up", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                val p = progress
-                Text(
-                    if (p == null || p.total == 0) "Getting ready..." else "${p.done} of ${p.total} checked and saved to the drive",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                p?.current?.let { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1) }
-                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Backing up", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (p == null || p.total == 0) "Getting ready..." else "${p.done} of ${p.total}" + (p.current?.let { " · $it" } ?: ""),
+                            color = theme.onGlassSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
+                    GlassIconButton(Icons.Rounded.Stop, "Stop backup", onClick = backup::stop)
+                }
+                Spacer(Modifier.height(8.dp))
                 GlassProgressBar(p?.fraction ?: 0f, label = "Backup progress")
-                Spacer(Modifier.height(12.dp))
-                GlassButton("Stop", onClick = backup::stop, icon = Icons.Rounded.Stop)
             }
             drive.joined == null -> {
                 Text("Backup", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -215,48 +266,39 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
                 GlassButton("Allow access", primary = true, onClick = actions::requestAccess, modifier = Modifier.padding(top = 8.dp))
             }
             else -> {
-                Text(
-                    if (eligible > 0 && done == eligible) "Everything is backed up" else "Backup",
-                    color = theme.onGlass,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    "${LibraryCounts.grouped(done)} of ${LibraryCounts.grouped(eligible)} checked and saved to the drive",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (eligible > 0 && done == eligible) "All backed up" else "${LibraryCounts.grouped(eligible - done)} to back up",
+                            color = theme.onGlass,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            "${LibraryCounts.grouped(done)} of ${LibraryCounts.grouped(eligible)} saved and checked",
+                            color = theme.onGlassSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    GlassButton("Back up now", primary = true, icon = Icons.Rounded.Upload, onClick = {
+                        note = if (backup.onMobileData() && !backup.settings.mobileData) "On mobile data: it starts once you're on Wi-Fi." else null
+                        if (!backup.notificationsAllowed()) actions.requestNotifications()
+                        backup.backUpNow()
+                    })
+                }
                 Spacer(Modifier.height(10.dp))
                 GlassProgressBar(if (eligible == 0) 0f else done / eligible.toFloat(), label = "$done of $eligible backed up")
-                backup.history.firstOrNull()?.let { last ->
-                    Text(
-                        "Last backup ${whenText(last.finishedAtMillis, backup.now())}: " + (last.failureMessage ?: "finished"),
-                        color = if (last.succeeded) theme.onGlassSecondary else theme.onGlass,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
+                val last = backup.history.firstOrNull()
+                val next = backup.nextRunMillis()
+                val line = listOfNotNull(
+                    last?.let { "Last ${whenText(it.finishedAtMillis, backup.now())}" },
+                    next?.let { "next ${whenText(it, backup.now())}" },
+                ).joinToString(" · ")
+                if (line.isNotEmpty()) {
+                    Text(line.replaceFirstChar { it.uppercase() }, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 }
-                backup.nextRunMillis()?.let {
-                    Text("Next: ${whenText(it, backup.now())}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
-                }
+                if (last != null && !last.succeeded) last.failureMessage?.let { WarningNote(it) }
                 note?.let { WarningNote(it) }
-                Spacer(Modifier.height(12.dp))
-                GlassButton("Back up now", primary = true, icon = Icons.Rounded.Upload, onClick = {
-                    note = if (backup.onMobileData() && !backup.settings.mobileData) "You're on mobile data. Backup starts when you're on Wi-Fi." else null
-                    if (!backup.notificationsAllowed()) actions.requestNotifications()
-                    backup.backUpNow()
-                })
-            }
-        }
-        if (!backup.notificationsAllowed()) {
-            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Notifications are off, so you won't hear about failed backups.",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f),
-                )
-                GlassIconButton(Icons.Rounded.Notifications, "Allow notifications", onClick = actions::requestNotifications)
             }
         }
     }
@@ -341,12 +383,14 @@ private fun FolderPicker(albums: List<PhoneAlbum>, current: Set<String>?, onDism
 }
 
 @Composable
-private fun PhonesCard(drive: DriveState, backup: BackupState, eligible: Int, done: Int) {
+private fun SpaceAndPhonesCard(drive: DriveState, backup: BackupState, eligible: Int, done: Int) {
     val theme = LocalGlassTheme.current
     val me = drive.joined?.me ?: return
     var last by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     LaunchedEffect(me.userId, backup.history.size) { last = drive.lastBackups() }
     GlassCard(Modifier.cardWidth()) {
+        SectionHeader("Your space")
+        YourSpace(drive)
         SectionHeader("Your phones")
         me.devices.forEach { device ->
             val isThis = device.deviceId == drive.deviceId
@@ -363,10 +407,6 @@ private fun PhonesCard(drive: DriveState, backup: BackupState, eligible: Int, do
                         )
                     }
                 }
-                if (isThis && eligible > 0) {
-                    Spacer(Modifier.height(6.dp))
-                    GlassProgressBar(done / eligible.toFloat(), label = "This phone: $done of $eligible backed up")
-                }
             }
         }
     }
@@ -377,7 +417,7 @@ private fun HistoryCard(history: List<BackupRun>) {
     val theme = LocalGlassTheme.current
     GlassCard(Modifier.cardWidth()) {
         SectionHeader("History")
-        history.take(5).forEach { run ->
+        history.take(3).forEach { run ->
             Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
                 androidx.compose.material3.Icon(Icons.Rounded.History, null, tint = if (run.succeeded) theme.onGlassSecondary else theme.accent)
                 Spacer(Modifier.width(12.dp))
@@ -406,7 +446,7 @@ private fun RestoreCard(drive: DriveState, backup: BackupState, gallery: Gallery
     GlassCard(Modifier.cardWidth()) {
         SectionHeader("Restore")
         Text(
-            "Bring backed-up photos that aren't on this phone back into its gallery (a new phone, or photos deleted here). They go into a \"Pixallery Restored\" album.",
+            "Bring back backed-up photos that aren't on this phone.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -496,18 +536,28 @@ private fun YourSpace(drive: DriveState) {
     val mine = drive.usage[joined.me.userId]
     val limit = mine?.limitBytes ?: joined.me.limitGb * DriveState.GB
     val used = mine?.usedBytes
-    if (used != null) {
-        InfoRow(Icons.Rounded.Storage, "Used", "${DetailsFormat.size(used)} of ${joined.me.limitGb} GB")
-        GlassProgressBar((used / limit.toFloat()).coerceIn(0f, 1f), label = "Your space, ${DetailsFormat.size(used)} of ${joined.me.limitGb} gigabytes used")
-    } else {
-        InfoRow(Icons.Rounded.Storage, "Used", "Counting...")
+    // One line: the bar and "used of total" beside it (24 Oct: compact).
+    Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        GlassProgressBar(
+            ((used ?: 0L) / limit.toFloat()).coerceIn(0f, 1f),
+            modifier = Modifier.weight(1f),
+            label = "Your space, ${used?.let(DetailsFormat::size) ?: "counting"} of ${joined.me.limitGb} gigabytes used",
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            if (used == null) "Counting..." else "${DetailsFormat.size(used)} of ${joined.me.limitGb} GB",
+            color = theme.onGlass,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
-    Text(
-        if (drive.isOwner) "Backup stops and tells you when your space is full. You can change everyone's space on the Family page."
-        else "Backup stops and tells you when your space is full. The drive owner can change your space.",
-        color = theme.onGlassSecondary,
-        style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.padding(top = 8.dp),
-    )
-    drive.space?.let { InfoRow(Icons.Rounded.Storage, "Whole drive", "${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}") }
+    // The whole drive is the owner's business only (24 Oct).
+    if (drive.isOwner) {
+        drive.space?.let {
+            Text(
+                "Drive: ${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }

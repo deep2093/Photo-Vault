@@ -41,9 +41,15 @@ interface MediaActions {
     /** Opens the phone's battery settings so scheduled backups aren't held back. */
     fun openBatterySettings() = Unit
 
-    /** Lets the person pick a photo and hands back a small square JPEG (about 256 px) for a profile picture. */
-    fun pickProfilePhoto(onPicked: (ByteArray) -> Unit) = Unit
+    /** Lets the person pick a photo for a profile picture; hands back a screen-sized copy to position and zoom. */
+    fun pickProfilePhoto(onPicked: (PickedImage) -> Unit) = Unit
+
+    /** Cuts the square [left], [top], [side] (pixels of [image]) out and shrinks it to a 256 px JPEG. */
+    fun cropProfilePhoto(image: PickedImage, left: Int, top: Int, side: Int, onDone: (ByteArray) -> Unit) = Unit
 }
+
+/** A picked photo ready to position: JPEG bytes and their size in pixels. */
+class PickedImage(val jpeg: ByteArray, val width: Int, val height: Int)
 
 /** Does nothing; for previews and tests. */
 object NoMediaActions : MediaActions {

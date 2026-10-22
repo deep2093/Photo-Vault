@@ -195,6 +195,7 @@ private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: Media
                         Overlay.RecentlyDeleted -> RecentlyDeletedScreen(state, gallery, actions)
                         Overlay.Search -> SearchScreen(state, gallery, actions)
                         Overlay.DriveSetup -> DriveSetupScreen(state, drive)
+                        is Overlay.Member -> MemberScreen(overlay.userId, state, drive, actions)
                         is Overlay.Viewer -> Unit
                     }
                 }
@@ -255,18 +256,19 @@ private fun SideRailLayout(screens: Screens, system: PaddingValues) {
     val state = screens.state
     val nav = rememberSectionNav(state)
     Row(Modifier.fillMaxSize()) {
-        Box(
-            Modifier
+        // Full height again, top to bottom (feedback 24 Oct), with no app name above the sections.
+        SideRail(
+            indicator = nav.indicator.value,
+            onSelect = state::tapSection,
+            familyDot = screens.familyDot,
+            modifier = Modifier
                 .fillMaxHeight()
                 .padding(
                     start = system.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
                     top = system.calculateTopPadding() + 12.dp,
                     bottom = system.calculateBottomPadding() + 12.dp,
                 ),
-            contentAlignment = Alignment.Center,
-        ) {
-            SideRail(indicator = nav.indicator.value, onSelect = state::tapSection, familyDot = screens.familyDot)
-        }
+        )
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
                 top = system.calculateTopPadding(),
@@ -406,8 +408,8 @@ private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> U
 }
 
 /**
- * Tablets and PC: a compact glass side menu that floats beside the content (24 Oct: smaller, and see-through
- * in the Transparent theme like the phone's bar). Never collapses; Settings can move it to the bottom instead.
+ * Tablets and PC: a compact glass side menu running the full height of the screen, see-through in the Transparent
+ * theme like the phone's bar, without the app name (feedback 24 Oct). Settings can move it to the bottom instead.
  */
 @Composable
 private fun SideRail(indicator: Float, onSelect: (Destination) -> Unit, familyDot: Boolean, modifier: Modifier = Modifier) {
@@ -419,14 +421,6 @@ private fun SideRail(indicator: Float, onSelect: (Destination) -> Unit, familyDo
             .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            APP_NAME,
-            color = theme.onGlass,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
         Box {
             Box(
                 Modifier

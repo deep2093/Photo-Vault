@@ -293,7 +293,7 @@ object GlassThemes {
         wallpaper = listOf(Color(0xFFEEF3FA), Color(0xFFF8FAFD), Color(0xFFE2EAF4)),
         glows = emptyList(),
         // Frosted bars over scrolling photos; clear cards on the wallpaper.
-        glassTint = Color(0xB8F4F7FC),
+        glassTint = Color(0xAEF4F7FC),
         glassFallback = Color(0x8CF6F8FC),
         glassRim = Color(0xFFB8C8DE),
         onGlass = Color(0xFF0D1726),

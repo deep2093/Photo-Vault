@@ -127,6 +127,9 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     val start = ids.indexOf(viewer.startId).coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = start) { ids.size }
     var barsVisible by rememberSaveable { mutableStateOf(true) }
+    // A playing video has its own controls; the filmstrip and actions step aside until you leave it (24 Oct).
+    var videoPlaying by remember { mutableStateOf(false) }
+    LaunchedEffect(pager.currentPage) { videoPlaying = false }
     val current = gallery.find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
     val system = WindowInsets.safeDrawing.asPaddingValues()
     val scope = rememberCoroutineScope()
@@ -178,7 +181,12 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 val item = gallery.find(ids[page]) ?: return@HorizontalPager
                 val onTap = { if (state.detailsOpen) state.detailsOpen = false else barsVisible = !barsVisible }
                 if (item.isVideo) {
-                    VideoPage(item, isCurrent = page == pager.currentPage, onTap = onTap)
+                    VideoPage(
+                        item,
+                        isCurrent = page == pager.currentPage,
+                        onTap = onTap,
+                        onPlaying = { playing -> if (page == pager.currentPage) videoPlaying = playing },
+                    )
                 } else {
                     ZoomablePhoto(item, onTap = onTap)
                 }
@@ -203,7 +211,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 
             // A tap on the photo fades the filmstrip and actions away and back, as in Samsung Gallery.
             AnimatedVisibility(
-                visible = barsVisible && !state.detailsOpen,
+                visible = barsVisible && !state.detailsOpen && !videoPlaying,
                 enter = fadeIn(motionSpec()),
                 exit = fadeOut(motionSpec()),
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -548,9 +556,10 @@ private fun clampOffset(offset: Offset, scale: Float, width: Int, height: Int): 
 
 /** A video: its thumbnail with a play button; plays in place when tapped and stops when swiped away. */
 @Composable
-private fun VideoPage(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit) {
+private fun VideoPage(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit, onPlaying: (Boolean) -> Unit) {
     var playing by remember(item.id) { mutableStateOf(false) }
     LaunchedEffect(isCurrent) { if (!isCurrent) playing = false }
+    LaunchedEffect(playing) { onPlaying(playing) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         if (playing) {
             VideoPlayer(item.uri, Modifier.fillMaxSize())

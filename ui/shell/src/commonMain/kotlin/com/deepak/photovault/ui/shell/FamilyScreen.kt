@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,22 +70,13 @@ const val FOLDER_PRIVACY_NOTE =
     "Each person's photos go into their own folder, and Pixallery only shows you yours. Anyone who knows " +
         "the drive password can still open every folder from a computer, so this works for a family that trusts each other."
 
-/** Owner-only actions waiting for the PIN. */
-private sealed interface OwnerTask {
-    /** Just open the owner controls. */
-    data object Unlock : OwnerTask
-
-    data class Approve(val request: JoinRequest) : OwnerTask
-    data class Decline(val request: JoinRequest) : OwnerTask
-    data class Limit(val member: Member) : OwnerTask
-    data class Remove(val member: Member) : OwnerTask
-    data class RemovePhone(val deviceId: String, val name: String) : OwnerTask
-    data class Photo(val member: Member) : OwnerTask
-}
-
+/**
+ * Family (redesigned 24 Oct): the members as pictures, each with a small space bar under it (the owner sees
+ * everyone's, others only their own), tapping a picture opens that person's page. The owner also gets the family
+ * settings (moved here from Settings) and the drive's total space. Kept short and calm.
+ */
 @Composable
 fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = NoMediaActions) {
-    val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     // Fresh numbers when the screen opens, then every 20 seconds (new requests, space used).
     LaunchedEffect(drive.connection) {
@@ -93,26 +85,10 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
             delay(20_000)
         }
     }
-    var pinFor by remember { mutableStateOf<OwnerTask?>(null) }
-    var task by remember { mutableStateOf<OwnerTask?>(null) }
+    var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
-
-    fun run(t: OwnerTask) {
-        // Changing your own picture never needs the PIN.
-        if (t is OwnerTask.Photo && t.member.userId == drive.joined?.me?.userId) {
-            task = t
-            return
-        }
-        if (!drive.ownerUnlocked) {
-            pinFor = t
-            return
-        }
-        when (t) {
-            is OwnerTask.Approve -> scope.launch { message = drive.approve(t.request) }
-            is OwnerTask.Decline -> scope.launch { message = drive.decline(t.request) }
-            is OwnerTask.Limit, is OwnerTask.Remove, is OwnerTask.RemovePhone, is OwnerTask.Photo -> task = t
-            OwnerTask.Unlock -> Unit
-        }
+    fun asOwner(action: () -> Unit) {
+        if (drive.ownerUnlocked) action() else pinFor = action
     }
 
     val joined = drive.joined
@@ -128,91 +104,115 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
             item {
                 GlassCard(Modifier.cardWidth()) {
                     SectionHeader("Waiting for you")
-                    drive.requests.forEach { r -> RequestRow(r, joined, onApprove = { run(OwnerTask.Approve(r)) }, onDecline = { run(OwnerTask.Decline(r)) }) }
-                }
-            }
-        }
-        item {
-            GlassCard(Modifier.cardWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SectionHeader("People", Modifier.weight(1f))
-                    if (drive.isOwner && joined.household.settings.requirePin) {
-                        GlassIconButton(
-                            if (drive.ownerUnlocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
-                            if (drive.ownerUnlocked) "Lock owner controls" else "Unlock owner controls",
-                            onClick = { if (drive.ownerUnlocked) drive.lockOwner() else pinFor = OwnerTask.Unlock },
+                    drive.requests.forEach { r ->
+                        RequestRow(
+                            r, joined,
+                            onApprove = { asOwner { scope.launch { message = drive.approve(r) } } },
+                            onDecline = { asOwner { scope.launch { message = drive.decline(r) } } },
                         )
                     }
                 }
-                Text(
-                    "Each person gets ${joined.household.settings.defaultLimitGb} GB to start." +
-                        if (drive.isOwner) " Tap a person's space to change it." else " The owner can change it.",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                joined.household.members.forEach { member ->
-                    MemberRow(
-                        member = member,
-                        isOwner = member.userId == joined.household.ownerUserId,
-                        isMe = member.userId == joined.me.userId,
-                        thisDevice = drive.deviceId,
-                        usage = drive.usage[member.userId],
-                        ownerControls = drive.isOwner,
-                        onLimit = { run(OwnerTask.Limit(member)) },
-                        onRemove = { run(OwnerTask.Remove(member)) },
-                        onRemovePhone = { id, name -> run(OwnerTask.RemovePhone(id, name)) },
-                        drive = drive,
-                        onPhoto = if (drive.canChangePhoto(member.userId)) ({ run(OwnerTask.Photo(member)) }) else null,
-                    )
-                }
             }
         }
-        item { DriveSpaceCard(drive) }
+        item { MembersCard(state, drive) }
+        if (drive.isOwner) {
+            item { OwnerSettingsCard(drive) }
+            item { DriveSpaceCard(drive) }
+        }
         item { PrivacyCard() }
     }
 
-    pinFor?.let { pending ->
-        PinDialog(
-            drive = drive,
-            onDismiss = { pinFor = null },
-            onUnlocked = {
-                pinFor = null
-                run(pending)
-            },
-        )
+    pinFor?.let { action ->
+        PinDialog(drive, onDismiss = { pinFor = null }, onUnlocked = {
+            pinFor = null
+            action()
+        })
     }
-    when (val t = task) {
-        is OwnerTask.Limit -> LimitDialog(t.member, onDismiss = { task = null }) { gb ->
-            scope.launch {
-                message = drive.setLimit(t.member.userId, gb)
-                task = null
+}
+
+/** Everyone as a picture with their name; a bar under the picture shows space used where you may see it. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun MembersCard(state: ShellState, drive: DriveState) {
+    val theme = LocalGlassTheme.current
+    val joined = drive.joined ?: return
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader("Family members")
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            joined.household.members.forEach { member ->
+                val isMe = member.userId == joined.me.userId
+                val canSee = drive.isOwner || isMe
+                Column(
+                    Modifier
+                        .width(AVATAR_TILE)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable(onClickLabel = "Open ${member.name}") { state.open(Overlay.Member(member.userId)) }
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Avatar(member, drive, size = AVATAR_TILE - 8.dp)
+                    Spacer(Modifier.height(6.dp))
+                    if (canSee) {
+                        SpaceBar(drive.usage[member.userId], member, Modifier.width(AVATAR_TILE - 8.dp))
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    Text(
+                        if (isMe) "${member.name} (you)" else member.name,
+                        color = theme.onGlass,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                    if (member.userId == joined.household.ownerUserId) {
+                        Text("Owner", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
         }
-        is OwnerTask.Remove -> ConfirmDialog(
-            title = "Remove ${t.member.name}?",
-            body = "${t.member.name}'s phones stop backing up to this drive. Their photos already on the drive are kept.",
-            confirm = "Remove",
-            onDismiss = { task = null },
-        ) { scope.launch { message = drive.removeMember(t.member.userId); task = null } }
-        is OwnerTask.RemovePhone -> ConfirmDialog(
-            title = "Remove ${t.name}?",
-            body = "This phone stops backing up to the drive. Photos already backed up are kept.",
-            confirm = "Remove",
-            onDismiss = { task = null },
-        ) { scope.launch { message = drive.removeDevice(t.deviceId); task = null } }
-        is OwnerTask.Photo -> PhotoDialog(
-            member = t.member,
-            onDismiss = { task = null },
-            onChoose = {
-                task = null
-                actions.pickProfilePhoto { jpeg -> scope.launch { message = drive.setPhoto(t.member.userId, jpeg) } }
-            },
-            onRemove = {
-                task = null
-                scope.launch { message = drive.clearPhoto(t.member.userId) }
-            },
-        )
-        else -> Unit
+    }
+}
+
+private val AVATAR_TILE = 80.dp
+
+/** A slim bar for someone's space; empty while it is still being counted. */
+@Composable
+internal fun SpaceBar(usage: MemberUsage?, member: Member, modifier: Modifier = Modifier) {
+    val limit = usage?.limitBytes ?: (member.limitGb * DriveState.GB)
+    val used = usage?.usedBytes
+    GlassProgressBar(
+        ((used ?: 0L) / limit.toFloat()).coerceIn(0f, 1f),
+        modifier = modifier,
+        label = "${member.name}: ${used?.let(DetailsFormat::size) ?: "counting"} of ${member.limitGb} GB used",
+    )
+}
+
+/** A person's picture in a circle, or their first letter. */
+@Composable
+internal fun Avatar(member: Member, drive: DriveState, size: androidx.compose.ui.unit.Dp = 48.dp, modifier: Modifier = Modifier) {
+    val theme = LocalGlassTheme.current
+    val path = member.photo
+    LaunchedEffect(path) { if (path != null) drive.loadPhoto(path) }
+    val bytes = path?.let { drive.photos[it] }
+    Box(modifier.size(size).clip(CircleShape).background(theme.accent), contentAlignment = Alignment.Center) {
+        if (bytes != null) {
+            coil3.compose.AsyncImage(
+                model = bytes,
+                contentDescription = "${member.name}'s picture",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Text(
+                member.name.take(1).uppercase(),
+                color = theme.onAccent,
+                style = if (size >= 96.dp) MaterialTheme.typography.displaySmall else MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
@@ -281,140 +281,6 @@ private fun RequestRow(request: JoinRequest, joined: Membership.Joined, onApprov
     }
 }
 
-/**
- * One person (tidied 24 Oct): picture and name, their space with the amount underneath, Change space on its own
- * line, then their phones. Nothing sits side by side that could squeeze or overlap on a narrow phone.
- */
-@Composable
-private fun MemberRow(
-    member: Member,
-    isOwner: Boolean,
-    isMe: Boolean,
-    thisDevice: String,
-    usage: MemberUsage?,
-    ownerControls: Boolean,
-    onLimit: () -> Unit,
-    onRemove: () -> Unit,
-    onRemovePhone: (String, String) -> Unit,
-    drive: DriveState,
-    onPhoto: (() -> Unit)?,
-) {
-    val theme = LocalGlassTheme.current
-    Column(Modifier.padding(vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(member, drive, onPhoto)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    member.name,
-                    color = theme.onGlass,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                )
-                val tags = listOfNotNull(if (isMe) "You" else null, if (isOwner) "Owner" else null)
-                Text(
-                    (tags + "${member.devices.size} ${if (member.devices.size == 1) "phone" else "phones"}").joinToString(" · "),
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (ownerControls && !isOwner) GlassIconButton(Icons.Rounded.PersonRemove, "Remove ${member.name}", onClick = onRemove)
-        }
-        Spacer(Modifier.height(10.dp))
-        val limit = usage?.limitBytes ?: (member.limitGb * DriveState.GB)
-        val used = usage?.usedBytes
-        GlassProgressBar(
-            ((used ?: 0L) / limit.toFloat()).coerceIn(0f, 1f),
-            label = "${member.name}: ${used?.let(DetailsFormat::size) ?: "counting"} of ${member.limitGb} GB used",
-        )
-        Text(
-            if (used == null) "Counting..." else "${DetailsFormat.size(used)} of ${member.limitGb} GB used",
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        if (ownerControls) {
-            GlassButton("Change space", onClick = onLimit, icon = Icons.Rounded.Storage, modifier = Modifier.padding(top = 8.dp))
-        }
-        member.devices.forEach { d ->
-            Row(Modifier.padding(top = 6.dp).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.Icon(
-                    Icons.Rounded.PhoneAndroid,
-                    contentDescription = null,
-                    tint = theme.onGlassSecondary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    d.name + if (d.deviceId == thisDevice) " (this phone)" else "",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                if (ownerControls && d.deviceId != thisDevice) GlassIconButton(Icons.Rounded.Close, "Remove ${d.name}", onClick = { onRemovePhone(d.deviceId, d.name) })
-            }
-        }
-    }
-}
-
-/** A person's picture in a circle, or their first letter. Tappable when this phone may change it. */
-@Composable
-internal fun Avatar(member: Member, drive: DriveState, onClick: (() -> Unit)?, size: androidx.compose.ui.unit.Dp = 48.dp) {
-    val theme = LocalGlassTheme.current
-    val path = member.photo
-    LaunchedEffect(path) { if (path != null) drive.loadPhoto(path) }
-    val bytes = path?.let { drive.photos[it] }
-    Box(
-        Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(theme.accent)
-            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Change ${member.name}'s picture", onClick = onClick) else Modifier),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (bytes != null) {
-            coil3.compose.AsyncImage(
-                model = bytes,
-                contentDescription = "${member.name}'s picture",
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Text(member.name.take(1).uppercase(), color = theme.onAccent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-        if (onClick != null) {
-            Box(
-                Modifier.align(Alignment.BottomEnd).size(18.dp).clip(CircleShape).background(theme.onGlass),
-                contentAlignment = Alignment.Center,
-            ) {
-                androidx.compose.material3.Icon(Icons.Rounded.PhotoCamera, contentDescription = null, tint = theme.accent, modifier = Modifier.size(12.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PhotoDialog(member: Member, onDismiss: () -> Unit, onChoose: () -> Unit, onRemove: () -> Unit) {
-    val theme = LocalGlassTheme.current
-    GlassDialog(
-        title = "${member.name}'s picture",
-        onDismiss = onDismiss,
-        buttons = {
-            GlassButton("Cancel", onClick = onDismiss)
-            if (member.photo != null) GlassButton("Remove", onClick = onRemove)
-            GlassButton("Choose photo", primary = true, onClick = onChoose)
-        },
-    ) {
-        Text(
-            "Shown on every phone in the family, so it's easy to see who is using how much space. It's saved small on the drive.",
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
 @Composable
 private fun DriveSpaceCard(drive: DriveState) {
     val theme = LocalGlassTheme.current
@@ -470,7 +336,7 @@ fun PinDialog(drive: DriveState, onDismiss: () -> Unit, onUnlocked: () -> Unit) 
 }
 
 @Composable
-private fun LimitDialog(member: Member, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+internal fun LimitDialog(member: Member, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
     val theme = LocalGlassTheme.current
     var gb by remember { mutableStateOf(member.limitGb) }
     var custom by remember { mutableStateOf(member.limitGb.toString()) }

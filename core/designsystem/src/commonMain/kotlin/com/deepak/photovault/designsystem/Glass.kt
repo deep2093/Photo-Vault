@@ -98,7 +98,10 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
                 Modifier.hazeEffect(
                     state = haze,
                     style = HazeStyle(
-                        backgroundColor = theme.wallpaper.first(),
+                        // Transparent, not the wallpaper colour: where nothing scrolls under a bar (empty parts of
+                        // Albums, Backup, Family, Settings, the tablet menu) the real wallpaper shows through, so the
+                        // bar looks like the same glass everywhere instead of turning white (feedback 24 Oct).
+                        backgroundColor = Color.Transparent,
                         tints = listOf(HazeTint(theme.glassTint)),
                         blurRadius = theme.blurRadius,
                         noiseFactor = theme.grain,

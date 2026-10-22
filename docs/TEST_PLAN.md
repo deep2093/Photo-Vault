@@ -91,6 +91,20 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Tablet: compact see-through side menu labelled Pixallery; Settings > Appearance > Menu at the bottom moves it
   to a floating bottom bar (that tablet only).
 
+## Phase 4 device checks: second round of fixes (24 Oct, from testing)
+
+- Tablet, Transparent theme: the side menu runs top to bottom with no app name, and looks like the same clear
+  glass in Photos, Albums, Backup, Family and Settings (never white). Same for the bottom bar when moved there.
+- Video: once it plays, the filmstrip and action bar go away; they come back after leaving the video.
+- Backup: one compact card of rows. Tap Schedule (shows e.g. "Sun · 2:00 am · charging") for the schedule window;
+  tap Folders for the folder list. History shows the last 3. Drive total only on the owner's phone.
+- Family: "Family members" as pictures with a space bar under each (owner sees all; others only their own).
+  Tap a picture: the person's page with a big picture, the full bar with "x of y GB" and "z left", phones,
+  Change space and Remove (owner). Tap the big picture: Add picture, or Change / Remove; then move and zoom it
+  in the circle before saving. Buttons never wrap.
+- Family settings (PIN, approving phones, space for new members) are in Family, owner only, and no longer in
+  Settings. Drive space card only for the owner.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)

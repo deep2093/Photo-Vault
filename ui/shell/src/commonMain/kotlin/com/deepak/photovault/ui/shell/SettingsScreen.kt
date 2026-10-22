@@ -63,14 +63,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Settings in collapsible sections (feedback 22 Oct), in the order people reach for them:
- * Appearance, Drive, Family, About.
+ * Appearance, Drive, About. Family settings moved to the Family section (owner only, 24 Oct).
  */
 @Composable
 fun SettingsScreen(state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher = NoAppIconSwitcher) {
     GlassListScreen(title = null, subtitle = null) {
         item { AppearanceSection(state, iconSwitcher) }
         item { DriveSection(state, drive) }
-        item { FamilySection(drive) }
         item { AboutSection() }
     }
 }
@@ -203,113 +202,6 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
             drive.forget()
             confirmForget = false
         }
-    }
-}
-
-/** Owner controls (PIN, approving phones, default space). Everyone else sees how the family is set up. */
-@Composable
-private fun FamilySection(drive: DriveState) {
-    val theme = LocalGlassTheme.current
-    val scope = rememberCoroutineScope()
-    val joined = drive.joined
-    val settings = joined?.household?.settings ?: HouseholdSettings()
-    var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var changePin by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    fun asOwner(action: () -> Unit) {
-        if (drive.ownerUnlocked) action() else pinFor = action
-    }
-
-    CollapsibleSection(
-        "Family",
-        Icons.Rounded.Groups,
-        Modifier.cardWidth(),
-        summary = when {
-            joined == null -> "Not joined"
-            drive.isOwner -> "You're the owner"
-            else -> "Owner: ${joined.household.owner?.name}"
-        },
-    ) {
-        if (joined == null) {
-            Text("Connect the drive and join your family to see these.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-            return@CollapsibleSection
-        }
-        val owner = drive.isOwner
-        if (!owner) {
-            Text("Only the owner can change these.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-        }
-        GlassSwitchRow(
-            "Owner PIN",
-            settings.requirePin,
-            { on -> if (owner) asOwner { scope.launch { message = if (on && joined.household.ownerPin == null) "Set a PIN first" else drive.updateSettings { it.copy(requirePin = on) } } } },
-            icon = Icons.Rounded.Lock,
-            description = "Asked before changing space, removing people or approving phones",
-        )
-        GlassSwitchRow(
-            "Approve new phones",
-            settings.approveNewPhones,
-            { on -> if (owner) asOwner { scope.launch { message = drive.updateSettings { it.copy(approveNewPhones = on) } } } },
-            icon = Icons.Rounded.HowToReg,
-            description = if (settings.approveNewPhones) "New phones wait for the owner" else "Anyone with the drive password joins straight away",
-        )
-        SectionHeader("Space for new people")
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(25, 50, 100, 200, 500).forEach { gb ->
-                GlassChip("$gb GB", selected = settings.defaultLimitGb == gb, onClick = {
-                    if (owner) asOwner { scope.launch { message = drive.updateSettings { it.copy(defaultLimitGb = gb) } } }
-                })
-            }
-        }
-        if (owner) {
-            GlassButton(
-                if (joined.household.ownerPin == null) "Set owner PIN" else "Change owner PIN",
-                icon = Icons.Rounded.Password,
-                onClick = { asOwner { changePin = true } },
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-        message?.let { WarningNote(it) }
-    }
-
-    pinFor?.let { action ->
-        PinDialog(drive, onDismiss = { pinFor = null }, onUnlocked = {
-            pinFor = null
-            action()
-        })
-    }
-    if (changePin) {
-        NewPinDialog(onDismiss = { changePin = false }) { pin ->
-            scope.launch {
-                message = drive.setPin(pin)
-                changePin = false
-            }
-        }
-    }
-}
-
-@Composable
-private fun NewPinDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var pin by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    GlassDialog(
-        title = "New owner PIN",
-        onDismiss = onDismiss,
-        buttons = {
-            GlassButton("Cancel", onClick = onDismiss)
-            GlassButton("Save", primary = true, onClick = {
-                error = when {
-                    !OwnerPin.isValid(pin) -> "The PIN must be 4 to 8 digits."
-                    pin != confirm -> "The PINs don't match."
-                    else -> null
-                }
-                if (error == null) onSave(pin)
-            })
-        },
-    ) {
-        GlassTextField(pin, { if (it.length <= OwnerPin.MAX_DIGITS) pin = it.filter(Char::isDigit) }, "New PIN", password = true, keyboardType = KeyboardType.NumberPassword)
-        GlassTextField(confirm, { if (it.length <= OwnerPin.MAX_DIGITS) confirm = it.filter(Char::isDigit) }, "Confirm", password = true, keyboardType = KeyboardType.NumberPassword)
-        error?.let { WarningNote(it) }
     }
 }
 

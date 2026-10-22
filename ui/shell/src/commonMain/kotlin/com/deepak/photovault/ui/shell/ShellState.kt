@@ -79,6 +79,9 @@ sealed interface Overlay {
 
     /** Connecting the family drive, creating the family or joining it. */
     data object DriveSetup : Overlay
+
+    /** One family member's page: picture, space, phones (24 Oct). */
+    data class Member(val userId: String) : Overlay
 }
 
 sealed interface AlbumKind {
