@@ -48,7 +48,9 @@ class AppIconTest {
         assertEquals("IconFourSeasonsLight", AppIconChoice().aliasName)
         assertEquals("ic_four_seasons_light", AppIconChoice().resourceName)
         assertEquals("IconPetalsColourful", AppIconChoice(IconGlyph.PETALS, IconBackground.COLOURFUL).aliasName)
-        assertEquals("ic_bloom_clear", AppIconChoice(IconGlyph.BLOOM, IconBackground.CLEAR).resourceName)
+        assertEquals("ic_leaf_clear", AppIconChoice(IconGlyph.LEAF, IconBackground.CLEAR).resourceName)
+        // Bloom was removed; its old launcher entries hand over to Four Seasons on the same background.
+        assertEquals(AppIconChoice(IconGlyph.FOUR_SEASONS, IconBackground.DARK), AppIconChoice.retired.getValue("IconBloomDark"))
     }
 }
 

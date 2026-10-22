@@ -48,7 +48,7 @@ data class IconPieces(val centerX: Float, val centerY: Float, val cuts: List<Flo
             // Four leaves (or tiles), one in each quarter.
             IconGlyph.FOUR_SEASONS, IconGlyph.PETALS -> IconPieces(0.5f, 0.5f, listOf(0f, 90f, 180f, 270f))
             // A flower: two leaves, three petals and the stem, fanning out from where they meet.
-            IconGlyph.BLOOM, IconGlyph.LEAF -> IconPieces(0.5f, 0.57f, listOf(-10f, 60f, 120f, 190f, 245f, 295f))
+            IconGlyph.LEAF -> IconPieces(0.5f, 0.57f, listOf(-10f, 60f, 120f, 190f, 245f, 295f))
         }
     }
 }

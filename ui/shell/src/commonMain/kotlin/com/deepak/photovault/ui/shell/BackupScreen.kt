@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CloudDownload
-import androidx.compose.material.icons.rounded.Compress
+import androidx.compose.material.icons.rounded.PhotoSizeSelectLarge
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Movie
@@ -80,7 +80,7 @@ const val MOBILE_DATA_WARNING =
  * their own small windows), your space and phones, a short history and restore. Details live one tap away.
  */
 @Composable
-fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, actions: MediaActions) {
+fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, actions: MediaActions, onBack: (() -> Unit)? = null) {
     val settings = backup.settings
     var confirmMobile by remember { mutableStateOf(false) }
     var pickFolders by remember { mutableStateOf(false) }
@@ -90,7 +90,8 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
     val eligible = remember(gallery.items, settings) { BackupSelection.eligible(gallery.items, settings) }
     val done = remember(eligible, backup.backedUpKeys) { eligible.count { BackupSelection.key(it) in backup.backedUpKeys } }
 
-    GlassListScreen(title = null, subtitle = null) {
+    // Opened from Settings since 24 Oct, so it has a title and a back button.
+    GlassListScreen(title = if (onBack != null) "Backup" else null, subtitle = null, onBack = onBack) {
         item { StatusCard(drive, backup, gallery, actions, eligible.size, done) }
         item {
             GlassCard(Modifier.cardWidth()) {
@@ -112,8 +113,8 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
                     "Storage saver",
                     settings.storageSaver,
                     { on -> backup.update { it.copy(storageSaver = on) } },
-                    icon = Icons.Rounded.Compress,
-                    description = if (settings.storageSaver) "Photos about half the size, about 12 MP" else null,
+                    icon = Icons.Rounded.PhotoSizeSelectLarge,
+                    description = "Photos compressed to 16 MP. Good-quality prints up to 24 x 16 in.",
                 )
                 GlassSwitchRow(
                     "Mobile data",
@@ -324,9 +325,8 @@ private fun ScheduleControls(backup: BackupState) {
             onPlus = { change { it.copy(dayOfMonth = if (it.dayOfMonth >= 28) 1 else it.dayOfMonth + 1) } })
         Frequency.DAILY -> Unit
     }
-    Stepper("Time", BackupSchedule.timeLabel(schedule.hour, schedule.minute),
-        onMinus = { change { it.shiftMinutes(-15) } },
-        onPlus = { change { it.shiftMinutes(15) } })
+    // Rolling wheels for the time, with a tick on each step (24 Oct).
+    WheelTimePicker(schedule.hour, schedule.minute, onChange = { h, m -> change { it.copy(hour = h, minute = m) } })
     Text(
         "Android may start a little late to save battery.",
         color = theme.onGlassSecondary,
@@ -389,8 +389,6 @@ private fun SpaceAndPhonesCard(drive: DriveState, backup: BackupState, eligible:
     var last by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     LaunchedEffect(me.userId, backup.history.size) { last = drive.lastBackups() }
     GlassCard(Modifier.cardWidth()) {
-        SectionHeader("Your space")
-        YourSpace(drive)
         SectionHeader("Your phones")
         me.devices.forEach { device ->
             val isThis = device.deviceId == drive.deviceId

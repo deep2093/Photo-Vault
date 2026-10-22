@@ -109,6 +109,29 @@ Backup (Wi-Fi at home, drive connected, family joined):
   (All at the smallest photos → Months → Years). Each change zooms; instant with reduce motion. Years ← Months
   keeps its place.
 
+## Phase 4 device checks: third round (24 Oct, 22 points)
+
+- Long-press a photo: the navigation bar rolls down and Share / Favourite / Delete rise in at the bottom; the top
+  shows only "N selected" and ✕. Same in albums and Recently deleted (Restore / Delete forever at the bottom).
+- Bottom bar: Photos | Albums | Family | Settings on phone and tablet (no side menu). Settings > Backup opens Backup;
+  a backup notification opens it too.
+- Settings > Albums: switch an album off → pop-up says it will be hidden from Photos and Albums → it disappears
+  from both and from search; switch it on again to bring it back. Backup still includes it.
+- App icons: Four Seasons, Leaf, Petals only; a phone that used Bloom moves to Four Seasons on the same background.
+  The note under the icons is gone.
+- Storage saver: "Photos compressed to 16 MP. Good-quality prints up to 24 x 16 in.", new icon.
+- Backup: Schedule window has rolling hour / minute / AM-PM wheels with a tick on each step; Your space removed.
+- Themes: new Crystal (plain light grey, white cards, clear glass bars). Transparent / adaptive themes keep the
+  colours from Albums in Backup, Family and Settings. Adaptive Light: Recently deleted / Places / Secured folder
+  tiles let the colours through.
+- Video: no flash on Play (the still stays until the first picture). Tap shows the bar (play/pause, time, mute)
+  and the frame strip; drag the strip to move through the video; while playing it all hides after 3 seconds.
+- Photos pills smaller; the ⋮ button is gone.
+- Family: under each picture only the name. Tap someone else's picture: "Only you will see this picture"; your
+  picture of them shows on your phones only, everyone else still sees the family picture.
+- Albums: the three tiles line up at the same height on phones and stay small on tablets; pinch to make album
+  cards bigger or smaller (phone and tablet).
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)

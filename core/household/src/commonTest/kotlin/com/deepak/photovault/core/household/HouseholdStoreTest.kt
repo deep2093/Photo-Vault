@@ -134,6 +134,24 @@ class HouseholdStoreTest {
     }
 
     @Test
+    fun privatePicturesLiveInTheViewersOwnFolderAndReplaceOlderOnes() = runTest {
+        val h = ownerSetUp()
+        val owner = h.ownerUserId
+        val viewer = "viewer-user-0001"
+        val first = store().setPrivatePhoto(viewer, owner, byteArrayOf(1))
+        assertTrue(first.startsWith("users/$viewer/people/"))
+        val second = store().setPrivatePhoto(viewer, owner, byteArrayOf(2))
+        assertEquals(mapOf(owner to second), store().privatePhotos(viewer))
+        assertTrue(!drive.exists(first))
+        assertEquals(listOf<Byte>(2), store().readPrivatePhoto(viewer, second).toList())
+        // Nobody else's view changes, and the shared picture is untouched.
+        assertTrue(store().privatePhotos(owner).isEmpty())
+        assertNull(store().load()!!.owner!!.photo)
+        store().clearPrivatePhoto(viewer, owner)
+        assertTrue(store().privatePhotos(viewer).isEmpty())
+    }
+
+    @Test
     fun aPhoneUpdatesItsOwnName() = runTest {
         ownerSetUp()
         store().renameDevice(OWNER_PHONE, "Galaxy S26 Ultra")

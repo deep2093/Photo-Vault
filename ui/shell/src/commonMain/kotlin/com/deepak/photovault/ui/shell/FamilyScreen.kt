@@ -160,16 +160,14 @@ private fun MembersCard(state: ShellState, drive: DriveState) {
                         SpaceBar(drive.usage[member.userId], member, Modifier.width(AVATAR_TILE - 8.dp))
                         Spacer(Modifier.height(4.dp))
                     }
+                    // Just the name (24 Oct).
                     Text(
-                        if (isMe) "${member.name} (you)" else member.name,
+                        member.name,
                         color = theme.onGlass,
                         style = MaterialTheme.typography.labelMedium,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
-                    if (member.userId == joined.household.ownerUserId) {
-                        Text("Owner", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
-                    }
                 }
             }
         }
@@ -194,7 +192,8 @@ internal fun SpaceBar(usage: MemberUsage?, member: Member, modifier: Modifier = 
 @Composable
 internal fun Avatar(member: Member, drive: DriveState, size: androidx.compose.ui.unit.Dp = 48.dp, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
-    val path = member.photo
+    // Your own picture of them if you set one, otherwise the shared one (24 Oct).
+    val path = drive.photoPathFor(member)
     LaunchedEffect(path) { if (path != null) drive.loadPhoto(path) }
     val bytes = path?.let { drive.photos[it] }
     Box(modifier.size(size).clip(CircleShape).background(theme.accent), contentAlignment = Alignment.Center) {

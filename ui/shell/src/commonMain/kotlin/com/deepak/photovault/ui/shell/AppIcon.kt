@@ -4,12 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 /**
- * The artwork. Four Seasons and Bloom come from the Veyra Photos icon kit (22 Oct 2026); Leaf and Petals are the
- * Phase 1 icons. [key] names the activity alias ("IconFourSeasonsLight") and the mipmap ("ic_four_seasons_light").
+ * The artwork. Four Seasons comes from the icon kit (22 Oct 2026); Leaf and Petals are the Phase 1 icons. Bloom was
+ * removed on 24 Oct (its launcher entries remain, switched off, so a phone that used it moves to Four Seasons). [key] names the activity alias ("IconFourSeasonsLight") and the mipmap ("ic_four_seasons_light").
  */
 enum class IconGlyph(val label: String, val key: String) {
     FOUR_SEASONS("Four Seasons", "FourSeasons"),
-    BLOOM("Bloom", "Bloom"),
     LEAF("Leaf", "Leaf"),
     PETALS("Petals", "Petals"),
 }
@@ -28,6 +27,11 @@ data class AppIconChoice(val glyph: IconGlyph = IconGlyph.FOUR_SEASONS, val back
 
     companion object {
         val all: List<AppIconChoice> = IconGlyph.entries.flatMap { g -> IconBackground.entries.map { AppIconChoice(g, it) } }
+
+        /** Launcher entries of removed icons, and the icon that replaces each one. */
+        val retired: Map<String, AppIconChoice> = IconBackground.entries.associate { bg ->
+            "IconBloom" + bg.name.lowercase().replaceFirstChar { it.uppercase() } to AppIconChoice(IconGlyph.FOUR_SEASONS, bg)
+        }
     }
 }
 

@@ -12,6 +12,8 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -92,10 +94,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         gallery = gallery,
         actions = actions,
         floatingStartActions = { ViewButtons(gallery) },
-        floatingActions = {
-            GlassIconButton(Icons.Rounded.Search, "Search", onClick = { state.open(Overlay.Search) })
-            PhotosMenu(gallery)
-        },
+        floatingActions = { SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) } },
     ) { padding ->
         when {
             gallery.access == MediaAccess.NONE -> EmptyState(
@@ -174,17 +173,17 @@ private fun ViewButtons(gallery: GalleryState) {
             )
             Box(
                 Modifier
-                    .heightIn(min = 40.dp)
+                    .heightIn(min = 36.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(background)
                     .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.view = option })
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     option.label,
                     color = if (selected) theme.onAccent else theme.onGlass,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 )
             }
@@ -192,28 +191,18 @@ private fun ViewButtons(gallery: GalleryState) {
     }
 }
 
-/** The ⋮ menu: how many photos and videos. */
+/** A small round button for the compact pills (24 Oct). */
 @Composable
-private fun PhotosMenu(gallery: GalleryState) {
+private fun SmallPillButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     val theme = LocalGlassTheme.current
-    var open by remember { mutableStateOf(false) }
-    Box {
-        GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { open = true })
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            shape = RoundedCornerShape(20.dp),
-            containerColor = theme.glassFallback.compositeOver(theme.wallpaper.first()),
-        ) {
-            if (gallery.access != MediaAccess.NONE) {
-                Text(
-                    LibraryCounts.summary(gallery.items),
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = label, tint = theme.onGlass, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -237,6 +226,8 @@ fun SelectableScreen(
 ) {
     val selectedItems = state.selected.mapNotNull(gallery::find)
     // One GlassScreen for both modes, so the grid keeps its scroll position when selection starts.
+    // Selecting (24 Oct): the top shows only the count and Cancel; share, favourite and delete rise in at the
+    // bottom while the navigation bar rolls down.
     GlassScreen(
         title = if (state.selecting) "${state.selected.size} selected" else title,
         subtitle = if (state.selecting) null else subtitle,
@@ -248,22 +239,24 @@ fun SelectableScreen(
             if (!state.selecting) {
                 normalActions()
             } else {
-                if (selectionActions != null) {
-                    selectionActions(selectedItems)
-                } else {
-                    GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selectedItems) })
-                    GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
-                        gallery.toggleFavourite(selectedItems)
-                        state.selected = emptySet()
-                    })
-                    GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = {
-                        actions.moveToRecentlyDeleted(selectedItems)
-                        state.selected = emptySet()
-                    })
-                }
                 GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { state.selected = emptySet() })
             }
         },
+        bottomActions = if (!state.selecting) null else ({
+            if (selectionActions != null) {
+                selectionActions(selectedItems)
+            } else {
+                GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selectedItems) })
+                GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
+                    gallery.toggleFavourite(selectedItems)
+                    state.selected = emptySet()
+                })
+                GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = {
+                    actions.moveToRecentlyDeleted(selectedItems)
+                    state.selected = emptySet()
+                })
+            }
+        }),
         content = content,
     )
 }

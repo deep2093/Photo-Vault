@@ -83,7 +83,7 @@ data class BackupSettings(
     /** Off: Wi-Fi only (any Wi-Fi). On: mobile data too, after a warning. */
     val mobileData: Boolean = false,
     val videosOnMobile: Boolean = false,
-    /** Photos are shrunk to about 12 MP JPEG before upload (24 Oct). Videos are never compressed. */
+    /** Photos are compressed to 16 MP JPEG before upload (24 Oct). Videos are never compressed. */
     val storageSaver: Boolean = false,
 )
 

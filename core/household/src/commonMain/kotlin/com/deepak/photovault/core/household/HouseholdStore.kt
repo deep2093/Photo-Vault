@@ -197,6 +197,50 @@ class HouseholdStore(
         return drive.read(path)
     }
 
+    // ---- Private pictures (24 Oct): your own picture for someone, seen only by you ----
+
+    /**
+     * Saves [jpeg] as [viewerUserId]'s own picture for [memberId], in the viewer's own folder (people/), so it shows
+     * on all the viewer's phones and nobody else's. Older ones for that member are removed after.
+     */
+    suspend fun setPrivatePhoto(viewerUserId: String, memberId: String, jpeg: ByteArray): String {
+        require(jpeg.size in 1..MAX_PHOTO_BYTES) { "That picture is too big" }
+        val folder = DrivePaths.join(userFolder(viewerUserId), PRIVATE_PEOPLE)
+        drive.mkdirs(folder)
+        val before = privatePhotoFiles(viewerUserId, memberId)
+        var path: String
+        do {
+            path = DrivePaths.join(folder, "${safeId(memberId)}-${now().toString().padStart(14, '0')}-${newId().take(6)}.jpg")
+        } while (!drive.createNew(path, jpeg))
+        before.forEach { runCatching { drive.delete(it) } }
+        return path
+    }
+
+    suspend fun clearPrivatePhoto(viewerUserId: String, memberId: String) {
+        privatePhotoFiles(viewerUserId, memberId).forEach { runCatching { drive.delete(it) } }
+    }
+
+    /** memberId to the viewer's newest own picture of them. */
+    suspend fun privatePhotos(viewerUserId: String): Map<String, String> {
+        val folder = DrivePaths.join(userFolder(viewerUserId), PRIVATE_PEOPLE)
+        return drive.list(folder).filter { !it.isFolder && it.name.endsWith(".jpg") }
+            .groupBy { it.name.substringBeforeLast('-').substringBeforeLast('-') }
+            .mapValues { (_, files) -> DrivePaths.join(folder, files.maxBy { it.name }.name) }
+    }
+
+    /** Reads one of the viewer's own pictures. */
+    suspend fun readPrivatePhoto(viewerUserId: String, path: String): ByteArray {
+        val folder = DrivePaths.join(userFolder(viewerUserId), PRIVATE_PEOPLE)
+        require(path.startsWith("$folder/") && !path.removePrefix("$folder/").contains('/')) { "Not a picture" }
+        return drive.read(path)
+    }
+
+    private suspend fun privatePhotoFiles(viewerUserId: String, memberId: String): List<String> {
+        val folder = DrivePaths.join(userFolder(viewerUserId), PRIVATE_PEOPLE)
+        return drive.list(folder).filter { !it.isFolder && it.name.startsWith("$memberId-") && it.name.endsWith(".jpg") }
+            .map { DrivePaths.join(folder, it.name) }
+    }
+
     /** A phone keeps its own name up to date (e.g. "Galaxy S26 Ultra" instead of a model code). */
     suspend fun renameDevice(deviceId: String, name: String): Household? {
         val clean = cleanDevice(name)
@@ -303,6 +347,8 @@ class HouseholdStore(
         const val HOUSEHOLD_DIR = "system/household"
         const val REQUESTS_DIR = "system/requests"
         const val PEOPLE_DIR = "system/people"
+        /** Inside a person's own folder: their private pictures of other members. */
+        const val PRIVATE_PEOPLE = "people"
         const val MAX_PHOTO_BYTES = 512 * 1024
         val USER_FOLDERS = listOf("originals", "videos", "manifests", "thumbnails", "recently-deleted")
         private const val MAX_ATTEMPTS = 8
@@ -318,7 +364,7 @@ class HouseholdStore(
 
         fun newId(): String = Uuid.random().toString()
 
-        private fun safeId(id: String): String {
+        internal fun safeId(id: String): String {
             require(id.matches(Regex("[A-Za-z0-9-]{8,64}"))) { "Invalid ID" }
             return id
         }

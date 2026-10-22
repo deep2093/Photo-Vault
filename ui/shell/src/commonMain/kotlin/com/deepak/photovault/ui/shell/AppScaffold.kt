@@ -143,15 +143,11 @@ fun PhotoVaultApp(
                     val system = WindowInsets.safeDrawing.asPaddingValues()
                     val screens = Screens(state, gallery, actions, drive, backup, iconSwitcher)
                     val layout = AdaptiveLayout.navigationFor(maxWidth.value.toInt())
+                    // Phones and tablets alike: the floating bar at the bottom (24 Oct: no side menu on tablets).
                     CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL)) {
-                        // Tablets can move the side menu to a floating bar at the bottom (Settings > Appearance).
-                        if (layout == NavigationLayout.BOTTOM_BAR || state.appearance.tabletBottomBar) {
-                            BottomBarLayout(screens, system)
-                        } else {
-                            SideRailLayout(screens, system)
-                        }
+                        BottomBarLayout(screens, system)
                     }
-                    OverlayHost(state, gallery, actions, drive, system)
+                    OverlayHost(state, gallery, actions, drive, backup, system)
                 }
             }
         }
@@ -160,7 +156,7 @@ fun PhotoVaultApp(
 
 /** Pages opened on top (viewer, album, search, Recently deleted), animated in and out. */
 @Composable
-private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState, system: PaddingValues) {
+private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState, backup: BackupState, system: PaddingValues) {
     // Opening and closing mirror each other at the same speed (feedback 22 Oct: closing was too fast).
     val spec = motionSpec<Float>(OVERLAY_MS)
     AnimatedContent(
@@ -196,6 +192,7 @@ private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: Media
                         Overlay.Search -> SearchScreen(state, gallery, actions)
                         Overlay.DriveSetup -> DriveSetupScreen(state, drive)
                         is Overlay.Member -> MemberScreen(overlay.userId, state, drive, actions)
+                        Overlay.Backup -> BackupScreen(drive, backup, gallery, actions, onBack = { state.back() })
                         is Overlay.Viewer -> Unit
                     }
                 }
@@ -221,7 +218,9 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val barSpace = 88.dp
     val nav = rememberSectionNav(state)
     // Photos and Albums: the bar slides away while scrolling down and comes back on scrolling up (24 Oct).
-    val hidden = state.chrome.hidden && !state.selecting && state.destination in Destination.hidesChrome
+    // Photos and Albums tuck it away while scrolling down; selecting photos rolls it down at once so the
+    // selection actions can take its place at the bottom (24 Oct).
+    val hidden = state.selecting || (state.chrome.hidden && state.destination in Destination.hidesChrome)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
     val shift by androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, motionSpec(CHROME_MS), label = "bar")
@@ -251,38 +250,8 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     }
 }
 
-@Composable
-private fun SideRailLayout(screens: Screens, system: PaddingValues) {
-    val state = screens.state
-    val nav = rememberSectionNav(state)
-    Row(Modifier.fillMaxSize()) {
-        // Full height again, top to bottom (feedback 24 Oct), with no app name above the sections.
-        SideRail(
-            indicator = nav.indicator.value,
-            onSelect = state::tapSection,
-            familyDot = screens.familyDot,
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(
-                    start = system.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
-                    top = system.calculateTopPadding() + 12.dp,
-                    bottom = system.calculateBottomPadding() + 12.dp,
-                ),
-        )
-        CompositionLocalProvider(
-            LocalScreenInsets provides PaddingValues(
-                top = system.calculateTopPadding(),
-                end = system.calculateEndPadding(LayoutDirection.Ltr),
-                bottom = system.calculateBottomPadding(),
-            ),
-        ) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { SectionPager(nav.pager, screens) }
-        }
-    }
-}
-
 /**
- * The five sections side by side: swipe left or right to move between them, or tap the navigation.
+ * The sections side by side: swipe left or right to move between them, or tap the navigation.
  * Swiping is off while photos are selected, so a drag-select is never mistaken for a swipe.
  *
  * Smoothness (feedback 22 Oct): a tap on a far section no longer scrolls through every section in between.
@@ -370,9 +339,8 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
             when (destination) {
                 Destination.PHOTOS -> PhotosScreen(state, screens.gallery, screens.actions, screens.drive)
                 Destination.ALBUMS -> AlbumsScreen(state, screens.gallery, screens.actions)
-                Destination.BACKUP -> BackupScreen(screens.drive, screens.backup, screens.gallery, screens.actions)
                 Destination.FAMILY -> FamilyScreen(state, screens.drive, screens.actions)
-                Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher)
+                Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher, screens.backup, screens.gallery)
             }
         }
     }
@@ -407,45 +375,9 @@ private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> U
     }
 }
 
-/**
- * Tablets and PC: a compact glass side menu running the full height of the screen, see-through in the Transparent
- * theme like the phone's bar, without the app name (feedback 24 Oct). Settings can move it to the bottom instead.
- */
-@Composable
-private fun SideRail(indicator: Float, onSelect: (Destination) -> Unit, familyDot: Boolean, modifier: Modifier = Modifier) {
-    val theme = LocalGlassTheme.current
-    Column(
-        modifier
-            .width(88.dp)
-            .glassChrome(RoundedCornerShape(28.dp), elevation = 10.dp)
-            .padding(vertical = 12.dp, horizontal = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box {
-            Box(
-                Modifier
-                    .offset { IntOffset(0, (RAIL_ITEM_HEIGHT * indicator).roundToPx()) }
-                    .fillMaxWidth()
-                    .height(RAIL_ITEM_HEIGHT)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(theme.accent),
-            )
-            Column(Modifier.selectableGroup()) {
-                Destination.entries.forEach { destination ->
-                    NavItem(
-                        destination, indicator, { onSelect(destination) }, Modifier.fillMaxWidth(),
-                        height = RAIL_ITEM_HEIGHT, dot = familyDot && destination == Destination.FAMILY,
-                    )
-                }
-            }
-        }
-    }
-}
-
 /** The app's name as people see it (renamed from Veyra Photos on 24 Oct). */
 const val APP_NAME = "Pixallery"
 
-private val RAIL_ITEM_HEIGHT = 54.dp
 private const val CHROME_MS = 220
 
 private val NAV_ITEM_HEIGHT = 58.dp

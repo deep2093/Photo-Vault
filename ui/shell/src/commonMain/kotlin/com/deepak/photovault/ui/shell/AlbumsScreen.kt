@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -63,23 +68,32 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         val videos = remember(gallery.items) { gallery.items.filter { it.isVideo } }
         val gridState = rememberLazyGridState()
         ScrollToTopEffect(gridState)
+        val tablet = LocalTablet.current
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 150.dp),
+            // Pinch to make album cards bigger or smaller (24 Oct), on phones and tablets.
+            columns = GridCells.Adaptive(minSize = ALBUM_SIZES[state.albumSize.coerceIn(0, ALBUM_SIZES.lastIndex)]),
             state = gridState,
             contentPadding = padding,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().pinchToZoom { zoomIn ->
+                state.albumSize = (state.albumSize + if (zoomIn) 1 else -1).coerceIn(0, ALBUM_SIZES.lastIndex)
+            },
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Three equal tiles, same height, lined up (24 Oct). On tablets they stay small instead of stretching.
+                Row(
+                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    val tile = if (tablet) Modifier.width(200.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight()
                     PlaceTile(
                         Icons.Rounded.Delete, "Recently deleted",
                         if (gallery.trashed.isEmpty()) "Empty" else "${gallery.trashed.size} items",
-                        Modifier.weight(1f),
+                        tile,
                     ) { state.open(Overlay.RecentlyDeleted) }
-                    PlaceTile(Icons.Rounded.Place, "Places", "Coming soon", Modifier.weight(1f), enabled = false) {}
-                    PlaceTile(Icons.Rounded.Lock, "Secured folder", "Coming soon", Modifier.weight(1f), enabled = false) {}
+                    PlaceTile(Icons.Rounded.Place, "Places", "Coming soon", tile, enabled = false) {}
+                    PlaceTile(Icons.Rounded.Lock, "Secured folder", "Coming soon", tile, enabled = false) {}
                 }
             }
             item(key = "favourites") {
@@ -100,6 +114,9 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         }
     }
 }
+
+/** Album card sizes for pinching, smallest first. */
+private val ALBUM_SIZES = listOf(100.dp, 130.dp, 160.dp, 210.dp, 280.dp)
 
 @Composable
 private fun AlbumCard(name: String, count: Int, cover: MediaItem?, icon: ImageVector?, onClick: () -> Unit) {
@@ -144,17 +161,17 @@ private fun PlaceTile(icon: ImageVector, title: String, detail: String, modifier
             .glassPanel(GlassCardShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) {}
-            .padding(14.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = if (enabled) theme.accent else theme.onGlassSecondary)
+        Icon(icon, contentDescription = null, tint = if (enabled) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(20.dp))
         Text(
             title,
             color = theme.onGlass,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = 6.dp).weight(1f),
         )
         Text(detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

@@ -83,7 +83,7 @@ class ThemeCatalogTest {
     @Test
     fun hasTheAgreedGlassAndAdaptiveThemesWithUniqueIds() {
         assertEquals(
-            listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass", "Frosted"),
+            listOf("Crystal", "Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass", "Frosted"),
             GlassThemes.fixed.map { it.displayName },
         )
         assertEquals(

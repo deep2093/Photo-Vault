@@ -101,12 +101,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+        <!-- Retired Bloom icons (24 Oct): kept switched off so a phone that used Bloom keeps a home-screen entry until
+             the app moves it to Four Seasons on the same background. -->
         <activity-alias
             android:name=".IconBloomLight"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_bloom_light"
-            android:roundIcon="@mipmap/ic_bloom_light"
+            android:icon="@mipmap/ic_four_seasons_light"
+            android:roundIcon="@mipmap/ic_four_seasons_light"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -117,8 +119,8 @@
             android:name=".IconBloomDark"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_bloom_dark"
-            android:roundIcon="@mipmap/ic_bloom_dark"
+            android:icon="@mipmap/ic_four_seasons_dark"
+            android:roundIcon="@mipmap/ic_four_seasons_dark"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -129,8 +131,8 @@
             android:name=".IconBloomColourful"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_bloom_colourful"
-            android:roundIcon="@mipmap/ic_bloom_colourful"
+            android:icon="@mipmap/ic_four_seasons_colourful"
+            android:roundIcon="@mipmap/ic_four_seasons_colourful"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -141,8 +143,8 @@
             android:name=".IconBloomClear"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_bloom_clear"
-            android:roundIcon="@mipmap/ic_bloom_clear"
+            android:icon="@mipmap/ic_four_seasons_clear"
+            android:roundIcon="@mipmap/ic_four_seasons_clear"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

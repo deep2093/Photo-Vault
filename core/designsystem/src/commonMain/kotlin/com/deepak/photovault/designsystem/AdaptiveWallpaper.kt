@@ -5,6 +5,8 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
@@ -160,7 +162,15 @@ fun adaptivePalette(colors: List<Color>, style: AdaptiveStyle): List<Color> {
 @Composable
 internal fun rememberAdaptiveColors(style: AdaptiveStyle): List<State<Color>> {
     val registry = LocalScreenColors.current
-    val target by remember(style, registry) { derivedStateOf { adaptivePalette(registry.current(), style) } }
+    // The last colours that came from photos. Screens without photos (Backup, Family, Settings) keep them instead of
+    // dropping back to the plain fallback, so the colours from Albums carry over (24 Oct).
+    val kept = remember(style, registry) { androidx.compose.runtime.mutableStateOf<List<Color>?>(null) }
+    LaunchedEffect(style, registry) {
+        snapshotFlow { registry.current() }.collect { colors -> if (colors.isNotEmpty()) kept.value = adaptivePalette(colors, style) }
+    }
+    val target by remember(style, registry) {
+        derivedStateOf { registry.current().takeIf { it.isNotEmpty() }?.let { adaptivePalette(it, style) } ?: kept.value ?: style.fallback }
+    }
     val reduce = LocalGlassSettings.current.reduceMotion
     // Reacts within about half a second of new photos coming on screen (was 1.4 s; feedback 22 Oct).
     return List(3) { i -> animateColorAsState(target[i], if (reduce) snap() else tween(550), label = "adaptive_$i") }

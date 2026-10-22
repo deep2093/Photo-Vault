@@ -170,6 +170,7 @@ class DriveState(private val platform: DrivePlatform) {
         space = runCatching { drive?.space() }.getOrNull()
         val current = membership
         if (current is Membership.Joined) {
+            privatePhotos = runCatching { s.privatePhotos(current.me.userId) }.getOrDefault(privatePhotos)
             usage = current.household.members.associate { member ->
                 member.userId to MemberUsage(runCatching { s.usedBytes(member.userId) }.getOrNull(), member.limitGb * GB)
             }
@@ -247,11 +248,34 @@ class DriveState(private val platform: DrivePlatform) {
     /** Pictures already read from the drive, by path. Paths change with every new picture, so this never goes stale. */
     val photos = androidx.compose.runtime.mutableStateMapOf<String, ByteArray>()
 
+    /** Your own pictures of other members (memberId to path), seen only by you (24 Oct). */
+    var privatePhotos by mutableStateOf<Map<String, String>>(emptyMap())
+        private set
+
+    /** The picture to show for [member] on this phone: your own one if you set it, else the shared one. */
+    fun photoPathFor(member: com.deepak.photovault.core.household.Member): String? = privatePhotos[member.userId] ?: member.photo
+
     /** Reads [path] once and keeps it; null while it is loading or if it can't be read. */
     suspend fun loadPhoto(path: String) {
         if (path in photos) return
         val s = runCatching { ensureStore() }.getOrNull() ?: return
-        runCatching { s.readPhoto(path) }.getOrNull()?.let { photos[path] = it }
+        val me = joined?.me?.userId
+        val bytes = if (path.startsWith("users/") && me != null) runCatching { s.readPrivatePhoto(me, path) }.getOrNull()
+        else runCatching { s.readPhoto(path) }.getOrNull()
+        bytes?.let { photos[path] = it }
+    }
+
+    /** Your own picture of [memberId], shown only on your phones. No PIN: it changes nothing for anyone else. */
+    suspend fun setPrivatePhoto(memberId: String, jpeg: ByteArray): String? = guarded {
+        val me = joined?.me?.userId ?: throw NotAllowed("Join the family first")
+        ensureStore()!!.setPrivatePhoto(me, memberId, jpeg)
+        refreshLocked()
+    }
+
+    suspend fun clearPrivatePhoto(memberId: String): String? = guarded {
+        val me = joined?.me?.userId ?: throw NotAllowed("Join the family first")
+        ensureStore()!!.clearPrivatePhoto(me, memberId)
+        refreshLocked()
     }
 
     /** Someone's own picture, or the owner setting anyone's (owner controls must be open for someone else). */

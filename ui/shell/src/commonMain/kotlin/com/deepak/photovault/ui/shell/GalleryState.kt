@@ -49,6 +49,19 @@ interface MediaActions {
     fun cropProfilePhoto(image: PickedImage, left: Int, top: Int, side: Int, onDone: (ByteArray) -> Unit) = Unit
 }
 
+/** Albums the person hid (Settings > Albums), by album ID. Android keeps them in SharedPreferences. */
+interface HiddenAlbumsStore {
+    fun load(): Set<String>
+    fun save(ids: Set<String>)
+}
+
+class MemoryHiddenAlbumsStore(private var ids: Set<String> = emptySet()) : HiddenAlbumsStore {
+    override fun load() = ids
+    override fun save(ids: Set<String>) {
+        this.ids = ids
+    }
+}
+
 /** A picked photo ready to position: JPEG bytes and their size in pixels. */
 class PickedImage(val jpeg: ByteArray, val width: Int, val height: Int)
 
@@ -68,6 +81,7 @@ class GalleryState(
     private val favouritesStore: FavouritesStore,
     /** Camera, lens, exposure and location for the viewer's details panel. */
     val detailsSource: MediaDetailsSource = NoMediaDetails,
+    private val hiddenStore: HiddenAlbumsStore = MemoryHiddenAlbumsStore(),
 ) {
     var access by mutableStateOf(MediaAccess.NONE)
 
@@ -85,6 +99,24 @@ class GalleryState(
 
     var albums by mutableStateOf<List<PhoneAlbum>>(emptyList())
         private set
+
+    /** Every album, hidden ones included (for Settings > Albums). */
+    var allAlbums by mutableStateOf<List<PhoneAlbum>>(emptyList())
+        private set
+
+    /**
+     * Hidden albums (24 Oct): left out of Photos, Albums and search. The photos stay on the phone and still back up.
+     */
+    var hiddenAlbums by mutableStateOf(hiddenStore.load())
+        private set
+
+    private var everything: List<MediaItem> = emptyList()
+
+    fun setHidden(albumId: String, hidden: Boolean) {
+        hiddenAlbums = if (hidden) hiddenAlbums + albumId else hiddenAlbums - albumId
+        hiddenStore.save(hiddenAlbums)
+        applyVisible()
+    }
 
     /** True after the first load, so the screen can tell "empty" from "still loading". */
     var loaded by mutableStateOf(false)
@@ -136,10 +168,17 @@ class GalleryState(
     }
 
     private fun setItems(all: List<MediaItem>, bin: List<TrashedItem>) {
-        items = all
-        byId = all.associateBy { it.id }
+        everything = all
         trashed = bin.sortedBy { it.expiresAtMillis }
-        albums = PhoneAlbums.from(all)
+        allAlbums = PhoneAlbums.from(all)
+        applyVisible()
+    }
+
+    private fun applyVisible() {
+        val visible = if (hiddenAlbums.isEmpty()) everything else everything.filter { it.albumId !in hiddenAlbums }
+        items = visible
+        byId = visible.associateBy { it.id }
+        albums = allAlbums.filter { it.id !in hiddenAlbums }
     }
 
     private companion object {

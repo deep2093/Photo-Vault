@@ -37,7 +37,7 @@ private class StreamSource(private val input: InputStream) : ByteSource {
  * Reads phone photos for backup. Uses the original file, including where the photo was taken, when "photo
  * locations" access is granted (Android otherwise hands apps a copy with the location removed).
  *
- * Storage saver (24 Oct): JPEG and HEIC photos are shrunk to about 12 megapixels and saved as JPEG at quality 85,
+ * Storage saver (24 Oct): JPEG and HEIC photos are shrunk to 16 megapixels (good-quality prints up to 24 x 16 in) and saved as JPEG at quality 85,
  * keeping date, camera and location details. If that wouldn't be smaller, the original is used. Videos never.
  */
 class AndroidMediaReader(context: Context) : MediaReader {
@@ -103,7 +103,7 @@ class AndroidMediaReader(context: Context) : MediaReader {
     }
 
     private companion object {
-        const val MAX_PIXELS = 12_000_000L
+        const val MAX_PIXELS = 16_000_000L
         const val QUALITY = 85
         val COMPRESSIBLE = setOf("image/jpeg", "image/jpg", "image/heic", "image/heif")
         val EXIF_TAGS = listOf(

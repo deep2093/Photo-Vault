@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 /** Stable IDs: saved in settings, so never rename them. */
 enum class GlassThemeId {
     AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS, TRANSLUCENT, FROSTED,
-    ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
+    ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT, CRYSTAL,
 }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
@@ -261,7 +261,8 @@ object GlassThemes {
         wallpaper = listOf(Color(0xFFF6F1FA), Color(0xFFEFF5FA), Color(0xFFF7F3EC)),
         glows = emptyList(),
         glassTint = Color(0xCCFAF9FF),
-        glassFallback = Color(0xF2FBFAFF),
+        // See-through enough that the colours of the photos come through cards and tiles (24 Oct).
+        glassFallback = Color(0x99FBFAFF),
         glassRim = Color(0xFFB0A8C8),
         onGlass = Color(0xFF1C1A28),
         onGlassSecondary = Color(0xFF36314A),
@@ -315,7 +316,35 @@ object GlassThemes {
         grain = 0f,
     )
 
-    val fixed: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass, Frosted)
+    /**
+     * Crystal (24 Oct): the clean look of the iPad Photos app in the reference video. A plain, quiet light-grey
+     * background, white cards, and very clear glass bars that let the photos underneath show through. No colour
+     * wash, no glows, no grain.
+     */
+    val Crystal = GlassTheme(
+        id = GlassThemeId.CRYSTAL,
+        displayName = "Crystal",
+        bestFor = "Clean and clear, like iPad Photos",
+        isDark = false,
+        wallpaper = listOf(Color(0xFFF2F2F7), Color(0xFFF6F6FA), Color(0xFFEFEFF4)),
+        glows = emptyList(),
+        glassTint = Color(0xB8FFFFFF),
+        glassFallback = Color(0xF5FFFFFF),
+        glassRim = Color(0xFFD8D8E0),
+        onGlass = Color(0xFF1C1C1E),
+        onGlassSecondary = Color(0xFF3A3A3C),
+        accent = Color(0xFF0057B7),
+        onAccent = Color(0xFFFFFFFF),
+        badgeBackedUp = Color(0xFF1B6E45),
+        badgePhoneOnly = Color(0xFF8A4B00),
+        badgeOnDrive = Color(0xFF0057B7),
+        onBadge = Color(0xFFFFFFFF),
+        sampleHues = listOf(Color(0xFF8FB8E8), Color(0xFFE8B08F), Color(0xFF9CD3AE), Color(0xFFC7AEEA), Color(0xFFEAD48F)),
+        blurRadius = 30.dp,
+        grain = 0f,
+    )
+
+    val fixed: List<GlassTheme> = listOf(Crystal, AuroraFrost, MidnightPrism, PearlMist, OceanGlass, Frosted)
     val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight, Transparent)
     val all: List<GlassTheme> = fixed + adaptiveThemes
     /** Transparent for everyone who hasn't picked a theme (decided 24 Oct; was Aurora Frost). */

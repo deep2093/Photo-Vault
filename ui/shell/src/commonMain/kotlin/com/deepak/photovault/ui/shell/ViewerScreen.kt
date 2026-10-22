@@ -1,5 +1,8 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -127,10 +130,19 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     val start = ids.indexOf(viewer.startId).coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = start) { ids.size }
     var barsVisible by rememberSaveable { mutableStateOf(true) }
-    // A playing video has its own controls; the filmstrip and actions step aside until you leave it (24 Oct).
-    var videoPlaying by remember { mutableStateOf(false) }
-    LaunchedEffect(pager.currentPage) { videoPlaying = false }
+    // A video that has been started on this page (24 Oct, Samsung-style): its controls and frame strip replace the
+    // photo strip; a tap shows them, and while it plays they go away again after 3 seconds without a touch.
+    var videoStarted by remember { mutableStateOf(false) }
+    LaunchedEffect(pager.currentPage) { videoStarted = false }
     val current = gallery.find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
+    val video = remember(current.id) { VideoControls() }
+    var touches by remember { mutableStateOf(0) }
+    LaunchedEffect(barsVisible, videoStarted, video.playing, touches) {
+        if (barsVisible && videoStarted && video.playing) {
+            kotlinx.coroutines.delay(VIDEO_BARS_MS)
+            barsVisible = false
+        }
+    }
     val system = WindowInsets.safeDrawing.asPaddingValues()
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalGlassSettings.current.reduceMotion
@@ -181,11 +193,18 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 val item = gallery.find(ids[page]) ?: return@HorizontalPager
                 val onTap = { if (state.detailsOpen) state.detailsOpen = false else barsVisible = !barsVisible }
                 if (item.isVideo) {
+                    val isCurrent = page == pager.currentPage
                     VideoPage(
                         item,
-                        isCurrent = page == pager.currentPage,
+                        isCurrent = isCurrent,
+                        controls = if (isCurrent) video else null,
                         onTap = onTap,
-                        onPlaying = { playing -> if (page == pager.currentPage) videoPlaying = playing },
+                        onStarted = {
+                            if (isCurrent) {
+                                videoStarted = true
+                                barsVisible = true
+                            }
+                        },
                     )
                 } else {
                     ZoomablePhoto(item, onTap = onTap)
@@ -211,7 +230,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 
             // A tap on the photo fades the filmstrip and actions away and back, as in Samsung Gallery.
             AnimatedVisibility(
-                visible = barsVisible && !state.detailsOpen && !videoPlaying,
+                visible = barsVisible && !state.detailsOpen,
                 enter = fadeIn(motionSpec()),
                 exit = fadeOut(motionSpec()),
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -225,7 +244,12 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    if (ids.size > 1) Filmstrip(ids, gallery, pager)
+                    if (videoStarted && current.isVideo) {
+                        VideoBar(video, onTouch = { touches++ })
+                        VideoScrubber(current, video, onTouch = { touches++ })
+                    } else if (ids.size > 1) {
+                        Filmstrip(ids, gallery, pager)
+                    }
                     ViewerActions(
                         favourite = gallery.isFavourite(current),
                         onShare = { actions.share(listOf(current)) },
@@ -554,15 +578,27 @@ private fun clampOffset(offset: Offset, scale: Float, width: Int, height: Int): 
     return Offset(offset.x.coerceIn(-maxX, maxX), offset.y.coerceIn(-maxY, maxY))
 }
 
-/** A video: its thumbnail with a play button; plays in place when tapped and stops when swiped away. */
+/**
+ * A video: its still with a play button; plays in place when tapped and stops when swiped away. The still stays on
+ * top until the first picture is drawn, so the screen never flashes (24 Oct).
+ */
 @Composable
-private fun VideoPage(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit, onPlaying: (Boolean) -> Unit) {
-    var playing by remember(item.id) { mutableStateOf(false) }
-    LaunchedEffect(isCurrent) { if (!isCurrent) playing = false }
-    LaunchedEffect(playing) { onPlaying(playing) }
+private fun VideoPage(item: MediaItem, isCurrent: Boolean, controls: VideoControls?, onTap: () -> Unit, onStarted: () -> Unit) {
+    var started by remember(item.id) { mutableStateOf(false) }
+    LaunchedEffect(isCurrent) { if (!isCurrent) started = false }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        if (playing) {
-            VideoPlayer(item.uri, Modifier.fillMaxSize())
+        if (started && controls != null) {
+            VideoPlayer(item.uri, controls, Modifier.fillMaxSize())
+            if (!controls.firstFrame) {
+                AsyncImage(
+                    model = Thumb(item.uri, true, 512),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            // Taps on the playing video show or hide the strip and buttons.
+            Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures(onTap = { onTap() }) })
         } else {
             AsyncImage(
                 model = Thumb(item.uri, true, 512),
@@ -575,7 +611,12 @@ private fun VideoPage(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit, on
                     .size(72.dp)
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.55f))
-                    .clickable(role = Role.Button, onClick = { playing = true })
+                    .clickable(role = Role.Button, onClick = {
+                        controls?.firstFrame = false
+                        controls?.playing = true
+                        started = true
+                        onStarted()
+                    })
                     .semantics { contentDescription = "Play video, ${Timeline.duration(item.durationMillis)}" },
                 contentAlignment = Alignment.Center,
             ) {
@@ -584,6 +625,115 @@ private fun VideoPage(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit, on
         }
     }
 }
+
+/** Play or pause, where it is, and sound on or off: one small row above the frame strip. */
+@Composable
+private fun VideoBar(video: VideoControls, onTouch: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = if (video.playing) "Pause" else "Play") {
+                video.playing = !video.playing
+                onTouch()
+            },
+            contentAlignment = Alignment.Center,
+        ) { Icon(if (video.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = Color.White) }
+        Text(
+            "${Timeline.duration(video.positionMs)} / ${Timeline.duration(video.durationMs)}",
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(start = 4.dp).weight(1f),
+        )
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = if (video.muted) "Sound on" else "Mute") {
+                video.muted = !video.muted
+                onTouch()
+            },
+            contentAlignment = Alignment.Center,
+        ) { Icon(if (video.muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp, null, tint = Color.White) }
+    }
+}
+
+/**
+ * The video's frames in a row, as in Samsung Gallery (24 Oct): drag it to move through the video; while playing it
+ * scrolls along by itself under the white line in the middle.
+ */
+@Composable
+private fun VideoScrubber(item: MediaItem, video: VideoControls, onTouch: () -> Unit) {
+    val duration = (if (video.durationMs > 0) video.durationMs else item.durationMillis).coerceAtLeast(1L)
+    val frames = ScrubberMath.frameCount(duration)
+    val strip = rememberLazyListState()
+    val density = LocalDensity.current
+    val framePx = with(density) { FRAME_W.toPx() }
+    val totalPx = framePx * frames
+    val dragged by strip.interactionSource.collectIsDraggedAsState()
+    // The finger leads while it drags (and while the fling settles); the video follows.
+    var fingerLeads by remember { mutableStateOf(false) }
+    LaunchedEffect(dragged) {
+        if (dragged) {
+            fingerLeads = true
+            onTouch()
+        }
+    }
+    LaunchedEffect(strip) { snapshotFlow { strip.isScrollInProgress }.collect { if (!it) fingerLeads = false } }
+    LaunchedEffect(strip, duration) {
+        snapshotFlow { strip.firstVisibleItemIndex * framePx + strip.firstVisibleItemScrollOffset }.collect { px ->
+            if (fingerLeads) {
+                video.seek(ScrubberMath.timeAt(px, totalPx, duration))
+                onTouch()
+            }
+        }
+    }
+    // Video -> strip.
+    LaunchedEffect(strip, duration) {
+        snapshotFlow { video.positionMs }.collect { ms ->
+            if (!fingerLeads && !strip.isScrollInProgress) {
+                val px = ScrubberMath.offsetAt(ms, totalPx, duration)
+                val index = (px / framePx).toInt().coerceIn(0, frames - 1)
+                strip.scrollToItem(index, (px - index * framePx).toInt())
+            }
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth().height(THUMB_H + 8.dp), contentAlignment = Alignment.Center) {
+        val side = maxWidth / 2
+        LazyRow(
+            state = strip,
+            contentPadding = PaddingValues(horizontal = side),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().height(THUMB_H),
+        ) {
+            items(frames) { i ->
+                AsyncImage(
+                    model = VideoFrame(item.uri, ScrubberMath.frameTime(i, frames, duration), 160),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(FRAME_W, THUMB_H).background(Color(0xFF1C1C21)),
+                )
+            }
+        }
+        // The playhead.
+        Box(Modifier.width(3.dp).height(THUMB_H + 8.dp).clip(RoundedCornerShape(2.dp)).background(Color.White))
+    }
+}
+
+/** Pure maths of the frame strip, tested. */
+object ScrubberMath {
+    /** About one frame a second, between 8 and 60 frames. */
+    fun frameCount(durationMs: Long): Int = (durationMs / 1000L).toInt().coerceIn(8, 60)
+
+    fun frameTime(index: Int, frames: Int, durationMs: Long): Long = durationMs * index / frames
+
+    fun timeAt(offsetPx: Float, totalPx: Float, durationMs: Long): Long =
+        if (totalPx <= 0f) 0L else ((offsetPx / totalPx).coerceIn(0f, 1f) * durationMs).toLong()
+
+    fun offsetAt(timeMs: Long, totalPx: Float, durationMs: Long): Float =
+        if (durationMs <= 0L) 0f else (timeMs.toFloat() / durationMs).coerceIn(0f, 1f) * totalPx
+}
+
+private val FRAME_W = 34.dp
+private const val VIDEO_BARS_MS = 3000L
 
 private fun whenTaken(item: MediaItem): String {
     val zone = TimeZone.currentSystemDefault()

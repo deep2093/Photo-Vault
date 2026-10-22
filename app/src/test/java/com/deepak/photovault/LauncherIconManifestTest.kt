@@ -32,6 +32,15 @@ class LauncherIconManifestTest {
     fun onlyTheDefaultIsEnabledAndTheActivityHasNoLauncherOfItsOwn() {
         val enabled = AppIconChoice.all.filter { alias(it.aliasName).contains("android:enabled=\"true\"") }
         assertEquals(listOf(AppIconChoice()), enabled)
-        assertEquals(AppIconChoice.all.size, Regex("android.intent.category.LAUNCHER").findAll(manifest).count())
+        assertEquals(AppIconChoice.all.size + AppIconChoice.retired.size, Regex("android.intent.category.LAUNCHER").findAll(manifest).count())
+    }
+
+    @Test
+    fun retiredBloomEntriesAreOffAndShowFourSeasons() {
+        AppIconChoice.retired.forEach { (name, replacement) ->
+            val entry = alias(name)
+            assertTrue(entry.contains("android:enabled=\"false\""))
+            assertTrue(entry.contains("@mipmap/${replacement.resourceName}\""))
+        }
     }
 }

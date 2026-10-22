@@ -60,7 +60,7 @@ phones' temp files are left alone; they may be uploading).
 
 ## Storage saver (photos only, decided 24 Oct)
 
-Off by default, per phone. JPEG and HEIC photos are decoded at most 12 megapixels and saved as JPEG quality 85,
+Off by default, per phone. JPEG and HEIC photos are decoded at most 16 megapixels (good-quality prints up to 24 x 16 in) and saved as JPEG quality 85,
 with date, camera, lens, exposure and location details copied and the orientation set upright. If the result
 isn't smaller, the original is uploaded. The checksum is of the uploaded copy. Videos are never compressed.
 The manifest marks these files `storageSaver: true` so Free up space (Phase 6) can warn before removing the

@@ -88,19 +88,20 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action
     }
-    // Your own picture never needs the PIN; someone else's needs the owner controls open.
-    fun forPicture(action: () -> Unit) = if (isMe) action() else asOwner(action)
+    // Whose picture changes (24 Oct): your own, everyone's view of you; the owner, everyone's view of anyone
+    // (with the PIN); anyone else, a private picture only they see.
+    val sharedChange = drive.canChangePhoto(member.userId)
+    fun forPicture(action: () -> Unit) = if (isMe || !sharedChange) action() else asOwner(action)
 
     GlassListScreen(title = member.name, subtitle = if (isOwnerMember) "Owner" else null, onBack = { state.back() }) {
         item {
             Column(Modifier.cardWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                val canChange = drive.canChangePhoto(member.userId)
                 Box {
                     Avatar(
                         member, drive, size = 132.dp,
-                        modifier = if (canChange) Modifier.clickable(onClickLabel = "Picture options") { forPicture { pictureMenu = true } } else Modifier,
+                        modifier = Modifier.clickable(onClickLabel = "Picture options") { forPicture { pictureMenu = true } },
                     )
-                    if (canChange) {
+                    if (true) {
                         Box(
                             Modifier.align(Alignment.BottomEnd).size(36.dp).clip(CircleShape).background(theme.onGlass),
                             contentAlignment = Alignment.Center,
@@ -175,8 +176,11 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     }
 
     if (pictureMenu) {
+        val privateOnly = !sharedChange
         PictureOptions(
             member = member,
+            privateOnly = privateOnly,
+            hasPicture = if (privateOnly) member.userId in drive.privatePhotos else member.photo != null,
             onDismiss = { pictureMenu = false },
             onChoose = {
                 pictureMenu = false
@@ -184,7 +188,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
             },
             onRemove = {
                 pictureMenu = false
-                scope.launch { message = drive.clearPhoto(member.userId) }
+                scope.launch { message = if (privateOnly) drive.clearPrivatePhoto(member.userId) else drive.clearPhoto(member.userId) }
             },
         )
     }
@@ -194,7 +198,9 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
             onDismiss = { picked = null },
             onSave = { left, top, side ->
                 picked = null
-                actions.cropProfilePhoto(image, left, top, side) { jpeg -> scope.launch { message = drive.setPhoto(member.userId, jpeg) } }
+                actions.cropProfilePhoto(image, left, top, side) { jpeg ->
+                    scope.launch { message = if (sharedChange) drive.setPhoto(member.userId, jpeg) else drive.setPrivatePhoto(member.userId, jpeg) }
+                }
             },
         )
     }
@@ -243,16 +249,20 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
 
 /** Add (no picture yet) or change and remove: full-width buttons, one under another, so nothing wraps. */
 @Composable
-private fun PictureOptions(member: Member, onDismiss: () -> Unit, onChoose: () -> Unit, onRemove: () -> Unit) {
+private fun PictureOptions(member: Member, privateOnly: Boolean, hasPicture: Boolean, onDismiss: () -> Unit, onChoose: () -> Unit, onRemove: () -> Unit) {
     val theme = LocalGlassTheme.current
     GlassDialog(
         title = "${member.name}'s picture",
         onDismiss = onDismiss,
         buttons = { GlassButton("Cancel", onClick = onDismiss) },
     ) {
-        Text("Shown to everyone in the family.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            if (privateOnly) "Only you will see this picture. Without one, you see the family's picture." else "Shown to everyone in the family.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
         Spacer(Modifier.height(4.dp))
-        if (member.photo == null) {
+        if (!hasPicture) {
             GlassButton("Add picture", primary = true, onClick = onChoose, modifier = Modifier.fillMaxWidth())
         } else {
             GlassButton("Change picture", primary = true, onClick = onChoose, modifier = Modifier.fillMaxWidth())

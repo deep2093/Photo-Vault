@@ -48,6 +48,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.safeDrawing
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.glassChrome
@@ -73,8 +75,13 @@ fun GlassScreen(
     pinned: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
     floatingActions: (@Composable RowScope.() -> Unit)? = null,
-    /** A second pill at the top left (Photos: Day / Month / Year). */
+    /** A second pill at the top left (Photos: Years / Months / All). */
     floatingStartActions: (@Composable RowScope.() -> Unit)? = null,
+    /**
+     * Actions shown in a floating bar at the bottom (selection: share, favourite, delete). It rises in while the
+     * navigation bar rolls down (24 Oct); null hides it.
+     */
+    bottomActions: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     // Photos and Albums: scrolling down tucks the pills and the navigation bar away; scrolling up brings them back.
@@ -137,6 +144,18 @@ fun GlassScreen(
             end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
             top = insets.calculateTopPadding() + 8.dp,
         )
+        // The selection bar at the bottom, above the system bar (the navigation bar has rolled away).
+        val systemBottom = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+        var lastBottom by remember { androidx.compose.runtime.mutableStateOf<(@Composable RowScope.() -> Unit)?>(null) }
+        if (bottomActions != null) lastBottom = bottomActions
+        androidx.compose.animation.AnimatedVisibility(
+            visible = bottomActions != null,
+            enter = androidx.compose.animation.slideInVertically(com.deepak.photovault.designsystem.motionSpec(260)) { it } + androidx.compose.animation.fadeIn(com.deepak.photovault.designsystem.motionSpec(260)),
+            exit = androidx.compose.animation.slideOutVertically(com.deepak.photovault.designsystem.motionSpec(220)) { it } + androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(220)),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = systemBottom + 12.dp),
+        ) {
+            lastBottom?.let { actions -> FloatingPill(Modifier, actions) }
+        }
         if (title == null) {
             val tucked = chrome?.hidden == true && !pinned
             val shift by androidx.compose.animation.core.animateFloatAsState(if (tucked) -hidePx else 0f, com.deepak.photovault.designsystem.motionSpec(220), label = "pills")
@@ -152,6 +171,7 @@ fun GlassScreen(
             }
             return@Box
         }
+        // With a bottom bar, the top bar is only the count and Cancel; it doesn't slide away.
         GlassTopBar(
             title = title,
             subtitle = subtitle,
@@ -175,11 +195,12 @@ fun GlassScreen(
 /** A small floating glass pill of buttons (Samsung Gallery style), used instead of a top bar on Photos. */
 @Composable
 private fun FloatingPill(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
+    // Compact (24 Oct: the pills were too big).
     Row(
         modifier
-            .heightIn(min = TopBarHeight)
-            .glassChrome(RoundedCornerShape(percent = 50), elevation = 10.dp)
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .heightIn(min = 44.dp)
+            .glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp)
+            .padding(horizontal = 4.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         content = content,

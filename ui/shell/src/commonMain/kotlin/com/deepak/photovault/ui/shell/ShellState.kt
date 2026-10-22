@@ -21,7 +21,6 @@ import com.deepak.photovault.designsystem.GlassThemes
 enum class Destination(val label: String, val icon: ImageVector) {
     PHOTOS("Photos", Icons.Rounded.PhotoLibrary),
     ALBUMS("Albums", Icons.Rounded.Collections),
-    BACKUP("Backup", Icons.Rounded.Backup),
     FAMILY("Family", Icons.Rounded.Groups),
     SETTINGS("Settings", Icons.Rounded.Settings),
     ;
@@ -79,6 +78,9 @@ sealed interface Overlay {
 
     /** Connecting the family drive, creating the family or joining it. */
     data object DriveSetup : Overlay
+
+    /** Backup, opened from Settings (24 Oct: moved out of the navigation bar). */
+    data object Backup : Overlay
 
     /** One family member's page: picture, space, phones (24 Oct). */
     data class Member(val userId: String) : Overlay
@@ -159,6 +161,9 @@ class ShellState(private val store: AppearanceStore) {
 
     var appearance by mutableStateOf(store.load())
         private set
+
+    /** Album card size chosen by pinching on Albums (index into its sizes; 2 = the usual). */
+    var albumSize by mutableStateOf(2)
 
     /** Photo grid columns chosen by pinching; null means "fit the screen". */
     var gridColumns by mutableStateOf<Int?>(null)

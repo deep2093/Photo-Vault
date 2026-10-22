@@ -18,6 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Backup
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.ViewDay
 import androidx.compose.material.icons.rounded.Groups
@@ -48,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.deepak.photovault.core.household.HouseholdSettings
 import com.deepak.photovault.core.household.OwnerPin
 import com.deepak.photovault.designsystem.CollapsibleSection
+import com.deepak.photovault.designsystem.glassPanel
 import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassChip
 import com.deepak.photovault.designsystem.GlassDialog
@@ -66,11 +71,91 @@ import kotlinx.coroutines.launch
  * Appearance, Drive, About. Family settings moved to the Family section (owner only, 24 Oct).
  */
 @Composable
-fun SettingsScreen(state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher = NoAppIconSwitcher) {
+fun SettingsScreen(
+    state: ShellState,
+    drive: DriveState,
+    iconSwitcher: AppIconSwitcher = NoAppIconSwitcher,
+    backup: BackupState? = null,
+    gallery: GalleryState? = null,
+) {
     GlassListScreen(title = null, subtitle = null) {
+        // Backup moved here from the navigation bar (24 Oct); it opens its own page.
+        if (backup != null) item { BackupEntry(state, backup) }
         item { AppearanceSection(state, iconSwitcher) }
+        if (gallery != null) item { HiddenAlbumsSection(gallery) }
         item { DriveSection(state, drive) }
         item { AboutSection() }
+    }
+}
+
+/** One row that opens Backup, showing how it is going. */
+@Composable
+private fun BackupEntry(state: ShellState, backup: BackupState) {
+    val theme = LocalGlassTheme.current
+    val last = backup.history.firstOrNull()
+    androidx.compose.foundation.layout.Row(
+        Modifier
+            .cardWidth()
+            .glassPanel(com.deepak.photovault.designsystem.GlassCardShape)
+            .clickable(onClickLabel = "Open Backup") { state.open(Overlay.Backup) }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Icon(Icons.Rounded.Backup, contentDescription = null, tint = theme.accent)
+        androidx.compose.foundation.layout.Spacer(Modifier.size(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Backup", color = theme.onGlass, style = MaterialTheme.typography.titleMedium)
+            Text(
+                when {
+                    backup.running -> backup.progress?.let { "Backing up ${it.done} of ${it.total}" } ?: "Backing up"
+                    last == null -> "Not backed up yet"
+                    last.succeeded -> "Last backup ${whenText(last.finishedAtMillis, backup.now())}"
+                    else -> "Last backup didn't finish"
+                },
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = theme.onGlassSecondary)
+    }
+}
+
+/**
+ * Hide albums (24 Oct). A hidden album's photos leave Photos, Albums and search, after a pop-up says so. They stay on
+ * the phone and still back up.
+ */
+@Composable
+private fun HiddenAlbumsSection(gallery: GalleryState) {
+    val theme = LocalGlassTheme.current
+    var confirm by remember { mutableStateOf<com.deepak.photovault.core.media.PhoneAlbum?>(null) }
+    val hidden = gallery.hiddenAlbums.size
+    CollapsibleSection(
+        "Albums",
+        Icons.Rounded.VisibilityOff,
+        Modifier.cardWidth(),
+        summary = if (hidden == 0) "Hide albums" else "$hidden hidden",
+    ) {
+        Text("Hidden albums don't show in Photos or Albums.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+        gallery.allAlbums.forEach { album ->
+            val isHidden = album.id in gallery.hiddenAlbums
+            GlassSwitchRow(
+                album.name,
+                !isHidden,
+                { show -> if (show) gallery.setHidden(album.id, false) else confirm = album },
+                description = if (isHidden) "Hidden" else "${com.deepak.photovault.core.media.LibraryCounts.grouped(album.count)} items",
+            )
+        }
+    }
+    confirm?.let { album ->
+        ConfirmDialog(
+            title = "Hide ${album.name}?",
+            body = "Its photos will be hidden from both Photos and Albums. They stay on your phone and still back up. You can show it again here.",
+            confirm = "Hide",
+            onDismiss = { confirm = null },
+        ) {
+            gallery.setHidden(album.id, true)
+            confirm = null
+        }
     }
 }
 
@@ -98,15 +183,6 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             icon = Icons.Rounded.Animation,
             description = "Also follows the system setting",
         )
-        if (LocalTablet.current) {
-            GlassSwitchRow(
-                "Menu at the bottom",
-                state.appearance.tabletBottomBar,
-                { on -> state.updateAppearance { it.copy(tabletBottomBar = on) } },
-                icon = Icons.Rounded.ViewDay,
-                description = "A floating bar at the bottom, as on phones, instead of the side menu. This tablet only.",
-            )
-        }
         AppIconPicker(iconSwitcher)
     }
 }
@@ -120,7 +196,7 @@ private fun ThemeRow(themes: List<GlassTheme>, state: ShellState) {
     }
 }
 
-/** Four Seasons (default), Bloom, Leaf or Petals, on Light, Dark, Colourful or Clear. Android 13+ can also theme them. */
+/** Four Seasons (default), Leaf or Petals, on Light, Dark, Colourful or Clear. Android 13+ can also theme them. */
 @Composable
 private fun AppIconPicker(switcher: AppIconSwitcher) {
     val theme = LocalGlassTheme.current
@@ -153,12 +229,6 @@ private fun AppIconPicker(switcher: AppIconSwitcher) {
             }
         }
     }
-    Text(
-        "Your home screen may take a moment to show a new icon. Turn on themed icons in your phone's wallpaper settings for one that matches your colours.",
-        color = theme.onGlassSecondary,
-        style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.padding(top = 4.dp),
-    )
 }
 
 @Composable

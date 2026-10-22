@@ -43,6 +43,7 @@ import com.deepak.photovault.ui.shell.PhotoVaultApp
 import com.deepak.photovault.ui.shell.PlatformSignals
 import com.deepak.photovault.ui.shell.ShellState
 import com.deepak.photovault.ui.shell.Destination
+import com.deepak.photovault.ui.shell.Overlay
 import com.deepak.photovault.ui.shell.IconGlyph
 import com.deepak.photovault.ui.shell.OpeningAnimation
 import com.deepak.photovault.ui.shell.PickedImage
@@ -108,7 +109,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         super.onCreate(savedInstanceState)
         val state = ShellState(PrefsAppearanceStore(this))
         shell = state
-        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this))
+        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this))
         drive = DriveState(AndroidDrivePlatform(this))
         val backup = BackupGraph.get(this).state
         runCatching { iconSwitcher.tidyUp() }
@@ -152,7 +153,8 @@ class MainActivity : ComponentActivity(), MediaActions {
     private fun openFromIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_OPEN_BACKUP, false) == true) {
             shell.overlays.clear()
-            shell.destination = Destination.BACKUP
+            shell.destination = Destination.SETTINGS
+            shell.open(Overlay.Backup)
         }
     }
 
@@ -340,7 +342,9 @@ private object ProfilePicture {
 private class LauncherIconSwitcher(private val context: Context) : AppIconSwitcher {
     private val pm = context.packageManager
 
-    private fun component(choice: AppIconChoice) = ComponentName(context, "com.deepak.photovault.${choice.aliasName}")
+    private fun component(choice: AppIconChoice) = component(choice.aliasName)
+
+    private fun component(alias: String) = ComponentName(context, "com.deepak.photovault.$alias")
 
     private fun state(choice: AppIconChoice) = pm.getComponentEnabledSetting(component(choice))
 
@@ -358,14 +362,15 @@ private class LauncherIconSwitcher(private val context: Context) : AppIconSwitch
             ?: AppIconChoice()
 
     override fun set(choice: AppIconChoice) {
-        val changes = AppIconChoice.all.map { it to if (it == choice) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED }
+        val changes = AppIconChoice.all.map { component(it) to if (it == choice) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED } +
+            AppIconChoice.retired.keys.map { component(it) to PackageManager.COMPONENT_ENABLED_STATE_DISABLED }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             // One change for all icons, so the home screen never shows two or none.
-            pm.setComponentEnabledSettings(changes.map { (c, s) -> PackageManager.ComponentEnabledSetting(component(c), s, PackageManager.DONT_KILL_APP) })
+            pm.setComponentEnabledSettings(changes.map { (c, s) -> PackageManager.ComponentEnabledSetting(c, s, PackageManager.DONT_KILL_APP) })
         } else {
             // Enable the new one first, so there is never a moment with no launcher entry.
             pm.setComponentEnabledSetting(component(choice), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
-            changes.filter { it.first != choice }.forEach { (c, s) -> pm.setComponentEnabledSetting(component(c), s, PackageManager.DONT_KILL_APP) }
+            changes.filter { it.first != component(choice) }.forEach { (c, s) -> pm.setComponentEnabledSetting(c, s, PackageManager.DONT_KILL_APP) }
         }
     }
 
@@ -374,7 +379,16 @@ private class LauncherIconSwitcher(private val context: Context) : AppIconSwitch
      * (theirs and the new default). Keep only theirs.
      */
     fun tidyUp() {
-        if (AppIconChoice.all.count(::enabled) > 1) set(current())
+        // Bloom was removed (24 Oct): a phone that used it moves to Four Seasons on the same background.
+        AppIconChoice.retired.entries.firstOrNull { pm.getComponentEnabledSetting(component(it.key)) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED }
+            ?.let { (_, replacement) ->
+                set(replacement)
+                return
+            }
+        val on = AppIconChoice.all.count(::enabled)
+        if (on > 1) set(current())
+        // Never leave the phone without a home-screen entry.
+        if (on == 0) set(AppIconChoice())
     }
 }
 
@@ -399,6 +413,17 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("tablet_bottom_bar", settings.tabletBottomBar)
             .putBoolean("theme_chosen", settings.themeChosen)
             .apply()
+    }
+}
+
+/** Hidden albums by album (bucket) ID, Settings > Albums. Not secret. */
+private class PrefsHiddenAlbumsStore(context: Context) : com.deepak.photovault.ui.shell.HiddenAlbumsStore {
+    private val prefs = context.applicationContext.getSharedPreferences("albums", Context.MODE_PRIVATE)
+
+    override fun load(): Set<String> = prefs.getStringSet("hidden", emptySet()).orEmpty().toSet()
+
+    override fun save(ids: Set<String>) {
+        prefs.edit().putStringSet("hidden", ids).apply()
     }
 }
 
