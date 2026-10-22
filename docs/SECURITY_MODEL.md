@@ -35,6 +35,19 @@ open every folder from a computer. Setup tells the family this once, in plain wo
 - Choosing who you are on a phone is a convenience, not a security boundary. This is acceptable only
   because v1 makes no secrecy claim.
 
+## Owner PIN and approvals (Phase 3)
+
+- The drive owner's PIN guards owner actions in the app: approving phones, space limits, removing people and
+  phones, family settings. Both "Owner PIN" and "Approve new phones" are on by default and can be turned off by
+  the owner.
+- The PIN is stored on the drive only as a PBKDF2-SHA256 hash (120,000 rounds, random salt), compared in
+  constant time, and locks out after repeated wrong tries. It is never logged or stored in plain text.
+- These checks are **enforced by the app, not the drive**. Anyone with the drive password can edit the family
+  files from a computer. The app says so and makes no stronger claim. Details: HOUSEHOLD_PROTOCOL.md.
+- Family files are only ever added as new versions (create-new + rename without replace), never overwritten,
+  so two phones changing the family at once can't corrupt it.
+- "Forget this drive" removes the address and the encrypted password from the phone; nothing on the drive changes.
+
 ## Carried over from Veyra
 
 Keystore AES-256-GCM for secrets, `allowBackup=false` plus data-extraction rules, path containment in

@@ -46,7 +46,7 @@ private enum class Frequency(val label: String) { DAILY("Daily"), WEEKLY("Weekly
 
 /** Sample dashboard. Every control here is local to the screen until the backup engine arrives in Phase 5. */
 @Composable
-fun BackupScreen() {
+fun BackupScreen(drive: DriveState) {
     val theme = LocalGlassTheme.current
     var frequency by rememberSaveable { mutableStateOf(Frequency.DAILY) }
     var homeWifiOnly by rememberSaveable { mutableStateOf(true) }
@@ -112,15 +112,7 @@ fun BackupScreen() {
         item {
             GlassCard(Modifier.cardWidth()) {
                 SectionHeader("Your space")
-                InfoRow(Icons.Rounded.Storage, "Used", "38 GB of $DEFAULT_STORAGE_LIMIT_GB GB")
-                GlassProgressBar(0.38f, label = "Your space, 38 of $DEFAULT_STORAGE_LIMIT_GB gigabytes used")
-                Text(
-                    "Backup pauses and tells you before your space runs out. The limit can be changed in Settings.",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                InfoRow(Icons.Rounded.Storage, "Whole drive", "1.2 TB free of 2 TB")
+                YourSpace(drive)
             }
         }
         item {
@@ -152,3 +144,35 @@ internal fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
     }
 }
 
+
+/** Real figures once this phone has joined the family (Phase 3); the backup itself arrives in Phase 4. */
+@Composable
+private fun YourSpace(drive: DriveState) {
+    val theme = LocalGlassTheme.current
+    val joined = drive.joined
+    if (joined == null) {
+        Text(
+            if (drive.isSetUp) "Join your family on the drive to see your space." else "Connect your drive to see your space.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        return
+    }
+    val mine = drive.usage[joined.me.userId]
+    val limit = mine?.limitBytes ?: joined.me.limitGb * DriveState.GB
+    val used = mine?.usedBytes
+    if (used != null) {
+        InfoRow(Icons.Rounded.Storage, "Used", "${DetailsFormat.size(used)} of ${joined.me.limitGb} GB")
+        GlassProgressBar((used / limit.toFloat()).coerceIn(0f, 1f), label = "Your space, ${DetailsFormat.size(used)} of ${joined.me.limitGb} gigabytes used")
+    } else {
+        InfoRow(Icons.Rounded.Storage, "Your limit", "${joined.me.limitGb} GB")
+    }
+    Text(
+        if (drive.isOwner) "Backup pauses and tells you before your space runs out. You can change everyone's space on the Family page."
+        else "Backup pauses and tells you before your space runs out. The drive owner can change your space.",
+        color = theme.onGlassSecondary,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    drive.space?.let { InfoRow(Icons.Rounded.Storage, "Whole drive", "${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}") }
+}

@@ -36,6 +36,7 @@ import com.deepak.photovault.ui.shell.AppIconChoice
 import com.deepak.photovault.ui.shell.AppIconSwitcher
 import com.deepak.photovault.ui.shell.AppearanceSettings
 import com.deepak.photovault.ui.shell.AppearanceStore
+import com.deepak.photovault.ui.shell.DriveState
 import com.deepak.photovault.ui.shell.GalleryState
 import com.deepak.photovault.ui.shell.MediaActions
 import com.deepak.photovault.ui.shell.PhotoVaultApp
@@ -46,6 +47,7 @@ import com.deepak.photovault.ui.shell.ShellState
 class MainActivity : ComponentActivity(), MediaActions {
     private var signals by mutableStateOf(PlatformSignals())
     private lateinit var gallery: GalleryState
+    private lateinit var drive: DriveState
     private val iconSwitcher by lazy { LauncherIconSwitcher(this) }
 
     private val powerSaveReceiver = object : BroadcastReceiver() {
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         super.onCreate(savedInstanceState)
         val state = ShellState(PrefsAppearanceStore(this))
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this))
+        drive = DriveState(AndroidDrivePlatform(this))
         refreshSignals()
         refreshAccess()
         setContent {
@@ -75,7 +78,7 @@ class MainActivity : ComponentActivity(), MediaActions {
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
             BackHandler(enabled = state.canGoBack) { state.back() }
-            PhotoVaultApp(state, gallery, this, signals, iconSwitcher)
+            PhotoVaultApp(state, gallery, this, drive, signals, iconSwitcher)
         }
     }
 

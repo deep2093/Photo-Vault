@@ -55,6 +55,9 @@ sealed interface Overlay {
     data class Album(val kind: AlbumKind) : Overlay
 
     data object RecentlyDeleted : Overlay
+
+    /** Connecting the family drive, creating the family or joining it. */
+    data object DriveSetup : Overlay
 }
 
 sealed interface AlbumKind {

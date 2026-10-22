@@ -4,9 +4,8 @@ An Android 11+ photo and video gallery that backs up each family member's phone 
 on one shared SMB drive (for example a USB drive on the home router). Built on the SMB and WireGuard
 code from Veyra (`deep2093/SmbVideoPlayer`).
 
-**Status: Phase 2 (phone gallery).** Your real photos and videos: timeline, viewer, albums, search,
-favourites, sharing and Recently deleted, in ten glass and adaptive themes. Backup and family screens still
-show sample data until Phases 3-4. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phase 3 (drive and family).** Connect the shared drive, set up the family (owner PIN, approving new
+phones, space per person), on top of the Phase 2 gallery. The backup itself arrives in Phase 4. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Layout
 
@@ -14,8 +13,10 @@ show sample data until Phases 3-4. See [docs/ROADMAP.md](docs/ROADMAP.md).
 | --- | --- |
 | `app/` | The Android app |
 | `desktop/` | Windows PC app, paused until the phone app is finished (not built) |
-| `core/designsystem/` | Shared: Liquid Glass components and the four themes |
+| `core/designsystem/` | Shared: Liquid Glass components and themes |
 | `core/media/` | Shared: photo model, timeline, search, albums; Android MediaStore source |
+| `core/drive/` | Shared: drive file access the app needs (create without overwriting) |
+| `core/household/` | Shared: the family on the drive, owner PIN, space limits |
 | `ui/shell/` | Shared: navigation and screens |
 | `core/security/` | Keystore encryption helper, drive credential store, path rules |
 | `core/smb/` | SMB2/3 connection, error messages, LAN discovery (from Veyra) |

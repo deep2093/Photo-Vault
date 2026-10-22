@@ -15,6 +15,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":core:designsystem"))
             api(project(":core:media"))
+            api(project(":core:household"))
             // Thumbnails and full photos. Coil 3 is multiplatform, so this stays shared code.
             implementation("io.coil-kt.coil3:coil-compose:3.2.0")
         }
@@ -25,6 +26,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
         }
     }
 }
