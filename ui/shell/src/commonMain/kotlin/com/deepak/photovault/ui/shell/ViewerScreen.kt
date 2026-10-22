@@ -1,0 +1,475 @@
+package com.deepak.photovault.ui.shell
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalDensity
+import com.deepak.photovault.core.media.DetailsFormat
+import com.deepak.photovault.core.media.MediaDetails
+import com.deepak.photovault.core.media.MediaDetailsSource
+import com.deepak.photovault.designsystem.LocalGlassSettings
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import com.deepak.photovault.core.media.MediaItem
+import com.deepak.photovault.core.media.Thumb
+import com.deepak.photovault.core.media.Timeline
+import com.deepak.photovault.designsystem.GlassIconButton
+import com.deepak.photovault.designsystem.LocalGlassTheme
+import com.deepak.photovault.designsystem.LocalHazeState
+import com.deepak.photovault.designsystem.glassChrome
+import com.deepak.photovault.designsystem.motionSpec
+import kotlinx.coroutines.launch
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+
+/**
+ * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to show or hide the actions,
+ * play videos. Photos are shown on black, never tinted. There is no top bar: back is the system back gesture.
+ *
+ * Swipe up (or tap Details) to slide the photo up and reveal the details panel, as in Samsung Gallery
+ * (feedback 22 Oct). Swipe down, tap the photo or press back to close it.
+ */
+@Composable
+fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
+    // Photos deleted while the viewer is open drop out of the list.
+    val ids = remember(viewer.ids, gallery.items) { viewer.ids.filter { gallery.find(it) != null } }
+    if (ids.isEmpty()) {
+        LaunchedEffect(Unit) { state.back() }
+        return
+    }
+    val start = ids.indexOf(viewer.startId).coerceAtLeast(0)
+    val pager = rememberPagerState(initialPage = start) { ids.size }
+    var barsVisible by rememberSaveable { mutableStateOf(true) }
+    val current = gallery.find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
+    val system = WindowInsets.safeDrawing.asPaddingValues()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalGlassSettings.current.reduceMotion
+
+    // 0 = photo only, 1 = details panel fully open.
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(state.detailsOpen) {
+        val target = if (state.detailsOpen) 1f else 0f
+        if (reduceMotion) progress.snapTo(target) else progress.animateTo(target, tween(DETAILS_MS, easing = FastOutSlowInEasing))
+    }
+    DisposableEffect(Unit) { onDispose { state.detailsOpen = false } }
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+        val density = LocalDensity.current
+        val panelHeight = maxHeight * DETAILS_SHARE
+        val panelPx = with(density) { panelHeight.toPx() }
+        fun settle(velocity: Float) {
+            // Open past a third of the way, or on an upward fling; close otherwise.
+            val open = if (kotlin.math.abs(velocity) > 800f) velocity < 0 else progress.value > 0.33f
+            state.detailsOpen = open
+            scope.launch {
+                if (reduceMotion) progress.snapTo(if (open) 1f else 0f)
+                else progress.animateTo(if (open) 1f else 0f, tween(DETAILS_MS, easing = FastOutSlowInEasing), initialVelocity = -velocity / panelPx)
+            }
+        }
+        val drag = rememberDraggableState { dy -> scope.launch { progress.snapTo((progress.value - dy / panelPx).coerceIn(0f, 1f)) } }
+
+        // No blur source here: the bars use solid glass over the photo.
+        CompositionLocalProvider(LocalHazeState provides null) {
+            HorizontalPager(
+                state = pager,
+                key = { ids[it] },
+                beyondViewportPageCount = 1,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // The photo slides up as the panel rises, leaving it fully visible above the panel.
+                        translationY = -progress.value * panelPx * 0.62f
+                    }
+                    // Vertical swipes (not taken by zoom or the pager) open and close the panel.
+                    .draggable(
+                        state = drag,
+                        orientation = Orientation.Vertical,
+                        onDragStopped = { velocity -> settle(velocity) },
+                    ),
+            ) { page ->
+                val item = gallery.find(ids[page]) ?: return@HorizontalPager
+                val onTap = { if (state.detailsOpen) state.detailsOpen = false else barsVisible = !barsVisible }
+                if (item.isVideo) {
+                    VideoPage(item, isCurrent = page == pager.currentPage, onTap = onTap)
+                } else {
+                    ZoomablePhoto(item, onTap = onTap)
+                }
+            }
+
+            DetailsPanel(
+                item = current,
+                source = gallery.detailsSource,
+                actions = actions,
+                bottomInset = system.calculateBottomPadding(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(panelHeight)
+                    .graphicsLayer {
+                        translationY = (1f - progress.value) * panelPx
+                        alpha = (progress.value * 3f).coerceIn(0f, 1f)
+                    }
+                    .draggable(state = drag, orientation = Orientation.Vertical, onDragStopped = { settle(it) }),
+            )
+
+            AnimatedVisibility(
+                visible = barsVisible && !state.detailsOpen,
+                enter = fadeIn(motionSpec()) + slideInVertically(motionSpec()) { it / 2 },
+                exit = fadeOut(motionSpec()) + slideOutVertically(motionSpec()) { it / 2 },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            ) {
+                ViewerActions(
+                    favourite = gallery.isFavourite(current),
+                    onShare = { actions.share(listOf(current)) },
+                    onFavourite = { gallery.toggleFavourite(listOf(current)) },
+                    onInfo = { state.detailsOpen = true },
+                    onDelete = { actions.moveToRecentlyDeleted(listOf(current)) },
+                    modifier = Modifier.padding(bottom = system.calculateBottomPadding() + 12.dp),
+                )
+            }
+        }
+    }
+}
+
+private const val DETAILS_MS = 320
+private const val DETAILS_SHARE = 0.56f
+
+@Composable
+private fun ViewerActions(
+    favourite: Boolean,
+    onShare: () -> Unit,
+    onFavourite: () -> Unit,
+    onInfo: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
+        GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
+        GlassIconButton(Icons.Rounded.Info, "Details", onClick = onInfo)
+        GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete)
+    }
+}
+
+/**
+ * The details panel, laid out like Samsung Gallery's: when and what, then camera and exposure, then where.
+ * Always dark, because it sits below the photo on the viewer's black background.
+ */
+@Composable
+private fun DetailsPanel(
+    item: MediaItem,
+    source: MediaDetailsSource,
+    actions: MediaActions,
+    bottomInset: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+) {
+    val details by produceState<MediaDetails?>(null, item.id) { value = source.details(item) }
+    val white = Color(0xFFF5F5F7)
+    val grey = Color(0xFFB8B8C0)
+    Column(
+        modifier
+            .background(Color(0xFF0B0B0D))
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = bottomInset + 24.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // Drag handle: shows the panel can be swiped down.
+        Box(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x55FFFFFF)))
+        Spacer(Modifier.height(12.dp))
+        Text(fullDate(item), color = white, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(item.displayName, color = grey, style = MaterialTheme.typography.bodyMedium)
+        details?.folder?.let { Text(it, color = grey, style = MaterialTheme.typography.bodyMedium) }
+
+        val d = details
+        val camera = d?.camera
+        Spacer(Modifier.height(16.dp))
+        if (camera != null) Text(camera, color = white, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        val lens = listOfNotNull(DetailsFormat.lensKind(d?.focalLength35mm), DetailsFormat.focal(d?.focalLength35mm, d?.focalLengthMm))
+        if (!item.isVideo && lens.isNotEmpty()) Text(lens.joinToString(" - "), color = grey, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            listOfNotNull(
+                DetailsFormat.size(item.sizeBytes),
+                if (item.width > 0) "${item.width}x${item.height}" else null,
+                if (item.isVideo) Timeline.duration(item.durationMillis) else DetailsFormat.megapixels(item.width, item.height),
+            ).joinToString("  |  "),
+            color = grey,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        val exposure = if (item.isVideo) {
+            listOfNotNull(DetailsFormat.frameRate(d?.frameRate), DetailsFormat.bitrate(d?.bitrate))
+        } else {
+            listOfNotNull(
+                d?.iso?.let { "ISO $it" },
+                DetailsFormat.focal(d?.focalLength35mm, d?.focalLengthMm),
+                DetailsFormat.exposureBias(d?.exposureBias),
+                DetailsFormat.aperture(d?.aperture),
+                DetailsFormat.exposure(d?.exposureSeconds),
+                if (d?.flashFired == true) "Flash used" else null,
+            )
+        }
+        if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = MaterialTheme.typography.bodyMedium)
+
+        Spacer(Modifier.height(16.dp))
+        LocationCard(d, item, actions, white, grey)
+        Spacer(Modifier.height(12.dp))
+        Text("Backup: arrives with drive backup", color = grey, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun LocationCard(d: MediaDetails?, item: MediaItem, actions: MediaActions, white: Color, grey: Color) {
+    val lat = d?.latitude
+    val lon = d?.longitude
+    when {
+        d == null -> Unit
+        lat != null && lon != null -> Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1C1C21))
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Place, null, tint = white)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(DetailsFormat.coordinates(lat, lon), color = white, style = MaterialTheme.typography.bodyMedium)
+                Text("Map and street address arrive with Places", color = grey, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                "Open in Maps",
+                color = Color(0xFF8AB4FF),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(role = Role.Button) { actions.openMap(lat, lon, item.displayName) }
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+            )
+        }
+        d.locationHidden -> Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1C1C21))
+                .clickable(role = Role.Button) { actions.requestLocationAccess() }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Place, null, tint = white)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Show where photos were taken", color = white, style = MaterialTheme.typography.bodyMedium)
+                Text("Allow PhotoVault to read photo locations. They stay on your phone.", color = grey, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        else -> Text("No location saved in this ${if (item.isVideo) "video" else "photo"}", color = grey, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** "Saturday, 29 August 2026 · 3:53 pm", as Samsung shows it. */
+private fun fullDate(item: MediaItem): String {
+    val t = Instant.fromEpochMilliseconds(item.takenAtMillis).toLocalDateTime(TimeZone.currentSystemDefault())
+    val hour = if (t.hour % 12 == 0) 12 else t.hour % 12
+    val suffix = if (t.hour < 12) "am" else "pm"
+    return "${Timeline.dayName(t.dayOfWeek)}, ${t.dayOfMonth} ${Timeline.monthName(t.month)} ${t.year} · $hour:${t.minute.toString().padStart(2, '0')} $suffix"
+}
+
+/** Pinch to zoom (up to 6x), drag while zoomed, double-tap to zoom in or out, tap to toggle bars. */
+@Composable
+private fun ZoomablePhoto(item: MediaItem, onTap: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val scale = remember(item.id) { Animatable(1f) }
+    val offset = remember(item.id) { Animatable(Offset.Zero, Offset.VectorConverter) }
+    val context = LocalPlatformContext.current
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(item.id) {
+                detectTapGestures(
+                    onTap = { onTap() },
+                    onDoubleTap = { tap ->
+                        scope.launch {
+                            if (scale.value > 1.05f) {
+                                launch { offset.animateTo(Offset.Zero) }
+                                scale.animateTo(1f)
+                            } else {
+                                // Zoom towards where the finger tapped.
+                                val target = 2.5f
+                                val centre = Offset(size.width / 2f, size.height / 2f)
+                                launch { offset.animateTo(clampOffset((centre - tap) * (target - 1f), target, size.width, size.height)) }
+                                scale.animateTo(target)
+                            }
+                        }
+                    },
+                )
+            }
+            .pointerInput(item.id) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val fingers = event.changes.count { it.pressed }
+                        // One finger at 1x belongs to the pager (swipe to the next photo).
+                        if (fingers >= 2 || scale.value > 1.01f) {
+                            val newScale = (scale.value * event.calculateZoom()).coerceIn(1f, 6f)
+                            val newOffset = clampOffset(offset.value + event.calculatePan(), newScale, size.width, size.height)
+                            scope.launch {
+                                scale.snapTo(newScale)
+                                offset.snapTo(newOffset)
+                            }
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                    if (scale.value < 1.05f) {
+                        scope.launch {
+                            launch { offset.animateTo(Offset.Zero) }
+                            scale.animateTo(1f)
+                        }
+                    }
+                }
+            }
+            .semantics { contentDescription = "Photo, ${whenTaken(item)}" },
+    ) {
+        // The cached thumbnail shows instantly; the full photo fades in over it.
+        AsyncImage(model = Thumb(item.uri, false, 512), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+        AsyncImage(
+            model = ImageRequest.Builder(context).data(item.uri).crossfade(true).build(),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale.value
+                    scaleY = scale.value
+                    translationX = offset.value.x
+                    translationY = offset.value.y
+                },
+        )
+    }
+}
+
+private fun clampOffset(offset: Offset, scale: Float, width: Int, height: Int): Offset {
+    val maxX = width * (scale - 1f) / 2f
+    val maxY = height * (scale - 1f) / 2f
+    return Offset(offset.x.coerceIn(-maxX, maxX), offset.y.coerceIn(-maxY, maxY))
+}
+
+/** A video: its thumbnail with a play button; plays in place when tapped and stops when swiped away. */
+@Composable
+private fun VideoPage(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit) {
+    var playing by remember(item.id) { mutableStateOf(false) }
+    LaunchedEffect(isCurrent) { if (!isCurrent) playing = false }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (playing) {
+            VideoPlayer(item.uri, Modifier.fillMaxSize())
+        } else {
+            AsyncImage(
+                model = Thumb(item.uri, true, 512),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().clickable(onClick = onTap),
+            )
+            Box(
+                Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable(role = Role.Button, onClick = { playing = true })
+                    .semantics { contentDescription = "Play video, ${Timeline.duration(item.durationMillis)}" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(44.dp))
+            }
+        }
+    }
+}
+
+private fun whenTaken(item: MediaItem): String {
+    val zone = TimeZone.currentSystemDefault()
+    val time = Instant.fromEpochMilliseconds(item.takenAtMillis).toLocalDateTime(zone)
+    val today = Timeline.localDate(kotlinx.datetime.Clock.System.now().toEpochMilliseconds(), zone)
+    val hour = if (time.hour % 12 == 0) 12 else time.hour % 12
+    val suffix = if (time.hour < 12) "am" else "pm"
+    return "${Timeline.dayLabel(time.date, today)}, $hour:${time.minute.toString().padStart(2, '0')} $suffix"
+}
+

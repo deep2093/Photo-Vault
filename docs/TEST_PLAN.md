@@ -11,7 +11,22 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 | `:core:smb` | `SmbErrorsTest`: transient vs permanent, no secrets in messages; `SmbProfileTest`: password never in `toString()` | Publish-without-overwrite, temp naming (Phase 5) |
 | `:core:vpn` | `ConfigTextTest`: app-only rewrite (from Veyra) | Hold/back-off policy (Phase 7) |
 | `:core:designsystem` | Phase 1: `ThemeContrastTest` (every text colour ≥ 4.5:1 on its worst background: glass over black and white, glass over wallpaper, bare wallpaper; for adaptive themes every hue the palette can make), `ThemeCatalogTest`, `AdaptivePaletteTest`, `AdaptiveLayoutTest` (tablets zoom out to ~48 dp tiles, saved sizes clamped on rotation) | |
+| `:core:media` | Phase 2: `DetailsFormatTest` (Samsung-style labels), `TimelineTest` (day/month/year labels, time zone at midnight, durations, days left, 20,000 photos), `SearchAndAlbumsTest`, `MainColorTest` | |
 | `:ui:shell` | Phase 1: `ShellStateTest` (battery saver turns blur off, reduce motion, settings saved, grid zoom limits, agreed warning text) | |
+
+## Phase 2 device checks (on Deepak's phone and tablet)
+
+- First launch: "Allow access" → all photos appear; Android 14+ "Select photos" → only those, with "Allow all".
+- Timeline: Day/Month/Year, pinch from biggest to smallest on phone and tablet, smooth re-layout.
+- Viewer: swipe, pinch and double-tap zoom, drag while zoomed, videos play and stop when swiped away.
+- Select several → Share, Favourite, Delete (Android asks) → Recently deleted shows them with days left →
+  Restore (Android asks) → back in the timeline.
+- Albums: phone folders, Favourites, Videos; Search: "videos", a month, a year, an album name.
+- Every theme, including Adaptive (wallpaper follows the photos), Translucent and Frosted.
+- Details panel: swipe up and down, Details button, back closes it first; Samsung photo shows camera, lens, ISO,
+  aperture, shutter and coordinates; screenshot shows only size; video shows length; location refused → allow card.
+- Back from album → viewer → album → Albums never reopens anything (touch fall-through bug, fixed 22 Oct).
+- Section jumps (Photos → Settings) slide one step, highlight glides straight across.
 
 ## Device and integration tests (from the phase that needs them)
 

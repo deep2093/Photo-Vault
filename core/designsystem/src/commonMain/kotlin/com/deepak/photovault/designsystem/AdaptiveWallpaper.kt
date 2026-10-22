@@ -38,7 +38,12 @@ data class AdaptiveStyle(
     val scrim: Float,
     /** Used before any photo is on screen. */
     val fallback: List<Color>,
-)
+    /** Light adaptive themes: pastel colours under a white veil, with dark text. */
+    val light: Boolean = false,
+) {
+    /** The readability veil: dark for light text, white for dark text. */
+    val veil: Color get() = if (light) Color.White else Color.Black
+}
 
 /** Colours of the photos currently on screen. Each shown photo adds one colour and removes it when it leaves. */
 class ScreenColors {
@@ -135,13 +140,14 @@ fun adaptivePalette(colors: List<Color>, style: AdaptiveStyle): List<Color> {
     }
 }
 
-/** The adaptive gradient, easing slowly to new colours as the screen changes (instantly with reduce motion). */
+/** The adaptive gradient, easing to new colours as the screen changes (instantly with reduce motion). */
 @Composable
 internal fun rememberAdaptiveColors(style: AdaptiveStyle): List<State<Color>> {
     val registry = LocalScreenColors.current
     val target by remember(style, registry) { derivedStateOf { adaptivePalette(registry.current(), style) } }
     val reduce = LocalGlassSettings.current.reduceMotion
-    return List(3) { i -> animateColorAsState(target[i], if (reduce) snap() else tween(1400), label = "adaptive_$i") }
+    // Reacts within about half a second of new photos coming on screen (was 1.4 s; feedback 22 Oct).
+    return List(3) { i -> animateColorAsState(target[i], if (reduce) snap() else tween(550), label = "adaptive_$i") }
 }
 
 /** Paints an adaptive wallpaper: a diagonal gradient, two soft lights and a readability veil. */
@@ -161,6 +167,6 @@ internal fun DrawScope.drawAdaptiveWallpaper(colors: List<Color>, style: Adaptiv
             radius = size.maxDimension * 0.75f,
         ),
     )
-    // Darker towards the bottom, where the navigation bar sits.
-    drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = style.scrim * 0.6f), Color.Black.copy(alpha = style.scrim))))
+    // Stronger towards the bottom, where the navigation bar sits.
+    drawRect(Brush.verticalGradient(listOf(style.veil.copy(alpha = style.scrim * 0.6f), style.veil.copy(alpha = style.scrim))))
 }

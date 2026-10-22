@@ -1,24 +1,9 @@
 package com.deepak.photovault.ui.shell
 
-import com.deepak.photovault.designsystem.BackupStatus
-
 /**
- * Sample content for Phase 1 only. Phase 2 replaces it with the phone's real photos (MediaStore on
- * Android, chosen folders on a PC). Nothing here touches the network or real files.
+ * Sample content for the screens that don't have real data yet (Backup, Family): replaced by the drive and
+ * family setup (Phase 3) and backup (Phase 4). Photos and albums are real since Phase 2.
  */
-data class SamplePhoto(
-    val id: Int,
-    val status: BackupStatus,
-    val isVideo: Boolean,
-    val favourite: Boolean,
-    /** Index into the theme's sample hues, so tiles recolour with the theme. */
-    val hue: Int,
-    /** 0..1, mixes two hues for variety. */
-    val shade: Float,
-)
-
-data class SampleDay(val label: String, val photos: List<SamplePhoto>)
-
 data class SampleAlbum(val name: String, val count: Int, val shared: Boolean, val coverHues: List<Int>)
 
 data class SampleMember(
@@ -37,32 +22,6 @@ const val DEFAULT_STORAGE_LIMIT_GB = 100
 data class SamplePhone(val name: String, val progress: Float, val detail: String)
 
 object SampleData {
-    val days: List<SampleDay> = run {
-        val labels = listOf("Today", "Yesterday", "Monday 19 October", "Saturday 17 October", "Friday 9 October", "September 2026")
-        val counts = listOf(7, 12, 5, 16, 9, 24)
-        var next = 0
-        labels.zip(counts).map { (label, count) ->
-            SampleDay(
-                label,
-                List(count) {
-                    val id = next++
-                    SamplePhoto(
-                        id = id,
-                        status = when {
-                            id < 5 -> BackupStatus.PHONE_ONLY // newest photos still waiting
-                            id % 11 == 0 -> BackupStatus.ON_DRIVE // cleaned up from the phone, kept on the drive
-                            else -> BackupStatus.BACKED_UP
-                        },
-                        isVideo = id % 7 == 3,
-                        favourite = id % 9 == 2,
-                        hue = (id * 7 + id / 3) % 5,
-                        shade = ((id * 37) % 100) / 100f,
-                    )
-                },
-            )
-        }
-    }
-
     val albums = listOf(
         SampleAlbum("Favourites", 48, shared = false, coverHues = listOf(0, 2, 4, 1)),
         SampleAlbum("Camera", 1_184, shared = false, coverHues = listOf(1, 3, 0, 2)),

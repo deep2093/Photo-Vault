@@ -91,15 +91,16 @@ fun GlassButton(
 @Composable
 fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
+    // No disc behind the icon: it sits on the bar's own glass (feedback 22 Oct). The ripple shows the touch.
     Box(
         modifier
             .size(MinTouchTarget)
-            .glassPanel(CircleShape)
+            .clip(CircleShape)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = theme.onGlass)
+        GlassIcon(icon, tint = theme.onGlass)
     }
 }
 

@@ -100,8 +100,8 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
                     style = HazeStyle(
                         backgroundColor = theme.wallpaper.first(),
                         tints = listOf(HazeTint(theme.glassTint)),
-                        blurRadius = 24.dp,
-                        noiseFactor = 0.03f,
+                        blurRadius = theme.blurRadius,
+                        noiseFactor = theme.grain,
                         fallbackTint = HazeTint(theme.glassFallback),
                     ),
                 )

@@ -30,7 +30,8 @@ PhotoVault may be ported to a Windows PC, so it is built now to make that a smal
   windows from 420 dp wide, and no Android-only APIs in `commonMain`.
 - `:desktop` is the PC app. **Paused (22 Oct 2026)** until the phone app is finished and refined: it is not
   built, the shared modules have only the Android target, and CI builds no Windows app. The shared-code
-  rule above still applies, so resuming means re-adding `jvm("desktop")` and `include(":desktop")`.
+  rule above still applies, so resuming means re-adding `jvm("desktop")` and `include(":desktop")`, then giving the
+  PC its own `MediaLibrary` (chosen folders) and the three `Platform.kt` pieces.
 
 ## Modules
 
@@ -45,9 +46,8 @@ Phase 0 creates the first four. The rest are added by the phase that needs them,
 | `:core:vpn` | 0 | `WireGuardManager`, `WireGuardConfigStore`, `SmbReachability`, `ConfigText` (from Veyra) |
 | `:core:designsystem` | 1 | **Shared.** Liquid Glass components, 4 glass + 3 adaptive themes, contrast checks, motion, adaptive layout rules |
 | `:ui:shell` | 1 | **Shared.** App scaffold, navigation, screens (sample data until Phase 2) |
-| `:core:database` | 2 | Room: media index, albums, backup jobs, manifests cache, audit |
-| `:core:media` | 2 | MediaStore discovery, thumbnails |
-| `:feature:gallery`, `:feature:viewer`, `:feature:albums`, `:feature:search` | 2 | Local gallery |
+| `:core:media` | 2 | **Shared.** Media model, timeline grouping, search, phone albums, photo main colour; Android MediaStore source (androidMain) |
+| `:core:database` | 4 | Room: backup jobs, manifests cache, drive index, audit. Not needed in Phase 2: MediaStore is already an index, read directly |
 | `:data:remote` | 5 | Remote index and thumbnail cache over `:core:smb` |
 | `:core:household` | 3 | User/device IDs, per-person folder layout, containment, space limits |
 | `:data:backup`, `:feature:backup` | 4 | Backup engine, schedule, space limits, restore, dashboard |
@@ -59,6 +59,19 @@ Phase 0 creates the first four. The rest are added by the phase that needs them,
 
 Dependency direction: `feature → data → core`. Features never talk to each other directly.
 Dependency injection: a small hand-written service locator, as in Veyra, until it stops being enough.
+
+## Phase 2 decisions
+
+- **No local database yet.** MediaStore is Android's own index of photos; reading it directly is fast for
+  20,000+ items and never goes stale. Room arrives with backup state in Phase 4.
+- **Thumbnails** come from Android's own thumbnail cache (`ContentResolver.loadThumbnail`, through a Coil fetcher),
+  which is shared with the system gallery and covers videos too.
+- **Favourites are kept by the app**, because Android's favourite flag needs a system prompt for every change.
+  They go into the drive manifest with backup so they survive a new phone.
+- **Recently deleted is Android's own trash** (Android 11+): deleting goes through Android's prompt, and Android
+  removes items for good after 30 days. The drive side follows in Phase 5.
+- **Screens are still shared code;** only `VideoPlayer`, the thumbnail loader and colour reading are per platform
+  (`Platform.kt`, expect/actual).
 
 ## Drive layout
 
