@@ -95,7 +95,7 @@ actual fun AppIconPreview(choice: AppIconChoice, modifier: Modifier) {
         if (id == 0) {
             null
         } else {
-            androidx.core.content.ContextCompat.getDrawable(context, id)?.let { drawable ->
+            context.getDrawable(id)?.let { drawable ->
                 // Draw it inside the launcher's circular mask, the way most home screens show it.
                 val size = 192
                 val full = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
