@@ -33,4 +33,9 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
       Change space button, phone name) so nothing overlaps or floats. Show "Counting..." instead of "..." while
       the used space is measured, and show the phone's real model name.
 
+- [ ] Joining on a second device: when the chosen folder has no family, warn first ("No family found in this folder. If
+      you already set one up on another phone, check the shared folder and PhotoVault folder names match") and put
+      Create family behind it. Show the folder name clearly in Settings > Drive for comparing devices.
+      (Tablet landed on Create family because its folder name differed from the phone's, 23 Oct.)
+
 (More bugs from testing go here.)
