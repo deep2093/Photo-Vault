@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
@@ -60,8 +61,11 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         // Worked out once per library change, not on every frame (libraries can hold tens of thousands of items).
         val favourites = remember(gallery.items, gallery.favourites) { gallery.items.filter { it.id in gallery.favourites } }
         val videos = remember(gallery.items) { gallery.items.filter { it.isVideo } }
+        val gridState = rememberLazyGridState()
+        ScrollToTopEffect(gridState)
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
+            state = gridState,
             contentPadding = padding,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

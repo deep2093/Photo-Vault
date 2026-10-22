@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -44,10 +45,6 @@ interface AppearanceStore {
     fun save(settings: AppearanceSettings)
 }
 
-/**
- * All state the shell owns. Created by the platform app, so the PC app can drive it from keyboard
- * shortcuts and the Android app from the activity.
- */
 /** Full-screen pages opened over the main sections. Back closes the top one. */
 sealed interface Overlay {
     /** The photo viewer, swiping through [ids] (the list it was opened from) starting at [startId]. */
@@ -68,12 +65,29 @@ sealed interface AlbumKind {
     data object Videos : AlbumKind
 }
 
+/**
+ * All state the shell owns. Created by the platform app, so the PC app can drive it from keyboard
+ * shortcuts and the Android app from the activity.
+ */
 @Stable
 class ShellState(private val store: AppearanceStore) {
     var destination by mutableStateOf(Destination.PHOTOS)
 
     /** Open pages, newest last. */
     val overlays = mutableStateListOf<Overlay>()
+
+    /** How many times each section was tapped while already open; each tap scrolls it to the top. */
+    val reselects = mutableStateMapOf<Destination, Int>()
+
+    /** A navigation tap: opens another section, or scrolls the open one back to the top. */
+    fun tapSection(target: Destination) {
+        selected = emptySet()
+        if (target == destination) {
+            reselects[target] = (reselects[target] ?: 0) + 1
+        } else {
+            destination = target
+        }
+    }
 
     /** Photos picked by long-press. Empty means not selecting. */
     var selected by mutableStateOf<Set<Long>>(emptySet())

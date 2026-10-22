@@ -1,14 +1,38 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.unit.LayoutDirection
+import com.deepak.photovault.designsystem.glassPanel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -71,7 +95,10 @@ typealias TileLabel = (MediaItem) -> String?
 
 /**
  * The shared photo grid: date sections, pinch to change size (one column per step, smoothly re-laid out),
- * tap to open, long-press to select. Used by Photos, albums, search and Recently deleted.
+ * tap to open, long-press to select, long-press and slide to select many, a fast-scroll slider on the right,
+ * and tap-the-section-again to glide back to the top. Used by Photos, albums, search and Recently deleted.
+ *
+ * [headerItems] is how many grid items [header] adds (the slider skips them when showing dates).
  */
 @Composable
 fun MediaGrid(
@@ -83,6 +110,7 @@ fun MediaGrid(
     modifier: Modifier = Modifier,
     tileLabel: TileLabel? = null,
     header: (LazyGridScope.() -> Unit)? = null,
+    headerItems: Int = if (header != null) 1 else 0,
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth.value.toInt()
@@ -92,15 +120,97 @@ fun MediaGrid(
         val currentMax by rememberUpdatedState(maxColumns)
         val tileDp = maxWidth / columns
         val gridState = rememberLazyGridState()
+        ScrollToTopEffect(gridState)
         val reduceMotion = LocalGlassSettings.current.reduceMotion
+        val density = LocalDensity.current
+        val haptics = LocalHapticFeedback.current
+        val scope = rememberCoroutineScope()
+
+        // Photos in screen order, for drag selection.
+        val order = remember(sections) { sections.flatMap { s -> s.items.map { it.id } } }
+        val positionOf = remember(order) { order.withIndex().associate { (i, id) -> id to i } }
+        val currentOnOpen by rememberUpdatedState(onOpen)
+        val spacingPx = with(density) { GRID_SPACING.toPx() }
+        val startPadPx = with(density) { contentPadding.calculateStartPadding(LayoutDirection.Ltr).toPx() }
+        val endPadPx = with(density) { contentPadding.calculateEndPadding(LayoutDirection.Ltr).toPx() }
+        val topPadPx = with(density) { contentPadding.calculateTopPadding().toPx() }
+        val bottomPadPx = with(density) { contentPadding.calculateBottomPadding().toPx() }
+        val heightPx = with(density) { maxHeight.toPx() }
+        val widthPx = with(density) { maxWidth.toPx() }
+
+        val handler = remember(gridState, order, columns, startPadPx, endPadPx, widthPx, heightPx) {
+            object : PhotoGridGestureHandler {
+                private var anchor = -1
+                private var adding = true
+                private var initial: Set<Long> = emptySet()
+                private var finger = Offset.Zero
+                private var autoScroll: Job? = null
+
+                override fun photoAt(position: Offset): Long? {
+                    val info = gridState.layoutInfo
+                    // Item offsets are measured from the start of the content; the viewport starts above it
+                    // by the top padding (viewportStartOffset is negative).
+                    val rowItems = info.visibleItemsInfo
+                        .filter { it.key is Long }
+                        .filter { item ->
+                            val top = item.offset.y - info.viewportStartOffset
+                            position.y >= top && position.y < top + item.size.height + spacingPx
+                        }
+                        .sortedBy { it.offset.x }
+                    if (rowItems.isEmpty()) return null
+                    val cell = (widthPx - startPadPx - endPadPx + spacingPx) / columns
+                    val column = ((position.x - startPadPx) / cell).toInt().coerceIn(0, columns - 1)
+                    return rowItems.getOrNull(column)?.key as? Long ?: rowItems.last().key as Long
+                }
+
+                override fun onTap(id: Long) {
+                    if (state.selecting) state.toggleSelected(id) else gallery.find(id)?.let(currentOnOpen)
+                }
+
+                override fun onDragSelectStart(id: Long) {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    initial = state.selected
+                    anchor = positionOf[id] ?: -1
+                    adding = id !in initial
+                    state.selected = DragSelect.selection(initial, order, anchor, anchor, adding)
+                    autoScroll = scope.launch {
+                        val zone = with(density) { 96.dp.toPx() }
+                        val maxSpeed = with(density) { 22.dp.toPx() }
+                        while (isActive) {
+                            val speed = DragSelect.edgeSpeed(finger.y, topPadPx, heightPx - bottomPadPx, zone, maxSpeed)
+                            if (speed != 0f) {
+                                gridState.scrollBy(speed)
+                                onDragSelectMove(finger)
+                            }
+                            withFrameNanos { }
+                        }
+                    }
+                }
+
+                override fun onDragSelectMove(position: Offset) {
+                    finger = position
+                    val id = photoAt(position) ?: return
+                    val current = positionOf[id] ?: return
+                    state.selected = DragSelect.selection(initial, order, anchor, current, adding)
+                }
+
+                override fun onDragSelectEnd() {
+                    autoScroll?.cancel()
+                    autoScroll = null
+                    finger = Offset.Zero
+                }
+            }
+        }
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
             contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(GRID_SPACING),
+            verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
             modifier = Modifier
                 .fillMaxSize()
+                .photoGridGestures(gridState, handler)
                 .pinchToZoom { zoomIn -> state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax) },
         ) {
             header?.invoke(this)
@@ -116,10 +226,125 @@ fun MediaGrid(
                         selecting = state.selecting,
                         selected = item.id in state.selected,
                         label = tileLabel?.invoke(item),
-                        onClick = { if (state.selecting) state.toggleSelected(item.id) else onOpen(item) },
+                        onClick = { handler.onTap(item.id) },
                         onLongClick = { state.toggleSelected(item.id) },
                         // Photos glide to their new place when the grid changes size (instant with reduce motion).
                         modifier = if (reduceMotion) Modifier else Modifier.animateItem(),
+                    )
+                }
+            }
+        }
+
+        FastScroller(
+            grid = gridState,
+            sections = sections,
+            headerItems = headerItems,
+            top = contentPadding.calculateTopPadding(),
+            bottom = contentPadding.calculateBottomPadding(),
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
+    }
+}
+
+private val GRID_SPACING = 3.dp
+
+/**
+ * A slider on the right edge for moving quickly through a big library (feedback 22 Oct). Hidden until the
+ * grid scrolls, fades away shortly after it stops, and shows the date while it is being dragged.
+ */
+@Composable
+private fun FastScroller(
+    grid: LazyGridState,
+    sections: List<TimelineSection>,
+    headerItems: Int,
+    top: Dp,
+    bottom: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val theme = LocalGlassTheme.current
+    val scope = rememberCoroutineScope()
+    var dragging by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(false) }
+    val scrolling = grid.isScrollInProgress
+    LaunchedEffect(scrolling, dragging) {
+        if (scrolling || dragging) {
+            visible = true
+        } else {
+            delay(1200)
+            visible = false
+        }
+    }
+    // Grid position of each section's header, to name the date under the slider.
+    val starts = remember(sections, headerItems) {
+        var index = headerItems
+        sections.map { s -> (index to s.label).also { index += 1 + s.items.size } }
+    }
+    val total = remember(sections, headerItems) { headerItems + sections.sumOf { 1 + it.items.size } }
+    if (total < 60) return // Short lists don't need it.
+    BoxWithConstraints(modifier.fillMaxHeight().padding(top = top, bottom = bottom).width(140.dp)) {
+        val density = LocalDensity.current
+        val thumbHeight = 44.dp
+        val trackPx = with(density) { (maxHeight - thumbHeight).toPx() }.coerceAtLeast(1f)
+        val fraction by remember {
+            derivedStateOf {
+                val layout = grid.layoutInfo
+                val visibleCount = layout.visibleItemsInfo.size.coerceAtLeast(1)
+                (grid.firstVisibleItemIndex.toFloat() / (layout.totalItemsCount - visibleCount).coerceAtLeast(1)).coerceIn(0f, 1f)
+            }
+        }
+        val label by remember(starts) {
+            derivedStateOf { starts.lastOrNull { it.first <= grid.firstVisibleItemIndex }?.second ?: starts.firstOrNull()?.second.orEmpty() }
+        }
+        fun jumpTo(y: Float) {
+            val f = ((y - with(density) { thumbHeight.toPx() } / 2) / trackPx).coerceIn(0f, 1f)
+            scope.launch { grid.scrollToItem((f * (total - 1)).toInt()) }
+        }
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(motionSpec()) + slideInHorizontally(motionSpec()) { it / 3 },
+            exit = fadeOut(motionSpec(300)) + slideOutHorizontally(motionSpec(300)) { it / 3 },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                // The touch strip: a little wider than the thumb so it is easy to grab.
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .fillMaxHeight()
+                        .width(40.dp)
+                        .pointerInput(total) {
+                            detectVerticalDragGestures(
+                                onDragStart = { dragging = true; jumpTo(it.y) },
+                                onDragEnd = { dragging = false },
+                                onDragCancel = { dragging = false },
+                                onVerticalDrag = { change, _ ->
+                                    change.consume()
+                                    jumpTo(change.position.y)
+                                },
+                            )
+                        }
+                        .semantics { contentDescription = "Fast scroll" },
+                )
+                val thumbY = with(density) { (fraction * trackPx).toDp() }
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = thumbY, end = 4.dp)
+                        .size(width = 8.dp, height = thumbHeight)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (dragging) theme.accent else theme.onGlass.copy(alpha = 0.55f)),
+                )
+                if (dragging && label.isNotEmpty()) {
+                    Text(
+                        label,
+                        color = theme.onGlass,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = thumbY + 6.dp, end = 24.dp)
+                            .glassPanel(RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
             }
@@ -130,7 +355,6 @@ fun MediaGrid(
 /** Main colours of loaded thumbnails, so adaptive themes don't re-read the same photo. */
 private val mainColors = mutableStateMapOf<Long, Int>()
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PhotoTile(
     item: MediaItem,
@@ -145,6 +369,8 @@ private fun PhotoTile(
 ) {
     val theme = LocalGlassTheme.current
     val adaptive = theme.adaptive != null
+    val open = onClick
+    val select = onLongClick
     // Thumbnail sizes are rounded up to a few buckets so the cache is shared between grid sizes.
     val px = with(LocalDensity.current) { tileSize.toPx() }.toInt()
     val bucket = when {
@@ -159,8 +385,10 @@ private fun PhotoTile(
             .aspectRatio(1f)
             .clip(RoundedCornerShape(6.dp))
             .background(theme.onGlass.copy(alpha = 0.08f))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .semantics {
+                // Touch is handled by the grid (tap, long-press, slide-select); TalkBack uses these actions.
+                onClick(label = "Open") { open(); true }
+                onLongClick(label = "Select") { select(); true }
                 contentDescription = buildString {
                     append(if (item.isVideo) "Video" else "Photo")
                     append(", ").append(Timeline.localDate(item.takenAtMillis, kotlinx.datetime.TimeZone.currentSystemDefault()))
@@ -266,7 +494,8 @@ fun EmptyState(title: String, body: String, modifier: Modifier = Modifier, actio
         Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleLarge)
         Text(
             body,
-            color = theme.onGlassSecondary,
+            // Primary colour: this text sits straight on the wallpaper, not on glass.
+            color = theme.onGlass,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),

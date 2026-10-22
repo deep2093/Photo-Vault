@@ -1,6 +1,13 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.snapshotFlow
+import com.deepak.photovault.designsystem.LocalGlassSettings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -60,8 +67,12 @@ import com.deepak.photovault.designsystem.NavigationLayout
 import com.deepak.photovault.designsystem.PhotoVaultTheme
 import com.deepak.photovault.designsystem.glassChrome
 import com.deepak.photovault.designsystem.glassPanel
+import com.deepak.photovault.designsystem.iconHalo
 import com.deepak.photovault.designsystem.motionSpec
 import dev.chrisbanes.haze.HazeState
+
+private const val OVERLAY_MS = 320
+private const val OVERLAY_SCALE = 0.9f
 
 /** Space each screen must leave around its scrolling content (system bars, floating navigation). */
 val LocalScreenInsets = staticCompositionLocalOf { PaddingValues(0.dp) }
@@ -76,6 +87,7 @@ fun PhotoVaultApp(
     gallery: GalleryState,
     actions: MediaActions,
     signals: PlatformSignals = PlatformSignals(),
+    iconSwitcher: AppIconSwitcher = NoAppIconSwitcher,
 ) {
     setSingletonImageLoaderFactory { context -> createImageLoader(context) }
     // Load the phone's photos, and reload whenever they change or access is granted.
@@ -87,8 +99,8 @@ fun PhotoVaultApp(
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val system = WindowInsets.safeDrawing.asPaddingValues()
                     when (AdaptiveLayout.navigationFor(maxWidth.value.toInt())) {
-                        NavigationLayout.BOTTOM_BAR -> BottomBarLayout(state, gallery, actions, system)
-                        NavigationLayout.SIDE_RAIL -> SideRailLayout(state, gallery, actions, system)
+                        NavigationLayout.BOTTOM_BAR -> BottomBarLayout(state, gallery, actions, iconSwitcher, system)
+                        NavigationLayout.SIDE_RAIL -> SideRailLayout(state, gallery, actions, iconSwitcher, system)
                     }
                     OverlayHost(state, gallery, actions, system)
                 }
@@ -100,15 +112,21 @@ fun PhotoVaultApp(
 /** Pages opened on top (viewer, album, search, Recently deleted), animated in and out. */
 @Composable
 private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: MediaActions, system: PaddingValues) {
-    val enter = motionSpec<Float>(260)
-    val exit = motionSpec<Float>(180)
+    // Opening and closing mirror each other at the same speed (feedback 22 Oct: closing was too fast).
+    val spec = motionSpec<Float>(OVERLAY_MS)
     AnimatedContent(
-        targetState = state.overlays.lastOrNull(),
+        targetState = state.overlays.size to state.overlays.lastOrNull(),
+        contentKey = { it.second },
         transitionSpec = {
-            (fadeIn(enter) + scaleIn(enter, initialScale = 0.94f)) togetherWith (fadeOut(exit) + scaleOut(exit, targetScale = 0.97f))
+            val opening = targetState.first > initialState.first
+            if (opening) {
+                (fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith fadeOut(spec)
+            } else {
+                fadeIn(spec) togetherWith (fadeOut(spec) + scaleOut(spec, targetScale = OVERLAY_SCALE))
+            }
         },
         label = "overlay",
-    ) { overlay ->
+    ) { (_, overlay) ->
         if (overlay == null) return@AnimatedContent
         // Each page blurs only its own content, never the section underneath it.
         CompositionLocalProvider(
@@ -132,8 +150,15 @@ private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: Media
 }
 
 @Composable
-private fun BottomBarLayout(state: ShellState, gallery: GalleryState, actions: MediaActions, system: PaddingValues) {
+private fun BottomBarLayout(
+    state: ShellState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    iconSwitcher: AppIconSwitcher,
+    system: PaddingValues,
+) {
     val barSpace = 88.dp
+    val pager = rememberSectionPager(state)
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -143,14 +168,11 @@ private fun BottomBarLayout(state: ShellState, gallery: GalleryState, actions: M
                 bottom = system.calculateBottomPadding() + barSpace,
             ),
         ) {
-            ScreenHost(state, gallery, actions)
+            SectionPager(pager, state, gallery, actions, iconSwitcher)
         }
         FloatingNavigationBar(
-            selected = state.destination,
-            onSelect = {
-                state.selected = emptySet()
-                state.destination = it
-            },
+            selected = Destination.entries[pager.currentPage],
+            onSelect = state::tapSection,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
@@ -159,14 +181,18 @@ private fun BottomBarLayout(state: ShellState, gallery: GalleryState, actions: M
 }
 
 @Composable
-private fun SideRailLayout(state: ShellState, gallery: GalleryState, actions: MediaActions, system: PaddingValues) {
+private fun SideRailLayout(
+    state: ShellState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    iconSwitcher: AppIconSwitcher,
+    system: PaddingValues,
+) {
+    val pager = rememberSectionPager(state)
     Row(Modifier.fillMaxSize()) {
         SideRail(
-            selected = state.destination,
-            onSelect = {
-                state.selected = emptySet()
-                state.destination = it
-            },
+            selected = Destination.entries[pager.currentPage],
+            onSelect = state::tapSection,
             modifier = Modifier
                 .fillMaxHeight()
                 .padding(
@@ -182,26 +208,62 @@ private fun SideRailLayout(state: ShellState, gallery: GalleryState, actions: Me
                 bottom = system.calculateBottomPadding(),
             ),
         ) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { ScreenHost(state, gallery, actions) }
+            Box(Modifier.weight(1f).fillMaxHeight()) { SectionPager(pager, state, gallery, actions, iconSwitcher) }
         }
     }
 }
 
+/**
+ * The five sections side by side: swipe left or right to move between them (feedback 22 Oct), or tap the
+ * navigation. Swiping is off while photos are selected, so a drag-select is never mistaken for a swipe.
+ */
 @Composable
-private fun ScreenHost(state: ShellState, gallery: GalleryState, actions: MediaActions) {
-    val enter = motionSpec<Float>()
-    val exit = motionSpec<Float>(150)
-    AnimatedContent(
-        targetState = state.destination,
-        transitionSpec = { fadeIn(enter) togetherWith fadeOut(exit) },
-        label = "destination",
-    ) { destination ->
-        when (destination) {
-            Destination.PHOTOS -> PhotosScreen(state, gallery, actions)
-            Destination.ALBUMS -> AlbumsScreen(state, gallery, actions)
-            Destination.BACKUP -> BackupScreen()
-            Destination.FAMILY -> FamilyScreen()
-            Destination.SETTINGS -> SettingsScreen(state)
+private fun rememberSectionPager(state: ShellState): PagerState {
+    val pager = rememberPagerState(initialPage = state.destination.ordinal) { Destination.entries.size }
+    val reduceMotion = LocalGlassSettings.current.reduceMotion
+    // Navigation tap -> glide to that section.
+    LaunchedEffect(state.destination) {
+        val target = state.destination.ordinal
+        if (pager.currentPage != target || pager.isScrollInProgress) {
+            if (reduceMotion) pager.scrollToPage(target) else pager.animateScrollToPage(target, animationSpec = tween(380, easing = FastOutSlowInEasing))
+        }
+    }
+    // Swipe -> the settled page becomes the current section.
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.settledPage }.collect { page ->
+            val landed = Destination.entries[page]
+            if (landed != state.destination && !pager.isScrollInProgress) {
+                state.selected = emptySet()
+                state.destination = landed
+            }
+        }
+    }
+    return pager
+}
+
+@Composable
+private fun SectionPager(
+    pager: PagerState,
+    state: ShellState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    iconSwitcher: AppIconSwitcher,
+) {
+    HorizontalPager(
+        state = pager,
+        key = { it },
+        userScrollEnabled = !state.selecting,
+        modifier = Modifier.fillMaxSize(),
+    ) { page ->
+        val destination = Destination.entries[page]
+        CompositionLocalProvider(LocalScrollToTop provides (state.reselects[destination] ?: 0)) {
+            when (destination) {
+                Destination.PHOTOS -> PhotosScreen(state, gallery, actions)
+                Destination.ALBUMS -> AlbumsScreen(state, gallery, actions)
+                Destination.BACKUP -> BackupScreen()
+                Destination.FAMILY -> FamilyScreen()
+                Destination.SETTINGS -> SettingsScreen(state, iconSwitcher)
+            }
         }
     }
 }
@@ -272,7 +334,12 @@ private fun NavItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(destination.icon, contentDescription = null, tint = fg, modifier = Modifier.size(24.dp))
+        Icon(
+            destination.icon,
+            contentDescription = null,
+            tint = fg,
+            modifier = Modifier.size(24.dp).then(if (selected) Modifier else Modifier.iconHalo()),
+        )
         if (showLabel) {
             Spacer(Modifier.height(2.dp))
             Text(destination.label, color = fg, style = MaterialTheme.typography.labelSmall, maxLines = 1)
@@ -281,4 +348,4 @@ private fun NavItem(
 }
 
 /** Shared size for top bars, so screens line up. */
-internal val TopBarHeight: Dp = MinTouchTarget + 32.dp
+internal val TopBarHeight: Dp = MinTouchTarget + 8.dp

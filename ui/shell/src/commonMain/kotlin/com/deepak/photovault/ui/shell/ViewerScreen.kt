@@ -31,7 +31,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
@@ -68,7 +67,6 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.deepak.photovault.core.media.LibraryCounts
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.core.media.Timeline
@@ -83,8 +81,9 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 /**
- * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to show or hide the bars,
- * play videos. Photos are shown on black, never tinted; only the bars are glass.
+ * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to show or hide the actions,
+ * play videos. Photos are shown on black, never tinted. There is no top bar (feedback 22 Oct): back is the
+ * system back gesture, and the date is in Details.
  */
 @Composable
 fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
@@ -120,15 +119,6 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 
             AnimatedVisibility(
                 visible = barsVisible,
-                enter = fadeIn(motionSpec()) + slideInVertically(motionSpec()) { -it / 2 },
-                exit = fadeOut(motionSpec()) + slideOutVertically(motionSpec()) { -it / 2 },
-                modifier = Modifier.align(Alignment.TopCenter),
-            ) {
-                ViewerTopBar(current, pager.currentPage + 1, ids.size, onBack = { state.back() }, topPadding = system.calculateTopPadding())
-            }
-
-            AnimatedVisibility(
-                visible = barsVisible,
                 enter = fadeIn(motionSpec()) + slideInVertically(motionSpec()) { it / 2 },
                 exit = fadeOut(motionSpec()) + slideOutVertically(motionSpec()) { it / 2 },
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -147,27 +137,6 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ViewerTopBar(item: MediaItem, position: Int, total: Int, onBack: () -> Unit, topPadding: androidx.compose.ui.unit.Dp) {
-    val theme = LocalGlassTheme.current
-    Row(
-        Modifier
-            .padding(top = topPadding + 12.dp, start = 12.dp, end = 12.dp)
-            .widthIn(max = 720.dp)
-            .fillMaxWidth()
-            .glassChrome(RoundedCornerShape(28.dp), elevation = 8.dp)
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onClick = onBack)
-        Column(Modifier.weight(1f)) {
-            Text(whenTaken(item), color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text("$position of ${LibraryCounts.grouped(total)}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -197,8 +166,8 @@ private fun InfoCard(item: MediaItem) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(item.displayName, color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Detail("Taken", whenTaken(item))
+        Text(whenTaken(item), color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Detail("Name", item.displayName)
         Detail("Album", item.albumName)
         Detail("Size", "${megabytes(item.sizeBytes)} · ${item.width} × ${item.height}")
         if (item.isVideo) Detail("Length", Timeline.duration(item.durationMillis))

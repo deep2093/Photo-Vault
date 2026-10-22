@@ -55,6 +55,11 @@ data class GlassTheme(
     val blurRadius: Dp = 24.dp,
     /** Fine grain in the glass; higher looks more frosted. */
     val grain: Float = 0.03f,
+    /**
+     * Clear-glass themes: a soft halo drawn behind all text and unselected icons, so they stay readable when
+     * the glass itself is nearly transparent. Null for every other theme.
+     */
+    val textHalo: Color? = null,
 )
 
 object GlassThemes {
@@ -160,13 +165,14 @@ object GlassThemes {
     val Translucent = GlassTheme(
         id = GlassThemeId.TRANSLUCENT,
         displayName = "Translucent",
-        bestFor = "See-through bars over your photos",
+        bestFor = "Clear glass: your photos show through",
         isDark = false,
         wallpaper = listOf(Color(0xFFEEF3FA), Color(0xFFF8FAFD), Color(0xFFE2EAF4)),
         glows = listOf(Glow(0.85f, 0.1f, 0.6f, Color(0x338EC5FF)), Glow(0.1f, 0.8f, 0.7f, Color(0x26C8B6FF))),
-        glassTint = Color(0xB3F4F7FC),
-        glassFallback = Color(0xE6F6F8FC),
-        glassRim = Color(0xFF9DB2CF),
+        // Nearly clear: photos show through the bars and cards. Text keeps a white halo (tested).
+        glassTint = Color(0x73F4F7FC),
+        glassFallback = Color(0x8CF6F8FC),
+        glassRim = Color(0xFFB8C8DE),
         onGlass = Color(0xFF0D1726),
         onGlassSecondary = Color(0xFF1E2838),
         accent = Color(0xFF1A50A6),
@@ -176,8 +182,9 @@ object GlassThemes {
         badgeOnDrive = Color(0xFF1A50A6),
         onBadge = Color(0xFFFFFFFF),
         sampleHues = listOf(Color(0xFF7FB3E0), Color(0xFFE0A57F), Color(0xFF8FCFA8), Color(0xFFC3A6E8), Color(0xFFE8D27F)),
-        blurRadius = 14.dp,
+        blurRadius = 8.dp,
         grain = 0f,
+        textHalo = Color(0xFFFFFFFF),
     )
 
     /** Milky frosted glass with a fine grain: the calmest, most private-looking bars. */
@@ -209,45 +216,71 @@ object GlassThemes {
      * easing between colours as you scroll. All keep the wallpaper dark enough for light text
      * ([ThemeContrastTest] checks every hue).
      */
-    private fun adaptive(id: GlassThemeId, name: String, bestFor: String, style: AdaptiveStyle) = GlassTheme(
+    /**
+     * Dark adaptive themes, first ported from Veyra and reworked after the Phase 2 review (22 Oct): each now has
+     * its own accent and character, Glow is noticeably lighter, and all react faster to what is on screen.
+     */
+    private fun adaptive(
+        id: GlassThemeId,
+        name: String,
+        bestFor: String,
+        style: AdaptiveStyle,
+        accent: Color,
+        onAccent: Color,
+        glassTint: Color,
+        glassFallback: Color,
+        rim: Color,
+        badgeOnDrive: Color,
+    ) = GlassTheme(
         id = id,
         displayName = name,
         bestFor = bestFor,
         isDark = true,
         wallpaper = style.fallback,
         glows = emptyList(),
-        glassTint = Color(0xCC101016),
-        glassFallback = Color(0xF21B1B24),
-        glassRim = Color(0xFF8A8A9E),
+        glassTint = glassTint,
+        glassFallback = glassFallback,
+        glassRim = rim,
         onGlass = Color(0xFFF5F5FA),
         onGlassSecondary = Color(0xFFD4D2E0),
-        accent = Color(0xFFFFD27A),
-        onAccent = Color(0xFF2A1D00),
+        accent = accent,
+        onAccent = onAccent,
         badgeBackedUp = Color(0xFF1B6E45),
         badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF3B5BA8),
+        badgeOnDrive = badgeOnDrive,
         onBadge = Color(0xFFFFFFFF),
-        // Colourful samples, so the adaptive wallpaper visibly follows the screen.
         sampleHues = listOf(Color(0xFFE07A5F), Color(0xFF3D9970), Color(0xFF6A4C93), Color(0xFFF2B134), Color(0xFF1982C4)),
         adaptive = style,
     )
 
+    /** The lighter one: brighter, warmer gradient from your photos, peach accent. */
     val AdaptiveGlow = adaptive(
-        GlassThemeId.ADAPTIVE_GLOW, "Adaptive Glow", "Colours follow your photos",
-        AdaptiveStyle(listOf(0.34f, 0.24f, 0.14f), 0.35f, 0.75f, glow = 0.35f, scrim = 0.25f,
-            fallback = listOf(Color(0xFF3A2A5A), Color(0xFF1E3A4A), Color(0xFF241A30))),
+        GlassThemeId.ADAPTIVE_GLOW, "Adaptive Glow", "Brighter colours from your photos",
+        AdaptiveStyle(listOf(0.50f, 0.38f, 0.24f), 0.45f, 0.85f, glow = 0.5f, scrim = 0.30f,
+            fallback = listOf(Color(0xFF5A3A78), Color(0xFF2A5468), Color(0xFF3A2848))),
+        accent = Color(0xFFFFB38A), onAccent = Color(0xFF3A1400),
+        glassTint = Color(0xCC14141C), glassFallback = Color(0xF21D1D28), rim = Color(0xFFB09A8E),
+        badgeOnDrive = Color(0xFF9A4A2A),
     )
 
+    /** The darkest: deep and calm for OLED, icy cyan accent. */
     val AdaptiveMidnight = adaptive(
-        GlassThemeId.ADAPTIVE_MIDNIGHT, "Adaptive Midnight", "Darker, follows your photos",
-        AdaptiveStyle(listOf(0.20f, 0.13f, 0.08f), 0.25f, 0.55f, glow = 0.22f, scrim = 0.35f,
+        GlassThemeId.ADAPTIVE_MIDNIGHT, "Adaptive Midnight", "Deep and dark, a hint of your photos",
+        AdaptiveStyle(listOf(0.18f, 0.12f, 0.07f), 0.30f, 0.60f, glow = 0.28f, scrim = 0.35f,
             fallback = listOf(Color(0xFF1C2333), Color(0xFF14202A), Color(0xFF15131C))),
+        accent = Color(0xFF7DD3FC), onAccent = Color(0xFF002233),
+        glassTint = Color(0xCC0A0C14), glassFallback = Color(0xF2141722), rim = Color(0xFF6E8AA0),
+        badgeOnDrive = Color(0xFF1F5F86),
     )
 
+    /** The boldest: fully saturated colours from your photos, pink accent. */
     val AdaptiveVivid = adaptive(
-        GlassThemeId.ADAPTIVE_VIVID, "Adaptive Vivid", "Bolder colours from your photos",
-        AdaptiveStyle(listOf(0.46f, 0.32f, 0.18f), 0.5f, 0.9f, glow = 0.45f, scrim = 0.38f,
-            fallback = listOf(Color(0xFF6A2C5C), Color(0xFF1F4F6E), Color(0xFF3A1E40))),
+        GlassThemeId.ADAPTIVE_VIVID, "Adaptive Vivid", "Bold, saturated colours from your photos",
+        AdaptiveStyle(listOf(0.44f, 0.30f, 0.18f), 0.75f, 1.0f, glow = 0.6f, scrim = 0.38f,
+            fallback = listOf(Color(0xFF7A2C6C), Color(0xFF1F5F86), Color(0xFF4A1E50))),
+        accent = Color(0xFFFF8AD0), onAccent = Color(0xFF3A0028),
+        glassTint = Color(0xCC16101C), glassFallback = Color(0xF2201726), rim = Color(0xFFB08AA6),
+        badgeOnDrive = Color(0xFF8A2A6E),
     )
 
     /** Light adaptive: soft pastel colours from the photos on screen under a white veil, with dark text. */

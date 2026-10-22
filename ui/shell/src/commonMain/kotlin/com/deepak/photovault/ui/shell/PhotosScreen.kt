@@ -99,6 +99,7 @@ fun SelectableScreen(
         title = if (state.selecting) "${state.selected.size} selected" else title,
         subtitle = if (state.selecting) null else subtitle,
         onBack = if (state.selecting) null else onBack,
+        pinned = state.selecting,
         actions = {
             if (!state.selecting) {
                 normalActions()

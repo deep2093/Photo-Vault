@@ -5,6 +5,13 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -55,7 +62,31 @@ fun PhotoVaultTheme(
         outline = theme.glassRim,
     )
     CompositionLocalProvider(LocalGlassTheme provides theme, LocalGlassSettings provides settings) {
-        MaterialTheme(colorScheme = colors, content = content)
+        MaterialTheme(colorScheme = colors, typography = typographyFor(theme), content = content)
+    }
+}
+
+/** Clear-glass themes give every text style a soft halo, so text reads over any photo. */
+private fun typographyFor(theme: GlassTheme): Typography {
+    val base = Typography()
+    val halo = theme.textHalo ?: return base
+    val shadow = Shadow(color = halo.copy(alpha = 0.95f), offset = Offset.Zero, blurRadius = 10f)
+    fun TextStyle.haloed() = copy(shadow = shadow)
+    return base.copy(
+        displayLarge = base.displayLarge.haloed(), displayMedium = base.displayMedium.haloed(), displaySmall = base.displaySmall.haloed(),
+        headlineLarge = base.headlineLarge.haloed(), headlineMedium = base.headlineMedium.haloed(), headlineSmall = base.headlineSmall.haloed(),
+        titleLarge = base.titleLarge.haloed(), titleMedium = base.titleMedium.haloed(), titleSmall = base.titleSmall.haloed(),
+        bodyLarge = base.bodyLarge.haloed(), bodyMedium = base.bodyMedium.haloed(), bodySmall = base.bodySmall.haloed(),
+        labelLarge = base.labelLarge.haloed(), labelMedium = base.labelMedium.haloed(), labelSmall = base.labelSmall.haloed(),
+    )
+}
+
+/** A soft glow behind an icon on clear glass (Translucent); nothing on other themes. */
+@Composable
+fun Modifier.iconHalo(): Modifier {
+    val halo = LocalGlassTheme.current.textHalo ?: return this
+    return drawBehind {
+        drawCircle(Brush.radialGradient(listOf(halo.copy(alpha = 0.85f), halo.copy(alpha = 0f)), radius = size.minDimension * 0.75f))
     }
 }
 

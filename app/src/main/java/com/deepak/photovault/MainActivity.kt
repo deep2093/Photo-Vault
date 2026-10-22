@@ -3,6 +3,7 @@ package com.deepak.photovault
 import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -30,6 +31,8 @@ import com.deepak.photovault.core.media.FavouritesStore
 import com.deepak.photovault.core.media.MediaAccess
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.MediaStoreLibrary
+import com.deepak.photovault.ui.shell.AppIconChoice
+import com.deepak.photovault.ui.shell.AppIconSwitcher
 import com.deepak.photovault.ui.shell.AppearanceSettings
 import com.deepak.photovault.ui.shell.AppearanceStore
 import com.deepak.photovault.ui.shell.GalleryState
@@ -42,6 +45,7 @@ import com.deepak.photovault.ui.shell.ShellState
 class MainActivity : ComponentActivity(), MediaActions {
     private var signals by mutableStateOf(PlatformSignals())
     private lateinit var gallery: GalleryState
+    private val iconSwitcher by lazy { LauncherIconSwitcher(this) }
 
     private val powerSaveReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = refreshSignals()
@@ -70,7 +74,7 @@ class MainActivity : ComponentActivity(), MediaActions {
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
             BackHandler(enabled = state.canGoBack) { state.back() }
-            PhotoVaultApp(state, gallery, this, signals)
+            PhotoVaultApp(state, gallery, this, signals, iconSwitcher)
         }
     }
 
@@ -172,6 +176,33 @@ class MainActivity : ComponentActivity(), MediaActions {
             powerSaveMode = power?.isPowerSaveMode == true,
             systemReduceMotion = animatorScale == 0f,
         )
+    }
+}
+
+/**
+ * Switches the home screen icon by enabling one launcher alias (see AndroidManifest.xml) and disabling the
+ * rest. DONT_KILL_APP keeps PhotoVault open; the launcher picks up the change on its own.
+ */
+private class LauncherIconSwitcher(private val context: Context) : AppIconSwitcher {
+    private val pm = context.packageManager
+
+    private fun component(choice: AppIconChoice) = ComponentName(context, "com.deepak.photovault.${choice.aliasName}")
+
+    override fun current(): AppIconChoice = AppIconChoice.all.firstOrNull { choice ->
+        when (pm.getComponentEnabledSetting(component(choice))) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+            // "Default" means as declared in the manifest, where only Leaf on Light is enabled.
+            PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> choice == AppIconChoice()
+            else -> false
+        }
+    } ?: AppIconChoice()
+
+    override fun set(choice: AppIconChoice) {
+        // Enable the new one first, so there is never a moment with no launcher entry.
+        pm.setComponentEnabledSetting(component(choice), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+        AppIconChoice.all.filter { it != choice }.forEach {
+            pm.setComponentEnabledSetting(component(it), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+        }
     }
 }
 

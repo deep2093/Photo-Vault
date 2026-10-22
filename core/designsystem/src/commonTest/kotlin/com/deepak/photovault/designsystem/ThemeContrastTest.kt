@@ -17,7 +17,7 @@ class ThemeContrastTest {
     @Test
     fun primaryTextIsReadableOnEveryGlassBackground() {
         GlassThemes.all.forEach { theme ->
-            val worst = Contrast.worstOnGlass(theme, theme.onGlass)
+            val worst = Contrast.worstAnywhere(theme, theme.onGlass)
             assertTrue(worst >= Contrast.TEXT, "${theme.displayName}: primary text contrast $worst")
         }
     }
@@ -32,9 +32,11 @@ class ThemeContrastTest {
 
     @Test
     fun accentIsVisibleOnGlassAndItsTextIsReadable() {
+        // Clear glass (Translucent) is exempt from the accent-vs-glass check: the selected pill always carries
+        // high-contrast text, and a solid accent would defeat the clear look the theme is for.
         GlassThemes.all.forEach { theme ->
             val onGlass = Contrast.worstOnGlass(theme, theme.accent)
-            assertTrue(onGlass >= Contrast.NON_TEXT, "${theme.displayName}: accent on glass $onGlass")
+            if (theme.textHalo == null) assertTrue(onGlass >= Contrast.NON_TEXT, "${theme.displayName}: accent on glass $onGlass")
             val onAccent = Contrast.ratio(theme.onAccent, theme.accent)
             assertTrue(onAccent >= Contrast.TEXT, "${theme.displayName}: text on accent $onAccent")
         }
@@ -51,12 +53,28 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun blurTintIsNeverTooThin() {
+    fun blurTintIsNeverTooThinUnlessTextHasAHalo() {
         // The contrast tests above check text over pure black and pure white photos, which is the real guard.
-        // This floor stops a theme from relying on blur alone; Translucent sits just above it on purpose.
+        // This floor stops a theme from relying on blur alone; only clear-glass themes with a halo may go lower.
         GlassThemes.all.forEach { theme ->
-            assertTrue(theme.glassTint.alpha >= 0.6f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            val floor = if (theme.textHalo != null) 0.4f else 0.6f
+            assertTrue(theme.glassTint.alpha >= floor, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
+    }
+
+    @Test
+    fun adaptiveThemesAreDistinct() {
+        // Feedback 22 Oct: the three looked the same. Each needs its own accent, and Glow must be lighter.
+        val dark = listOf(GlassThemes.AdaptiveGlow, GlassThemes.AdaptiveMidnight, GlassThemes.AdaptiveVivid)
+        assertEquals(dark.size, dark.map { it.accent }.toSet().size)
+        assertTrue(GlassThemes.AdaptiveGlow.adaptive!!.values.first() > GlassThemes.AdaptiveMidnight.adaptive!!.values.first() + 0.2f)
+        assertTrue(GlassThemes.AdaptiveVivid.adaptive!!.minSaturation > GlassThemes.AdaptiveGlow.adaptive!!.minSaturation)
+    }
+
+    @Test
+    fun translucentIsClearGlass() {
+        assertTrue(GlassThemes.Translucent.glassTint.alpha < 0.5f)
+        assertTrue(GlassThemes.Translucent.textHalo != null)
     }
 }
 

@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.exoplayer.ExoPlayer
@@ -83,4 +84,32 @@ private class ThumbFetcher(private val thumb: Thumb, private val resolver: Conte
 /** Lets Coil keep thumbnails in its memory cache, so scrolling back is instant. */
 private object ThumbKeyer : Keyer<Thumb> {
     override fun key(data: Thumb, options: Options): String = "${data.uri}#${data.sizePx}"
+}
+
+@Composable
+actual fun AppIconPreview(choice: AppIconChoice, modifier: Modifier) {
+    val context = LocalContext.current
+    val name = "ic_${choice.glyph.name.lowercase()}_${choice.background.name.lowercase()}"
+    val bitmap = remember(name) {
+        val id = context.resources.getIdentifier(name, "mipmap", context.packageName)
+        if (id == 0) {
+            null
+        } else {
+            androidx.core.content.ContextCompat.getDrawable(context, id)?.let { drawable ->
+                // Draw it inside the launcher's circular mask, the way most home screens show it.
+                val size = 192
+                val full = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(full)
+                val inset = (size * 18f / 108f).toInt()
+                drawable.setBounds(-inset, -inset, size + inset, size + inset)
+                val path = android.graphics.Path().apply { addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW) }
+                canvas.clipPath(path)
+                drawable.draw(canvas)
+                full.asImageBitmap()
+            }
+        }
+    }
+    if (bitmap != null) {
+        androidx.compose.foundation.Image(bitmap, contentDescription = null, modifier = modifier)
+    }
 }

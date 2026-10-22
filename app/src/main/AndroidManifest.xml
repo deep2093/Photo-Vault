@@ -18,18 +18,114 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="@string/app_name"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_leaf_light"
+        android:roundIcon="@mipmap/ic_leaf_light"
         android:supportsRtl="true"
         android:theme="@style/Theme.PhotoVault">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- App icons. Exactly one is enabled at a time; Settings > App icon switches between them.
+             Leaf on light is the default. -->
+        <activity-alias
+            android:name=".IconLeafLight"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_leaf_light"
+            android:roundIcon="@mipmap/ic_leaf_light"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconLeafDark"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_leaf_dark"
+            android:roundIcon="@mipmap/ic_leaf_dark"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconLeafColourful"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_leaf_colourful"
+            android:roundIcon="@mipmap/ic_leaf_colourful"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconLeafClear"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_leaf_clear"
+            android:roundIcon="@mipmap/ic_leaf_clear"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconPetalsLight"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_petals_light"
+            android:roundIcon="@mipmap/ic_petals_light"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconPetalsDark"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_petals_dark"
+            android:roundIcon="@mipmap/ic_petals_dark"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconPetalsColourful"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_petals_colourful"
+            android:roundIcon="@mipmap/ic_petals_colourful"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconPetalsClear"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_petals_clear"
+            android:roundIcon="@mipmap/ic_petals_clear"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

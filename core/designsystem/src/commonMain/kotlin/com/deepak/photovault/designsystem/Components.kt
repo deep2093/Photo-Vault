@@ -99,7 +99,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = theme.onGlass)
+        Icon(icon, contentDescription = null, tint = theme.onGlass, modifier = Modifier.iconHalo())
     }
 }
 
