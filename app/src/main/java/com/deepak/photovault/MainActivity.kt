@@ -88,6 +88,22 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    /** Waiting for Android's "allow changes" answer before renaming an album. */
+    private var pendingRename: Triple<List<MediaItem>, String, (String?) -> Unit>? = null
+
+    private val renameLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val (items, newName, done) = pendingRename ?: return@registerForActivityResult
+        pendingRename = null
+        if (result.resultCode != RESULT_OK) {
+            done("Not renamed.")
+            return@registerForActivityResult
+        }
+        lifecycleScope.launch {
+            val error = withContext(Dispatchers.IO) { moveToFolder(items, newName) }
+            done(error)
+        }
+    }
+
     /** Waiting for the photo picker to hand back a profile picture. */
     private var onProfilePhoto: ((PickedImage) -> Unit)? = null
 
@@ -286,6 +302,39 @@ class MainActivity : ComponentActivity(), MediaActions {
             val jpeg = withContext(Dispatchers.Default) { runCatching { ProfilePicture.crop(image, left, top, side) }.getOrNull() }
             if (jpeg != null) onDone(jpeg)
         }
+    }
+
+    override fun phoneStorage(): Pair<Long, Long>? = runCatching {
+        val stat = android.os.StatFs(android.os.Environment.getDataDirectory().path)
+        stat.totalBytes to stat.availableBytes
+    }.getOrNull()
+
+    override fun deleteAlbum(albumId: String) = moveToRecentlyDeleted(gallery.items.filter { it.albumId == albumId })
+
+    override fun renameAlbum(albumId: String, newName: String, onDone: (String?) -> Unit) {
+        val items = gallery.items.filter { it.albumId == albumId }
+        if (items.isEmpty()) {
+            onDone("This album is empty.")
+            return
+        }
+        pendingRename = Triple(items, newName, onDone)
+        val request = MediaStore.createWriteRequest(contentResolver, items.map { Uri.parse(it.uri) })
+        renameLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+    }
+
+    /** Moves every item to a sibling folder named [newName] (same parent, so Android allows it). Null on success. */
+    private fun moveToFolder(items: List<MediaItem>, newName: String): String? = try {
+        val first = Uri.parse(items.first().uri)
+        val current = contentResolver.query(first, arrayOf(MediaStore.MediaColumns.RELATIVE_PATH), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        } ?: error("No folder")
+        val parent = current.trimEnd('/').substringBeforeLast('/', "")
+        val target = (if (parent.isEmpty()) "" else "$parent/") + newName + "/"
+        val values = android.content.ContentValues().apply { put(MediaStore.MediaColumns.RELATIVE_PATH, target) }
+        items.forEach { contentResolver.update(Uri.parse(it.uri), values, null, null) }
+        null
+    } catch (e: Exception) {
+        "Android didn't allow renaming this album."
     }
 
     // ---- Platform signals ----

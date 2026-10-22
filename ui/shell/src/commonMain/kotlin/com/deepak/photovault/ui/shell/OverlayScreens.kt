@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -53,7 +54,18 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
         }
     }
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
-    SelectableScreen(title, LibraryCounts.summary(items), state, gallery, actions, onBack = { state.back() }) { padding ->
+    var renaming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    SelectableScreen(
+        title, LibraryCounts.summary(items), state, gallery, actions, onBack = { state.back() },
+        // Phone albums can be renamed (not system folders) and deleted (24 Oct).
+        normalActions = {
+            if (kind is AlbumKind.Phone) {
+                if (!AlbumRules.isSystem(kind.name)) GlassIconButton(Icons.Rounded.Edit, "Rename album", onClick = { renaming = true })
+                if (items.isNotEmpty()) GlassIconButton(Icons.Rounded.Delete, "Delete album", onClick = { deleting = true })
+            }
+        },
+    ) { padding ->
         if (items.isEmpty()) {
             EmptyState(
                 title = "Nothing here yet",
@@ -64,6 +76,56 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
                 state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id))
             })
         }
+    }
+    if (kind is AlbumKind.Phone) {
+        if (deleting) {
+            ConfirmDialog(
+                title = "Delete ${kind.name}?",
+                body = "All ${LibraryCounts.grouped(items.size)} photos and videos in it move to Recently deleted for 30 days. Android will ask you to confirm. Backups on the drive are not touched.",
+                confirm = "Delete",
+                onDismiss = { deleting = false },
+            ) {
+                deleting = false
+                actions.deleteAlbum(kind.albumId)
+                state.back()
+            }
+        }
+        if (renaming) {
+            RenameAlbumDialog(kind.name, onDismiss = { renaming = false }) { newName ->
+                renaming = false
+                actions.renameAlbum(kind.albumId, newName) { error -> if (error == null) state.back() }
+            }
+        }
+    }
+}
+
+/** Album names that belong to the camera and system apps; renaming them would break those apps. */
+object AlbumRules {
+    private val system = setOf("camera", "screenshots", "screen recordings", "screenrecordings", "download", "downloads", "dcim")
+
+    fun isSystem(name: String) = name.trim().lowercase() in system
+
+    /** A folder name Android accepts: no slashes or odd characters, not empty, not too long. */
+    fun cleanName(name: String): String? {
+        val n = name.trim().replace(Regex("[\\\\/:*?\"<>|]"), "").take(60)
+        return n.takeIf { it.isNotEmpty() && it != "." && it != ".." && !isSystem(it) }
+    }
+}
+
+@Composable
+private fun RenameAlbumDialog(current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var name by remember { mutableStateOf(current) }
+    val clean = AlbumRules.cleanName(name)
+    com.deepak.photovault.designsystem.GlassDialog(
+        title = "Rename album",
+        onDismiss = onDismiss,
+        buttons = {
+            com.deepak.photovault.designsystem.GlassButton("Cancel", onClick = onDismiss)
+            com.deepak.photovault.designsystem.GlassButton("Rename", primary = true, onClick = { if (clean != null && clean != current) onSave(clean) })
+        },
+    ) {
+        com.deepak.photovault.designsystem.GlassTextField(name, { name = it }, "Album name")
+        if (clean == null) com.deepak.photovault.designsystem.WarningNote("Choose another name.")
     }
 }
 

@@ -82,6 +82,9 @@ sealed interface Overlay {
     /** Backup, opened from Settings (24 Oct: moved out of the navigation bar). */
     data object Backup : Overlay
 
+    /** One Settings page (24 Oct: each opens on its own). */
+    data class Settings(val page: SettingsPage) : Overlay
+
     /** One family member's page: picture, space, phones (24 Oct). */
     data class Member(val userId: String) : Overlay
 }

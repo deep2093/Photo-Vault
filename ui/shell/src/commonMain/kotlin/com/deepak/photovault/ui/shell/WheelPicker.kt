@@ -98,7 +98,7 @@ private fun Wheel(values: List<String>, selected: Int, looping: Boolean, width: 
     // A tick for every value that passes the middle.
     LaunchedEffect(state) {
         snapshotFlow { centre }.distinctUntilChanged().collect {
-            if (state.isScrollInProgress) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            if (state.isScrollInProgress) haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
         }
     }
     // Saved once the wheel stops.

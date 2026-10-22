@@ -166,7 +166,7 @@ private fun scheduleSummary(settings: com.deepak.photovault.core.backup.BackupSe
     if (!s.enabled) return "Off"
     val day = when (s.frequency) {
         Frequency.DAILY -> "Daily"
-        Frequency.WEEKLY -> BackupSchedule.DAY_NAMES[s.dayOfWeek - 1].take(3)
+        Frequency.WEEKLY -> s.daysLabel()
         Frequency.MONTHLY -> "Day ${s.dayOfMonth}"
     }
     return listOfNotNull(day, BackupSchedule.timeLabel(s.hour, s.minute), if (settings.chargingOnly) "charging" else null).joinToString(" · ")
@@ -316,8 +316,16 @@ private fun ScheduleControls(backup: BackupState) {
     }
     when (schedule.frequency) {
         Frequency.WEEKLY -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Several days can be chosen (24 Oct); at least one always stays on.
             BackupSchedule.DAY_NAMES.forEachIndexed { i, day ->
-                GlassChip(day.take(3), selected = schedule.dayOfWeek == i + 1, onClick = { change { it.copy(dayOfWeek = i + 1) } })
+                val d = i + 1
+                GlassChip(day.take(3), selected = d in schedule.weekDays, onClick = {
+                    change {
+                        val days = it.weekDays
+                        val next = if (d in days) days - d else days + d
+                        if (next.isEmpty()) it else it.copy(daysOfWeek = next)
+                    }
+                })
             }
         }
         Frequency.MONTHLY -> Stepper("Day of the month", schedule.dayOfMonth.toString(),

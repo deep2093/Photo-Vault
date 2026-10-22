@@ -45,6 +45,18 @@ interface MediaActions {
     /** Lets the person pick a photo for a profile picture; hands back a screen-sized copy to position and zoom. */
     fun pickProfilePhoto(onPicked: (PickedImage) -> Unit) = Unit
 
+    /** Total and free bytes of the phone's own storage, or null if unknown. */
+    fun phoneStorage(): Pair<Long, Long>? = null
+
+    /** Moves every photo of an album to Recently deleted (Android asks first). */
+    fun deleteAlbum(albumId: String) = Unit
+
+    /**
+     * Renames a phone album (its folder). Android asks to allow changes to photos taken by other apps. [onDone] gets
+     * null on success or a message to show.
+     */
+    fun renameAlbum(albumId: String, newName: String, onDone: (String?) -> Unit) = Unit
+
     /** Cuts the square [left], [top], [side] (pixels of [image]) out and shrinks it to a 256 px JPEG. */
     fun cropProfilePhoto(image: PickedImage, left: Int, top: Int, side: Int, onDone: (ByteArray) -> Unit) = Unit
 }
@@ -174,6 +186,9 @@ class GalleryState(
         applyVisible()
     }
 
+    /** Is the Favourites or Videos card (or an album) hidden in Albums? */
+    fun isHidden(id: String) = id in hiddenAlbums
+
     private fun applyVisible() {
         val visible = if (hiddenAlbums.isEmpty()) everything else everything.filter { it.albumId !in hiddenAlbums }
         items = visible
@@ -181,7 +196,11 @@ class GalleryState(
         albums = allAlbums.filter { it.id !in hiddenAlbums }
     }
 
-    private companion object {
-        const val CHANGE_SETTLE_MS = 400L
+    companion object {
+        private const val CHANGE_SETTLE_MS = 400L
+
+        /** Not real albums: hiding these hides only their card in Albums (24 Oct). */
+        const val FAVOURITES_CARD = "@favourites"
+        const val VIDEOS_CARD = "@videos"
     }
 }

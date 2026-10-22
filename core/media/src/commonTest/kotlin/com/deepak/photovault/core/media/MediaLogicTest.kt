@@ -172,3 +172,31 @@ class LibraryLevelsTest {
         assertEquals(many.last(), picked.last())
     }
 }
+
+class StorageStatsTest {
+    private val files = listOf(
+        StoredFile("a.jpg", 300, at(2026, 1, 1), "Camera"),
+        StoredFile("b.JPEG", 200, at(2025, 5, 1), "Camera"),
+        StoredFile("c.heic", 400, at(2026, 2, 1), "WhatsApp Images"),
+        StoredFile("d.mp4", 1000, at(2024, 3, 1), "Camera"),
+        StoredFile("e.png", 50, at(2026, 4, 1), "Screenshots"),
+        StoredFile("f.gif", 10, at(2026, 4, 2), "Download"),
+        StoredFile("g.webp", 5, at(2026, 4, 3), "Download"),
+    )
+
+    @Test
+    fun typesMergeJpegAndFoldTheSmallOnes() {
+        val types = StorageStats.byType(files, top = 3)
+        assertEquals(listOf("MP4", "JPG", "HEIC", "Other"), types.map { it.label })
+        assertEquals(500L, types[1].bytes)
+        assertEquals(65L, types[3].bytes)
+        assertEquals(3, types[3].count)
+    }
+
+    @Test
+    fun albumsAndYears() {
+        assertEquals(listOf("Camera", "WhatsApp Images", "Screenshots", "Download"), StorageStats.byAlbum(files).map { it.label })
+        assertEquals(1500L, StorageStats.byAlbum(files).first().bytes)
+        assertEquals(listOf("2024", "2025", "2026"), StorageStats.byYear(files, zone).map { it.label })
+    }
+}

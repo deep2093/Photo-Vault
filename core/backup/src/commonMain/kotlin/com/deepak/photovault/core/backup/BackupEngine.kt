@@ -181,6 +181,7 @@ class BackupEngine(
                 savedAtMillis = now(),
                 deviceId = deviceId,
                 storageSaver = prepared.compressed,
+                album = item.albumName.ifBlank { null },
             )
             return Outcome.Saved(record)
         } catch (e: Throwable) {

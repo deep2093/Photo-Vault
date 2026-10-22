@@ -72,12 +72,16 @@ fun GlassButton(
     icon: ImageVector? = null,
 ) {
     val theme = LocalGlassTheme.current
+    val haptics = rememberHaptics()
     val shape = Capsule
     Row(
         modifier
             .heightIn(min = MinTouchTarget)
             .then(if (primary) Modifier.clip(shape).background(theme.accent) else Modifier.glassPanel(shape))
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(role = Role.Button, onClick = {
+                haptics.tap()
+                onClick()
+            })
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -91,12 +95,16 @@ fun GlassButton(
 @Composable
 fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
+    val haptics = rememberHaptics()
     // No disc behind the icon: it sits on the bar's own glass (feedback 22 Oct). The ripple shows the touch.
     Box(
         modifier
             .size(MinTouchTarget)
             .clip(CircleShape)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(role = Role.Button, onClick = {
+                haptics.tap()
+                onClick()
+            })
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
@@ -108,6 +116,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
 @Composable
 fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
+    val haptics = rememberHaptics()
     val background by animateColorAsState(if (selected) theme.accent else Color.Transparent, motionSpec())
     Box(
         modifier
@@ -115,7 +124,10 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(vertical = 4.dp)
             .glassPanel(Capsule)
             .background(background)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = {
+                haptics.tick()
+                onClick()
+            })
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -138,12 +150,16 @@ fun GlassSwitchRow(
     icon: ImageVector? = null,
 ) {
     val theme = LocalGlassTheme.current
+    val haptics = rememberHaptics()
     Column(modifier.fillMaxWidth()) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = MinTouchTarget)
-                .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+                .toggleable(value = checked, role = Role.Switch, onValueChange = { on ->
+                    haptics.toggle(on)
+                    onCheckedChange(on)
+                })
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

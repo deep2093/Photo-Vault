@@ -303,6 +303,13 @@ class DriveState(private val platform: DrivePlatform) {
         return runCatching { BackupCatalog(fs, me.userId).lastBackups() }.getOrDefault(emptyMap())
     }
 
+    /** Everything this person has backed up, from all their phones' manifests; null if the drive can't be read. */
+    suspend fun myBackupRecords(): List<com.deepak.photovault.core.backup.BackupRecord>? {
+        val me = joined?.me ?: return null
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
+        return runCatching { BackupCatalog(fs, me.userId).records() }.getOrNull()
+    }
+
     /** How many backed-up photos aren't on this phone; null if the drive can't be read. */
     suspend fun missingOnPhone(onPhone: List<MediaItem>): Int? {
         val me = joined?.me ?: return null

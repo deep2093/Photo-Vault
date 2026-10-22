@@ -18,6 +18,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Collections
+import androidx.compose.material.icons.rounded.PieChart
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import com.deepak.photovault.designsystem.GlassCard
 import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -66,10 +71,17 @@ import com.deepak.photovault.designsystem.ThemeSwatch
 import com.deepak.photovault.designsystem.WarningNote
 import kotlinx.coroutines.launch
 
-/**
- * Settings in collapsible sections (feedback 22 Oct), in the order people reach for them:
- * Appearance, Drive, About. Family settings moved to the Family section (owner only, 24 Oct).
- */
+/** The Settings pages, in alphabetical order (24 Oct). Each opens on its own, like Backup. */
+enum class SettingsPage(val title: String) {
+    ABOUT("About"),
+    ALBUMS("Albums"),
+    APPEARANCE("Appearance"),
+    BACKUP("Backup"),
+    DRIVE("Drive"),
+    STORAGE("Storage"),
+}
+
+/** Settings: one short row per page, alphabetical (24 Oct). Family settings live in Family (owner only). */
 @Composable
 fun SettingsScreen(
     state: ShellState,
@@ -78,91 +90,95 @@ fun SettingsScreen(
     backup: BackupState? = null,
     gallery: GalleryState? = null,
 ) {
+    val theme = LocalGlassTheme.current
     GlassListScreen(title = null, subtitle = null) {
-        // Backup moved here from the navigation bar (24 Oct); it opens its own page.
-        if (backup != null) item { BackupEntry(state, backup) }
-        item { AppearanceSection(state, iconSwitcher) }
-        if (gallery != null) item { HiddenAlbumsSection(gallery) }
-        item { DriveSection(state, drive) }
-        item { AboutSection() }
+        item {
+            Column(Modifier.cardWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(vertical = 6.dp)) {
+                SettingsPage.entries.forEach { page ->
+                    val (icon, summary) = when (page) {
+                        SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
+                        SettingsPage.ALBUMS -> Icons.Rounded.Collections to (gallery?.hiddenAlbums?.size?.takeIf { it > 0 }?.let { "$it hidden" } ?: "Show or hide albums")
+                        SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
+                        SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
+                        SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
+                        SettingsPage.STORAGE -> Icons.Rounded.PieChart to "Phone and drive"
+                    }
+                    SettingsRow(icon, page.title, summary) {
+                        if (page == SettingsPage.BACKUP) state.open(Overlay.Backup) else state.open(Overlay.Settings(page))
+                    }
+                }
+            }
+        }
     }
 }
 
-/** One row that opens Backup, showing how it is going. */
-@Composable
-private fun BackupEntry(state: ShellState, backup: BackupState) {
-    val theme = LocalGlassTheme.current
+private fun backupSummary(backup: BackupState?): String {
+    if (backup == null) return ""
     val last = backup.history.firstOrNull()
-    androidx.compose.foundation.layout.Row(
+    return when {
+        backup.running -> backup.progress?.let { "Backing up ${it.done} of ${it.total}" } ?: "Backing up"
+        last == null -> "Not backed up yet"
+        last.succeeded -> "Last ${whenText(last.finishedAtMillis, backup.now())}"
+        else -> "Last backup didn't finish"
+    }
+}
+
+@Composable
+private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, onClick: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    Row(
         Modifier
-            .cardWidth()
-            .glassPanel(com.deepak.photovault.designsystem.GlassCardShape)
-            .clickable(onClickLabel = "Open Backup") { state.open(Overlay.Backup) }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .fillMaxWidth()
+            .heightIn(min = 60.dp)
+            .clickable(onClickLabel = "Open $title") {
+                haptics.tap()
+                onClick()
+            }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        androidx.compose.material3.Icon(Icons.Rounded.Backup, contentDescription = null, tint = theme.accent)
+        androidx.compose.material3.Icon(icon, contentDescription = null, tint = theme.accent)
         androidx.compose.foundation.layout.Spacer(Modifier.size(16.dp))
         Column(Modifier.weight(1f)) {
-            Text("Backup", color = theme.onGlass, style = MaterialTheme.typography.titleMedium)
-            Text(
-                when {
-                    backup.running -> backup.progress?.let { "Backing up ${it.done} of ${it.total}" } ?: "Backing up"
-                    last == null -> "Not backed up yet"
-                    last.succeeded -> "Last backup ${whenText(last.finishedAtMillis, backup.now())}"
-                    else -> "Last backup didn't finish"
-                },
-                color = theme.onGlassSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
+            if (summary.isNotEmpty()) {
+                Text(summary, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
         }
         androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = theme.onGlassSecondary)
     }
 }
 
-/**
- * Hide albums (24 Oct). A hidden album's photos leave Photos, Albums and search, after a pop-up says so. They stay on
- * the phone and still back up.
- */
+/** One Settings page on its own, with a back button. */
 @Composable
-private fun HiddenAlbumsSection(gallery: GalleryState) {
-    val theme = LocalGlassTheme.current
-    var confirm by remember { mutableStateOf<com.deepak.photovault.core.media.PhoneAlbum?>(null) }
-    val hidden = gallery.hiddenAlbums.size
-    CollapsibleSection(
-        "Albums",
-        Icons.Rounded.VisibilityOff,
-        Modifier.cardWidth(),
-        summary = if (hidden == 0) "Hide albums" else "$hidden hidden",
-    ) {
-        Text("Hidden albums don't show in Photos or Albums.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
-        gallery.allAlbums.forEach { album ->
-            val isHidden = album.id in gallery.hiddenAlbums
-            GlassSwitchRow(
-                album.name,
-                !isHidden,
-                { show -> if (show) gallery.setHidden(album.id, false) else confirm = album },
-                description = if (isHidden) "Hidden" else "${com.deepak.photovault.core.media.LibraryCounts.grouped(album.count)} items",
-            )
-        }
-    }
-    confirm?.let { album ->
-        ConfirmDialog(
-            title = "Hide ${album.name}?",
-            body = "Its photos will be hidden from both Photos and Albums. They stay on your phone and still back up. You can show it again here.",
-            confirm = "Hide",
-            onDismiss = { confirm = null },
-        ) {
-            gallery.setHidden(album.id, true)
-            confirm = null
+fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, gallery: GalleryState, actions: MediaActions) {
+    GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }) {
+        when (page) {
+            SettingsPage.ABOUT -> item { AboutSection() }
+            SettingsPage.ALBUMS -> albumsPage(gallery)
+            SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
+            SettingsPage.BACKUP -> Unit
+            SettingsPage.DRIVE -> item { DriveSection(state, drive) }
+            SettingsPage.STORAGE -> item { StorageContent(gallery, drive, actions) }
         }
     }
 }
 
+/** On a page of its own the section is a plain card (no opening and closing). */
+@Composable
+private fun PageCard(
+    @Suppress("UNUSED_PARAMETER") title: String,
+    @Suppress("UNUSED_PARAMETER") icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier,
+    @Suppress("UNUSED_PARAMETER") summary: String? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) = GlassCard(modifier, content = content)
+
 @Composable
 private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) {
     val theme = LocalGlassTheme.current
-    CollapsibleSection("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = "${theme.displayName} · themes, motion, app icon") {
+    PageCard("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = theme.displayName) {
         SectionHeader("Glass themes")
         ThemeRow(GlassThemes.fixed, state)
         SectionHeader("Adaptive themes")
@@ -236,7 +252,7 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
     val theme = LocalGlassTheme.current
     val c = drive.connection
     var confirmForget by remember { mutableStateOf(false) }
-    CollapsibleSection(
+    PageCard(
         "Drive",
         Icons.Rounded.Dns,
         Modifier.cardWidth(),
@@ -277,7 +293,7 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
 
 @Composable
 private fun AboutSection() {
-    CollapsibleSection("About and coming soon", Icons.Rounded.Info, Modifier.cardWidth(), summary = "What's next for $APP_NAME") {
+    PageCard("About", Icons.Rounded.Info, Modifier.cardWidth()) {
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Phase 5")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN) and invites", "Phase 5")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")

@@ -21,6 +21,8 @@ data class BackupRecord(
     val savedAtMillis: Long,
     val deviceId: String,
     val storageSaver: Boolean = false,
+    /** The phone album it came from (since 24 Oct; older records leave it empty). For the Storage page. */
+    val album: String? = null,
 ) {
     val fileName: String get() = drivePath.substringAfterLast('/')
 }

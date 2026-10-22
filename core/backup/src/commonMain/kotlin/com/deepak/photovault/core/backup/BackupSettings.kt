@@ -26,8 +26,10 @@ data class BackupSchedule(
     val frequency: Frequency = Frequency.WEEKLY,
     val hour: Int = 2,
     val minute: Int = 0,
-    /** ISO day: 1 = Monday ... 7 = Sunday. */
+    /** ISO day: 1 = Monday ... 7 = Sunday. Kept for settings saved before several days could be chosen. */
     val dayOfWeek: Int = 7,
+    /** Weekly: every chosen day (24 Oct: several days a week). Null means just [dayOfWeek]. */
+    val daysOfWeek: Set<Int>? = null,
     /** 1 to 28, so every month has it. */
     val dayOfMonth: Int = 1,
 ) {
@@ -38,7 +40,7 @@ data class BackupSchedule(
         repeat(70) {
             val matches = when (frequency) {
                 Frequency.DAILY -> true
-                Frequency.WEEKLY -> date.dayOfWeek.isoDayNumber == dayOfWeek
+                Frequency.WEEKLY -> date.dayOfWeek.isoDayNumber in weekDays
                 Frequency.MONTHLY -> date.dayOfMonth == dayOfMonth.coerceIn(1, 28)
             }
             if (matches) {
@@ -50,11 +52,17 @@ data class BackupSchedule(
         error("No scheduled time found")
     }
 
+    /** The weekdays a weekly backup runs on (never empty). */
+    val weekDays: Set<Int> get() = daysOfWeek?.filter { it in 1..7 }?.toSet()?.ifEmpty { null } ?: setOf(dayOfWeek)
+
+    /** "Sun", or "Mon, Wed, Sun"; "Every day" when all seven are chosen. */
+    fun daysLabel(): String = if (weekDays.size == 7) "Every day" else weekDays.sorted().joinToString(", ") { DAY_NAMES[it - 1].take(3) }
+
     fun describe(): String {
         val time = timeLabel(hour, minute)
         return when (frequency) {
             Frequency.DAILY -> "Every day at $time"
-            Frequency.WEEKLY -> "Every ${DAY_NAMES[dayOfWeek - 1]} at $time"
+            Frequency.WEEKLY -> if (weekDays.size == 1) "Every ${DAY_NAMES[weekDays.first() - 1]} at $time" else "${daysLabel()} at $time"
             Frequency.MONTHLY -> "On day $dayOfMonth of every month at $time"
         }
     }

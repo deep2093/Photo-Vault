@@ -136,6 +136,8 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     LaunchedEffect(pager.currentPage) { videoStarted = false }
     val current = gallery.find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
     val video = remember(current.id) { VideoControls() }
+    // The frame strip opens only when the playing video's own thumbnail in the photo strip is tapped (24 Oct).
+    var scrubbing by remember(current.id) { mutableStateOf(false) }
     var touches by remember { mutableStateOf(0) }
     LaunchedEffect(barsVisible, videoStarted, video.playing, touches) {
         if (barsVisible && videoStarted && video.playing) {
@@ -244,11 +246,12 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    if (videoStarted && current.isVideo) {
-                        VideoBar(video, onTouch = { touches++ })
+                    val playingHere = videoStarted && current.isVideo
+                    if (playingHere) VideoBar(video, onTouch = { touches++ })
+                    if (playingHere && scrubbing) {
                         VideoScrubber(current, video, onTouch = { touches++ })
                     } else if (ids.size > 1) {
-                        Filmstrip(ids, gallery, pager)
+                        Filmstrip(ids, gallery, pager, onCurrentClick = if (playingHere) ({ scrubbing = true; touches++ }) else null)
                     }
                     ViewerActions(
                         favourite = gallery.isFavourite(current),
@@ -275,7 +278,7 @@ private val THUMB_GAP = 4.dp
  * outlined. Scroll it to move through photos, or tap one to jump there. Swiping the photo moves the strip too.
  */
 @Composable
-private fun Filmstrip(ids: List<Long>, gallery: GalleryState, pager: PagerState) {
+private fun Filmstrip(ids: List<Long>, gallery: GalleryState, pager: PagerState, onCurrentClick: (() -> Unit)? = null) {
     val strip = rememberLazyListState(initialFirstVisibleItemIndex = pager.currentPage.coerceIn(ids.indices))
     val scope = rememberCoroutineScope()
     val pitchPx = with(LocalDensity.current) { (THUMB_W + THUMB_GAP).toPx() }
@@ -330,7 +333,7 @@ private fun Filmstrip(ids: List<Long>, gallery: GalleryState, pager: PagerState)
                         .then(if (isCurrent) Modifier.border(2.dp, Color.White, shape) else Modifier)
                         .clickable(role = Role.Button) {
                             stripLeads = false
-                            scope.launch { pager.scrollToPage(index) }
+                            if (isCurrent && onCurrentClick != null) onCurrentClick() else scope.launch { pager.scrollToPage(index) }
                         }
                         .semantics { contentDescription = if (item != null) "Show ${whenTaken(item)}" else "Show photo" },
                 ) {
@@ -696,7 +699,11 @@ private fun VideoScrubber(item: MediaItem, video: VideoControls, onTouch: () -> 
             }
         }
     }
-    BoxWithConstraints(Modifier.fillMaxWidth().height(THUMB_H + 8.dp), contentAlignment = Alignment.Center) {
+    // Opened out from the video's thumbnail: wide enough to scroll comfortably, not the whole screen.
+    BoxWithConstraints(
+        Modifier.fillMaxWidth(0.78f).height(THUMB_H + 8.dp).clip(RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
         val side = maxWidth / 2
         LazyRow(
             state = strip,
@@ -732,7 +739,7 @@ object ScrubberMath {
         if (durationMs <= 0L) 0f else (timeMs.toFloat() / durationMs).coerceIn(0f, 1f) * totalPx
 }
 
-private val FRAME_W = 34.dp
+private val FRAME_W = 30.dp
 private const val VIDEO_BARS_MS = 3000L
 
 private fun whenTaken(item: MediaItem): String {

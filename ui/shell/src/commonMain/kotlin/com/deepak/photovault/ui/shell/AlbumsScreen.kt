@@ -96,12 +96,12 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     PlaceTile(Icons.Rounded.Lock, "Secured folder", "Coming soon", tile, enabled = false) {}
                 }
             }
-            item(key = "favourites") {
+            if (!gallery.isHidden(GalleryState.FAVOURITES_CARD)) item(key = "favourites") {
                 AlbumCard("Favourites", favourites.size, favourites.maxByOrNull { it.takenAtMillis }, Icons.Rounded.Favorite) {
                     state.open(Overlay.Album(AlbumKind.Favourites))
                 }
             }
-            item(key = "videos") {
+            if (!gallery.isHidden(GalleryState.VIDEOS_CARD)) item(key = "videos") {
                 AlbumCard("Videos", videos.size, videos.maxByOrNull { it.takenAtMillis }, Icons.Rounded.VideoLibrary) {
                     state.open(Overlay.Album(AlbumKind.Videos))
                 }

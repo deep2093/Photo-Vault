@@ -22,6 +22,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.snapshotFlow
 import com.deepak.photovault.designsystem.LocalGlassSettings
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -147,7 +149,7 @@ fun PhotoVaultApp(
                     CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL)) {
                         BottomBarLayout(screens, system)
                     }
-                    OverlayHost(state, gallery, actions, drive, backup, system)
+                    OverlayHost(state, gallery, actions, drive, backup, iconSwitcher, system)
                 }
             }
         }
@@ -156,7 +158,15 @@ fun PhotoVaultApp(
 
 /** Pages opened on top (viewer, album, search, Recently deleted), animated in and out. */
 @Composable
-private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState, backup: BackupState, system: PaddingValues) {
+private fun OverlayHost(
+    state: ShellState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    drive: DriveState,
+    backup: BackupState,
+    iconSwitcher: AppIconSwitcher,
+    system: PaddingValues,
+) {
     // Opening and closing mirror each other at the same speed (feedback 22 Oct: closing was too fast).
     val spec = motionSpec<Float>(OVERLAY_MS)
     AnimatedContent(
@@ -164,10 +174,15 @@ private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: Media
         contentKey = { it.second },
         transitionSpec = {
             val opening = targetState.first > initialState.first
+            // The page underneath stays fully in place while the new one grows in over it, and is already there
+            // while the top one shrinks away. Before (24 Oct) both faded, so for a moment the section underneath
+            // (Albums) showed through when a video or photo opened or closed: the "flash".
             if (opening) {
-                (fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith fadeOut(spec)
+                ((fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith ExitTransition.KeepUntilTransitionsFinished)
+                    .apply { targetContentZIndex = 1f }
             } else {
-                fadeIn(spec) togetherWith (fadeOut(spec) + scaleOut(spec, targetScale = OVERLAY_SCALE))
+                (EnterTransition.None togetherWith (fadeOut(spec) + scaleOut(spec, targetScale = OVERLAY_SCALE)))
+                    .apply { targetContentZIndex = -1f }
             }
         },
         label = "overlay",
@@ -193,6 +208,7 @@ private fun OverlayHost(state: ShellState, gallery: GalleryState, actions: Media
                         Overlay.DriveSetup -> DriveSetupScreen(state, drive)
                         is Overlay.Member -> MemberScreen(overlay.userId, state, drive, actions)
                         Overlay.Backup -> BackupScreen(drive, backup, gallery, actions, onBack = { state.back() })
+                        is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions)
                         is Overlay.Viewer -> Unit
                     }
                 }
@@ -396,6 +412,7 @@ private fun NavItem(
     dot: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
     val fg = lerp(theme.onGlass, theme.onAccent, closeness)
     val selected = closeness > 0.5f
@@ -403,7 +420,10 @@ private fun NavItem(
         modifier
             .height(height)
             .clip(RoundedCornerShape(24.dp))
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .selectable(selected = selected, role = Role.Tab, onClick = {
+                haptics.tick()
+                onClick()
+            })
             .then(if (dot) Modifier.semantics { stateDescription = "A phone is waiting for approval" } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

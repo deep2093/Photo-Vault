@@ -142,13 +142,17 @@ fun CollapsibleSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val theme = LocalGlassTheme.current
+    val haptics = rememberHaptics()
     var open by rememberSaveable(title) { mutableStateOf(initiallyOpen) }
     val turn by animateFloatAsState(if (open) 180f else 0f, motionSpec())
     Column(modifier.glassPanel(GlassCardShape)) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable { open = !open }
+                .clickable {
+                    haptics.tap()
+                    open = !open
+                }
                 .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,

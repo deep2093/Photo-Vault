@@ -277,6 +277,18 @@ class ScheduleAndPolicyTest {
     }
 
     @Test
+    fun severalDaysAWeek() {
+        // Fri 23 Oct 2026 04:00 Melbourne. Mondays and Wednesdays at 2 am: next is Mon 26 Oct 2:00 = Sun 25 Oct 15:00 UTC.
+        val friday = 1_792_688_400_000L
+        val s = BackupSchedule(daysOfWeek = setOf(1, 3))
+        assertEquals(1_792_940_400_000L, s.nextRun(friday, zone))
+        assertEquals("Mon, Wed at 2:00 am", s.describe())
+        assertEquals("Every day", BackupSchedule(daysOfWeek = (1..7).toSet()).daysLabel())
+        // Settings saved before (one day) still work.
+        assertEquals(setOf(7), BackupSchedule().weekDays)
+    }
+
+    @Test
     fun cameraOnlyByDefaultAndOtherFoldersWhenChosen() {
         fun item(id: Long, album: String, video: Boolean = false) =
             MediaItem(id, "u$id", if (video) MediaType.VIDEO else MediaType.PHOTO, "f$id", 0, 1, 1, 1, albumId = album.lowercase(), albumName = album, mimeType = "x")

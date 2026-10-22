@@ -66,6 +66,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -482,7 +483,17 @@ private fun PhotoTile(
  * A two-finger pinch steps the grid one column at a time. Only acts when two or more fingers are down,
  * so one-finger scrolling is untouched.
  */
-internal fun Modifier.pinchToZoom(onStep: (zoomIn: Boolean) -> Unit): Modifier = pointerInput(Unit) {
+internal fun Modifier.pinchToZoom(onStep: (zoomIn: Boolean) -> Unit): Modifier = composed {
+    // A small tick on every step (24 Oct).
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    val step by androidx.compose.runtime.rememberUpdatedState(onStep)
+    pinchSteps { zoomIn ->
+        haptics.tick()
+        step(zoomIn)
+    }
+}
+
+private fun Modifier.pinchSteps(onStep: (zoomIn: Boolean) -> Unit): Modifier = pointerInput(Unit) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
         var accumulated = 1f

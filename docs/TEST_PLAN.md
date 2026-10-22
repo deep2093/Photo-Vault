@@ -132,6 +132,20 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Albums: the three tiles line up at the same height on phones and stay small on tablets; pinch to make album
   cards bigger or smaller (phone and tablet).
 
+## Phase 4 device checks: fourth round (24 Oct, 12 points)
+
+- Open and close a photo or video from an album: no glimpse of another screen (the "flash").
+- Playing video: the photo strip stays; tapping the video's own thumbnail opens its frame strip (about 3/4 of the
+  width) to scroll through it.
+- Settings: About, Albums, Appearance, Backup, Drive, Storage (alphabetical), each opening its own page.
+- Album page: rename (not Camera, Screenshots, Screen recordings, Download) after Android's permission prompt;
+  delete moves everything to Recently deleted after Android's prompt.
+- Settings > Albums: compact rows with an eye, hidden ones grouped, search when there are many; Favourites and
+  Videos cards can be hidden.
+- Settings > Storage: Phone / Drive; usage bar, file-type ring, by-year bars, biggest albums.
+- Small vibration on buttons, switches, chips, tabs, pinch steps and the time wheels.
+- Schedule weekly: several days can be picked.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)
