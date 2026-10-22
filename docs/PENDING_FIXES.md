@@ -10,4 +10,7 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
 - [ ] Photos: scrolling down hides both top pills and the bottom navigation bar; scrolling up (or tapping Photos
       again, or selecting photos) brings them back. Same as Samsung Gallery.
 
+- [ ] Backup folders: only Camera is selected by default; the user can add any other phone folder (Screenshots,
+      WhatsApp Images, ...) from a picker listing the phone's albums. Saved per phone.
+
 (More bugs from testing go here.)
