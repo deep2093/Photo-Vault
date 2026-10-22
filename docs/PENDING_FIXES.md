@@ -27,4 +27,10 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
 - [ ] Tablet option (Settings > Appearance): move the navigation from the side to a floating bar at the bottom
       centre, as on phones. Side stays the default on tablets; saved per device.
 
+- [ ] Default theme becomes Transparent (was Aurora Frost) for everyone. Open question: also switch people who
+      already picked a theme, or only new installs and people who never chose one?
+- [ ] Family > People card layout after setup is messy: tidy the person row (name, phones, space bar, "x of 100 GB",
+      Change space button, phone name) so nothing overlaps or floats. Show "Counting..." instead of "..." while
+      the used space is measured, and show the phone's real model name.
+
 (More bugs from testing go here.)
