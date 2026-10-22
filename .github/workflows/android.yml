@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main, "phase-*", "feature/**"]
+    # Notes-only commits don't need a build (and would cancel one that is running).
+    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
     branches: [main]
 concurrency:

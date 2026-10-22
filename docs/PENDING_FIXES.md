@@ -73,7 +73,11 @@ bar option on tablets only; short setup tips now; videos off by default).
 - [ ] What's new (asked 24 Oct, next build, then every build with a feature change): when the app opens after an
       update that added or changed features, a small pop-up says so (features only, never fixes) with "See what's
       new" and "Skip". "See what's new" opens a page explaining each change. Once seen or skipped it doesn't come
-      back for that update, and there is no permanent What's new menu. A fresh install shows nothing. The notes live
-      in the app, numbered, so only builds that add notes trigger the pop-up.
+      back for that update, and there is no permanent What's new menu. The notes live in the app, numbered, so only
+      builds that add notes trigger the pop-up.
+- [ ] Welcome tour (asked 24 Oct, next build): on a fresh install, a pop-up (with Skip) leads to a short tour of what
+      Pixallery already does and what is coming, each feature with an icon picture (for example backup with a cloud,
+      family with people, places with a pin; "Coming soon" labelled). Shown once after installing, like What's new;
+      after it, What's new takes over for updates.
 
 (More bugs from testing go here.)
