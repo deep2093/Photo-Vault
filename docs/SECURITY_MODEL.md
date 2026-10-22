@@ -53,7 +53,9 @@ credentials, WireGuard config imported with a 64 KiB limit and never logged.
 - Locks again when the app goes to the background or after a short timeout.
 - Fingerprint unlock is a convenience on top of encryption, not a replacement for it.
 
-## Places (Phase 7)
+## Places and the details panel
 
-Reading photo location needs Android's ACCESS_MEDIA_LOCATION permission, asked only when Places is opened.
+Reading photo location needs Android's ACCESS_MEDIA_LOCATION permission. Since Phase 2 it is asked together with
+photo access (and again from the details panel if it was refused), because the details panel shows coordinates.
+"Open in Maps" hands the coordinates to the phone's maps app only when tapped.
 Coordinates are kept in the local database only; map tiles are fetched without sending photo locations.

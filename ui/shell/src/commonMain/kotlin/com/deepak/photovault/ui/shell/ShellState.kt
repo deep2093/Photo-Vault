@@ -94,16 +94,24 @@ class ShellState(private val store: AppearanceStore) {
 
     val selecting: Boolean get() = selected.isNotEmpty()
 
+    /** The viewer's swipe-up details panel is open. Back closes it before closing the viewer. */
+    var detailsOpen by mutableStateOf(false)
+
     /** Back has something to close: a page, a selection, or a section other than Photos. */
-    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting
+    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting || detailsOpen
 
     fun open(overlay: Overlay) {
         selected = emptySet()
+        detailsOpen = false
         overlays.add(overlay)
     }
 
     /** Closes the selection first, then the top page. Returns false when there was nothing to close. */
     fun back(): Boolean = when {
+        detailsOpen -> {
+            detailsOpen = false
+            true
+        }
         selecting -> {
             selected = emptySet()
             true

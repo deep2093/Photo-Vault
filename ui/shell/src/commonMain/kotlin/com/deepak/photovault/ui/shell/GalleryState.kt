@@ -7,7 +7,9 @@ import androidx.compose.runtime.setValue
 import com.deepak.photovault.core.media.FavouritesStore
 import com.deepak.photovault.core.media.MediaAccess
 import com.deepak.photovault.core.media.MediaItem
+import com.deepak.photovault.core.media.MediaDetailsSource
 import com.deepak.photovault.core.media.MediaLibrary
+import com.deepak.photovault.core.media.NoMediaDetails
 import com.deepak.photovault.core.media.PhoneAlbum
 import com.deepak.photovault.core.media.PhoneAlbums
 import com.deepak.photovault.core.media.TimelineGrouping
@@ -22,6 +24,12 @@ import kotlinx.coroutines.flow.collectLatest
  */
 interface MediaActions {
     fun requestAccess()
+
+    /** Ask for "access photo location", so the details panel can show where a photo was taken. */
+    fun requestLocationAccess() = Unit
+
+    /** Open the phone's maps app at a photo's location. Nothing is looked up by PhotoVault itself. */
+    fun openMap(latitude: Double, longitude: Double, label: String) = Unit
     fun share(items: List<MediaItem>)
     fun moveToRecentlyDeleted(items: List<MediaItem>)
     fun restore(items: List<MediaItem>)
@@ -39,7 +47,12 @@ object NoMediaActions : MediaActions {
 
 /** The phone's photos as the screens see them. Refreshes itself when the phone's library changes. */
 @Stable
-class GalleryState(private val library: MediaLibrary, private val favouritesStore: FavouritesStore) {
+class GalleryState(
+    private val library: MediaLibrary,
+    private val favouritesStore: FavouritesStore,
+    /** Camera, lens, exposure and location for the viewer's details panel. */
+    val detailsSource: MediaDetailsSource = NoMediaDetails,
+) {
     var access by mutableStateOf(MediaAccess.NONE)
 
     var grouping by mutableStateOf(TimelineGrouping.DAY)

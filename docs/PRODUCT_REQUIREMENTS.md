@@ -84,6 +84,15 @@ each family member's photos and videos to their own folder on one shared SMB dri
 - Warn at 90%; at the limit, backup pauses with a clear message. Never deletes to make room.
 - Setup warns if the total of all limits is larger than the free space on the drive.
 
+**Details panel** (Phase 2, completed in Phase 7)
+- Swipe up on a photo or video (or tap Details): the photo slides up and the panel rises below it, as in Samsung
+  Gallery. Swipe down, tap the photo or press back to close.
+- Phase 2: date and time, file name, folder, camera, lens type and focal length, size, resolution, megapixels,
+  ISO, exposure compensation, aperture, shutter speed, flash; videos show length, frame rate and bitrate.
+  Location as coordinates with "Open in Maps" (the phone's maps app). Read on the phone; nothing is looked up online.
+- Phase 7 (decided 22 Oct): map preview with the photo pinned, street address, nearby place name, tags.
+  Address lookup will be a setting, because it sends the photo's location to an online service.
+
 **Places** (Phase 7)
 - Map of photos by where they were taken (from the photo's own location data), clustered, with date filter.
 - Places album (by city/area) and search by place. Works offline for photos; map tiles need internet.

@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat
 import com.deepak.photovault.core.media.FavouritesStore
 import com.deepak.photovault.core.media.MediaAccess
 import com.deepak.photovault.core.media.MediaItem
+import com.deepak.photovault.core.media.AndroidMediaDetails
 import com.deepak.photovault.core.media.MediaStoreLibrary
 import com.deepak.photovault.ui.shell.AppIconChoice
 import com.deepak.photovault.ui.shell.AppIconSwitcher
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity(), MediaActions {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val state = ShellState(PrefsAppearanceStore(this))
-        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this))
+        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this))
         refreshSignals()
         refreshAccess()
         setContent {
@@ -122,7 +123,18 @@ class MainActivity : ComponentActivity(), MediaActions {
                 arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
             else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
-        permissionLauncher.launch(permissions)
+        // Photo locations are asked for together, so the details panel can show where photos were taken.
+        permissionLauncher.launch(permissions + Manifest.permission.ACCESS_MEDIA_LOCATION)
+    }
+
+    override fun requestLocationAccess() {
+        permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_MEDIA_LOCATION))
+    }
+
+    override fun openMap(latitude: Double, longitude: Double, label: String) {
+        // A geo: link opens whichever maps app the phone uses; PhotoVault itself looks nothing up.
+        val uri = Uri.parse("geo:$latitude,$longitude?q=$latitude,$longitude(${Uri.encode(label)})")
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
     }
 
     // ---- Actions ----

@@ -1,6 +1,25 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalDensity
+import com.deepak.photovault.core.media.DetailsFormat
+import com.deepak.photovault.core.media.MediaDetails
+import com.deepak.photovault.core.media.MediaDetailsSource
+import com.deepak.photovault.designsystem.LocalGlassSettings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.fadeIn
@@ -82,8 +101,10 @@ import kotlinx.datetime.toLocalDateTime
 
 /**
  * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to show or hide the actions,
- * play videos. Photos are shown on black, never tinted. There is no top bar (feedback 22 Oct): back is the
- * system back gesture, and the date is in Details.
+ * play videos. Photos are shown on black, never tinted. There is no top bar: back is the system back gesture.
+ *
+ * Swipe up (or tap Details) to slide the photo up and reveal the details panel, as in Samsung Gallery
+ * (feedback 22 Oct). Swipe down, tap the photo or press back to close it.
  */
 @Composable
 fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
@@ -96,55 +117,111 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     val start = ids.indexOf(viewer.startId).coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = start) { ids.size }
     var barsVisible by rememberSaveable { mutableStateOf(true) }
-    var infoVisible by rememberSaveable { mutableStateOf(false) }
     val current = gallery.find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
     val system = WindowInsets.safeDrawing.asPaddingValues()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalGlassSettings.current.reduceMotion
 
-    // No blur source here: the bars use solid glass over the photo.
-    CompositionLocalProvider(LocalHazeState provides null) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
+    // 0 = photo only, 1 = details panel fully open.
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(state.detailsOpen) {
+        val target = if (state.detailsOpen) 1f else 0f
+        if (reduceMotion) progress.snapTo(target) else progress.animateTo(target, tween(DETAILS_MS, easing = FastOutSlowInEasing))
+    }
+    DisposableEffect(Unit) { onDispose { state.detailsOpen = false } }
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+        val density = LocalDensity.current
+        val panelHeight = maxHeight * DETAILS_SHARE
+        val panelPx = with(density) { panelHeight.toPx() }
+        fun settle(velocity: Float) {
+            // Open past a third of the way, or on an upward fling; close otherwise.
+            val open = if (kotlin.math.abs(velocity) > 800f) velocity < 0 else progress.value > 0.33f
+            state.detailsOpen = open
+            scope.launch {
+                if (reduceMotion) progress.snapTo(if (open) 1f else 0f)
+                else progress.animateTo(if (open) 1f else 0f, tween(DETAILS_MS, easing = FastOutSlowInEasing), initialVelocity = -velocity / panelPx)
+            }
+        }
+        val drag = rememberDraggableState { dy -> scope.launch { progress.snapTo((progress.value - dy / panelPx).coerceIn(0f, 1f)) } }
+
+        // No blur source here: the bars use solid glass over the photo.
+        CompositionLocalProvider(LocalHazeState provides null) {
             HorizontalPager(
                 state = pager,
                 key = { ids[it] },
                 beyondViewportPageCount = 1,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // The photo slides up as the panel rises, leaving it fully visible above the panel.
+                        translationY = -progress.value * panelPx * 0.62f
+                    }
+                    // Vertical swipes (not taken by zoom or the pager) open and close the panel.
+                    .draggable(
+                        state = drag,
+                        orientation = Orientation.Vertical,
+                        onDragStopped = { velocity -> settle(velocity) },
+                    ),
             ) { page ->
                 val item = gallery.find(ids[page]) ?: return@HorizontalPager
+                val onTap = { if (state.detailsOpen) state.detailsOpen = false else barsVisible = !barsVisible }
                 if (item.isVideo) {
-                    VideoPage(item, isCurrent = page == pager.currentPage, onTap = { barsVisible = !barsVisible })
+                    VideoPage(item, isCurrent = page == pager.currentPage, onTap = onTap)
                 } else {
-                    ZoomablePhoto(item, onTap = { barsVisible = !barsVisible })
+                    ZoomablePhoto(item, onTap = onTap)
                 }
             }
 
+            DetailsPanel(
+                item = current,
+                source = gallery.detailsSource,
+                actions = actions,
+                bottomInset = system.calculateBottomPadding(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(panelHeight)
+                    .graphicsLayer {
+                        translationY = (1f - progress.value) * panelPx
+                        alpha = (progress.value * 3f).coerceIn(0f, 1f)
+                    }
+                    .draggable(state = drag, orientation = Orientation.Vertical, onDragStopped = { settle(it) }),
+            )
+
             AnimatedVisibility(
-                visible = barsVisible,
+                visible = barsVisible && !state.detailsOpen,
                 enter = fadeIn(motionSpec()) + slideInVertically(motionSpec()) { it / 2 },
                 exit = fadeOut(motionSpec()) + slideOutVertically(motionSpec()) { it / 2 },
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
-                Column(
-                    Modifier.padding(bottom = system.calculateBottomPadding() + 12.dp, start = 12.dp, end = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    AnimatedVisibility(visible = infoVisible) { InfoCard(current) }
-                    ViewerActions(
-                        favourite = gallery.isFavourite(current),
-                        onShare = { actions.share(listOf(current)) },
-                        onFavourite = { gallery.toggleFavourite(listOf(current)) },
-                        onInfo = { infoVisible = !infoVisible },
-                        onDelete = { actions.moveToRecentlyDeleted(listOf(current)) },
-                    )
-                }
+                ViewerActions(
+                    favourite = gallery.isFavourite(current),
+                    onShare = { actions.share(listOf(current)) },
+                    onFavourite = { gallery.toggleFavourite(listOf(current)) },
+                    onInfo = { state.detailsOpen = true },
+                    onDelete = { actions.moveToRecentlyDeleted(listOf(current)) },
+                    modifier = Modifier.padding(bottom = system.calculateBottomPadding() + 12.dp),
+                )
             }
         }
     }
 }
 
+private const val DETAILS_MS = 320
+private const val DETAILS_SHARE = 0.56f
+
 @Composable
-private fun ViewerActions(favourite: Boolean, onShare: () -> Unit, onFavourite: () -> Unit, onInfo: () -> Unit, onDelete: () -> Unit) {
+private fun ViewerActions(
+    favourite: Boolean,
+    onShare: () -> Unit,
+    onFavourite: () -> Unit,
+    onInfo: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
+        modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
@@ -154,34 +231,127 @@ private fun ViewerActions(favourite: Boolean, onShare: () -> Unit, onFavourite: 
     }
 }
 
+/**
+ * The details panel, laid out like Samsung Gallery's: when and what, then camera and exposure, then where.
+ * Always dark, because it sits below the photo on the viewer's black background.
+ */
 @Composable
-private fun InfoCard(item: MediaItem) {
-    val theme = LocalGlassTheme.current
+private fun DetailsPanel(
+    item: MediaItem,
+    source: MediaDetailsSource,
+    actions: MediaActions,
+    bottomInset: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+) {
+    val details by produceState<MediaDetails?>(null, item.id) { value = source.details(item) }
+    val white = Color(0xFFF5F5F7)
+    val grey = Color(0xFFB8B8C0)
     Column(
-        Modifier
-            .padding(bottom = 10.dp)
-            .widthIn(max = 520.dp)
-            .fillMaxWidth()
-            .glassChrome(RoundedCornerShape(24.dp), elevation = 8.dp)
-            .padding(16.dp),
+        modifier
+            .background(Color(0xFF0B0B0D))
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = bottomInset + 24.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(whenTaken(item), color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Detail("Name", item.displayName)
-        Detail("Album", item.albumName)
-        Detail("Size", "${megabytes(item.sizeBytes)} · ${item.width} × ${item.height}")
-        if (item.isVideo) Detail("Length", Timeline.duration(item.durationMillis))
-        Detail("Backup", "Arrives with drive backup")
+        // Drag handle: shows the panel can be swiped down.
+        Box(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x55FFFFFF)))
+        Spacer(Modifier.height(12.dp))
+        Text(fullDate(item), color = white, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(item.displayName, color = grey, style = MaterialTheme.typography.bodyMedium)
+        details?.folder?.let { Text(it, color = grey, style = MaterialTheme.typography.bodyMedium) }
+
+        val d = details
+        val camera = d?.camera
+        Spacer(Modifier.height(16.dp))
+        if (camera != null) Text(camera, color = white, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        val lens = listOfNotNull(DetailsFormat.lensKind(d?.focalLength35mm), DetailsFormat.focal(d?.focalLength35mm, d?.focalLengthMm))
+        if (!item.isVideo && lens.isNotEmpty()) Text(lens.joinToString(" - "), color = grey, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            listOfNotNull(
+                DetailsFormat.size(item.sizeBytes),
+                if (item.width > 0) "${item.width}x${item.height}" else null,
+                if (item.isVideo) Timeline.duration(item.durationMillis) else DetailsFormat.megapixels(item.width, item.height),
+            ).joinToString("  |  "),
+            color = grey,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        val exposure = if (item.isVideo) {
+            listOfNotNull(DetailsFormat.frameRate(d?.frameRate), DetailsFormat.bitrate(d?.bitrate))
+        } else {
+            listOfNotNull(
+                d?.iso?.let { "ISO $it" },
+                DetailsFormat.focal(d?.focalLength35mm, d?.focalLengthMm),
+                DetailsFormat.exposureBias(d?.exposureBias),
+                DetailsFormat.aperture(d?.aperture),
+                DetailsFormat.exposure(d?.exposureSeconds),
+                if (d?.flashFired == true) "Flash used" else null,
+            )
+        }
+        if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = MaterialTheme.typography.bodyMedium)
+
+        Spacer(Modifier.height(16.dp))
+        LocationCard(d, item, actions, white, grey)
+        Spacer(Modifier.height(12.dp))
+        Text("Backup: arrives with drive backup", color = grey, style = MaterialTheme.typography.bodySmall)
     }
 }
 
 @Composable
-private fun Detail(label: String, value: String) {
-    val theme = LocalGlassTheme.current
-    Row {
-        Text(label, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.widthIn(min = 72.dp))
-        Text(value, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+private fun LocationCard(d: MediaDetails?, item: MediaItem, actions: MediaActions, white: Color, grey: Color) {
+    val lat = d?.latitude
+    val lon = d?.longitude
+    when {
+        d == null -> Unit
+        lat != null && lon != null -> Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1C1C21))
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Place, null, tint = white)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(DetailsFormat.coordinates(lat, lon), color = white, style = MaterialTheme.typography.bodyMedium)
+                Text("Map and street address arrive with Places", color = grey, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                "Open in Maps",
+                color = Color(0xFF8AB4FF),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(role = Role.Button) { actions.openMap(lat, lon, item.displayName) }
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+            )
+        }
+        d.locationHidden -> Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1C1C21))
+                .clickable(role = Role.Button) { actions.requestLocationAccess() }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Place, null, tint = white)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Show where photos were taken", color = white, style = MaterialTheme.typography.bodyMedium)
+                Text("Allow PhotoVault to read photo locations. They stay on your phone.", color = grey, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        else -> Text("No location saved in this ${if (item.isVideo) "video" else "photo"}", color = grey, style = MaterialTheme.typography.bodySmall)
     }
+}
+
+/** "Saturday, 29 August 2026 · 3:53 pm", as Samsung shows it. */
+private fun fullDate(item: MediaItem): String {
+    val t = Instant.fromEpochMilliseconds(item.takenAtMillis).toLocalDateTime(TimeZone.currentSystemDefault())
+    val hour = if (t.hour % 12 == 0) 12 else t.hour % 12
+    val suffix = if (t.hour < 12) "am" else "pm"
+    return "${Timeline.dayName(t.dayOfWeek)}, ${t.dayOfMonth} ${Timeline.monthName(t.month)} ${t.year} · $hour:${t.minute.toString().padStart(2, '0')} $suffix"
 }
 
 /** Pinch to zoom (up to 6x), drag while zoomed, double-tap to zoom in or out, tap to toggle bars. */
@@ -303,7 +473,3 @@ private fun whenTaken(item: MediaItem): String {
     return "${Timeline.dayLabel(time.date, today)}, $hour:${time.minute.toString().padStart(2, '0')} $suffix"
 }
 
-private fun megabytes(bytes: Long): String {
-    val mb = bytes / 1_000_000.0
-    return if (mb >= 10) "${mb.toInt()} MB" else "${(mb * 10).toInt() / 10.0} MB"
-}

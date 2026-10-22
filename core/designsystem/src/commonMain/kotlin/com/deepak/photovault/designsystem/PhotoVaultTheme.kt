@@ -7,9 +7,17 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.darkColorScheme
@@ -81,12 +89,25 @@ private fun typographyFor(theme: GlassTheme): Typography {
     )
 }
 
-/** A soft glow behind an icon on clear glass (Translucent); nothing on other themes. */
+/**
+ * An icon that stays readable on clear glass (Translucent): a soft glow in the icon's own shape sits behind
+ * it, instead of a disc (feedback 22 Oct: the round backdrops looked odd). Other themes draw a plain icon.
+ */
 @Composable
-fun Modifier.iconHalo(): Modifier {
-    val halo = LocalGlassTheme.current.textHalo ?: return this
-    return drawBehind {
-        drawCircle(Brush.radialGradient(listOf(halo.copy(alpha = 0.85f), halo.copy(alpha = 0f)), radius = size.minDimension * 0.75f))
+fun GlassIcon(icon: ImageVector, tint: Color, modifier: Modifier = Modifier, glow: Boolean = true) {
+    val halo = LocalGlassTheme.current.textHalo
+    Box(modifier.size(24.dp), contentAlignment = Alignment.Center) {
+        if (glow && halo != null) {
+            // Slightly larger and blurred, so it reads as a glow around the strokes (Android 12+ blurs;
+            // Android 11 shows a thin light outline instead).
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = halo.copy(alpha = 0.9f),
+                modifier = Modifier.matchParentSize().scale(1.14f).blur(3.dp, BlurredEdgeTreatment.Unbounded),
+            )
+        }
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.matchParentSize())
     }
 }
 

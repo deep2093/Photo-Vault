@@ -14,6 +14,10 @@ kotlin {
             api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             api("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
         }
+        androidMain.dependencies {
+            // Photo metadata (camera, lens, exposure, location) for the details panel.
+            implementation("androidx.exifinterface:exifinterface:1.3.7")
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
