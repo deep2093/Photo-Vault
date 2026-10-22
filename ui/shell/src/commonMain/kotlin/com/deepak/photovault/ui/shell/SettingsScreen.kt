@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun SettingsScreen(state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher = NoAppIconSwitcher) {
-    GlassListScreen(title = "Settings", subtitle = null) {
+    GlassListScreen(title = null, subtitle = null) {
         item { AppearanceSection(state, iconSwitcher) }
         item { DriveSection(state, drive) }
         item { FamilySection(drive) }

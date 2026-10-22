@@ -49,7 +49,7 @@ import com.deepak.photovault.designsystem.glassPanel
 
 @Composable
 fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions) {
-    GlassScreen(title = "Albums", subtitle = "${gallery.albums.size} albums on this phone") { padding ->
+    GlassScreen(title = null, subtitle = null) { padding ->
         if (gallery.access == MediaAccess.NONE) {
             EmptyState(
                 "Your albums",

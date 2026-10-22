@@ -40,9 +40,25 @@ data class AdaptiveStyle(
     val fallback: List<Color>,
     /** Light adaptive themes: pastel colours under a white veil, with dark text. */
     val light: Boolean = false,
+    /** The shape of the wallpaper, so adaptive themes look different, not just brighter or darker. */
+    val layout: WallpaperLayout = WallpaperLayout.DIAGONAL,
 ) {
     /** The readability veil: dark for light text, white for dark text. */
     val veil: Color get() = if (light) Color.White else Color.Black
+}
+
+/** How an adaptive wallpaper arranges its three colours (feedback 23 Oct: the adaptive themes looked alike). */
+enum class WallpaperLayout {
+    /** Corner-to-corner sweep of all three colours (Vivid). */
+    DIAGONAL,
+    /** Two large bright blooms over a dark base (Glow). */
+    AURORA,
+    /** Nearly black, with one soft light at the top (Midnight). */
+    NIGHT,
+    /** Soft bands from top to bottom (Light). */
+    HORIZON,
+    /** A light base with a different colour in each corner (Transparent). */
+    MESH,
 }
 
 /** Colours of the photos currently on screen. Each shown photo adds one colour and removes it when it leaves. */
@@ -150,23 +166,44 @@ internal fun rememberAdaptiveColors(style: AdaptiveStyle): List<State<Color>> {
     return List(3) { i -> animateColorAsState(target[i], if (reduce) snap() else tween(550), label = "adaptive_$i") }
 }
 
-/** Paints an adaptive wallpaper: a diagonal gradient, two soft lights and a readability veil. */
+/** Paints an adaptive wallpaper in the style's [WallpaperLayout], then its readability veil. */
 internal fun DrawScope.drawAdaptiveWallpaper(colors: List<Color>, style: AdaptiveStyle) {
-    drawRect(Brush.linearGradient(listOf(colors[0], colors[2], colors[1]), start = Offset.Zero, end = Offset(size.width, size.height)))
-    drawRect(
+    fun bloom(color: Color, x: Float, y: Float, radius: Float, alpha: Float) = drawRect(
         Brush.radialGradient(
-            listOf(colors[0].copy(alpha = style.glow), Color.Transparent),
-            center = Offset(size.width * 0.85f, size.height * 0.08f),
-            radius = size.maxDimension * 0.7f,
+            listOf(color.copy(alpha = alpha), Color.Transparent),
+            center = Offset(size.width * x, size.height * y),
+            radius = size.maxDimension * radius,
         ),
     )
-    drawRect(
-        Brush.radialGradient(
-            listOf(colors[1].copy(alpha = style.glow * 0.8f), Color.Transparent),
-            center = Offset(size.width * 0.1f, size.height * 0.9f),
-            radius = size.maxDimension * 0.75f,
-        ),
-    )
+    when (style.layout) {
+        WallpaperLayout.DIAGONAL -> {
+            drawRect(Brush.linearGradient(listOf(colors[0], colors[2], colors[1]), start = Offset.Zero, end = Offset(size.width, size.height)))
+            bloom(colors[0], 0.85f, 0.08f, 0.7f, style.glow)
+            bloom(colors[1], 0.1f, 0.9f, 0.75f, style.glow * 0.8f)
+        }
+        WallpaperLayout.AURORA -> {
+            drawRect(Brush.verticalGradient(listOf(colors[2], colors[2].copy(alpha = 1f).darken(0.6f))))
+            bloom(colors[0], 0.8f, 0.12f, 0.85f, style.glow)
+            bloom(colors[1], 0.15f, 0.62f, 0.8f, style.glow * 0.9f)
+        }
+        WallpaperLayout.NIGHT -> {
+            drawRect(colors[2])
+            bloom(colors[0], 0.5f, -0.1f, 0.8f, style.glow)
+            bloom(colors[1], 0.5f, 1.1f, 0.5f, style.glow * 0.35f)
+        }
+        WallpaperLayout.HORIZON -> {
+            drawRect(Brush.verticalGradient(listOf(colors[0], colors[1], colors[2])))
+        }
+        WallpaperLayout.MESH -> {
+            drawRect(Color(0xFFF7F9FC))
+            bloom(colors[0], 0f, 0f, 0.75f, style.glow)
+            bloom(colors[1], 1f, 0.15f, 0.7f, style.glow)
+            bloom(colors[2], 0.05f, 1f, 0.75f, style.glow)
+            bloom(colors[0], 1f, 0.95f, 0.6f, style.glow * 0.7f)
+        }
+    }
     // Stronger towards the bottom, where the navigation bar sits.
     drawRect(Brush.verticalGradient(listOf(style.veil.copy(alpha = style.scrim * 0.6f), style.veil.copy(alpha = style.scrim))))
 }
+
+private fun Color.darken(factor: Float) = Color(red * factor, green * factor, blue * factor, alpha)

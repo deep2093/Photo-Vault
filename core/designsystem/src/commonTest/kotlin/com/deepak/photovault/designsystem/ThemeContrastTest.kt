@@ -32,11 +32,9 @@ class ThemeContrastTest {
 
     @Test
     fun accentIsVisibleOnGlassAndItsTextIsReadable() {
-        // Clear glass (Translucent) is exempt from the accent-vs-glass check: the selected pill always carries
-        // high-contrast text, and a solid accent would defeat the clear look the theme is for.
         GlassThemes.all.forEach { theme ->
             val onGlass = Contrast.worstOnGlass(theme, theme.accent)
-            if (theme.textHalo == null) assertTrue(onGlass >= Contrast.NON_TEXT, "${theme.displayName}: accent on glass $onGlass")
+            assertTrue(onGlass >= Contrast.NON_TEXT, "${theme.displayName}: accent on glass $onGlass")
             val onAccent = Contrast.ratio(theme.onAccent, theme.accent)
             assertTrue(onAccent >= Contrast.TEXT, "${theme.displayName}: text on accent $onAccent")
         }
@@ -53,28 +51,31 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun blurTintIsNeverTooThinUnlessTextHasAHalo() {
+    fun blurTintIsNeverTooThin() {
         // The contrast tests above check text over pure black and pure white photos, which is the real guard.
-        // This floor stops a theme from relying on blur alone; only clear-glass themes with a halo may go lower.
+        // This floor stops a theme from relying on blur alone. No theme draws a glow behind text any more (23 Oct).
         GlassThemes.all.forEach { theme ->
-            val floor = if (theme.textHalo != null) 0.4f else 0.6f
-            assertTrue(theme.glassTint.alpha >= floor, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            assertTrue(theme.glassTint.alpha >= 0.6f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
     }
 
     @Test
     fun adaptiveThemesAreDistinct() {
-        // Feedback 22 Oct: the three looked the same. Each needs its own accent, and Glow must be lighter.
-        val dark = listOf(GlassThemes.AdaptiveGlow, GlassThemes.AdaptiveMidnight, GlassThemes.AdaptiveVivid)
-        assertEquals(dark.size, dark.map { it.accent }.toSet().size)
+        // Feedback 22 and 23 Oct: they looked alike. Each needs its own accent and its own wallpaper shape.
+        val adaptive = GlassThemes.adaptiveThemes
+        assertEquals(adaptive.size, adaptive.map { it.accent }.toSet().size)
+        assertEquals(adaptive.size, adaptive.map { it.adaptive!!.layout }.toSet().size)
         assertTrue(GlassThemes.AdaptiveGlow.adaptive!!.values.first() > GlassThemes.AdaptiveMidnight.adaptive!!.values.first() + 0.2f)
         assertTrue(GlassThemes.AdaptiveVivid.adaptive!!.minSaturation > GlassThemes.AdaptiveGlow.adaptive!!.minSaturation)
     }
 
     @Test
-    fun translucentIsClearGlass() {
-        assertTrue(GlassThemes.Translucent.glassTint.alpha < 0.5f)
-        assertTrue(GlassThemes.Translucent.textHalo != null)
+    fun transparentHasClearCardsFrostedBarsAndTakesPhotoColours() {
+        // Renamed from Translucent and made adaptive (23 Oct); the saved ID is unchanged.
+        assertEquals(GlassThemes.Transparent, GlassThemes.byId("TRANSLUCENT"))
+        assertTrue(GlassThemes.Transparent.glassFallback.alpha < 0.6f)
+        assertTrue(GlassThemes.Transparent.glassTint.alpha < GlassThemes.Frosted.glassTint.alpha)
+        assertTrue(GlassThemes.Transparent.adaptive!!.light)
     }
 }
 
@@ -82,11 +83,11 @@ class ThemeCatalogTest {
     @Test
     fun hasTheAgreedGlassAndAdaptiveThemesWithUniqueIds() {
         assertEquals(
-            listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass", "Translucent", "Frosted"),
+            listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass", "Frosted"),
             GlassThemes.fixed.map { it.displayName },
         )
         assertEquals(
-            listOf("Adaptive Glow", "Adaptive Midnight", "Adaptive Vivid", "Adaptive Light"),
+            listOf("Adaptive Glow", "Adaptive Midnight", "Adaptive Vivid", "Adaptive Light", "Transparent"),
             GlassThemes.adaptiveThemes.map { it.displayName },
         )
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
@@ -154,10 +155,9 @@ class AdaptivePaletteTest {
     }
 
     @Test
-    fun frostedBlursMoreThanTranslucent() {
-        assertTrue(GlassThemes.Frosted.blurRadius > GlassThemes.Translucent.blurRadius)
-        assertTrue(GlassThemes.Frosted.grain > GlassThemes.Translucent.grain)
-        assertTrue(GlassThemes.Translucent.glassTint.alpha < GlassThemes.Frosted.glassTint.alpha)
+    fun frostedBlursMoreThanTransparent() {
+        assertTrue(GlassThemes.Frosted.blurRadius > GlassThemes.Transparent.blurRadius)
+        assertTrue(GlassThemes.Frosted.grain > GlassThemes.Transparent.grain)
     }
 
     @Test

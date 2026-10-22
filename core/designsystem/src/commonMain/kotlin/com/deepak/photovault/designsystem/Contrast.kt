@@ -30,19 +30,13 @@ object Contrast {
     /**
      * Opaque backgrounds that glass can end up as: glass over the busiest photos (black and white) and glass
      * over the wallpaper. For adaptive themes the wallpaper is every hue the palette can produce.
-     * Clear-glass themes draw a white halo behind text; it is modelled as 75% white behind the letters.
      */
-    fun glassBackgrounds(theme: GlassTheme): List<Color> {
-        val glass = listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(Color.White)) +
+    fun glassBackgrounds(theme: GlassTheme): List<Color> =
+        listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(Color.White)) +
             wallpaperColors(theme).map { theme.glassFallback.compositeOver(it) }
-        val halo = theme.textHalo ?: return glass
-        return glass.map { halo.copy(alpha = HALO_STRENGTH).compositeOver(it) }
-    }
 
     /** Glass plus the bare wallpaper, which primary text also sits on (photo date headers, empty screens). */
     fun allTextBackgrounds(theme: GlassTheme): List<Color> = glassBackgrounds(theme) + wallpaperColors(theme)
-
-    private const val HALO_STRENGTH = 0.75f
 
     /** Wallpaper colours to test against. Adaptive: all hues at both saturation limits, under the lightest veil. */
     fun wallpaperColors(theme: GlassTheme): List<Color> {

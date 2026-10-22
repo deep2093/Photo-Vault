@@ -70,45 +70,17 @@ fun PhotoVaultTheme(
         outline = theme.glassRim,
     )
     CompositionLocalProvider(LocalGlassTheme provides theme, LocalGlassSettings provides settings) {
-        MaterialTheme(colorScheme = colors, typography = typographyFor(theme), content = content)
+        MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
     }
-}
-
-/** Clear-glass themes give every text style a soft halo, so text reads over any photo. */
-private fun typographyFor(theme: GlassTheme): Typography {
-    val base = Typography()
-    val halo = theme.textHalo ?: return base
-    val shadow = Shadow(color = halo.copy(alpha = 0.95f), offset = Offset.Zero, blurRadius = 10f)
-    fun TextStyle.haloed() = copy(shadow = shadow)
-    return base.copy(
-        displayLarge = base.displayLarge.haloed(), displayMedium = base.displayMedium.haloed(), displaySmall = base.displaySmall.haloed(),
-        headlineLarge = base.headlineLarge.haloed(), headlineMedium = base.headlineMedium.haloed(), headlineSmall = base.headlineSmall.haloed(),
-        titleLarge = base.titleLarge.haloed(), titleMedium = base.titleMedium.haloed(), titleSmall = base.titleSmall.haloed(),
-        bodyLarge = base.bodyLarge.haloed(), bodyMedium = base.bodyMedium.haloed(), bodySmall = base.bodySmall.haloed(),
-        labelLarge = base.labelLarge.haloed(), labelMedium = base.labelMedium.haloed(), labelSmall = base.labelSmall.haloed(),
-    )
 }
 
 /**
- * An icon that stays readable on clear glass (Translucent): a soft glow in the icon's own shape sits behind
- * it, instead of a disc (feedback 22 Oct: the round backdrops looked odd). Other themes draw a plain icon.
+ * A plain icon. Clear-glass themes used to draw a glow behind icons and text; it was removed after the Phase 3
+ * review (23 Oct) because it smeared text on solid surfaces. Transparent now frosts its bars instead.
  */
 @Composable
-fun GlassIcon(icon: ImageVector, tint: Color, modifier: Modifier = Modifier, glow: Boolean = true) {
-    val halo = LocalGlassTheme.current.textHalo
-    Box(modifier.size(24.dp), contentAlignment = Alignment.Center) {
-        if (glow && halo != null) {
-            // Slightly larger and blurred, so it reads as a glow around the strokes (Android 12+ blurs;
-            // Android 11 shows a thin light outline instead).
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = halo.copy(alpha = 0.9f),
-                modifier = Modifier.matchParentSize().scale(1.14f).blur(3.dp, BlurredEdgeTreatment.Unbounded),
-            )
-        }
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.matchParentSize())
-    }
+fun GlassIcon(icon: ImageVector, tint: Color, modifier: Modifier = Modifier) {
+    Icon(icon, contentDescription = null, tint = tint, modifier = modifier.size(24.dp))
 }
 
 /** The one animation spec for UI movement. Instant when reduce motion is on. */

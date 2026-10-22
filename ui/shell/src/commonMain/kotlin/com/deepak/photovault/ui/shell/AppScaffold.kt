@@ -336,7 +336,7 @@ private fun SectionPager(
         val destination = Destination.entries[page]
         CompositionLocalProvider(LocalScrollToTop provides (state.reselects[destination] ?: 0)) {
             when (destination) {
-                Destination.PHOTOS -> PhotosScreen(state, gallery, actions)
+                Destination.PHOTOS -> PhotosScreen(state, gallery, actions, drive)
                 Destination.ALBUMS -> AlbumsScreen(state, gallery, actions)
                 Destination.BACKUP -> BackupScreen(drive)
                 Destination.FAMILY -> FamilyScreen(state, drive)
@@ -431,7 +431,7 @@ private fun NavItem(destination: Destination, indicator: Float, onClick: () -> U
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        GlassIcon(destination.icon, tint = fg, glow = !selected)
+        GlassIcon(destination.icon, tint = fg)
         Spacer(Modifier.height(2.dp))
         Text(destination.label, color = fg, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }

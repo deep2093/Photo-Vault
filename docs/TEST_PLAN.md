@@ -44,6 +44,16 @@ Three levels, always reported separately: **compiles**, **tests pass** (CI outpu
 - Back from album → viewer → album → Albums never reopens anything (touch fall-through bug, fixed 22 Oct).
 - Section jumps (Photos → Settings) slide one step, highlight glides straight across.
 
+## Phase 4 device checks: review fixes from 23 Oct (built first on the Phase 4 branch)
+
+- No glow or smear on any text or icon in any theme: details panel, Back up now, Daily, Day, tab labels, viewer bar.
+- Transparent (was Translucent): cards clear, tab bar and pill lightly frosted, wallpaper corners take photo colours.
+- The five adaptive themes look clearly different: Glow (bright blooms), Midnight (near black, one light at top),
+  Vivid (bold diagonal), Light (pastel bands), Transparent (light, coloured corners).
+- Details panel fits without scrolling; swiping down on the panel closes it; so does swiping on the photo.
+- No top bars on Photos, Albums, Backup, Family, Settings. Photos: floating pill (cloud opens Backup, search,
+  ⋮ shows counts and Day / Month / Year). Selecting photos shows the selection bar without the grid jumping.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)

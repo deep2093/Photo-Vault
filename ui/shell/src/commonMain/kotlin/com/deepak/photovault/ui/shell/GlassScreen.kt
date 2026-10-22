@@ -60,15 +60,19 @@ import dev.chrisbanes.haze.hazeSource
  * The top bar slides away while scrolling down and returns on any scroll up (feedback 22 Oct). It stays put
  * while photos are selected, because the selection actions live in it.
  *
+ * The main sections have no top bar at all (feedback 23 Oct): pass a null [title]. Photos instead floats a small
+ * glass pill of [floatingActions] at the top right, as in Samsung Gallery; it stays in place while scrolling.
+ *
  * [content] receives the padding it must apply so nothing hides under the bars.
  */
 @Composable
 fun GlassScreen(
-    title: String,
+    title: String?,
     subtitle: String?,
     onBack: (() -> Unit)? = null,
     pinned: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
+    floatingActions: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val insets = LocalScreenInsets.current
@@ -94,10 +98,12 @@ fun GlassScreen(
         }
     }
     Box(Modifier.fillMaxSize()) {
+        // The pill and the bar take the same room, so starting a selection on Photos doesn't shift the grid.
+        val barRoom = if (title != null || floatingActions != null) TopBarHeight + 20.dp else 12.dp
         val contentPadding = PaddingValues(
             start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
             end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
-            top = insets.calculateTopPadding() + TopBarHeight + 20.dp,
+            top = insets.calculateTopPadding() + barRoom,
             bottom = insets.calculateBottomPadding() + 24.dp,
         )
         Box(
@@ -117,6 +123,27 @@ fun GlassScreen(
                 .height(insets.calculateTopPadding() + 20.dp)
                 .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
         )
+        val barPadding = Modifier.padding(
+            start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
+            end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
+            top = insets.calculateTopPadding() + 8.dp,
+        )
+        if (title == null) {
+            if (floatingActions != null) {
+                Row(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .then(barPadding)
+                        .heightIn(min = TopBarHeight)
+                        .glassChrome(RoundedCornerShape(percent = 50), elevation = 10.dp)
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    content = floatingActions,
+                )
+            }
+            return@Box
+        }
         GlassTopBar(
             title = title,
             subtitle = subtitle,
@@ -182,9 +209,12 @@ private fun GlassTopBar(
     }
 }
 
-/** A vertically scrolling list screen (Backup, Family, Settings). Cards are capped in width on wide windows. */
+/**
+ * A vertically scrolling list screen. Main sections (Backup, Family, Settings) pass a null [title] and have no top
+ * bar; pages opened on top keep theirs, with a back button. Cards are capped in width on wide windows.
+ */
 @Composable
-fun GlassListScreen(title: String, subtitle: String?, onBack: (() -> Unit)? = null, items: LazyListScope.() -> Unit) {
+fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = null, items: LazyListScope.() -> Unit) {
     GlassScreen(title, subtitle, onBack = onBack) { padding ->
         val listState = rememberLazyListState()
         ScrollToTopEffect(listState)

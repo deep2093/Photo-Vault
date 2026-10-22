@@ -57,7 +57,7 @@ fun BackupScreen(drive: DriveState) {
     var photos by rememberSaveable { mutableStateOf(true) }
     var videos by rememberSaveable { mutableStateOf(true) }
 
-    GlassListScreen(title = "Backup", subtitle = "Last backup today, 2:04 am") {
+    GlassListScreen(title = null, subtitle = null) {
         item {
             GlassCard(Modifier.cardWidth()) {
                 Text("Backing up", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

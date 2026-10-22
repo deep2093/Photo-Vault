@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.produceState
@@ -34,6 +32,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -141,8 +142,9 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
         val density = LocalDensity.current
-        val panelHeight = maxHeight * DETAILS_SHARE
-        val panelPx = with(density) { panelHeight.toPx() }
+        // The panel is as tall as its (compact) details; until measured, assume about 40% of the screen.
+        var measuredPanelPx by remember { mutableStateOf(0) }
+        val panelPx = if (measuredPanelPx > 0) measuredPanelPx.toFloat() else with(density) { (maxHeight * DETAILS_SHARE).toPx() }
         fun settle(velocity: Float) {
             // Open past a third of the way, or on an upward fling; close otherwise.
             val open = if (kotlin.math.abs(velocity) > 800f) velocity < 0 else progress.value > 0.33f
@@ -190,7 +192,8 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(panelHeight)
+                    .heightIn(max = maxHeight * 0.7f)
+                    .onSizeChanged { measuredPanelPx = it.height }
                     .graphicsLayer {
                         translationY = (1f - progress.value) * panelPx
                         alpha = (progress.value * 3f).coerceIn(0f, 1f)
@@ -229,7 +232,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 }
 
 private const val DETAILS_MS = 320
-private const val DETAILS_SHARE = 0.56f
+private const val DETAILS_SHARE = 0.4f
 
 private val THUMB_W = 42.dp
 private val THUMB_H = 56.dp
@@ -334,7 +337,8 @@ private fun ViewerActions(
 }
 
 /**
- * The details panel, laid out like Samsung Gallery's: when and what, then camera and exposure, then where.
+ * The details panel, laid out like Samsung Gallery's but compact (feedback 23 Oct): it fits without scrolling,
+ * so a swipe down anywhere on it closes it. When and what, then camera and exposure, then where.
  * Always dark, because it sits below the photo on the viewer's black background.
  */
 @Composable
@@ -348,26 +352,32 @@ private fun DetailsPanel(
     val details by produceState<MediaDetails?>(null, item.id) { value = source.details(item) }
     val white = Color(0xFFF5F5F7)
     val grey = Color(0xFFB8B8C0)
+    val body = MaterialTheme.typography.bodyMedium
     Column(
         modifier
             .background(Color(0xFF0B0B0D))
-            .verticalScroll(rememberScrollState())
-            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = bottomInset + 24.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = bottomInset + 16.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         // Drag handle: shows the panel can be swiped down.
         Box(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x55FFFFFF)))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         Text(fullDate(item), color = white, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(item.displayName, color = grey, style = MaterialTheme.typography.bodyMedium)
-        details?.folder?.let { Text(it, color = grey, style = MaterialTheme.typography.bodyMedium) }
+        Text(
+            listOfNotNull(item.displayName, details?.folder).joinToString("  ·  "),
+            color = grey,
+            style = body,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
 
         val d = details
-        val camera = d?.camera
-        Spacer(Modifier.height(16.dp))
-        if (camera != null) Text(camera, color = white, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        val lens = listOfNotNull(DetailsFormat.lensKind(d?.focalLength35mm), DetailsFormat.focal(d?.focalLength35mm, d?.focalLengthMm))
-        if (!item.isVideo && lens.isNotEmpty()) Text(lens.joinToString(" - "), color = grey, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(10.dp))
+        val camera = listOfNotNull(
+            d?.camera,
+            if (item.isVideo) null else DetailsFormat.lensKind(d?.focalLength35mm),
+        ).joinToString("  ·  ")
+        if (camera.isNotEmpty()) Text(camera, color = white, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(
             listOfNotNull(
                 DetailsFormat.size(item.sizeBytes),
@@ -375,7 +385,7 @@ private fun DetailsPanel(
                 if (item.isVideo) Timeline.duration(item.durationMillis) else DetailsFormat.megapixels(item.width, item.height),
             ).joinToString("  |  "),
             color = grey,
-            style = MaterialTheme.typography.bodyMedium,
+            style = body,
         )
         val exposure = if (item.isVideo) {
             listOfNotNull(DetailsFormat.frameRate(d?.frameRate), DetailsFormat.bitrate(d?.bitrate))
@@ -383,41 +393,44 @@ private fun DetailsPanel(
             listOfNotNull(
                 d?.iso?.let { "ISO $it" },
                 DetailsFormat.focal(d?.focalLength35mm, d?.focalLengthMm),
-                DetailsFormat.exposureBias(d?.exposureBias),
                 DetailsFormat.aperture(d?.aperture),
                 DetailsFormat.exposure(d?.exposureSeconds),
-                if (d?.flashFired == true) "Flash used" else null,
+                if (d?.flashFired == true) "Flash" else null,
             )
         }
-        if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = MaterialTheme.typography.bodyMedium)
+        if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-        Spacer(Modifier.height(16.dp))
-        LocationCard(d, item, actions, white, grey)
         Spacer(Modifier.height(12.dp))
-        Text("Backup: arrives with drive backup", color = grey, style = MaterialTheme.typography.bodySmall)
+        LocationRow(d, item, actions, white, grey)
     }
 }
 
+/** One compact row: where the photo was taken, with Open in Maps. */
 @Composable
-private fun LocationCard(d: MediaDetails?, item: MediaItem, actions: MediaActions, white: Color, grey: Color) {
+private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions, white: Color, grey: Color) {
     val lat = d?.latitude
     val lon = d?.longitude
+    val shape = RoundedCornerShape(16.dp)
     when {
         d == null -> Unit
         lat != null && lon != null -> Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(shape)
                 .background(Color(0xFF1C1C21))
-                .padding(16.dp),
+                .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.Place, null, tint = white)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(DetailsFormat.coordinates(lat, lon), color = white, style = MaterialTheme.typography.bodyMedium)
-                Text("Map and street address arrive with Places", color = grey, style = MaterialTheme.typography.bodySmall)
-            }
+            Icon(Icons.Rounded.Place, null, tint = white, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                DetailsFormat.coordinates(lat, lon),
+                color = white,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 "Open in Maps",
                 color = Color(0xFF8AB4FF),
@@ -425,26 +438,23 @@ private fun LocationCard(d: MediaDetails?, item: MediaItem, actions: MediaAction
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(role = Role.Button) { actions.openMap(lat, lon, item.displayName) }
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
             )
         }
         d.locationHidden -> Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(shape)
                 .background(Color(0xFF1C1C21))
                 .clickable(role = Role.Button) { actions.requestLocationAccess() }
-                .padding(16.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.Place, null, tint = white)
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text("Show where photos were taken", color = white, style = MaterialTheme.typography.bodyMedium)
-                Text("Allow PhotoVault to read photo locations. They stay on your phone.", color = grey, style = MaterialTheme.typography.bodySmall)
-            }
+            Icon(Icons.Rounded.Place, null, tint = white, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("Show where photos were taken", color = white, style = MaterialTheme.typography.bodySmall)
         }
-        else -> Text("No location saved in this ${if (item.isVideo) "video" else "photo"}", color = grey, style = MaterialTheme.typography.bodySmall)
+        else -> Text("No location saved", color = grey, style = MaterialTheme.typography.bodySmall)
     }
 }
 

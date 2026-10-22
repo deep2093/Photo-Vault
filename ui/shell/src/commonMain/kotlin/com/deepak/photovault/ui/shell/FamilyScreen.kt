@@ -106,11 +106,7 @@ fun FamilyScreen(state: ShellState, drive: DriveState) {
     }
 
     val joined = drive.joined
-    GlassListScreen(
-        title = "Family",
-        subtitle = joined?.let { "${it.household.members.size} ${if (it.household.members.size == 1) "person" else "people"} share this drive" }
-            ?: if (drive.isSetUp) "Not joined yet" else "No drive connected",
-    ) {
+    GlassListScreen(title = null, subtitle = null) {
         if (joined == null) {
             item { NotConnectedCard(state, drive) }
             item { PrivacyCard() }
