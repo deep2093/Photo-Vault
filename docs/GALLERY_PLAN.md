@@ -4,7 +4,11 @@ Source: Deepak's brief "Pixallery: Apple Photos-Inspired Gallery Experience, Ani
 reference video (Dan's Tutorials, "Browsing the iPad Photo Library", iPadOS 26). The video itself could not be
 watched from here; its chapter list and written guides to the same Photos app were used instead.
 
-Status: **plan only, nothing built.** Waiting for answers to the questions at the end.
+Status: **plan only, nothing built.** Deepak's answers (24 Oct):
+- Photos becomes **Years / Months / All** (replacing the Day / Month / Year pill).
+- Phone navigation: **Photos | Collections | Backup | Family**, with Settings behind a button.
+- Themes: add **Follow system** (a chosen light and dark theme that switch with the phone's dark mode).
+- Timing: **wait**. Test Phase 4 first, then decide when to build.
 
 ## How Apple's Library works (what we learn from it)
 
