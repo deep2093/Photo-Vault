@@ -22,4 +22,9 @@ Not built yet. Added 23 Oct 2026 during Phase 4 testing.
       (screens, settings, About, strings, icon labels). Repo, package and code names stay PhotoVault for now;
       credits to the Veyra app's code in docs stay as history.
 
+- [ ] Tablet side menu: the "PhotoVault" label at the top becomes "Pixallery" (name from the rename item above).
+- [ ] Tablet side menu: more compact, and see-through like it floats on a sheet of glass in the Transparent theme.
+- [ ] Tablet option (Settings > Appearance): move the navigation from the side to a floating bar at the bottom
+      centre, as on phones. Side stays the default on tablets; saved per device.
+
 (More bugs from testing go here.)
