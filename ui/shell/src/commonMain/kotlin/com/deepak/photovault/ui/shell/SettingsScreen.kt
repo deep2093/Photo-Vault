@@ -1,5 +1,7 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -333,9 +335,12 @@ private fun AboutSection(state: ShellState) {
         SettingsRow(Icons.Rounded.AutoAwesome, "What's new", "See what changed in this update") { state.intro.open(IntroKind.WHATS_NEW) }
         SettingsRow(Icons.Rounded.Explore, "Welcome tour", "A quick look around the app") { state.intro.open(IntroKind.TOUR) }
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
+        InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")
-        InfoRow(Icons.Rounded.VpnKey, "Invites", "Next")
+        InfoRow(Icons.Rounded.PersonAdd, "Invites", "Done")
+        InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Open with Pixallery", "Done")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")
+        InfoRow(Icons.Rounded.Place, "Places and people", "Phase 7")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
     }
 }

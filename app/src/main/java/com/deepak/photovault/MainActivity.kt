@@ -294,6 +294,8 @@ class MainActivity : ComponentActivity(), MediaActions {
                 }
                 if (pagePulled) backScope.launch { state.finishBack() } else state.back()
             }
+            // What's new and the tour wait until the opening animation has finished.
+            androidx.compose.runtime.LaunchedEffect(showIntro, introIcon) { if (!(showIntro && introIcon != null)) state.intro.start() }
             Box(Modifier.fillMaxSize()) {
                 PhotoVaultApp(state, gallery, this@MainActivity, drive, backup, signals, iconSwitcher)
                 if (showIntro && introIcon != null) {
@@ -301,7 +303,7 @@ class MainActivity : ComponentActivity(), MediaActions {
                         icon = introIcon,
                         glyph = glyph,
                         background = if (dark) androidx.compose.ui.graphics.Color(0xFF0B0E14) else androidx.compose.ui.graphics.Color(0xFFF7F9FC),
-                        onDone = { showIntro = false },
+                        onDone = { showIntro = false; shell.intro.start() },
                     )
                 }
             }
@@ -357,13 +359,33 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
     }
 
+    /** A file another app opened with Pixallery that isn't a photo: an invite starts the join screen. */
+    private fun openInviteFile(uri: Uri) {
+        val text = runCatching {
+            contentResolver.openInputStream(uri)?.use { it.readBytes().take(64 * 1024).toByteArray().decodeToString() }
+        }.getOrNull()?.trim()
+        when {
+            text == null || !com.deepak.photovault.core.household.Invite.looksLikeInvite(text) ->
+                toast("That file isn't a Pixallery invite.")
+            drive.joined != null -> toast("This phone is already in a family.")
+            else -> {
+                shell.pendingInvite = text
+                shell.overlays.clear()
+                shell.open(Overlay.DriveSetup)
+            }
+        }
+    }
+
     override fun openDefaultAppSettings() {
         runCatching { startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) }
             .onFailure { runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) } }
     }
 
     private fun openFromIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW && intent.data != null) openExternal(intent)
+        if (intent?.action == Intent.ACTION_VIEW && intent.data != null) {
+            val type = intent.type ?: contentResolver.getType(intent.data!!).orEmpty()
+            if (type.startsWith("image/") || type.startsWith("video/")) openExternal(intent) else openInviteFile(intent.data!!)
+        }
         if (intent?.getBooleanExtra(EXTRA_OPEN_FAMILY, false) == true) {
             shell.overlays.clear()
             shell.destination = Destination.FAMILY

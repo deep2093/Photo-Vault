@@ -64,6 +64,25 @@
                 <data android:mimeType="image/*" />
                 <data android:mimeType="video/*" />
             </intent-filter>
+            <!-- An invite file (25 Oct): tapping it in WhatsApp or Files offers Pixallery. Unknown file types
+                 also list Pixallery; it then says the file is not an invite. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/vnd.pixallery.invite" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.pxinvite" />
+            </intent-filter>
         </activity>
 
         <!-- Lets other apps read a drive-only photo that is being shared (copied to the cache for a moment). -->

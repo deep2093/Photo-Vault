@@ -75,6 +75,8 @@ internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Un
     var forName by rememberSaveable { mutableStateOf("") }
     var validFor by rememberSaveable { mutableStateOf(1) }
     var code by rememberSaveable { mutableStateOf(Invite.newCode()) }
+    var useCode by rememberSaveable { mutableStateOf(true) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     var wireGuard by remember { mutableStateOf<String?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     var made by remember { mutableStateOf<String?>(null) }
@@ -85,10 +87,15 @@ internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Un
         val text = made
         when {
             text != null -> {
-                Text("Invite ready. Send the file or QR, and tell them this code another way (a call or a different chat):", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-                Text(code, color = theme.onGlass, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
+                if (useCode) {
+                    Text("Invite ready. Send the file or QR, and tell them this code another way (a call or a different chat):", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                    Text(code, color = theme.onGlass, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp))
+                } else {
+                    Text("Invite ready. It has no code, so send it only to the person it is for.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 8.dp))
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassButton("Share invite file", primary = true, icon = Icons.Rounded.Share, onClick = { platform.shareInviteFile(text) })
+                    GlassButton("Copy text", onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(text)) })
                 }
                 platform.qr(text)?.let { QrView(it, Modifier.padding(top = 12.dp)) }
                     ?: Text("This invite is too big for a QR code (the WireGuard file is long). Send the file instead.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
@@ -109,7 +116,14 @@ internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Un
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     VALID_FOR.forEachIndexed { i, (label, _) -> GlassChip(label, selected = validFor == i, onClick = { validFor = i }) }
                 }
-                GlassTextField(code, { code = it.uppercase().take(12) }, "Code", supporting = "Tell them this code another way. Letters and numbers, at least 6.")
+                com.deepak.photovault.designsystem.GlassSwitchRow(
+                    "Lock with a code",
+                    useCode,
+                    { useCode = it },
+                    description = "Recommended. Without a code, anyone who gets the file can join once, until it runs out.",
+                    warning = "No code: send this only to the person it is for, privately.",
+                )
+                if (useCode) GlassTextField(code, { code = it.uppercase().take(12) }, "Code", supporting = "Tell them this code another way. Letters and numbers, at least 6.")
                 GlassButton(
                     if (wireGuard == null) "Attach WireGuard file (for away from home)" else "WireGuard file attached. Replace",
                     icon = Icons.Rounded.AttachFile,
@@ -120,11 +134,11 @@ internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Un
                     GlassButton("Cancel", onClick = { open = false })
                     GlassButton(if (drive.busy) "Making..." else "Make invite", primary = true, onClick = {
                         problem = null
-                        if (Invite.cleanCode(code).length < 6) {
+                        if (useCode && Invite.cleanCode(code).length < 6) {
                             problem = "The code needs at least 6 letters or numbers."
                         } else asOwner {
                             scope.launch {
-                                val (text, error) = drive.makeInvite(code, VALID_FOR[validFor].second, wireGuard, forName)
+                                val (text, error) = drive.makeInvite(if (useCode) code else null, VALID_FOR[validFor].second, wireGuard, forName)
                                 problem = error
                                 made = text
                             }
@@ -160,10 +174,13 @@ private fun QrView(squares: List<List<Boolean>>, modifier: Modifier = Modifier) 
 /** Joining with an invite (25 Oct): choose the file or scan the QR, type the code and your name. */
 @Composable
 internal fun InviteJoinCard(state: ShellState, drive: DriveState, onDone: () -> Unit, onCancel: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     val platform = state.invites
-    var text by remember { mutableStateOf<String?>(null) }
+    // An invite file opened from another app arrives here ready; otherwise it is chosen, scanned or pasted below.
+    var text by remember { mutableStateOf(state.pendingInvite) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { state.pendingInvite = null }
     var code by rememberSaveable { mutableStateOf("") }
     var name by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -177,6 +194,10 @@ internal fun InviteJoinCard(state: ShellState, drive: DriveState, onDone: () -> 
                         if (picked != null && Invite.looksLikeInvite(picked)) { text = picked.trim(); error = null } else if (picked != null) error = "That file isn't a Pixallery invite."
                     }
                 })
+                GlassButton("Paste", onClick = {
+                    val pasted = clipboard.getText()?.text?.trim().orEmpty()
+                    if (Invite.looksLikeInvite(pasted)) { text = pasted; error = null } else error = "Nothing copied here looks like a Pixallery invite."
+                })
                 if (platform.canScan) GlassButton("Scan QR", icon = Icons.Rounded.QrCodeScanner, onClick = {
                     platform.scanQr { scanned ->
                         if (scanned != null && Invite.looksLikeInvite(scanned)) { text = scanned.trim(); error = null } else if (scanned != null) error = "That QR code isn't a Pixallery invite."
@@ -184,8 +205,9 @@ internal fun InviteJoinCard(state: ShellState, drive: DriveState, onDone: () -> 
                 })
             }
         } else {
-            Text("Invite found. Type the code you were given, and your name.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-            GlassTextField(code, { code = it.uppercase().take(12) }, "Code")
+            val needsCode = Invite.needsCode(text.orEmpty())
+            Text(if (needsCode) "Invite found. Type the code you were given, and your name." else "Invite found. It needs no code. Type your name.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+            if (needsCode) GlassTextField(code, { code = it.uppercase().take(12) }, "Code")
             GlassTextField(name, { name = it.take(40) }, "Your name")
         }
         error?.let { WarningNote(it) }
@@ -193,7 +215,7 @@ internal fun InviteJoinCard(state: ShellState, drive: DriveState, onDone: () -> 
             GlassButton("Cancel", onClick = onCancel)
             if (text != null) GlassButton(if (drive.busy) "Joining..." else "Join", primary = true, onClick = {
                 error = when {
-                    Invite.cleanCode(code).length < 6 -> "Enter the code."
+                    Invite.needsCode(text.orEmpty()) && Invite.cleanCode(code).length < 6 -> "Enter the code."
                     name.isBlank() -> "Enter your name."
                     else -> null
                 }

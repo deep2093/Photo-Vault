@@ -131,7 +131,11 @@ class IntroState(private val store: IntroStore = MemoryIntroStore()) {
         private set
 
     /** Called once when the app opens. */
+    private var started = false
+
     fun start() {
+        if (started) return
+        started = true
         val d = IntroLogic.decide(store.seenId(), store.tourDone(), store.existingUser(), WhatsNew.ID)
         autoTour = d.show == IntroKind.TOUR
         showing = d.show

@@ -57,7 +57,7 @@ fun DriveSetupScreen(state: ShellState, drive: DriveState) {
     // Reconnect quietly when opened with a saved drive, so the family step shows straight away.
     LaunchedEffect(Unit) { if (drive.isSetUp && membership == null) drive.refresh() }
     var editing by rememberSaveable { mutableStateOf(!drive.isSetUp) }
-    var joinWithInvite by rememberSaveable { mutableStateOf(false) }
+    var joinWithInvite by rememberSaveable { mutableStateOf(state.pendingInvite != null) }
     GlassListScreen(
         title = if (editing || membership == null) "Connect your drive" else "Your family",
         subtitle = drive.connection?.takeIf { it.isComplete && !editing }?.let { "${it.host} / ${it.share} / ${it.folder}" },

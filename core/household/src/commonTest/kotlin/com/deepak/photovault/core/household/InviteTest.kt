@@ -39,4 +39,13 @@ class InviteTest {
         assertTrue(a != Invite.newCode())
         assertNotNull(Invite.unlock(Invite.lock(payload, a), a))
     }
+
+    @Test
+    fun anInviteWithoutACodeOpensWithoutOneAndStillHidesItsContents() {
+        val text = Invite.lock(payload, null)
+        assertTrue(Invite.looksLikeInvite(text) && !Invite.needsCode(text))
+        assertFalse(text.contains("secret-password"))
+        assertEquals(payload, Invite.unlock(text))
+        assertTrue(Invite.needsCode(Invite.lock(payload, "K7QD-M2XP")))
+    }
 }

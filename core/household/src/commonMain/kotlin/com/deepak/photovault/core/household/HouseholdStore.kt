@@ -122,7 +122,7 @@ class HouseholdStore(
     suspend fun createInvite(
         auth: OwnerAuth,
         drive: InviteDrive,
-        code: String,
+        code: String?,
         validForMillis: Long,
         wireGuard: String? = null,
         forName: String = "",

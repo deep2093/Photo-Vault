@@ -324,6 +324,9 @@ class ShellState(private val store: AppearanceStore) {
     /** Invites: files, QR drawing and scanning (Phase 5B-2). */
     var invites: InvitePlatform = NoInvitePlatform
 
+    /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
+    var pendingInvite by mutableStateOf<String?>(null)
+
     fun updateAppearance(change: (AppearanceSettings) -> AppearanceSettings) {
         appearance = change(appearance)
         store.save(appearance)

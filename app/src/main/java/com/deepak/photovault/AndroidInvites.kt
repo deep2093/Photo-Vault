@@ -33,7 +33,7 @@ class AndroidInvites(
         val file = File(dir, "Pixallery-invite.pxinvite").apply { writeText(text) }
         val uri = androidx.core.content.FileProvider.getUriForFile(activity, "${activity.packageName}.files", file)
         val send = Intent(Intent.ACTION_SEND)
-            .setType("application/octet-stream")
+            .setType("application/vnd.pixallery.invite")
             .putExtra(Intent.EXTRA_STREAM, uri)
             .putExtra(Intent.EXTRA_TEXT, "Your Pixallery invite. Open it in Pixallery: Connect your drive > I have an invite. I'll tell you the code separately.")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

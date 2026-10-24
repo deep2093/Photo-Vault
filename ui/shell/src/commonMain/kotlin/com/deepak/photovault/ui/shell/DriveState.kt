@@ -308,7 +308,7 @@ class DriveState(private val platform: DrivePlatform) {
     // ---- Invites (25 Oct) ----
 
     /** Owner: makes an invite. Returns its text (to share as file or QR) or a problem. */
-    suspend fun makeInvite(code: String, validForMillis: Long, wireGuard: String?, forName: String): Pair<String?, String?> {
+    suspend fun makeInvite(code: String?, validForMillis: Long, wireGuard: String?, forName: String): Pair<String?, String?> {
         var text: String? = null
         val error = guarded {
             if (!ownerUnlocked) throw NotAllowed("Enter the owner PIN first")

@@ -40,6 +40,10 @@ data class InvitePayload(
  */
 object Invite {
     private const val PREFIX = "PXINV1."
+
+    /** An invite the owner made without a code (25 Oct): anyone holding the file can use it once, until it runs out. */
+    private const val OPEN_PREFIX = "PXINV0."
+    private const val OPEN_CODE = "PIXALLERY-NO-CODE"
     private const val ITERATIONS = 120_000
     private val json = Json { ignoreUnknownKeys = true }
     private const val ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -54,27 +58,31 @@ object Invite {
     /** Capitals, no spaces or dashes, so "k7qd m2xp" and "K7QD-M2XP" are the same code. */
     fun cleanCode(code: String): String = code.uppercase().filter { it.isLetterOrDigit() }
 
-    fun looksLikeInvite(text: String): Boolean = text.trim().startsWith(PREFIX)
+    fun looksLikeInvite(text: String): Boolean = text.trim().let { it.startsWith(PREFIX) || it.startsWith(OPEN_PREFIX) }
+
+    /** False for an invite made without a code. */
+    fun needsCode(text: String): Boolean = !text.trim().startsWith(OPEN_PREFIX)
 
     @OptIn(ExperimentalEncodingApi::class)
-    fun lock(payload: InvitePayload, code: String): String {
-        val clean = cleanCode(code)
-        require(clean.length >= 6) { "The code needs at least 6 letters or numbers" }
+    fun lock(payload: InvitePayload, code: String?): String {
+        val clean = if (code == null) OPEN_CODE else cleanCode(code)
+        require(code == null || clean.length >= 6) { "The code needs at least 6 letters or numbers" }
         val salt = secureRandomBytes(16)
         val nonce = secureRandomBytes(12)
         val key = pbkdf2Sha256(clean, salt, ITERATIONS, 32)
         val sealed = aesGcmSeal(key, nonce, json.encodeToString(InvitePayload.serializer(), payload).encodeToByteArray())
-        return PREFIX + Base64.UrlSafe.encode(salt + nonce + sealed)
+        return (if (code == null) OPEN_PREFIX else PREFIX) + Base64.UrlSafe.encode(salt + nonce + sealed)
     }
 
     /** The invite's contents, or null when the code is wrong or the text is damaged. */
     @OptIn(ExperimentalEncodingApi::class)
-    fun unlock(text: String, code: String): InvitePayload? {
+    fun unlock(text: String, code: String = ""): InvitePayload? {
         val trimmed = text.trim()
-        if (!trimmed.startsWith(PREFIX)) return null
-        val raw = runCatching { Base64.UrlSafe.decode(trimmed.removePrefix(PREFIX)) }.getOrNull() ?: return null
+        val open = trimmed.startsWith(OPEN_PREFIX)
+        if (!open && !trimmed.startsWith(PREFIX)) return null
+        val raw = runCatching { Base64.UrlSafe.decode(trimmed.removePrefix(if (open) OPEN_PREFIX else PREFIX)) }.getOrNull() ?: return null
         if (raw.size < 16 + 12 + 16) return null
-        val key = pbkdf2Sha256(cleanCode(code), raw.copyOfRange(0, 16), ITERATIONS, 32)
+        val key = pbkdf2Sha256(if (open) OPEN_CODE else cleanCode(code), raw.copyOfRange(0, 16), ITERATIONS, 32)
         val plain = aesGcmOpen(key, raw.copyOfRange(16, 28), raw.copyOfRange(28, raw.size)) ?: return null
         return runCatching { json.decodeFromString(InvitePayload.serializer(), plain.decodeToString()) }.getOrNull()
     }

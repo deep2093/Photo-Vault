@@ -158,7 +158,6 @@ fun PhotoVaultApp(
     // Photos that are only on the drive go to the drive's Recently deleted; the rest go to the phone's.
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val actions = remember(phoneActions, drive, gallery, backup) { DriveAwareActions(phoneActions, drive, gallery, backup, scope) }
-    LaunchedEffect(state) { state.intro.start() }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
     // Check the family drive when the app opens, then every minute while it is on screen, so Backup, Family and
@@ -215,6 +214,7 @@ fun PhotoVaultApp(
                     DeleteFlightLayer(LocalDeleteFlight.current)
                     DeletePromptHost(LocalDeletePrompt.current)
                     IntroHost(state.intro)
+                    JoinRequestPrompt(drive, signals.foreground)
                 }
             }
         }
@@ -226,6 +226,9 @@ fun PhotoVaultApp(
 private class PageEntry(val overlay: Overlay, shown: Float) {
     val p = Animatable(shown)
     var closing by mutableStateOf(false)
+
+    /** The slide in progress. Closing cancels it, so a quick open-then-close can't have the old slide-in win. */
+    var slide: kotlinx.coroutines.Job? = null
 }
 
 /**
@@ -264,7 +267,8 @@ private fun OverlayHost(
             if (skip || reduceMotion) {
                 entries.remove(entry)
             } else {
-                scope.launch {
+                entry.slide?.cancel()
+                entry.slide = scope.launch {
                     entry.p.animateTo(0f, pageSpec(entry.overlay))
                     entries.remove(entry)
                 }
@@ -274,11 +278,12 @@ private fun OverlayHost(
             val entry = PageEntry(overlay, if (reduceMotion) 1f else 0f)
             entries.add(entry)
             if (!reduceMotion) {
-                scope.launch {
+                entry.slide = scope.launch {
                     // Let the new page be built first, so building it never eats into the movement.
                     withFrameNanos { }
                     withFrameNanos { }
-                    entry.p.animateTo(1f, pageSpec(overlay))
+                    // Closed again before it even started (a very quick tap in and out): leave it to the closing slide.
+                    if (!entry.closing) entry.p.animateTo(1f, pageSpec(overlay))
                 }
             }
         }
