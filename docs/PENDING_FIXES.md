@@ -76,9 +76,9 @@ bar option on tablets only; short setup tips now; videos off by default).
       Recently deleted; full screen viewer; owner's new phone joins with the PIN; Leaf icon by default; finding
       the drive at a new address; album covers of 1-4 photos; reorder albums; press-and-hold albums; moving GIFs;
       pull down to refresh; one backup at a time across the family with the Family dot; album folders on the
-      drive.
+      drive; experimental Aurora Glass and Crystal Glass themes (light and dark).
 - [x] Album covers of 1 to 4 photos (built 24 Oct, in the press-and-hold Albums bar).
-- [ ] Point 8 of the 24 Oct list was cut off ("inside album and any album have option to"): ask Deepak.
+- [x] Point 8 of the 24 Oct list: answered 24 Oct (it was the album header and bar, already built).
 - [ ] What's new (asked 24 Oct, next build, then every build with a feature change): when the app opens after an
       update that added or changed features, a small pop-up says so (features only, never fixes) with "See what's
       new" and "Skip". "See what's new" opens a page explaining each change. Once seen or skipped it doesn't come

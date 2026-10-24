@@ -98,9 +98,27 @@ class ThemeCatalogTest {
     fun transparentIsTheDefaultAndDarkThemesAreMidnightAndAdaptive() {
         assertEquals(GlassThemes.Transparent, GlassThemes.default)
         assertEquals(
-            listOf(GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID),
+            listOf(
+                GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
+                GlassThemeId.AURORA_GLASS_DARK, GlassThemeId.CRYSTAL_GLASS_DARK,
+            ),
             GlassThemes.all.filter { it.isDark }.map { it.id },
         )
+    }
+
+    @Test
+    fun experimentalThemesAreLightAndDarkPairsNeverTheDefaultAndReallyDifferent() {
+        val e = GlassThemes.experimental
+        assertEquals(listOf("Aurora Glass Light", "Aurora Glass Dark", "Crystal Glass Light", "Crystal Glass Dark"), e.map { it.displayName })
+        assertEquals(listOf(false, true, false, true), e.map { it.isDark })
+        assertTrue(e.none { it == GlassThemes.default })
+        assertTrue(e.all { it.adaptive == null })
+        // The package's two blur sizes, and Crystal has no grain while Aurora keeps some.
+        assertEquals(26f, GlassThemes.AuroraGlassLight.blurRadius.value)
+        assertEquals(18f, GlassThemes.CrystalGlassLight.blurRadius.value)
+        assertTrue(GlassThemes.AuroraGlassDark.grain > GlassThemes.CrystalGlassDark.grain)
+        assertTrue(e.map { it.accent }.toSet().size == 4)
+        assertEquals(GlassThemes.CrystalGlassDark, GlassThemes.byId("CRYSTAL_GLASS_DARK"))
     }
 
     @Test

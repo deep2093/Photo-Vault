@@ -9,6 +9,8 @@ import androidx.compose.ui.unit.dp
 enum class GlassThemeId {
     AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS, TRANSLUCENT,
     ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
+    /** Experimental (24 Oct), from the Aurora / Crystal design package. */
+    AURORA_GLASS_LIGHT, AURORA_GLASS_DARK, CRYSTAL_GLASS_LIGHT, CRYSTAL_GLASS_DARK,
 }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
@@ -290,10 +292,118 @@ object GlassThemes {
         blurRadius = 20.dp,
         grain = 0f,
     )
+
+    /**
+     * Experimental (24 Oct), from the Aurora / Crystal design package. The package's numbers are the starting
+     * point (blur 26 dp / 18 dp, corner looks, colours); the glass tint is made more solid than the package's
+     * 0.38-0.62 so the contrast tests still pass over any photo. Aurora is colourful and luminous; Crystal is
+     * neutral, with no grain and a thin quiet rim. Never the default.
+     */
+    val AuroraGlassLight = GlassTheme(
+        id = GlassThemeId.AURORA_GLASS_LIGHT,
+        displayName = "Aurora Glass Light",
+        bestFor = "Experimental: luminous blue, cyan and violet glass",
+        isDark = false,
+        wallpaper = listOf(Color(0xFFE3F1FF), Color(0xFFF2F7FF), Color(0xFFE4E0FF)),
+        glows = listOf(
+            Glow(0.9f, 0.05f, 0.7f, Color(0x4D5AC8FA)),
+            Glow(0.05f, 0.7f, 0.75f, Color(0x407C78FF)),
+            Glow(0.5f, 0.35f, 0.4f, Color(0x80FFFFFF)),
+        ),
+        glassTint = Color(0xCCC4E0FF),
+        glassFallback = Color(0xF2EAF4FF),
+        glassRim = Color(0xFF6FA8E8),
+        onGlass = Color(0xFF061F40),
+        onGlassSecondary = Color(0xFF1F3A5F),
+        accent = Color(0xFF0A4FA8),
+        onAccent = Color(0xFFFFFFFF),
+        badgeBackedUp = Color(0xFF1B6E45),
+        badgePhoneOnly = Color(0xFF8A4B00),
+        badgeOnDrive = Color(0xFF0A4FA8),
+        onBadge = Color(0xFFFFFFFF),
+        sampleHues = listOf(Color(0xFF79B7D8), Color(0xFF9675B6), Color(0xFF5AA0E0), Color(0xFFB4C8F5), Color(0xFF7C78FF)),
+        blurRadius = 26.dp,
+        grain = 0.03f,
+    )
+
+    val AuroraGlassDark = GlassTheme(
+        id = GlassThemeId.AURORA_GLASS_DARK,
+        displayName = "Aurora Glass Dark",
+        bestFor = "Experimental: luminous glass on a deep blue night",
+        isDark = true,
+        wallpaper = listOf(Color(0xFF060C24), Color(0xFF0C1D4A), Color(0xFF1B1250)),
+        glows = listOf(
+            Glow(0.9f, 0.05f, 0.75f, Color(0x4D70E7FF)),
+            Glow(0.05f, 0.8f, 0.8f, Color(0x4D7C78FF)),
+        ),
+        glassTint = Color(0xC70F2A5E),
+        glassFallback = Color(0xF210264F),
+        glassRim = Color(0xFF70E7FF),
+        onGlass = Color(0xFFFFFFFF),
+        onGlassSecondary = Color(0xFFC9D9F5),
+        accent = Color(0xFF70E7FF),
+        onAccent = Color(0xFF00232E),
+        badgeBackedUp = Color(0xFF1B6E45),
+        badgePhoneOnly = Color(0xFF8A4B00),
+        badgeOnDrive = Color(0xFF3A4FC4),
+        onBadge = Color(0xFFFFFFFF),
+        sampleHues = listOf(Color(0xFF193A7B), Color(0xFF3B2F9A), Color(0xFF1268D9), Color(0xFF2A6FB5), Color(0xFF5A4FD0)),
+        blurRadius = 26.dp,
+        grain = 0.03f,
+    )
+
+    val CrystalGlassLight = GlassTheme(
+        id = GlassThemeId.CRYSTAL_GLASS_LIGHT,
+        displayName = "Crystal Glass Light",
+        bestFor = "Experimental: neutral, photo-first glass",
+        isDark = false,
+        wallpaper = listOf(Color(0xFFF2F4F6), Color(0xFFE9EDF1), Color(0xFFF8F9FB)),
+        glows = listOf(Glow(0.5f, 0.2f, 0.7f, Color(0x80FFFFFF))),
+        glassTint = Color(0xC7F5F7F9),
+        glassFallback = Color(0xCCF7F9FB),
+        glassRim = Color(0xFFB3BDC8),
+        onGlass = Color(0xFF1C2733),
+        onGlassSecondary = Color(0xFF2F3C4A),
+        accent = Color(0xFF1748A0),
+        onAccent = Color(0xFFFFFFFF),
+        badgeBackedUp = Color(0xFF1B6E45),
+        badgePhoneOnly = Color(0xFF8A4B00),
+        badgeOnDrive = Color(0xFF4A5568),
+        onBadge = Color(0xFFFFFFFF),
+        sampleHues = listOf(Color(0xFFB8C2CC), Color(0xFF9AA5B1), Color(0xFFD0D6DC), Color(0xFF7D8894), Color(0xFFC4CCD4)),
+        blurRadius = 18.dp,
+        grain = 0f,
+    )
+
+    val CrystalGlassDark = GlassTheme(
+        id = GlassThemeId.CRYSTAL_GLASS_DARK,
+        displayName = "Crystal Glass Dark",
+        bestFor = "Experimental: neutral dark glass over your photos",
+        isDark = true,
+        wallpaper = listOf(Color(0xFF0B0C0E), Color(0xFF16181B), Color(0xFF1F2226)),
+        glows = listOf(Glow(0.5f, 0.2f, 0.7f, Color(0x1AFFFFFF))),
+        glassTint = Color(0xC224272B),
+        glassFallback = Color(0xCC1E2125),
+        glassRim = Color(0xFF8A94A0),
+        onGlass = Color(0xFFFFFFFF),
+        onGlassSecondary = Color(0xFFDCE3EA),
+        accent = Color(0xFFDCE8F3),
+        onAccent = Color(0xFF101820),
+        badgeBackedUp = Color(0xFF1B6E45),
+        badgePhoneOnly = Color(0xFF8A4B00),
+        badgeOnDrive = Color(0xFF4A5568),
+        onBadge = Color(0xFFFFFFFF),
+        sampleHues = listOf(Color(0xFF3A3F45), Color(0xFF4F565D), Color(0xFF2A2E33), Color(0xFF62696F), Color(0xFF454B52)),
+        blurRadius = 18.dp,
+        grain = 0f,
+    )
+
     /** Frosted and Crystal were removed (24 Oct); anyone using them moves to the default. */
     val fixed: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass)
     val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight, Transparent)
-    val all: List<GlassTheme> = fixed + adaptiveThemes
+    /** Shown in their own "Experimental" row in Settings. Never the default, never picked for anyone automatically. */
+    val experimental: List<GlassTheme> = listOf(AuroraGlassLight, AuroraGlassDark, CrystalGlassLight, CrystalGlassDark)
+    val all: List<GlassTheme> = fixed + adaptiveThemes + experimental
     /** Transparent for everyone who hasn't picked a theme (decided 24 Oct; was Aurora Frost). */
     val default: GlassTheme = Transparent
 
