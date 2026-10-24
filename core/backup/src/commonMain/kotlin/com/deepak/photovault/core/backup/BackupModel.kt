@@ -27,6 +27,10 @@ data class BackupRecord(
     val fileName: String get() = drivePath.substringAfterLast('/')
 }
 
+/** A backup moved to the drive's Recently deleted (30 days), with the record it needs to come back. */
+@Serializable
+data class TrashedBackup(val record: BackupRecord, val trashPath: String, val deletedAtMillis: Long)
+
 /** A batch of records, saved as its own file on the drive (create-new, never edited). */
 @Serializable
 data class Manifest(

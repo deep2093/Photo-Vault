@@ -79,6 +79,44 @@ class BackupEngineTest {
     }
 
     @Test
+    fun recentlyDeletedOnTheDriveKeepsTheFileFor30DaysAndRestoresIt() = runTest {
+        run(engine(), listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg")))
+        val catalog = BackupCatalog(drive, USER)
+        val first = catalog.records().single { it.originalName == "IMG_1.jpg" }
+        val day = 24L * 60 * 60 * 1000
+        catalog.trash(listOf(first), PHONE, clock)
+        // Gone from the list and its place, but kept.
+        assertEquals(listOf("IMG_2.jpg"), catalog.records().map { it.originalName })
+        assertFalse(drive.exists(first.drivePath))
+        val bin = catalog.trashed()
+        assertEquals(1, bin.size)
+        assertTrue(drive.exists(bin[0].trashPath))
+        // Not yet old enough to clear.
+        assertEquals(1, catalog.purgeExpired(clock + 29 * day).size)
+        // Restore: back in the same place, listed again.
+        catalog.restore(bin, PHONE, clock + 1000)
+        assertTrue(drive.exists(first.drivePath))
+        assertEquals(setOf("IMG_1.jpg", "IMG_2.jpg"), catalog.records().map { it.originalName }.toSet())
+        assertTrue(catalog.trashed().isEmpty())
+    }
+
+    @Test
+    fun theDriveTrashClearsAfter30DaysAndDeleteForeverIsFinal() = runTest {
+        run(engine(), listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg")))
+        val catalog = BackupCatalog(drive, USER)
+        val all = catalog.records()
+        val day = 24L * 60 * 60 * 1000
+        catalog.trash(listOf(all[0]), PHONE, clock)
+        catalog.trash(listOf(all[1]), PHONE, clock + 20 * day)
+        val left = catalog.purgeExpired(clock + 31 * day)
+        assertEquals(1, left.size)
+        assertEquals(all[1].drivePath, left[0].record.drivePath)
+        catalog.deleteForever(left)
+        assertTrue(catalog.trashed().isEmpty())
+        assertFalse(drive.exists(left[0].trashPath))
+    }
+
+    @Test
     fun deletingFromTheDriveHidesItAndItCanBeBackedUpAgain() = runTest {
         val index = MemoryBackupIndex()
         val items = listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg"))

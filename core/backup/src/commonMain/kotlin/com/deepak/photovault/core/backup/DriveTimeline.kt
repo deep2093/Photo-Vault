@@ -58,6 +58,9 @@ object DriveTimeline {
                 )
             }
     }
+
+    /** A trashed backup as an item (same ID as before it was deleted), so Recently deleted can show and restore it. */
+    fun trashedItem(t: TrashedBackup): MediaItem = driveOnly(listOf(t.record), emptyList()).first().copy(uri = uriOf(t.trashPath))
 }
 
 /** True for a photo or video that is only on the family drive (not on this phone). */

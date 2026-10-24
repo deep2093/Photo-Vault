@@ -36,6 +36,9 @@ interface MediaActions {
     /** Open the phone's maps app at a photo's location. Nothing is looked up by PhotoVault itself. */
     fun openMap(latitude: Double, longitude: Double, label: String) = Unit
     fun share(items: List<MediaItem>)
+
+    /** Shares photos that are only on the drive: they are fetched to the phone first. */
+    fun shareDrive(items: List<MediaItem>) = Unit
     /** Android 12+: Pixallery may delete without Android's own pop-up ("manage media" allowed), so it asks itself. */
     fun canDeleteWithoutAsking(): Boolean = false
 
@@ -234,8 +237,20 @@ class GalleryState(
     var items by mutableStateOf<List<MediaItem>>(emptyList())
         private set
 
+    /** Recently deleted: the phone's, plus the drive's (photos deleted from the family drive keep 30 days too). */
     var trashed by mutableStateOf<List<TrashedItem>>(emptyList())
         private set
+
+    private var phoneTrash: List<TrashedItem> = emptyList()
+    private var driveTrash: List<TrashedItem> = emptyList()
+
+    /** The drive's Recently deleted was read. */
+    fun setDriveTrash(items: List<com.deepak.photovault.core.backup.TrashedBackup>) {
+        driveTrash = items.map {
+            TrashedItem(DriveTimeline.trashedItem(it), it.deletedAtMillis + com.deepak.photovault.core.backup.BackupCatalog.TRASH_DAYS * 24L * 60 * 60 * 1000)
+        }
+        trashed = (phoneTrash + driveTrash).sortedBy { it.expiresAtMillis }
+    }
 
     var albums by mutableStateOf<List<PhoneAlbum>>(emptyList())
         private set
@@ -269,7 +284,7 @@ class GalleryState(
 
     private fun recomputeDriveOnly() {
         // A photo in the phone's Recently deleted isn't "gone" yet, so it doesn't come back from the drive.
-        driveOnly = DriveTimeline.driveOnly(driveRecords, everything + trashed.map { it.item })
+        driveOnly = DriveTimeline.driveOnly(driveRecords, everything + phoneTrash.map { it.item })
     }
 
     fun setHidden(albumId: String, hidden: Boolean) {
@@ -329,7 +344,8 @@ class GalleryState(
 
     private fun setItems(all: List<MediaItem>, bin: List<TrashedItem>) {
         everything = all
-        trashed = bin.sortedBy { it.expiresAtMillis }
+        phoneTrash = bin
+        trashed = (phoneTrash + driveTrash).sortedBy { it.expiresAtMillis }
         recomputeDriveOnly()
         allAlbums = PhoneAlbums.from(all + driveOnly)
         applyVisible()
@@ -345,7 +361,10 @@ class GalleryState(
     fun dropNow(ids: Set<Long>) {
         if (ids.isEmpty()) return
         everything = everything.filterNot { it.id in ids }
+        phoneTrash = phoneTrash.filterNot { it.item.id in ids }
+        driveTrash = driveTrash.filterNot { it.item.id in ids }
         trashed = trashed.filterNot { it.item.id in ids }
+        driveOnly = driveOnly.filterNot { it.id in ids }
         applyVisible()
     }
 

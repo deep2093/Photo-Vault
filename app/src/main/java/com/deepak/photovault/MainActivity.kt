@@ -342,16 +342,38 @@ class MainActivity : ComponentActivity(), MediaActions {
     /** Photos that are only on the drive have no phone file to hand over yet; say so instead of failing. */
     private fun phoneOnly(all: List<MediaItem>): List<MediaItem> {
         val phone = all.filterNot { it.isDriveOnly }
-        if (phone.size < all.size) {
-            android.widget.Toast.makeText(this, "Photos that are only on the drive can't be shared or deleted from here yet.", android.widget.Toast.LENGTH_LONG).show()
-        }
         return phone
     }
 
     override fun share(all: List<MediaItem>) {
         val items = phoneOnly(all)
         if (items.isEmpty()) return
-        val uris = items.map { Uri.parse(it.uri) }
+        sendToOtherApps(items, items.map { Uri.parse(it.uri) })
+    }
+
+    /** Photos only on the drive: fetched to the phone first (a moment for big videos), then shared like any file. */
+    override fun shareDrive(items: List<MediaItem>) {
+        android.widget.Toast.makeText(this, "Getting the file from the drive…", android.widget.Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val uris = items.mapNotNull { item ->
+                val path = com.deepak.photovault.core.backup.DriveTimeline.pathOf(item.uri) ?: return@mapNotNull null
+                val source = DriveMedia.file(path) ?: return@mapNotNull null
+                runCatching {
+                    val dir = java.io.File(cacheDir, "drive-shared").apply { mkdirs() }
+                    val copy = java.io.File(dir, item.displayName.replace('/', '_'))
+                    source.copyTo(copy, overwrite = true)
+                    androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.files", copy)
+                }.getOrNull()
+            }
+            if (uris.isEmpty()) {
+                android.widget.Toast.makeText(this@MainActivity, "Couldn't get that from the drive. Check you're on the home Wi-Fi.", android.widget.Toast.LENGTH_LONG).show()
+            } else {
+                sendToOtherApps(items, uris)
+            }
+        }
+    }
+
+    private fun sendToOtherApps(items: List<MediaItem>, uris: List<Uri>) {
         val type = when {
             items.all { it.isVideo } -> "video/*"
             items.none { it.isVideo } -> "image/*"

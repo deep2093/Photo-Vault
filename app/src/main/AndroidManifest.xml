@@ -56,6 +56,17 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Lets other apps read a drive-only photo that is being shared (copied to the cache for a moment). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Shows what went wrong after an unexpected close, to copy or share (24 Oct). -->
         <activity
             android:name=".CrashActivity"

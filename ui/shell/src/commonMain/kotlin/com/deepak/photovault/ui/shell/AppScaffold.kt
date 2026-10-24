@@ -148,13 +148,16 @@ val LocalScreenInsets = staticCompositionLocalOf { PaddingValues(0.dp) }
 fun PhotoVaultApp(
     state: ShellState,
     gallery: GalleryState,
-    actions: MediaActions,
+    phoneActions: MediaActions,
     drive: DriveState,
     backup: BackupState,
     signals: PlatformSignals = PlatformSignals(),
     iconSwitcher: AppIconSwitcher = NoAppIconSwitcher,
 ) {
     setSingletonImageLoaderFactory { context -> createImageLoader(context) }
+    // Photos that are only on the drive go to the drive's Recently deleted; the rest go to the phone's.
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val actions = remember(phoneActions, drive, gallery) { DriveAwareActions(phoneActions, drive, gallery, scope) }
     LaunchedEffect(state) { state.intro.start() }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
@@ -171,9 +174,13 @@ fun PhotoVaultApp(
     // One timeline (Phase 5): read what the drive holds when the app opens and after each backup, and let Photos
     // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
     LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
-        if (signals.foreground && drive.joined != null) drive.loadBackupRecords(force = true)
+        if (signals.foreground && drive.joined != null) {
+            drive.loadBackupRecords(force = true)
+            drive.loadDriveTrash()
+        }
     }
     LaunchedEffect(gallery, drive.backupRecords) { drive.backupRecords?.let(gallery::setDriveRecords) }
+    LaunchedEffect(gallery, drive.driveTrash) { drive.driveTrash?.let(gallery::setDriveTrash) }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }

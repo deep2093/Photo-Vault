@@ -393,6 +393,55 @@ class DriveState(private val platform: DrivePlatform) {
         }
     }
 
+    /** What is in the drive's Recently deleted (30 days); null until read. */
+    var driveTrash by mutableStateOf<List<com.deepak.photovault.core.backup.TrashedBackup>?>(null)
+        private set
+
+    /** Reads the drive's Recently deleted and clears what is older than 30 days. */
+    suspend fun loadDriveTrash() {
+        val me = joined?.me ?: return
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
+        runCatching { BackupCatalog(fs, me.userId).purgeExpired(platform.now()) }.getOrNull()?.let { driveTrash = it }
+    }
+
+    /** Moves backups (by drive path) into the drive's Recently deleted. Returns an error, or null. */
+    suspend fun trashBackups(paths: Set<String>): String? {
+        val me = joined?.me ?: return "Join your family drive first."
+        val records = (backupRecords ?: myBackupRecords() ?: return "Couldn't read the drive.").filter { it.drivePath in paths }
+        return guarded {
+            val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+            val catalog = BackupCatalog(fs, me.userId)
+            catalog.trash(records, platform.deviceId, platform.now())
+            backupRecords = backupRecords?.filterNot { it.drivePath in paths }
+            driveTrash = catalog.trashed()
+        }
+    }
+
+    /** Brings backups back from the drive's Recently deleted ([trashPaths] are where they are now). */
+    suspend fun restoreBackups(trashPaths: Set<String>): String? {
+        val me = joined?.me ?: return "Join your family drive first."
+        val items = driveTrash.orEmpty().filter { it.trashPath in trashPaths }
+        return guarded {
+            val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+            val catalog = BackupCatalog(fs, me.userId)
+            catalog.restore(items, platform.deviceId, platform.now())
+            driveTrash = catalog.trashed()
+            backupRecords = catalog.records()
+        }
+    }
+
+    /** Deletes backups from the drive's Recently deleted for good. */
+    suspend fun deleteTrashedForever(trashPaths: Set<String>): String? {
+        val me = joined?.me ?: return "Join your family drive first."
+        val items = driveTrash.orEmpty().filter { it.trashPath in trashPaths }
+        return guarded {
+            val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+            val catalog = BackupCatalog(fs, me.userId)
+            catalog.deleteForever(items)
+            driveTrash = catalog.trashed()
+        }
+    }
+
     /**
      * Deletes the person's own backups at [paths] from the drive (23 Oct, after a warning). The phone is not
      * touched. Returns an error, or null.

@@ -136,6 +136,11 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             // Pull down at the top (24 Oct): reload the phone's photos and check the drive.
                             gallery.refresh()
                             drive.refresh()
+                            // And fetch what the drive holds (Phase 5A): new backups and the drive's Recently deleted.
+                            if (drive.joined != null) {
+                                drive.loadBackupRecords(force = true)
+                                drive.loadDriveTrash()
+                            }
                         }) { MediaGrid(
                             sections = sections,
                             state = state,

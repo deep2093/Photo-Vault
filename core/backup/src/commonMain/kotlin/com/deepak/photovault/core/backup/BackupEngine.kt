@@ -341,6 +341,113 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
         }
     }
 
+    // ---- Recently deleted on the drive (Phase 5A, 25 Oct): 30 days to change your mind ----
+
+    private val trashFolder = DrivePaths.join(userFolder, "trash")
+    private val trashFiles = DrivePaths.join(trashFolder, "files")
+
+    private fun own(records: List<BackupRecord>): List<BackupRecord> {
+        val own = records.filter { it.drivePath.startsWith("$userFolder/") && !it.drivePath.contains("..") }
+        require(own.size == records.size) { "Only your own backups can be changed" }
+        return own
+    }
+
+    private suspend fun writeManifest(deviceId: String, now: Long, records: List<BackupRecord>, removed: List<String>) {
+        val folder = DrivePaths.join(manifests, deviceId)
+        drive.mkdirs(folder)
+        val note = Manifest(deviceId = deviceId, createdAtMillis = now, records = records, removed = removed)
+        val bytes = BackupEngine.json.encodeToString(Manifest.serializer(), note).encodeToByteArray()
+        var at = now
+        // Manifest names start with the time; a clash means another note landed in the same millisecond.
+        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(at)), bytes)) at++
+    }
+
+    /**
+     * Moves backups into the drive's Recently deleted instead of deleting them. A small note beside each file keeps
+     * its record, so it can come back exactly as it was. The photo leaves the list at once.
+     */
+    suspend fun trash(records: List<BackupRecord>, deviceId: String, now: Long) {
+        val chosen = own(records)
+        if (chosen.isEmpty()) return
+        drive.mkdirs(trashFiles)
+        val moved = mutableListOf<BackupRecord>()
+        for ((i, r) in chosen.withIndex()) {
+            val target = DrivePaths.join(trashFiles, "$now-$i-${r.fileName}")
+            val note = TrashedBackup(r, target, now)
+            val noteBytes = BackupEngine.json.encodeToString(TrashedBackup.serializer(), note).encodeToByteArray()
+            // The note first, so a file in the trash can never be without its record.
+            if (!drive.createNew(DrivePaths.join(trashFolder, "$now-$i.json"), noteBytes)) continue
+            try {
+                if (drive.rename(r.drivePath, target)) moved += r else drive.delete(DrivePaths.join(trashFolder, "$now-$i.json"))
+            } catch (_: DriveNotFound) {
+                drive.delete(DrivePaths.join(trashFolder, "$now-$i.json"))
+            }
+        }
+        if (moved.isNotEmpty()) writeManifest(deviceId, now, emptyList(), moved.map { it.drivePath })
+    }
+
+    /** What is in the drive's Recently deleted, newest first. */
+    suspend fun trashed(): List<TrashedBackup> =
+        drive.list(trashFolder).filter { !it.isFolder && it.name.endsWith(".json") }.mapNotNull { f ->
+            try {
+                BackupEngine.json.decodeFromString(TrashedBackup.serializer(), drive.read(DrivePaths.join(trashFolder, f.name)).decodeToString())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        }.sortedByDescending { it.deletedAtMillis }
+
+    /** Puts backups back where they were. A file whose old place is taken stays in the trash. */
+    suspend fun restore(items: List<TrashedBackup>, deviceId: String, now: Long) {
+        val back = mutableListOf<BackupRecord>()
+        for (t in items) {
+            own(listOf(t.record))
+            val ok = try {
+                drive.mkdirs(t.record.drivePath.substringBeforeLast('/'))
+                drive.rename(t.trashPath, t.record.drivePath)
+            } catch (_: DriveNotFound) {
+                false
+            }
+            if (ok) {
+                back += t.record
+                forgetNote(t)
+            }
+        }
+        if (back.isNotEmpty()) writeManifest(deviceId, now, back, emptyList())
+    }
+
+    /** Deletes backups from the trash for good. */
+    suspend fun deleteForever(items: List<TrashedBackup>) {
+        for (t in items) {
+            own(listOf(t.record))
+            try {
+                drive.delete(t.trashPath)
+            } catch (_: DriveNotFound) {
+            }
+            forgetNote(t)
+        }
+    }
+
+    /** Clears what has been in the trash for [TRASH_DAYS] days or more. Returns what is left. */
+    suspend fun purgeExpired(now: Long): List<TrashedBackup> {
+        val all = trashed()
+        val (old, fresh) = all.partition { now - it.deletedAtMillis >= TRASH_DAYS * DAY_MILLIS }
+        deleteForever(old)
+        return fresh
+    }
+
+    private suspend fun forgetNote(t: TrashedBackup) {
+        // The note is named after the file in the trash: "<time>-<n>-<name>" -> "<time>-<n>.json".
+        val stem = t.trashPath.substringAfterLast('/').split('-', limit = 3).take(2).joinToString("-")
+        drive.delete(DrivePaths.join(trashFolder, "$stem.json"))
+    }
+
+    companion object {
+        const val TRASH_DAYS = 30
+        private const val DAY_MILLIS = 24L * 60 * 60 * 1000
+    }
+
     /** When each of the person's phones last saved something: deviceId to time. */
     suspend fun lastBackups(): Map<String, Long> =
         drive.list(manifests).filter { it.isFolder }.mapNotNull { device ->
