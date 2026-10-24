@@ -285,3 +285,15 @@ real-share tests ran, so a skipped run can't pass silently.
 5. "Use VPN for this app only" on: other apps (browser) are unaffected while connected.
 6. "Back up away from home in background" on, on mobile data, backup due: the VPN turns on, backup runs, VPN turns off. If you never allowed the VPN, the backup says to open Remote access and tap Connect once.
 7. Remove VPN setup clears it. Unverified so far: all of this needs a real router and phone.
+
+## Round 12 (25 Oct): 5B-1 follow-ups
+1. Ask for more space offers +25, +50, +100, +200 GB and +1 TB on top of what you have; the owner sees "asks for N GB more".
+2. Welcome tour: the Next button is a smaller, centred button. After the tour (new installs only) a "Let's set up backup" pop-up leads through photo access, notifications, then the background-running setting.
+3. Settings pages in Clear Light with lens glass: no pale band across the top bar title.
+4. Owner: Settings > Send feedback > "Clear" removes all received notes and their files (asks first).
+5. Open Settings > Drive (or an album), switch to another app, rotate or change the font, come back: the same page is open.
+6. Settings pages slide in more slowly.
+7. Lens glass: the bottom bar and the photo viewer toolbar both look through to the photo; tuck the bar away by scrolling and bring it back: the glass still lines up.
+8. Backed-up files list (Settings > Backup > Drive): thumbnails show, a tap opens the photo, press and hold selects. "Save to this phone" on cloud photos (selection bar and viewer).
+9. A member (not the owner) sees "Leave family" on their own page. Their photos stay on the drive.
+10. A phone joining the family gets its own backup time (2:00, 2:30, 3:00 ...); change it by hand any time.
