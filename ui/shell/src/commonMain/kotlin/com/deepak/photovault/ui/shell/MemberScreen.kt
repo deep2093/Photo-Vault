@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -86,6 +87,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     var limitOpen by remember { mutableStateOf(false) }
     var askSpace by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
+    var confirmLeave by remember { mutableStateOf(false) }
     var removePhone by remember { mutableStateOf<Pair<String, String>?>(null) }
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action
@@ -160,6 +162,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                                 GlassButton("Ask for more space", icon = Icons.Rounded.Storage, modifier = Modifier.padding(top = 10.dp), onClick = { askSpace = true })
                             }
                         }
+                        GlassButton("Leave family", icon = Icons.AutoMirrored.Rounded.Logout, modifier = Modifier.padding(top = 10.dp), onClick = { confirmLeave = true })
                     }
                 }
             }
@@ -259,6 +262,20 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
             // Closes at once; the drive is updated in the background (23 Oct: the dialog hung while it saved).
             limitOpen = false
             scope.launch { message = drive.setLimit(member.userId, gb) }
+        }
+    }
+    if (confirmLeave) {
+        ConfirmDialog(
+            title = "Leave the family?",
+            body = "Your phones stop backing up to the family drive and you no longer see the Family Album. Photos you already backed up stay on the drive, and the owner can still see them. You can ask to join again later.",
+            confirm = "Leave",
+            onDismiss = { confirmLeave = false },
+        ) {
+            confirmLeave = false
+            scope.launch {
+                message = drive.leaveFamily()
+                if (message == null) state.back()
+            }
         }
     }
     if (confirmRemove) {

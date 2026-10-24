@@ -134,6 +134,18 @@ class HouseholdStoreTest {
     }
 
     @Test
+    fun aPersonCanLeaveTheirPhotosStayAndTheOwnerCannotLeave() = runTest {
+        ownerSetUp()
+        store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
+        val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
+        drive.createNew("users/${sam.userId}/albums/a.jpg", ByteArray(10))
+        store().leave(SAM_PHONE)
+        assertIs<Membership.Removed>(store().membership(SAM_PHONE, rememberedUserId = sam.userId))
+        assertTrue(drive.exists("users/${sam.userId}/albums/a.jpg"))
+        assertFailsWith<IllegalArgumentException> { store().leave(OWNER_PHONE) }
+    }
+
+    @Test
     fun profilePhotosEachPersonOwnAndTheOwnerAnyones() = runTest {
         ownerSetUp()
         store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }

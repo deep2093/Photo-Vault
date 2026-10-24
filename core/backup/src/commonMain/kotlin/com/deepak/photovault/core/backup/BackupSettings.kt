@@ -70,6 +70,15 @@ data class BackupSchedule(
     companion object {
         val DAY_NAMES = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
+        /**
+         * Each phone in the family gets its own start time (25 Oct): 2:00, 2:30, 3:00 ... so they don't all start at once
+         * and wait for one another. [index] is this phone's place among all phones, in the order they joined.
+         */
+        fun slotTime(index: Int): Pair<Int, Int> {
+            val minutes = 2 * 60 + (index.coerceAtLeast(0) % 12) * 30
+            return minutes / 60 to minutes % 60
+        }
+
         fun timeLabel(hour: Int, minute: Int): String {
             val h = if (hour % 12 == 0) 12 else hour % 12
             return "$h:${minute.toString().padStart(2, '0')} ${if (hour < 12) "am" else "pm"}"
@@ -95,6 +104,8 @@ data class BackupSettings(
     val storageSaver: Boolean = false,
     /** A scheduled backup may turn the VPN on by itself when away from home, and off right after (Phase 5B-1; off by default). */
     val awayBackup: Boolean = false,
+    /** This phone's backup time was moved to its own slot when it joined the family (25 Oct), so it only happens once. */
+    val staggered: Boolean = false,
 )
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */

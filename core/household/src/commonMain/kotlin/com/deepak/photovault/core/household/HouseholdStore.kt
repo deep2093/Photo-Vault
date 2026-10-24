@@ -146,6 +146,17 @@ class HouseholdStore(
         }
     }
 
+    /**
+     * A person leaves the family themselves (25 Oct), from one of their own phones. The owner can't leave (they would
+     * have to hand the family over first). Their photos already on the drive are kept.
+     */
+    suspend fun leave(deviceId: String): Household {
+        val household = load() ?: throw NotAllowed("No family on this drive")
+        val me = household.memberForDevice(deviceId) ?: throw NotAllowed("This phone isn't in the family")
+        require(me.userId != household.ownerUserId) { "The owner can't leave the family" }
+        return commit { h -> h.copy(members = h.members.filterNot { it.userId == me.userId }) }
+    }
+
     suspend fun removeDevice(auth: OwnerAuth, deviceId: String): Household {
         authorize(auth)
         require(deviceId != auth.deviceId) { "This phone can't remove itself" }

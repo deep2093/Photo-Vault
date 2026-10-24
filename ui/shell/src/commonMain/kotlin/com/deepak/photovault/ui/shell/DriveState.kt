@@ -285,6 +285,15 @@ class DriveState(private val platform: DrivePlatform) {
 
     suspend fun setLimit(userId: String, gb: Int) = ownerAction { it.setLimit(auth(), userId, gb) }
 
+    /** The person leaves the family from this phone. Their photos on the drive stay. */
+    suspend fun leaveFamily(): String? = guarded {
+        if (joined == null || isOwner) return@guarded
+        val s = ensureStore() ?: return@guarded
+        s.leave(platform.deviceId)
+        platform.rememberUserId(null)
+        refreshLocked()
+    }
+
     suspend fun removeMember(userId: String) = ownerAction { it.removeMember(auth(), userId) }
 
     suspend fun removeDevice(deviceId: String) = ownerAction { it.removeDevice(auth(), deviceId) }

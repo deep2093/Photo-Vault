@@ -170,6 +170,16 @@ fun PhotoVaultApp(
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
         }
     }
+    // Joining a family moves this phone's backup time to its own slot, unless it was already moved (25 Oct).
+    LaunchedEffect(drive.joined?.me?.userId, drive.joined?.household?.members?.sumOf { it.devices.size }) {
+        val j = drive.joined ?: return@LaunchedEffect
+        if (backup.settings.staggered) return@LaunchedEffect
+        val phones = j.household.members.sortedBy { it.joinedAtMillis }.flatMap { m -> m.devices.sortedBy { it.addedAtMillis } }
+        val index = phones.indexOfFirst { it.deviceId == drive.deviceId }
+        if (index < 0) return@LaunchedEffect
+        val (hour, minute) = com.deepak.photovault.core.backup.BackupSchedule.slotTime(index)
+        backup.update { it.copy(staggered = true, schedule = it.schedule.copy(hour = hour, minute = minute)) }
+    }
     // One timeline (Phase 5): read what the drive holds when the app opens and after each backup, and let Photos
     // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
     LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
