@@ -90,9 +90,10 @@ object IntroLogic {
 
 /** What's new for the current build. Change [ID] and [items] with each update worth announcing. */
 object WhatsNew {
-    const val ID = "2026-10-25"
+    const val ID = "2026-10-26"
     const val TITLE = "What's new"
     val items: List<Pair<String, String>> = listOf(
+        "Remote access" to "Settings > Remote access connects Pixallery to your home router with WireGuard, so the family drive works away from home. It is on only while Pixallery is on screen and can be limited to this app. Away-from-home backup in the background is optional and off by default.",
         "Family Album" to "A shared album the whole family sees. Select backed-up photos and tap the family button (also in the viewer). It holds links to each person's own backup, never copies, and you can only remove photos you added.",
         "Cloud badge" to "Photos that are only on the family drive show a small cloud on their thumbnail, and their Details say so.",
         "Recently deleted on the drive" to "Photos you delete that live only on the drive wait 30 days in Recently deleted before they are gone for good, and can be restored.",

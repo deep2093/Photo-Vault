@@ -387,7 +387,7 @@ private fun OverlayPage(
                         Overlay.DriveSetup -> DriveSetupScreen(state, drive)
                         is Overlay.Member -> MemberScreen(overlay.userId, state, drive, actions)
                         Overlay.Backup -> BackupScreen(drive, backup, gallery, actions, onBack = { state.back() })
-                        is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions, overlay.startOnDrive)
+                        is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions, backup, overlay.startOnDrive)
                         is Overlay.StorageFiles -> StorageFilesScreen(overlay, state, gallery, drive, backup, actions)
                         is Overlay.CoverPicker -> CoverPickerScreen(overlay, state, gallery)
                         is Overlay.Viewer -> Unit

@@ -93,6 +93,8 @@ data class BackupSettings(
     val videosOnMobile: Boolean = false,
     /** Photos are compressed to 16 MP JPEG before upload (24 Oct). Videos are never compressed. */
     val storageSaver: Boolean = false,
+    /** A scheduled backup may turn the VPN on by itself when away from home, and off right after (Phase 5B-1; off by default). */
+    val awayBackup: Boolean = false,
 )
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */

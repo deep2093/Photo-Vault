@@ -85,6 +85,7 @@ enum class SettingsPage(val title: String) {
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
+    REMOTE("Remote access"),
     STORAGE("Storage"),
     FEEDBACK("Send feedback"),
     ABOUT("About"),
@@ -110,6 +111,7 @@ fun SettingsScreen(
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
+                        SettingsPage.REMOTE -> Icons.Rounded.VpnKey to state.remote.summary()
                         SettingsPage.STORAGE -> Icons.Rounded.PieChart to "Phone and drive"
                         SettingsPage.FEEDBACK -> Icons.Rounded.Feedback to (if (drive.feedbackWaiting > 0) "${drive.feedbackWaiting} waiting to send" else "Ideas and bugs, with photos or videos")
                     }
@@ -162,7 +164,7 @@ private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
 
 /** One Settings page on its own, with a back button. */
 @Composable
-fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, gallery: GalleryState, actions: MediaActions, startOnDrive: Boolean = false) {
+fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, gallery: GalleryState, actions: MediaActions, backup: BackupState, startOnDrive: Boolean = false) {
     GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }) {
         when (page) {
             SettingsPage.ABOUT -> item { AboutSection(state) }
@@ -170,6 +172,7 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }
+            SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
             SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
             SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
         }
@@ -305,7 +308,7 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
             Text("Connect the shared drive at home to back up and share with your family.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
             GlassButton("Connect drive", primary = true, onClick = { state.open(Overlay.DriveSetup) }, modifier = Modifier.padding(top = 8.dp))
         }
-        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Phase 5")
+        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "See Remote access")
     }
     if (confirmForget) {
         ConfirmDialog(
@@ -326,7 +329,8 @@ private fun AboutSection(state: ShellState) {
         SettingsRow(Icons.Rounded.AutoAwesome, "What's new", "See what changed in this update") { state.intro.open(IntroKind.WHATS_NEW) }
         SettingsRow(Icons.Rounded.Explore, "Welcome tour", "A quick look around the app") { state.intro.open(IntroKind.TOUR) }
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
-        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN) and invites", "Phase 5")
+        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")
+        InfoRow(Icons.Rounded.VpnKey, "Invites", "Next")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
     }

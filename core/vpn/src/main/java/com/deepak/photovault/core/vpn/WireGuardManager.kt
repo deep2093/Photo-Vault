@@ -547,7 +547,8 @@ class WireGuardManager private constructor(context: Context) {
 
     companion object {
         private const val TUNNEL_NAME = "photovault"
-        private const val LEAVE_DISCONNECT_MS = 5 * 60 * 1000L
+        // Turns off as soon as the app is left (25 Oct, Deepak): a short grace only so a pop-up or file picker doesn't drop it.
+        private const val LEAVE_DISCONNECT_MS = 2_000L
         private const val NETWORK_SETTLE_MS = 3_000L
         private const val HEALTH_RECHECK_MS = 5_000L
         private const val REACHABLE_WAIT_MS = 8_000L

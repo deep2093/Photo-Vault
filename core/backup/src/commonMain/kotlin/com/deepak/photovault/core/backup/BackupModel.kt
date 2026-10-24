@@ -95,6 +95,8 @@ enum class FailureReason(val plain: String) {
     DRIVE_FULL("The drive itself is full. Make room on it, then back up again."),
     CHECK_FAILED("Some files didn't match after uploading, so they weren't counted as backed up. They'll be tried again next time."),
     STOPPED("Backup was stopped. It carries on from where it stopped next time."),
+    VPN_PERMISSION("Away-from-home backup needs the VPN permission. Open Settings > Remote access and tap Connect once."),
+    VPN_FAILED("The VPN couldn't start for the away-from-home backup. Open Settings > Remote access to see why."),
     BUSY("Another phone in the family is backing up. This one takes its turn in about half an hour."),
     OTHER("Something went wrong while backing up."),
 }

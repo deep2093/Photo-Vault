@@ -276,3 +276,12 @@ real-share tests ran, so a skipped run can't pass silently.
 5. **Family Album:** Albums shows a "Family Album" card first (only in a family). Select backed-up photos, tap the family button; also from the viewer. A second phone sees them. You cannot remove someone else's photo. Photos not yet backed up say so.
 6. **What's new / Welcome tour:** a fresh install shows the tour once; an updated install shows What's new once. Both reopen from Settings > About.
 7. **Storage rings** sweep in when Storage opens.
+
+## Round 11 (26 Oct): Phase 5B-1 Remote access (needs your TP-Link router with WireGuard)
+1. Settings > Remote access: "Import WireGuard file" with a .conf from the router. A bad file gives a plain message.
+2. Tap Connect: Android asks once to allow a VPN; allow. Status shows Connected and "Your drive answers through the VPN" (on mobile data away from home).
+3. Leave the app (home button): the VPN key icon goes away within seconds. Return: with "Connect automatically" on it reconnects; off, it stays off until you tap Connect.
+4. At home on Wi-Fi with automatic on: it should not connect (the drive is already reachable).
+5. "Use VPN for this app only" on: other apps (browser) are unaffected while connected.
+6. "Back up away from home in background" on, on mobile data, backup due: the VPN turns on, backup runs, VPN turns off. If you never allowed the VPN, the backup says to open Remote access and tap Connect once.
+7. Remove VPN setup clears it. Unverified so far: all of this needs a real router and phone.

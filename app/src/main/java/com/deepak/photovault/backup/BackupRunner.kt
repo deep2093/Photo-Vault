@@ -21,6 +21,9 @@ import com.deepak.photovault.core.household.HouseholdStore
 import com.deepak.photovault.core.household.Membership
 import com.deepak.photovault.core.media.MediaStoreLibrary
 import com.deepak.photovault.core.smb.SmbDriveFileSystem
+import com.deepak.photovault.core.vpn.SmbReachability
+import com.deepak.photovault.core.vpn.VpnState
+import com.deepak.photovault.core.vpn.WireGuardManager
 import com.deepak.photovault.core.smb.SmbErrors
 import com.deepak.photovault.ui.shell.BackupState
 import com.deepak.photovault.ui.shell.DriveState
@@ -67,7 +70,7 @@ class BackupRunner(
         try {
             val run = try {
                 coroutineScope {
-                    val job = async { backUpNow(trigger, onProgress) }
+                    val job = async { backUpAwayAware(trigger, onProgress) }
                     current = job
                     job.await()
                 }
@@ -90,6 +93,33 @@ class BackupRunner(
     fun stop() {
         stopRequested = true
         current?.cancel()
+    }
+
+    /**
+     * Away from home (Phase 5B-1): when the person allowed it and the drive can't be reached directly, turn the VPN
+     * on for this backup only, then off right after. Needs the one-time Android VPN permission first.
+     */
+    private suspend fun backUpAwayAware(trigger: BackupTrigger, onProgress: (BackupProgress) -> Unit): BackupRun {
+        val settings = settingsStore.load()
+        val connection = platform.loadConnection()
+        val vpn = WireGuardManager.get(context)
+        if (!settings.awayBackup || connection == null || !vpn.store.hasConfig()) return backUpNow(trigger, onProgress)
+        val host = SmbReachability.normalizeHost(connection.host)
+        val reach = SmbReachability(context)
+        if (reach.isDirectlyReachable(host) || reach.isReachableViaDefaultRoute(host)) return backUpNow(trigger, onProgress)
+        val started = System.currentTimeMillis()
+        fun failed(reason: FailureReason) = BackupRun(trigger, started, System.currentTimeMillis(), 0, 0, 0, 0, 0, reason, null)
+        if (vpn.consentIntent() != null) return failed(FailureReason.VPN_PERMISSION)
+        val hold = vpn.beginHold()
+        try {
+            if (vpn.connect(userInitiated = false) !is VpnState.Connected) return failed(FailureReason.VPN_FAILED)
+            return backUpNow(trigger, onProgress)
+        } finally {
+            withContext(NonCancellable) {
+                hold.release()
+                vpn.disconnect(force = false, userInitiated = false)
+            }
+        }
     }
 
     private suspend fun backUpNow(trigger: BackupTrigger, onProgress: (BackupProgress) -> Unit): BackupRun {

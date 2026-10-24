@@ -265,6 +265,9 @@ class ShellState(private val store: AppearanceStore) {
     /** The Welcome tour and What's new (Phase 5, 25 Oct). The platform swaps in one that remembers. */
     var intro: IntroState = IntroState()
 
+    /** Remote access (the VPN) for when the family drive is out of reach at home (Phase 5B-1). */
+    var remote: RemoteAccessState = RemoteAccessState()
+
     fun updateAppearance(change: (AppearanceSettings) -> AppearanceSettings) {
         appearance = change(appearance)
         store.save(appearance)

@@ -99,6 +99,20 @@ class MainActivity : ComponentActivity(), MediaActions {
         consentDone = null
     }
 
+    /** Remote access: pick a WireGuard file, and Android's one-time "allow VPN" question. */
+    private val remote by lazy {
+        AndroidRemotePlatform(
+            com.deepak.photovault.core.vpn.WireGuardManager.get(this),
+            lifecycleScope,
+            pickFile = { wireGuardPicker.launch(arrayOf("*/*")) },
+            askVpnPermission = { vpnPermission.launch(it) },
+        )
+    }
+    private val wireGuardPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { remote.onFilePicked(it) }
+    private val vpnPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        remote.onPermissionAnswer(it.resultCode == RESULT_OK)
+    }
+
     private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     /** Waiting for Android's "allow changes" answer before renaming an album. */
@@ -204,6 +218,8 @@ class MainActivity : ComponentActivity(), MediaActions {
         val state = ShellState(PrefsAppearanceStore(this))
         state.intro = com.deepak.photovault.ui.shell.IntroState(PrefsIntroStore(this))
         shell = state
+        state.remote = remote.state
+        remote.start()
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this, "drive-records.json"), FileDriveRecordCache(this, "family-album.json"))
         drive = DriveState(AndroidDrivePlatform(this))
         // Photos that are only on the drive are fetched through the same connection the rest of the app uses.
@@ -285,6 +301,7 @@ class MainActivity : ComponentActivity(), MediaActions {
             IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        remote.onScreenOn()
         // Settings can change while the app is away: "remove animations", or photo access in app info.
         refreshSignals()
         refreshAccess()
@@ -292,6 +309,10 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     override fun onStop() {
         foreground = false
+        // Away from home the VPN is only on while Pixallery is on screen.
+        val vpn = com.deepak.photovault.core.vpn.WireGuardManager.get(this)
+        if (isFinishing) vpn.onAppClosed() else vpn.onAppBackgrounded()
+        vpn.stopMonitoring()
         refreshSignals()
         unregisterReceiver(powerSaveReceiver)
         super.onStop()
