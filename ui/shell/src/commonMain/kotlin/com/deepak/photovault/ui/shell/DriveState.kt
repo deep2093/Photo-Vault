@@ -342,10 +342,10 @@ class DriveState(private val platform: DrivePlatform) {
     // ---- Backup figures from the drive ----
 
     /** When each of my phones last backed up (deviceId to time). Empty if the drive can't be read. */
-    suspend fun lastBackups(): Map<String, Long> {
-        val me = joined?.me ?: return emptyMap()
+    suspend fun lastBackups(userId: String? = null): Map<String, Long> {
+        val who = userId ?: joined?.me?.userId ?: return emptyMap()
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return emptyMap()
-        return runCatching { BackupCatalog(fs, me.userId).lastBackups() }.getOrDefault(emptyMap())
+        return runCatching { BackupCatalog(fs, who).lastBackups() }.getOrDefault(emptyMap())
     }
 
     /** Everything this person has backed up, from all their phones' manifests; null if the drive can't be read. */

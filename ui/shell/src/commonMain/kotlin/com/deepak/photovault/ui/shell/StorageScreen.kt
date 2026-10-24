@@ -64,9 +64,9 @@ private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Dri
  * by file type, photos per year, and the albums taking the most space.
  */
 @Composable
-internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: DriveState, actions: MediaActions) {
+internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: DriveState, actions: MediaActions, startOnDrive: Boolean = false) {
     val theme = LocalGlassTheme.current
-    var source by remember { mutableStateOf(StorageSource.PHONE) }
+    var source by remember { mutableStateOf(if (startOnDrive) StorageSource.DRIVE else StorageSource.PHONE) }
     val zone = remember { TimeZone.currentSystemDefault() }
     val phoneFiles = remember(gallery.items) { StorageStats.fromPhone(gallery.items) }
     // Read again each time the drive tab opens, so files deleted or backed up since are right.

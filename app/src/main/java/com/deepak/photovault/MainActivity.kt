@@ -180,7 +180,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
         val state = ShellState(PrefsAppearanceStore(this))
         shell = state
-        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this))
+        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this))
         drive = DriveState(AndroidDrivePlatform(this))
         val backup = BackupGraph.get(this).state
         runCatching { iconSwitcher.tidyUp() }
@@ -529,6 +529,30 @@ private class PrefsHiddenAlbumsStore(context: Context) : com.deepak.photovault.u
 
     override fun save(ids: Set<String>) {
         prefs.edit().putStringSet("hidden", ids).apply()
+    }
+}
+
+/**
+ * Album order and covers (24 Oct). Order is one line of album IDs; covers are "albumId=id,id,id" lines. Album IDs
+ * are MediaStore bucket IDs (numbers) or the two card names, so they never contain the separators.
+ */
+private class PrefsAlbumLayoutStore(context: Context) : com.deepak.photovault.ui.shell.AlbumLayoutStore {
+    private val prefs = context.applicationContext.getSharedPreferences("albums", Context.MODE_PRIVATE)
+
+    override fun loadOrder(): List<String> = prefs.getString("order", "").orEmpty().split('\n').filter { it.isNotBlank() }
+
+    override fun saveOrder(ids: List<String>) {
+        prefs.edit().putString("order", ids.joinToString("\n")).apply()
+    }
+
+    override fun loadCovers(): Map<String, List<Long>> =
+        prefs.getString("covers", "").orEmpty().split('\n').mapNotNull { line ->
+            val id = line.substringBefore('=', "").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            id to line.substringAfter('=').split(',').mapNotNull { it.trim().toLongOrNull() }
+        }.toMap()
+
+    override fun saveCovers(covers: Map<String, List<Long>>) {
+        prefs.edit().putString("covers", covers.entries.joinToString("\n") { (id, photos) -> "$id=${photos.joinToString(",")}" }).apply()
     }
 }
 

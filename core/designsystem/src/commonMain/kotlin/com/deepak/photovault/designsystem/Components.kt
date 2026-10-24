@@ -164,13 +164,19 @@ fun GlassSwitchRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {
-                Icon(icon, contentDescription = null, tint = theme.onGlassSecondary)
+                // With a description under the title, the icon lines up with the title, not the middle (24 Oct).
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = theme.onGlassSecondary,
+                    modifier = if (description != null) Modifier.align(Alignment.Top).padding(top = 2.dp) else Modifier,
+                )
                 Spacer(Modifier.width(16.dp))
             }
             Column(Modifier.weight(1f)) {
                 Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
                 if (description != null) {
-                    Text(description, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                    Text(description, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
                 }
             }
             Spacer(Modifier.width(12.dp))

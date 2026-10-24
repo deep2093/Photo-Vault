@@ -120,6 +120,8 @@ fun MediaGrid(
     onJumped: () -> Unit = {},
     /** Pinching out past the smallest photos (Photos: goes to Months). */
     onZoomOutPastMax: (() -> Unit)? = null,
+    /** Items after the photos (an album's count, 24 Oct). */
+    footer: (LazyGridScope.() -> Unit)? = null,
 ) {
     // Photos run edge to edge like Samsung Gallery (23 Oct): only the system's own side insets stay
     // (landscape cut-outs); headers and controls keep the screen margin themselves.
@@ -283,6 +285,7 @@ fun MediaGrid(
                     )
                 }
             }
+            footer?.invoke(this)
         }
 
         FastScroller(

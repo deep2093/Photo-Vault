@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -149,23 +150,45 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
             }
         }
         item {
+            // Each phone with its last backup (moved here from Settings > Backup, 24 Oct).
+            var last by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+            LaunchedEffect(member.userId, canSeeSpace) { if (canSeeSpace) last = drive.lastBackups(member.userId) }
             GlassCard(Modifier.cardWidth()) {
                 SectionHeader("Phones")
                 member.devices.forEach { d ->
-                    Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.PhoneAndroid, contentDescription = null, tint = theme.onGlassSecondary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
-                        Text(
-                            d.name + if (d.deviceId == drive.deviceId) " (this phone)" else "",
-                            color = theme.onGlass,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f),
-                        )
+                        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                            Text(
+                                d.name + if (d.deviceId == drive.deviceId) " (this phone)" else "",
+                                color = theme.onGlass,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            if (canSeeSpace) {
+                                Text(
+                                    last[d.deviceId]?.let { "Last backup ${whenText(it, drive.now())}" } ?: "No backups yet",
+                                    color = theme.onGlassSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
                         if (drive.isOwner && d.deviceId != drive.deviceId) {
                             GlassIconButton(Icons.Rounded.Close, "Remove ${d.name}", onClick = { asOwner { removePhone = d.deviceId to d.name } })
                         }
                     }
                 }
+            }
+        }
+        if (isMe) {
+            item {
+                // Your own backups on the drive: see, sort, save back or delete them (24 Oct).
+                GlassButton(
+                    "Manage my backup",
+                    icon = Icons.Rounded.Storage,
+                    modifier = Modifier.cardWidth(),
+                    onClick = { state.open(Overlay.Settings(SettingsPage.STORAGE, startOnDrive = true)) },
+                )
             }
         }
         if (drive.isOwner && !isOwnerMember) {

@@ -114,7 +114,7 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
                     settings.storageSaver,
                     { on -> backup.update { it.copy(storageSaver = on) } },
                     icon = Icons.Rounded.PhotoSizeSelectLarge,
-                    description = "Photos compressed to 16 MP. Good-quality prints up to 24 x 16 in.",
+                    description = "Photos saved at 16 MP: still sharp for prints up to 24 × 16 in.",
                 )
                 GlassSwitchRow(
                     "Mobile data",
@@ -133,7 +133,7 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
                 }
             }
         }
-        if (drive.joined != null) item { SpaceAndPhonesCard(drive, backup, eligible.size, done) }
+        // Your phones moved to your own page in Family (24 Oct).
         if (backup.history.isNotEmpty()) item { HistoryCard(backup.history) }
         if (drive.joined != null) item { RestoreCard(drive, backup, gallery) }
     }

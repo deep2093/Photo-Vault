@@ -85,6 +85,54 @@ interface HiddenAlbumsStore {
     fun save(ids: Set<String>)
 }
 
+/**
+ * How Albums is laid out (24 Oct): the order of the cards (dragged in Settings > Albums) and each album's chosen
+ * cover (1 to 4 photos). Kept on this phone.
+ */
+interface AlbumLayoutStore {
+    fun loadOrder(): List<String>
+    fun saveOrder(ids: List<String>)
+    fun loadCovers(): Map<String, List<Long>>
+    fun saveCovers(covers: Map<String, List<Long>>)
+}
+
+class MemoryAlbumLayoutStore : AlbumLayoutStore {
+    private var order: List<String> = emptyList()
+    private var covers: Map<String, List<Long>> = emptyMap()
+    override fun loadOrder() = order
+    override fun saveOrder(ids: List<String>) {
+        order = ids
+    }
+    override fun loadCovers() = covers
+    override fun saveCovers(covers: Map<String, List<Long>>) {
+        this.covers = covers
+    }
+}
+
+/** Pure rules for the order of album cards, tested. */
+object AlbumOrder {
+    /**
+     * [defaults] in the order they'd normally show; [saved] is the person's own order. Cards in [saved] come first
+     * in that order, new ones follow in their normal order; cards that no longer exist are dropped.
+     */
+    fun apply(defaults: List<String>, saved: List<String>): List<String> {
+        val present = defaults.toSet()
+        val kept = saved.filter { it in present }.distinct()
+        return kept + defaults.filter { it !in kept }
+    }
+
+    /** Moves the card at [from] to [to] (both positions in [ids]). */
+    fun move(ids: List<String>, from: Int, to: Int): List<String> {
+        if (from !in ids.indices || to !in ids.indices || from == to) return ids
+        val list = ids.toMutableList()
+        list.add(to, list.removeAt(from))
+        return list
+    }
+
+    /** A cover of 1 to 4 photos that still exist; empty means "use the newest". */
+    fun cover(chosen: List<Long>?, exists: (Long) -> Boolean): List<Long> = chosen.orEmpty().filter(exists).distinct().take(4)
+}
+
 class MemoryHiddenAlbumsStore(private var ids: Set<String> = emptySet()) : HiddenAlbumsStore {
     override fun load() = ids
     override fun save(ids: Set<String>) {
@@ -128,7 +176,36 @@ class GalleryState(
     /** Camera, lens, exposure and location for the viewer's details panel. */
     val detailsSource: MediaDetailsSource = NoMediaDetails,
     private val hiddenStore: HiddenAlbumsStore = MemoryHiddenAlbumsStore(),
+    private val layoutStore: AlbumLayoutStore = MemoryAlbumLayoutStore(),
 ) {
+    /** The person's own order of album cards (album IDs plus [FAVOURITES_CARD] and [VIDEOS_CARD]). */
+    var albumOrder by mutableStateOf(layoutStore.loadOrder())
+        private set
+
+    /** Chosen covers: album card ID to 1-4 photo IDs. */
+    var albumCovers by mutableStateOf(layoutStore.loadCovers())
+        private set
+
+    /** Every album card ID in display order, hidden ones included (Settings > Albums). */
+    fun orderedCards(): List<String> =
+        AlbumOrder.apply(listOf(FAVOURITES_CARD, VIDEOS_CARD) + allAlbums.map { it.id }, albumOrder)
+
+    fun moveAlbum(from: Int, to: Int) {
+        albumOrder = AlbumOrder.move(orderedCards(), from, to)
+        layoutStore.saveOrder(albumOrder)
+    }
+
+    fun setCover(cardId: String, photoIds: List<Long>) {
+        albumCovers = if (photoIds.isEmpty()) albumCovers - cardId else albumCovers + (cardId to photoIds.take(4))
+        layoutStore.saveCovers(albumCovers)
+    }
+
+    /** The photos to show on a card: the chosen cover if any are still here, otherwise the newest. */
+    fun coverOf(cardId: String, newest: MediaItem?): List<MediaItem> {
+        val chosen = AlbumOrder.cover(albumCovers[cardId]) { find(it) != null }.mapNotNull(::find)
+        return chosen.ifEmpty { listOfNotNull(newest) }
+    }
+
     var access by mutableStateOf(MediaAccess.NONE)
 
     /** Years, Months or All on Photos (24 Oct; replaced Day / Month / Year headings). */

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Restore
@@ -55,21 +56,14 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
         }
     }
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
-    var renaming by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
     val spots = remember { TileSpots() }
-    val flight = LocalDeleteFlight.current
-    val bin = remember { ScreenSpot() }
+    // No top bar inside an album (24 Oct): the name is a big heading at the top of the photos, a small round back
+    // button floats at the top left, and the count sits in small text under the last photo. Rename, cover and
+    // delete live in Albums (press and hold an album).
     SelectableScreen(
-        title, LibraryCounts.summary(items), state, gallery, actions, onBack = { state.back() },
+        null, null, state, gallery, actions, onBack = { state.back() },
         tileSpots = spots,
-        // Phone albums can be renamed (not system folders) and deleted (24 Oct).
-        normalActions = {
-            if (kind is AlbumKind.Phone) {
-                if (!AlbumRules.isSystem(kind.name)) GlassIconButton(Icons.Rounded.Edit, "Rename album", onClick = { renaming = true })
-                if (items.isNotEmpty()) GlassIconButton(Icons.Rounded.Delete, "Delete album", modifier = Modifier.trackSpot(bin), onClick = { deleting = true })
-            }
-        },
+        floatingStartActions = { SmallPillButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back") { state.back() } },
     ) { padding ->
         if (items.isEmpty()) {
             EmptyState(
@@ -77,34 +71,33 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
                 body = if (kind == AlbumKind.Favourites) "Tap the heart on a photo to add it here." else "This album is empty.",
             )
         } else {
-            MediaGrid(sections, state, gallery, padding, onOpen = { item ->
-                state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id))
-            })
-        }
-    }
-    if (kind is AlbumKind.Phone) {
-        if (deleting) {
-            ConfirmDialog(
-                title = "Delete ${kind.name}?",
-                body = "All ${LibraryCounts.grouped(items.size)} photos and videos in it move to Recently deleted for 30 days. Android will ask you to confirm. Backups on the drive are not touched.",
-                confirm = "Delete",
-                onDismiss = { deleting = false },
-            ) {
-                deleting = false
-                val flying = spots.flying(items)
-                actions.deleteAlbum(kind.albumId) { agreed ->
-                    if (agreed) {
-                        flight.launch(flying, bin.bounds)
-                        state.back()
+            MediaGrid(
+                sections, state, gallery, padding,
+                onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
+                header = {
+                    item(key = "title", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            title,
+                            color = LocalGlassTheme.current.onGlass,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            maxLines = 2,
+                            modifier = Modifier.padding(horizontal = SCREEN_MARGIN + 4.dp).padding(top = 4.dp, bottom = 4.dp),
+                        )
                     }
-                }
-            }
-        }
-        if (renaming) {
-            RenameAlbumDialog(kind.name, onDismiss = { renaming = false }) { newName ->
-                renaming = false
-                actions.renameAlbum(kind.albumId, newName) { error -> if (error == null) state.back() }
-            }
+                },
+                footer = {
+                    item(key = "count", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            LibraryCounts.summary(items),
+                            color = LocalGlassTheme.current.onGlassSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        )
+                    }
+                },
+            )
         }
     }
 }
@@ -123,7 +116,7 @@ object AlbumRules {
 }
 
 @Composable
-private fun RenameAlbumDialog(current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+internal fun RenameAlbumDialog(current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var name by remember { mutableStateOf(current) }
     val clean = AlbumRules.cleanName(name)
     com.deepak.photovault.designsystem.GlassDialog(

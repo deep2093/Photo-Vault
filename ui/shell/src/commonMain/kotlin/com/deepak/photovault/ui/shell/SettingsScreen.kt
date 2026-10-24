@@ -158,7 +158,7 @@ private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
 
 /** One Settings page on its own, with a back button. */
 @Composable
-fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, gallery: GalleryState, actions: MediaActions) {
+fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, gallery: GalleryState, actions: MediaActions, startOnDrive: Boolean = false) {
     GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }) {
         when (page) {
             SettingsPage.ABOUT -> item { AboutSection() }
@@ -166,7 +166,7 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }
-            SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions) }
+            SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
             SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
         }
     }

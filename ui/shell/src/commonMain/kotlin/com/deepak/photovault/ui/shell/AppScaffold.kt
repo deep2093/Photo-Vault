@@ -225,8 +225,9 @@ private fun OverlayHost(
                         Overlay.DriveSetup -> DriveSetupScreen(state, drive)
                         is Overlay.Member -> MemberScreen(overlay.userId, state, drive, actions)
                         Overlay.Backup -> BackupScreen(drive, backup, gallery, actions, onBack = { state.back() })
-                        is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions)
+                        is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions, overlay.startOnDrive)
                         is Overlay.StorageFiles -> StorageFilesScreen(overlay, state, gallery, drive, backup, actions)
+                        is Overlay.CoverPicker -> CoverPickerScreen(overlay, state, gallery)
                         is Overlay.Viewer -> Unit
                     }
                 }
@@ -260,7 +261,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     // selection actions can take its place at the bottom (24 Oct).
     // A Settings page rolls the bar down as it slides in, and back up as it slides out, at the page's speed.
     val pageOpen = state.overlays.any { it.slidesSideways() }
-    val hidden = pageOpen || state.selecting || (state.chrome.hidden && state.destination in Destination.hidesChrome)
+    val hidden = pageOpen || state.selecting || state.albumsSelected.isNotEmpty() || (state.chrome.hidden && state.destination in Destination.hidesChrome)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
     // Read only while drawing, so the slide doesn't recompose the screens on every frame.
@@ -361,6 +362,7 @@ private fun rememberSectionNav(state: ShellState): SectionNav {
             val landed = Destination.entries[page]
             if (landed != state.destination && !pager.isScrollInProgress && !nav.jumping) {
                 state.selected = emptySet()
+                state.albumsSelected = emptySet()
                 state.chrome.hidden = false
                 state.destination = landed
             }
@@ -380,7 +382,7 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
         // All four sections stay ready, so switching never builds a screen from scratch mid-slide
         // (quick taps between far sections stuttered, 23 Oct). Off-screen ones aren't drawn.
         beyondViewportPageCount = Destination.entries.size - 1,
-        userScrollEnabled = !state.selecting,
+        userScrollEnabled = !state.selecting && state.albumsSelected.isEmpty(),
         modifier = Modifier.fillMaxSize(),
     ) { page ->
         val destination = Destination.entries[page]

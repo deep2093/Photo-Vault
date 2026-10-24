@@ -72,6 +72,9 @@ sealed interface Overlay {
      * Settings > Storage: the files behind a slice of a chart (23 Oct). [refs] are phone media IDs, or drive paths
      * when [onDrive].
      */
+    /** Choosing 1 to 4 photos as an album's cover (24 Oct). [cardId] is the album, or Favourites / Videos. */
+    data class CoverPicker(val cardId: String, val title: String) : Overlay
+
     data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>) : Overlay
 
     /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
@@ -90,7 +93,8 @@ sealed interface Overlay {
     data object Backup : Overlay
 
     /** One Settings page (24 Oct: each opens on its own). */
-    data class Settings(val page: SettingsPage) : Overlay
+    /** [startOnDrive]: Storage opens on its Drive tab (from "Manage my backup" in Family). */
+    data class Settings(val page: SettingsPage, val startOnDrive: Boolean = false) : Overlay
 
     /** One family member's page: picture, space, phones (24 Oct). */
     data class Member(val userId: String) : Overlay
@@ -121,6 +125,7 @@ class ShellState(private val store: AppearanceStore) {
     /** A navigation tap: opens another section, or scrolls the open one back to the top. */
     fun tapSection(target: Destination) {
         selected = emptySet()
+        albumsSelected = emptySet()
         chrome.hidden = false
         if (target == destination) {
             reselects[target] = (reselects[target] ?: 0) + 1
@@ -140,14 +145,18 @@ class ShellState(private val store: AppearanceStore) {
     var detailsOpen by mutableStateOf(false)
 
     /** Back has something to close: a page, a selection, or a section other than Photos. */
+    /** Album cards picked in Albums by press-and-hold (24 Oct). Back clears them first. */
+    var albumsSelected by mutableStateOf<Set<String>>(emptySet())
+
     /** Files picked on a Storage file page (phone media IDs or drive paths, 23 Oct). Back clears them first. */
     var filesSelected by mutableStateOf<Set<String>>(emptySet())
 
-    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty()
+    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty()
 
     fun open(overlay: Overlay) {
         selected = emptySet()
         filesSelected = emptySet()
+        albumsSelected = emptySet()
         detailsOpen = false
         overlays.add(overlay)
     }
@@ -158,12 +167,22 @@ class ShellState(private val store: AppearanceStore) {
             detailsOpen = false
             true
         }
+        // Choosing a cover uses the photo picks; back leaves the page in one go.
+        overlays.lastOrNull() is Overlay.CoverPicker -> {
+            selected = emptySet()
+            overlays.removeAt(overlays.lastIndex)
+            true
+        }
         selecting -> {
             selected = emptySet()
             true
         }
         filesSelected.isNotEmpty() -> {
             filesSelected = emptySet()
+            true
+        }
+        albumsSelected.isNotEmpty() -> {
+            albumsSelected = emptySet()
             true
         }
         overlays.isNotEmpty() -> {
