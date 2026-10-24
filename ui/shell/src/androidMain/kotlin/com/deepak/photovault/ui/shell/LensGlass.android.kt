@@ -41,15 +41,20 @@ actual fun lensGlassSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSIO
 private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGlass {
     private var sourceOrigin = Offset.Zero
 
-    override fun source(): Modifier = Modifier
+    override fun source(active: Boolean): Modifier = Modifier
         .onGloballyPositioned { sourceOrigin = it.positionInRoot() }
         .drawWithContent {
-            sourceLayer.record { this@drawWithContent.drawContent() }
-            drawLayer(sourceLayer)
+            // Always in the chain; only records while lens glass is on, so a runtime switch needs no re-attach.
+            if (active) {
+                sourceLayer.record { this@drawWithContent.drawContent() }
+                drawLayer(sourceLayer)
+            } else {
+                drawContent()
+            }
         }
 
     @Composable
-    override fun lens(shape: Shape, tint: Color): Modifier {
+    override fun lens(shape: Shape, tint: Color, active: Boolean): Modifier {
         val effectLayer = rememberGraphicsLayer()
         val shader = remember { RuntimeShader(LENS_SHADER) }
         val barOrigin = remember { FloatArray(2) }
@@ -61,6 +66,10 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
                 barOrigin[1] = o.y
             }
             .drawWithContent {
+                if (!active) {
+                    drawContent()
+                    return@drawWithContent
+                }
                 val outline = shape.createOutline(size, layoutDirection, this)
                 val radius = if (outline is Outline.Rounded) outline.roundRect.topLeftCornerRadius.x else 0f
                 // The effect is rebuilt only when the bar's size changes, not every frame.
@@ -70,7 +79,7 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
                     shader.setFloatUniform("bevel", minOf(size.height * 0.5f, 36.dp.toPx()))
                     effectLayer.renderEffect = RenderEffect.createChainEffect(
                         RenderEffect.createRuntimeShaderEffect(shader, "content"),
-                        RenderEffect.createBlurEffect(8f, 8f, Shader.TileMode.CLAMP),
+                        RenderEffect.createBlurEffect(6f, 6f, Shader.TileMode.CLAMP),
                     ).asComposeRenderEffect()
                     applied[0] = size.width
                     applied[1] = size.height

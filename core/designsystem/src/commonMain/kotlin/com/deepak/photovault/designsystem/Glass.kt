@@ -91,15 +91,18 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
     val settings = LocalGlassSettings.current
     val blur = settings.blurEnabled && haze != null
     // Lens glass (experimental): only for themes that offer it, and only where the platform gave the bar a lens.
-    val lens = LocalLensGlass.current.takeIf { settings.lensEnabled && settings.blurEnabled && theme.lens }
+    val lens = LocalLensGlass.current
+    val lensActive = lens != null && settings.lensEnabled && settings.blurEnabled && theme.lens
     val shadowColor = Color.Black.copy(alpha = if (theme.isDark) 0.6f else 0.18f)
     return this
         .shadow(elevation, shape, ambientColor = shadowColor, spotColor = shadowColor)
         .clip(shape)
+        // Always in place when the platform offers a lens (it only draws while lens glass is on), so turning it on
+        // later never has to attach it to a bar that is already on screen.
+        .then(if (lens != null) lens.lens(shape, theme.glassTint.copy(alpha = LENS_TINT_ALPHA), lensActive) else Modifier)
         .then(
-            if (lens != null) {
-                // A little less solid than the blur version, so the bending shows; never below the 0.6 text-contrast floor.
-                lens.lens(shape, theme.glassTint.copy(alpha = LENS_TINT_ALPHA))
+            if (lensActive) {
+                Modifier
             } else if (blur && haze != null) {
                 Modifier.hazeEffect(
                     state = haze,
@@ -130,8 +133,11 @@ fun Modifier.glassPanel(shape: Shape): Modifier {
 
 val GlassCardShape = RoundedCornerShape(24.dp)
 
-/** Lens glass keeps the tint at the readability floor (0.6, see ThemeContrastTest). */
-private const val LENS_TINT_ALPHA = 0.62f
+/**
+ * Lens glass is more see-through than the normal blur (24 Oct, asked for "a bit more transparent"): the tint is
+ * lighter than the 0.6 the contrast tests demand of the normal blur, so labels lean on the soft shadow under them.
+ */
+private const val LENS_TINT_ALPHA = 0.42f
 
 @Composable
 fun GlassCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {

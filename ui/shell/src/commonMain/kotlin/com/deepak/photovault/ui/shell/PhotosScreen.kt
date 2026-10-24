@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import com.deepak.photovault.designsystem.LocalGlassTheme
+import com.deepak.photovault.designsystem.withDepth
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -222,7 +223,7 @@ private fun ViewButtons(gallery: GalleryState) {
                 Text(
                     option.label,
                     color = if (selected) theme.onAccent else theme.onGlass,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.withDepth(),
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 )
             }
@@ -241,7 +242,7 @@ internal fun SmallPillButton(icon: androidx.compose.ui.graphics.vector.ImageVect
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = label, tint = theme.onGlass, modifier = Modifier.size(18.dp))
+        com.deepak.photovault.designsystem.DepthIcon(icon, label, theme.onGlass, Modifier.size(18.dp))
     }
 }
 

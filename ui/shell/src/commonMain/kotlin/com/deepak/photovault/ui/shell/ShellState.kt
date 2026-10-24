@@ -63,6 +63,8 @@ data class AppearanceSettings(
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
     val lensGlass: Boolean = false,
+    /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
+    val pinBottomBar: Boolean = false,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */

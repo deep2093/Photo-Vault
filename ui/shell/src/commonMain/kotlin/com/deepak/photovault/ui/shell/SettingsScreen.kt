@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
@@ -208,9 +209,16 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
                 state.appearance.lensGlass,
                 { on -> state.updateAppearance { it.copy(lensGlass = on) } },
                 icon = Icons.Rounded.ZoomIn,
-                description = "The bottom bar bends and magnifies the photos behind it, like thick glass",
+                description = "The bars and pills bend and magnify the photos behind them, like thick glass",
             )
         }
+        GlassSwitchRow(
+            "Keep the bottom bar in place",
+            state.appearance.pinBottomBar,
+            { on -> state.updateAppearance { it.copy(pinBottomBar = on) } },
+            icon = Icons.Rounded.PushPin,
+            description = "The bar stays put instead of tucking away while you scroll",
+        )
         GlassSwitchRow(
             "Reduce motion",
             state.appearance.reduceMotion,

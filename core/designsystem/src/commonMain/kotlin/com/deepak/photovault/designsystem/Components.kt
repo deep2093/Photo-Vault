@@ -108,7 +108,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        GlassIcon(icon, tint = theme.onGlass)
+        DepthIcon(icon, null, theme.onGlass, Modifier.size(24.dp))
     }
 }
 

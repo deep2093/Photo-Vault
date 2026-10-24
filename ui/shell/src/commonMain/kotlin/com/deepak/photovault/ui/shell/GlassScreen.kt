@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import com.deepak.photovault.designsystem.GlassIconButton
+import com.deepak.photovault.designsystem.withDepth
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -115,6 +117,11 @@ fun GlassScreen(
             if (reduceMotion) offset = 0f else animate(offset, 0f, animationSpec = tween(250)) { v, _ -> offset = v }
         }
     }
+    // Lens glass for this screen's pills and top bar: this screen's own content is recorded (the pills sit inside the
+    // navigation bar's recording, so they cannot use that layer without drawing themselves). Always attached; it only
+    // draws while lens glass is on.
+    val lensOn = LocalGlassSettings.current.lensEnabled && LocalGlassTheme.current.lens
+    val lens = com.deepak.photovault.ui.shell.rememberLensGlass()
     Box(Modifier.fillMaxSize()) {
         // The pill and the bar take the same room, so starting a selection on Photos doesn't shift the grid.
         val barRoom = if (title != null || floatingActions != null || floatingStartActions != null) TopBarHeight + 20.dp else 12.dp
@@ -128,7 +135,8 @@ fun GlassScreen(
             Modifier
                 .fillMaxSize()
                 .nestedScroll(connection)
-                .then(if (haze != null) Modifier.hazeSource(haze) else Modifier),
+                .then(if (haze != null) Modifier.hazeSource(haze) else Modifier)
+                .then(lens?.source(lensOn) ?: Modifier),
         ) {
             content(contentPadding)
         }
@@ -141,6 +149,8 @@ fun GlassScreen(
                 .height(insets.calculateTopPadding() + 20.dp)
                 .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
         )
+        // Only the chrome gets the lens, never the content: anything inside the recorded content would draw itself.
+        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
         val barPadding = Modifier.padding(
             start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
             end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
@@ -168,8 +178,7 @@ fun GlassScreen(
             if (floatingActions != null) {
                 FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding), compact = true, content = floatingActions)
             }
-            return@Box
-        }
+        } else {
         // With a bottom bar, the top bar is only the count and Cancel; it doesn't slide away.
         GlassTopBar(
             title = title,
@@ -188,6 +197,8 @@ fun GlassScreen(
                     top = insets.calculateTopPadding() + 8.dp,
                 ),
         )
+        }
+        }
     }
 }
 
@@ -234,7 +245,7 @@ private fun GlassTopBar(
             Text(
                 title,
                 color = theme.onGlass,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.withDepth(),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

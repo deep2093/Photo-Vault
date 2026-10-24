@@ -90,3 +90,9 @@ bar option on tablets only; short setup tips now; videos off by default).
       after it, What's new takes over for updates.
 
 (More bugs from testing go here.)
+
+## 25 Oct: lens glass round 2 (Phase 5)
+- Fixed: lens glass now works straight after switching theme (it used to need an app restart). The lens is always attached; only drawing is switched.
+- Lens also on the Years/Months/All and Search pills, album back pill and top bars (each screen records its own content).
+- Clear themes and lens tint more see-through; labels and icons on bars/pills get a soft shadow ("depth") in lens glass.
+- New Settings switch "Keep the bottom bar in place" (pins the bar so it no longer tucks away while scrolling).

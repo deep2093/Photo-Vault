@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
 import com.deepak.photovault.designsystem.PageEasing
+import com.deepak.photovault.designsystem.withDepth
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -404,12 +405,15 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     // A Settings page rolls the bar down as it slides in, and back up as it slides out, at the page's speed.
     // The bar rolls down as a page slides over the section and back up as it leaves, with the page (or with the
     // finger on the back gesture); the other reasons to tuck it away animate on their own.
-    val tucked = state.selecting || state.albumsSelected.isNotEmpty() || (state.chrome.hidden && state.destination in Destination.hidesChrome)
+    val pinned = state.appearance.pinBottomBar
+    val tucked = state.selecting || state.albumsSelected.isNotEmpty() || (state.chrome.hidden && !pinned && state.destination in Destination.hidesChrome)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
     val shift = androidx.compose.animation.core.animateFloatAsState(if (tucked) travel else 0f, motionSpec(CHROME_MS), label = "bar")
+    // The lens is always created and its modifiers always attached (they only draw while lens glass is on), so
+    // switching to a lens theme while the app is open works at once instead of after a restart.
     val lensOn = LocalGlassSettings.current.lensEnabled && LocalGlassTheme.current.lens
-    val lens = if (lensOn) rememberLensGlass() else null
+    val lens = rememberLensGlass()
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -427,7 +431,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                     .dimmedBy { state.sectionCover() * PAGE_DIM },
             ) {
                 // Lens glass (experimental): the sections are also recorded so the bar can look through them.
-                Box(Modifier.fillMaxSize().then(lens?.source() ?: Modifier)) {
+                Box(Modifier.fillMaxSize().then(lens?.source(lensOn) ?: Modifier)) {
                     SectionPager(nav.pager, screens)
                 }
             }
@@ -625,7 +629,7 @@ private fun NavItem(
         verticalArrangement = Arrangement.Center,
     ) {
         Box {
-            GlassIcon(destination.icon, tint = fg)
+            com.deepak.photovault.designsystem.DepthIcon(destination.icon, null, fg, Modifier.size(24.dp))
             if (dot) {
                 Box(
                     Modifier
@@ -638,7 +642,7 @@ private fun NavItem(
             }
         }
         Spacer(Modifier.height(2.dp))
-        Text(destination.label, color = fg, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text(destination.label, color = fg, style = MaterialTheme.typography.labelSmall.withDepth(), maxLines = 1)
     }
 }
 

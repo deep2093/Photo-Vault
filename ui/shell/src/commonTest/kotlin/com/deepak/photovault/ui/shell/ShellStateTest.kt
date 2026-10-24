@@ -74,6 +74,11 @@ class ShellStateTest {
     }
 
     @Test
+    fun theBottomBarIsNotPinnedUntilAskedFor() {
+        assertEquals(false, AppearanceSettings().pinBottomBar)
+    }
+
+    @Test
     fun lensGlassIsOffByDefaultAndFollowsBlurAndBatterySaver() {
         val signals = PlatformSignals()
         assertFalse(ShellState(MemoryAppearanceStore()).glassSettings(signals).lensEnabled)
