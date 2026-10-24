@@ -55,3 +55,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
   (asked 22 Oct). Phase 12 then tunes the whole app together, measured on a real mid-range phone, just
   before release.
 - **Secured folder after backup (8):** its copies on the drive reuse the verified backup engine, encrypted.
+
+## Decisions 25 Oct
+- Phase 6 cleanup only warns when there is no second copy (no block, no second-copy requirement).
+- Manual "Backup now" queue (FIFO with a position pop-up) shows only when: a scheduled backup is running and someone taps Backup now, or 2-3 devices tap Backup now at the same time. Scheduled backups keep the quiet wait and retry after 30 minutes, no pop-up. Build in Phase 5/6 backup work (not started).
