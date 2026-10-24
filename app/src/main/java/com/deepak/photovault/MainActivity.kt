@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.MediaStore
 import android.provider.Settings
+import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.PredictiveBackHandler
@@ -226,7 +227,7 @@ class MainActivity : ComponentActivity(), MediaActions {
             PredictiveBackHandler(enabled = state.canGoBack) { events ->
                 val pagePulled = state.canDragBack
                 try {
-                    events.collect { if (pagePulled) state.dragBack(it.progress) }
+                    events.collect { if (pagePulled) state.dragBack(it.progress, it.swipeEdge == BackEventCompat.EDGE_LEFT) }
                 } catch (e: CancellationException) {
                     if (pagePulled) backScope.launch { state.cancelBack() }
                     throw e

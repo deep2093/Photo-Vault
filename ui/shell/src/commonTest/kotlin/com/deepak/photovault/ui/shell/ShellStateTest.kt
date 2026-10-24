@@ -35,10 +35,13 @@ class ShellStateTest {
     }
 
     @Test
-    fun transparentForEveryoneWhoNeverPickedATheme() {
-        // An older version saved Aurora Frost (the old default) without the person choosing it.
-        val state = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = GlassThemeId.AURORA_FROST.name)))
-        assertEquals(GlassThemes.Transparent, state.theme)
+    fun photoLightForEveryoneWhoNeverPickedATheme() {
+        // An older version saved Aurora Frost (the old default) without the person choosing it; it no longer exists.
+        val state = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = "AURORA_FROST")))
+        assertEquals(GlassThemes.AdaptiveLight, state.theme)
+        // Someone who had picked a removed theme moves to the default too.
+        val removed = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = "TRANSLUCENT", themeChosen = true)))
+        assertEquals(GlassThemes.AdaptiveLight, removed.theme)
         // Someone who picked a theme keeps it.
         val picked = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = GlassThemeId.PEARL_MIST.name, themeChosen = true)))
         assertEquals(GlassThemeId.PEARL_MIST, picked.theme.id)

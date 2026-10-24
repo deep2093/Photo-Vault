@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -58,7 +59,7 @@ data class AppearanceSettings(
     val reduceMotion: Boolean = false,
     /** Tablets only: the floating bottom bar instead of the side menu (24 Oct). Saved per device. */
     val tabletBottomBar: Boolean = false,
-    /** The person picked a theme themselves. Until then they follow the default (Transparent since 24 Oct). */
+    /** The person picked a theme themselves. Until then they follow the default (Photo Light since 24 Oct). */
     val themeChosen: Boolean = false,
 )
 
@@ -160,14 +161,22 @@ class ShellState(private val store: AppearanceStore) {
      */
     val pageBack = Animatable(0f)
 
-    /** Set for the one moment when the page that was just pulled away is removed, so it does not slide out twice. */
-    var pageBackSkip by mutableStateOf(false)
+    /** Which way the finger pulls it: 1 = to the right (swipe from the left edge), -1 = to the left. */
+    var pageBackDir: Int = -1
+        private set
+
+    /** Set for the one moment when the page that was just pulled away is removed, so it is not slid out again. */
+    var pageBackSkip: Boolean = false
+
+    /** How far the first open page covers the section underneath (0 to 1). Set by the page host, read while drawing. */
+    var sectionCover: () -> Float = { 0f }
 
     /** A back gesture moves the top page itself only when nothing smaller (a selection, the details) would close first. */
     val canDragBack: Boolean
         get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && overlays.lastOrNull().slidesSideways()
 
-    suspend fun dragBack(progress: Float) {
+    suspend fun dragBack(progress: Float, toRight: Boolean) {
+        pageBackDir = if (toRight) 1 else -1
         pageBack.snapTo(progress.coerceIn(0f, 1f))
     }
 
@@ -179,8 +188,10 @@ class ShellState(private val store: AppearanceStore) {
         }
         pageBack.animateTo(1f, tween((BACK_SETTLE_MS * (1f - pageBack.value)).toInt().coerceAtLeast(60), easing = PageEasing))
         pageBackSkip = true
-        back()
-        pageBack.snapTo(0f)
+        back() // the page host removes the page and puts the pull back to 0 in the same frame
+        repeat(4) { withFrameNanos { } }
+        if (pageBack.value > 0f) pageBack.snapTo(0f)
+        pageBackSkip = false
     }
 
     /** The gesture was cancelled: the page slides back where it was. */

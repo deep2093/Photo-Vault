@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.dp
 
 /** Stable IDs: saved in settings, so never rename them. */
 enum class GlassThemeId {
-    AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS, TRANSLUCENT,
+    MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS,
     ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
     /** Experimental (24 Oct), from the Aurora / Crystal design package. */
     AURORA_GLASS_LIGHT, AURORA_GLASS_DARK, CRYSTAL_GLASS_LIGHT, CRYSTAL_GLASS_DARK,
@@ -60,35 +60,10 @@ data class GlassTheme(
 )
 
 object GlassThemes {
-    val AuroraFrost = GlassTheme(
-        id = GlassThemeId.AURORA_FROST,
-        displayName = "Aurora Frost",
-        bestFor = "Default light mode",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFEAF4FF), Color(0xFFF7FBFF), Color(0xFFD6E6FA)),
-        glows = listOf(
-            Glow(0.9f, 0.05f, 0.65f, Color(0x4D8EC5FF)),
-            Glow(0.1f, 0.75f, 0.7f, Color(0x332A4E8C)),
-            Glow(0.4f, 0.3f, 0.4f, Color(0x80FFFFFF)),
-        ),
-        glassTint = Color(0xCCEEF6FF),
-        glassFallback = Color(0xF2F3F8FF),
-        glassRim = Color(0xFF7A97C2),
-        onGlass = Color(0xFF0B1F3A),
-        onGlassSecondary = Color(0xFF34496A),
-        accent = Color(0xFF1A62C2),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF1A62C2),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF6FA8DC), Color(0xFF9FC5E8), Color(0xFF3D5A80), Color(0xFFB4D2F0), Color(0xFF7F9CC9)),
-    )
-
     val MidnightPrism = GlassTheme(
         id = GlassThemeId.MIDNIGHT_PRISM,
-        displayName = "Midnight Prism",
-        bestFor = "Dark mode on OLED screens",
+        displayName = "Violet Night",
+        bestFor = "Dark violet glass, fixed colours (best on OLED)",
         isDark = true,
         wallpaper = listOf(Color(0xFF05060F), Color(0xFF14113D), Color(0xFF22104A)),
         glows = listOf(
@@ -111,8 +86,8 @@ object GlassThemes {
 
     val PearlMist = GlassTheme(
         id = GlassThemeId.PEARL_MIST,
-        displayName = "Pearl Mist",
-        bestFor = "Soft, warm look",
+        displayName = "Warm Light",
+        bestFor = "Soft peach glass, fixed colours",
         isDark = false,
         wallpaper = listOf(Color(0xFFFFF8F1), Color(0xFFFBEDE6), Color(0xFFF4E0D6)),
         glows = listOf(
@@ -136,8 +111,8 @@ object GlassThemes {
 
     val OceanGlass = GlassTheme(
         id = GlassThemeId.OCEAN_GLASS,
-        displayName = "Ocean Glass",
-        bestFor = "Backup and storage screens",
+        displayName = "Teal Light",
+        bestFor = "Cool teal glass, fixed colours",
         isDark = false,
         wallpaper = listOf(Color(0xFFE6FBF6), Color(0xFFC9F1EC), Color(0xFFB3E8F0)),
         glows = listOf(
@@ -198,7 +173,7 @@ object GlassThemes {
 
     /** Aurora: two large bright blooms of your photos' colours over a dark base, peach accent. */
     val AdaptiveGlow = adaptive(
-        GlassThemeId.ADAPTIVE_GLOW, "Adaptive Glow", "Bright blooms of colour from your photos",
+        GlassThemeId.ADAPTIVE_GLOW, "Photo Glow", "Bright blooms of colour from your photos",
         AdaptiveStyle(listOf(0.52f, 0.44f, 0.14f), 0.55f, 0.95f, glow = 0.85f, scrim = 0.30f,
             fallback = listOf(Color(0xFF7A4A8A), Color(0xFF2E6A7A), Color(0xFF1A1424)),
             layout = WallpaperLayout.AURORA),
@@ -209,7 +184,7 @@ object GlassThemes {
 
     /** Night sky: nearly black, with one soft light of your photos' colour at the top. Icy cyan accent. */
     val AdaptiveMidnight = adaptive(
-        GlassThemeId.ADAPTIVE_MIDNIGHT, "Adaptive Midnight", "Nearly black, one soft light from your photos",
+        GlassThemeId.ADAPTIVE_MIDNIGHT, "Photo Night", "Nearly black, one soft light from your photos",
         AdaptiveStyle(listOf(0.30f, 0.12f, 0.04f), 0.25f, 0.55f, glow = 0.7f, scrim = 0.30f,
             fallback = listOf(Color(0xFF2A3550), Color(0xFF141A26), Color(0xFF0A0A10)),
             layout = WallpaperLayout.NIGHT),
@@ -220,7 +195,7 @@ object GlassThemes {
 
     /** Bold sweep: fully saturated colours from your photos corner to corner, pink accent. */
     val AdaptiveVivid = adaptive(
-        GlassThemeId.ADAPTIVE_VIVID, "Adaptive Vivid", "Bold, saturated colours from your photos",
+        GlassThemeId.ADAPTIVE_VIVID, "Photo Vivid", "Bold, saturated colours from your photos",
         AdaptiveStyle(listOf(0.46f, 0.38f, 0.30f), 0.85f, 1.0f, glow = 0.5f, scrim = 0.30f,
             fallback = listOf(Color(0xFF7A2C6C), Color(0xFF1F5F86), Color(0xFF4A1E50)),
             layout = WallpaperLayout.DIAGONAL),
@@ -232,7 +207,7 @@ object GlassThemes {
     /** Light adaptive: soft pastel bands from your photos, top to bottom, under a white veil, with dark text. */
     val AdaptiveLight = GlassTheme(
         id = GlassThemeId.ADAPTIVE_LIGHT,
-        displayName = "Adaptive Light",
+        displayName = "Photo Light",
         bestFor = "Soft pastel bands from your photos",
         isDark = false,
         wallpaper = listOf(Color(0xFFF6F1FA), Color(0xFFEFF5FA), Color(0xFFF7F3EC)),
@@ -259,41 +234,6 @@ object GlassThemes {
     )
 
     /**
-     * Transparent (was Translucent; renamed and made adaptive 23 Oct): clear cards over a light wallpaper whose
-     * four corners take colours from your photos. The floating bars are lightly frosted instead of clear, so text
-     * reads over any photo without a glow behind the letters. The ID stays TRANSLUCENT so saved choices still work.
-     */
-    val Transparent = GlassTheme(
-        id = GlassThemeId.TRANSLUCENT,
-        displayName = "Transparent",
-        bestFor = "Clear glass, tinted by your photos",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFEEF3FA), Color(0xFFF8FAFD), Color(0xFFE2EAF4)),
-        glows = emptyList(),
-        // Frosted bars over scrolling photos; clear cards on the wallpaper.
-        glassTint = Color(0xAEF4F7FC),
-        glassFallback = Color(0x8CF6F8FC),
-        glassRim = Color(0xFFB8C8DE),
-        onGlass = Color(0xFF0D1726),
-        onGlassSecondary = Color(0xFF1E2838),
-        accent = Color(0xFF1A50A6),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF1A50A6),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF7FB3E0), Color(0xFFE0A57F), Color(0xFF8FCFA8), Color(0xFFC3A6E8), Color(0xFFE8D27F)),
-        adaptive = AdaptiveStyle(
-            listOf(0.96f, 0.92f, 0.94f), 0.22f, 0.45f, glow = 0.9f, scrim = 0.12f,
-            fallback = listOf(Color(0xFFDCE8F8), Color(0xFFF4E2EC), Color(0xFFE2F2E8)),
-            light = true,
-            layout = WallpaperLayout.MESH,
-        ),
-        blurRadius = 20.dp,
-        grain = 0f,
-    )
-
-    /**
      * Experimental (24 Oct), from the Aurora / Crystal design package. The package's numbers are the starting
      * point (blur 26 dp / 18 dp, corner looks, colours); the glass tint is made more solid than the package's
      * 0.38-0.62 so the contrast tests still pass over any photo. Aurora is colourful and luminous; Crystal is
@@ -301,8 +241,8 @@ object GlassThemes {
      */
     val AuroraGlassLight = GlassTheme(
         id = GlassThemeId.AURORA_GLASS_LIGHT,
-        displayName = "Aurora Glass Light",
-        bestFor = "Experimental: luminous blue, cyan and violet glass",
+        displayName = "Luminous Light",
+        bestFor = "Experimental: bright blue, cyan and violet glow, strong blur",
         isDark = false,
         wallpaper = listOf(Color(0xFFE3F1FF), Color(0xFFF2F7FF), Color(0xFFE4E0FF)),
         glows = listOf(
@@ -328,8 +268,8 @@ object GlassThemes {
 
     val AuroraGlassDark = GlassTheme(
         id = GlassThemeId.AURORA_GLASS_DARK,
-        displayName = "Aurora Glass Dark",
-        bestFor = "Experimental: luminous glass on a deep blue night",
+        displayName = "Luminous Night",
+        bestFor = "Experimental: glowing glass on a deep blue night",
         isDark = true,
         wallpaper = listOf(Color(0xFF060C24), Color(0xFF0C1D4A), Color(0xFF1B1250)),
         glows = listOf(
@@ -354,8 +294,8 @@ object GlassThemes {
 
     val CrystalGlassLight = GlassTheme(
         id = GlassThemeId.CRYSTAL_GLASS_LIGHT,
-        displayName = "Crystal Glass Light",
-        bestFor = "Experimental: neutral, photo-first glass",
+        displayName = "Clear Light",
+        bestFor = "Experimental: neutral, nearly colourless glass",
         isDark = false,
         wallpaper = listOf(Color(0xFFF2F4F6), Color(0xFFE9EDF1), Color(0xFFF8F9FB)),
         glows = listOf(Glow(0.5f, 0.2f, 0.7f, Color(0x80FFFFFF))),
@@ -377,7 +317,7 @@ object GlassThemes {
 
     val CrystalGlassDark = GlassTheme(
         id = GlassThemeId.CRYSTAL_GLASS_DARK,
-        displayName = "Crystal Glass Dark",
+        displayName = "Clear Night",
         bestFor = "Experimental: neutral dark glass over your photos",
         isDark = true,
         wallpaper = listOf(Color(0xFF0B0C0E), Color(0xFF16181B), Color(0xFF1F2226)),
@@ -398,14 +338,21 @@ object GlassThemes {
         grain = 0f,
     )
 
-    /** Frosted and Crystal were removed (24 Oct); anyone using them moves to the default. */
-    val fixed: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass)
-    val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight, Transparent)
-    /** Shown in their own "Experimental" row in Settings. Never the default, never picked for anyone automatically. */
-    val experimental: List<GlassTheme> = listOf(AuroraGlassLight, AuroraGlassDark, CrystalGlassLight, CrystalGlassDark)
-    val all: List<GlassTheme> = fixed + adaptiveThemes + experimental
-    /** Transparent for everyone who hasn't picked a theme (decided 24 Oct; was Aurora Frost). */
-    val default: GlassTheme = Transparent
+    /**
+     * Sections in Settings (24 Oct), named by how they behave. Light and dark themes keep their own colours;
+     * Photo themes take their colours from the photos on screen. Aurora Glass and Crystal Glass joined the light
+     * and dark sections as "Luminous" and "Clear" (still marked experimental, never the default). Aurora Frost,
+     * Transparent, Frosted and Crystal (the old one) were removed; anyone using one moves to the default.
+     */
+    val lightThemes: List<GlassTheme> = listOf(PearlMist, OceanGlass, AuroraGlassLight, CrystalGlassLight)
+    val darkThemes: List<GlassTheme> = listOf(MidnightPrism, AuroraGlassDark, CrystalGlassDark)
+    val photoThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight)
+    val fixed: List<GlassTheme> = lightThemes + darkThemes
+    val adaptiveThemes: List<GlassTheme> = photoThemes
+    val all: List<GlassTheme> = fixed + adaptiveThemes
+
+    /** Photo Light for everyone who hasn't picked a theme (24 Oct; Transparent and Aurora Frost were removed). */
+    val default: GlassTheme = AdaptiveLight
 
     /** Unknown or missing IDs (an older or newer saved setting) fall back to the default. */
     fun byId(id: String?): GlassTheme = all.firstOrNull { it.id.name == id } ?: default

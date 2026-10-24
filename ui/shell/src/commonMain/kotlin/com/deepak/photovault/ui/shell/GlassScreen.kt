@@ -156,17 +156,17 @@ fun GlassScreen(
             exit = androidx.compose.animation.slideOutVertically(com.deepak.photovault.designsystem.motionSpec(220)) { it } + androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(220)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = systemBottom + 12.dp),
         ) {
-            lastBottom?.let { actions -> FloatingPill(Modifier, actions) }
+            lastBottom?.let { actions -> FloatingPill(Modifier, content = actions) }
         }
         if (title == null) {
             // The top pills (Years / Months / All, Search, an album's back button) always stay in view (24 Oct);
             // only the navigation bar tucks away while scrolling.
             val pillMotion = Modifier
             if (floatingStartActions != null) {
-                FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding), floatingStartActions)
+                FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding), compact = true, content = floatingStartActions)
             }
             if (floatingActions != null) {
-                FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding), floatingActions)
+                FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding), compact = true, content = floatingActions)
             }
             return@Box
         }
@@ -193,13 +193,13 @@ fun GlassScreen(
 
 /** A small floating glass pill of buttons (Samsung Gallery style), used instead of a top bar on Photos. */
 @Composable
-private fun FloatingPill(modifier: Modifier, content: @Composable RowScope.() -> Unit) {
-    // Compact (24 Oct: the pills were too big).
+private fun FloatingPill(modifier: Modifier, compact: Boolean = false, content: @Composable RowScope.() -> Unit) {
+    // Compact (24 Oct: the pills were too big; the top ones were made smaller again the same evening).
     Row(
         modifier
-            .heightIn(min = 44.dp)
+            .heightIn(min = if (compact) 34.dp else 44.dp)
             .glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp)
-            .padding(horizontal = 4.dp, vertical = 3.dp),
+            .padding(horizontal = if (compact) 3.dp else 4.dp, vertical = if (compact) 2.dp else 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         content = content,

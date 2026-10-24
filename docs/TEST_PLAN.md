@@ -93,7 +93,7 @@ Backup (Wi-Fi at home, drive connected, family joined):
 
 ## Phase 4 device checks: second round of fixes (24 Oct, from testing)
 
-- Tablet, Transparent theme: the side menu runs top to bottom with no app name, and looks like the same clear
+- Tablet, Photo Light theme: the side menu runs top to bottom with no app name, and looks like the same clear
   glass in Photos, Albums, Backup, Family and Settings (never white). Same for the bottom bar when moved there.
 - Video: once it plays, the filmstrip and action bar go away; they come back after leaving the video.
 - Backup: one compact card of rows. Tap Schedule (shows e.g. "Sun · 2:00 am · charging") for the schedule window;
@@ -228,6 +228,13 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - The bottom bar rolls back up as you pull a page off a section.
 - With Reduce motion on, pages simply appear and disappear.
 - Needs Android 14+ for the pull-along; on older phones or three-button navigation the page closes with the normal slide.
+
+## Round 8b (24 Oct, night)
+
+- Opening Settings, Backup, an album, Search...: the page comes in from the LEFT edge sliding right; leaving, it goes back out to the left. No flash of the page after it has gone (the flicker in the 10:27 recording).
+- Back swipe from the right edge pulls the page left, from the left edge pulls it right; it holds where the finger stops; finishing leaves no flash.
+- Years / Months / All and the Search button are smaller.
+- Settings > Appearance: Light themes, Dark themes, Photo themes. Aurora Frost and Transparent are gone; an old choice of either becomes Photo Light.
 
 ## Device and integration tests (from the phase that needs them)
 

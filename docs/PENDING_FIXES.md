@@ -76,7 +76,7 @@ bar option on tablets only; short setup tips now; videos off by default).
       Recently deleted; full screen viewer; owner's new phone joins with the PIN; Leaf icon by default; finding
       the drive at a new address; album covers of 1-4 photos; reorder albums; press-and-hold albums; moving GIFs;
       pull down to refresh; one backup at a time across the family with the Family dot; album folders on the
-      drive; experimental Aurora Glass and Crystal Glass themes (light and dark); pages that slide in like a sliding door and follow your finger on the back swipe.
+      drive; experimental Aurora Glass and Crystal Glass themes (light and dark); pages that slide in like a sliding door and follow your finger on the back swipe; themes sorted into Light, Dark and Photo sections.
 - [x] Album covers of 1 to 4 photos (built 24 Oct, in the press-and-hold Albums bar).
 - [x] Point 8 of the 24 Oct list: answered 24 Oct (it was the album header and bar, already built).
 - [ ] What's new (asked 24 Oct, next build, then every build with a feature change): when the app opens after an

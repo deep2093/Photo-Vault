@@ -212,17 +212,17 @@ private fun ViewButtons(gallery: GalleryState) {
             )
             Box(
                 Modifier
-                    .heightIn(min = 36.dp)
+                    .heightIn(min = 30.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(background)
                     .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.view = option })
-                    .padding(horizontal = 10.dp),
+                    .padding(horizontal = 9.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     option.label,
                     color = if (selected) theme.onAccent else theme.onGlass,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 )
             }
@@ -236,12 +236,12 @@ internal fun SmallPillButton(icon: androidx.compose.ui.graphics.vector.ImageVect
     val theme = LocalGlassTheme.current
     Box(
         Modifier
-            .size(36.dp)
+            .size(32.dp)
             .clip(androidx.compose.foundation.shape.CircleShape)
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = label, tint = theme.onGlass, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = label, tint = theme.onGlass, modifier = Modifier.size(18.dp))
     }
 }
 

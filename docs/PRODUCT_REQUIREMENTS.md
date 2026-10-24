@@ -58,7 +58,7 @@ each family member's photos and videos to their own folder on one shared SMB dri
   location stripped from shared copies unless the owner allows it.
 
 **Design**
-- Four Liquid Glass themes: Aurora Frost (default light), Midnight Prism (dark), Pearl Mist, Ocean Glass.
+- Liquid Glass themes in three Settings sections (24 Oct): Light (Warm Light, Teal Light, Luminous Light, Clear Light), Dark (Violet Night, Luminous Night, Clear Night) and Photo themes that take colours from the photos on screen (Photo Glow, Photo Night, Photo Vivid, Photo Light, the default). Luminous and Clear are experimental.
 - Three adaptive themes from Veyra: Adaptive Glow, Midnight and Vivid. The wallpaper takes its colours from the
   photos on screen and eases between them; every hue it can produce is tested for readable text.
 - Phase 2 adds three more:

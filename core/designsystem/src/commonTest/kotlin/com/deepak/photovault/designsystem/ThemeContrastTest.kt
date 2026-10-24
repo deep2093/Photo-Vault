@@ -68,57 +68,48 @@ class ThemeContrastTest {
         assertTrue(GlassThemes.AdaptiveGlow.adaptive!!.values.first() > GlassThemes.AdaptiveMidnight.adaptive!!.values.first() + 0.2f)
         assertTrue(GlassThemes.AdaptiveVivid.adaptive!!.minSaturation > GlassThemes.AdaptiveGlow.adaptive!!.minSaturation)
     }
-
-    @Test
-    fun transparentHasClearCardsFrostedBarsAndTakesPhotoColours() {
-        // Renamed from Translucent and made adaptive (23 Oct); the saved ID is unchanged.
-        assertEquals(GlassThemes.Transparent, GlassThemes.byId("TRANSLUCENT"))
-        assertTrue(GlassThemes.Transparent.glassFallback.alpha < 0.6f)
-        assertTrue(GlassThemes.Transparent.adaptive!!.light)
-    }
 }
 
 class ThemeCatalogTest {
     @Test
-    fun hasTheAgreedGlassAndAdaptiveThemesWithUniqueIds() {
-        assertEquals(
-            listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass"),
-            GlassThemes.fixed.map { it.displayName },
-        )
-        assertEquals(
-            listOf("Adaptive Glow", "Adaptive Midnight", "Adaptive Vivid", "Adaptive Light", "Transparent"),
-            GlassThemes.adaptiveThemes.map { it.displayName },
-        )
+    fun themesAreSortedIntoLightDarkAndPhotoSectionsWithUniqueIds() {
+        assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Photo Glow", "Photo Night", "Photo Vivid", "Photo Light"), GlassThemes.photoThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
-        assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
+        assertTrue(GlassThemes.lightThemes.none { it.isDark })
+        assertTrue(GlassThemes.darkThemes.all { it.isDark })
+        assertTrue(GlassThemes.photoThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })
     }
 
     @Test
-    fun transparentIsTheDefaultAndDarkThemesAreMidnightAndAdaptive() {
-        assertEquals(GlassThemes.Transparent, GlassThemes.default)
+    fun photoLightIsTheDefaultAndDarkThemesAreTheDarkAndPhotoNightOnes() {
+        assertEquals(GlassThemes.AdaptiveLight, GlassThemes.default)
         assertEquals(
             listOf(
-                GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
-                GlassThemeId.AURORA_GLASS_DARK, GlassThemeId.CRYSTAL_GLASS_DARK,
+                GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.AURORA_GLASS_DARK, GlassThemeId.CRYSTAL_GLASS_DARK,
+                GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
             ),
             GlassThemes.all.filter { it.isDark }.map { it.id },
         )
     }
 
     @Test
-    fun experimentalThemesAreLightAndDarkPairsNeverTheDefaultAndReallyDifferent() {
-        val e = GlassThemes.experimental
-        assertEquals(listOf("Aurora Glass Light", "Aurora Glass Dark", "Crystal Glass Light", "Crystal Glass Dark"), e.map { it.displayName })
+    fun luminousAndClearAreRealPairsThatLookDifferentAndNeverTheDefault() {
+        val e = listOf(GlassThemes.AuroraGlassLight, GlassThemes.AuroraGlassDark, GlassThemes.CrystalGlassLight, GlassThemes.CrystalGlassDark)
         assertEquals(listOf(false, true, false, true), e.map { it.isDark })
         assertTrue(e.none { it == GlassThemes.default })
-        assertTrue(e.all { it.adaptive == null })
-        // The package's two blur sizes, and Crystal has no grain while Aurora keeps some.
         assertEquals(26f, GlassThemes.AuroraGlassLight.blurRadius.value)
         assertEquals(18f, GlassThemes.CrystalGlassLight.blurRadius.value)
         assertTrue(GlassThemes.AuroraGlassDark.grain > GlassThemes.CrystalGlassDark.grain)
-        assertTrue(e.map { it.accent }.toSet().size == 4)
+        assertEquals(4, e.map { it.accent }.toSet().size)
         assertEquals(GlassThemes.CrystalGlassDark, GlassThemes.byId("CRYSTAL_GLASS_DARK"))
+    }
+
+    @Test
+    fun removedThemesFallBackToTheDefault() {
+        listOf("AURORA_FROST", "TRANSLUCENT", "FROSTED", "CRYSTAL").forEach { assertEquals(GlassThemes.default, GlassThemes.byId(it)) }
     }
 
     @Test

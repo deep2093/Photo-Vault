@@ -1,6 +1,10 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.SideEffect
 import com.deepak.photovault.designsystem.PageEasing
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.drawBehind
@@ -188,11 +192,22 @@ fun PhotoVaultApp(
     }
 }
 
+/** One open page and how far in it is (0 = away, 1 = in place). Each page owns its own movement. */
+@Stable
+private class PageEntry(val overlay: Overlay, shown: Float) {
+    val p = Animatable(shown)
+    var closing by mutableStateOf(false)
+}
+
 /**
- * Pages opened on top, animated in and out. Every page except the photo viewer slides in from the right edge like a
- * sliding door (24 Oct): the page under it drifts left and darkens, and a soft shadow runs down the moving page's
- * edge. Closing by the back arrow plays the same movement backwards; the system back gesture instead pulls the page
- * along with the finger, stops where the finger stops, and finishes or returns from there.
+ * Pages opened on top. Every page except the photo viewer slides in across the screen like a sliding door (24 Oct):
+ * it comes from the left edge and goes back out to the left, while the page under it drifts the same way, more
+ * slowly, and darkens. The photo viewer grows in and out.
+ *
+ * Each page has its own animation value and is taken away in the very frame it finishes. (Before, the pages were
+ * switched by AnimatedContent and a one-frame flash of the whole page showed after it had gone: seen in the 24 Oct
+ * recording.) The system back gesture instead pulls the page with the finger and holds it wherever the finger stops;
+ * opening, closing by the arrow and the gesture all move the same page, so a page can be turned round half way.
  */
 @Composable
 private fun OverlayHost(
@@ -204,84 +219,115 @@ private fun OverlayHost(
     iconSwitcher: AppIconSwitcher,
     system: PaddingValues,
 ) {
-    // Opening and closing mirror each other at the same speed (feedback 22 Oct: closing was too fast).
-    val spec = motionSpec<Float>(OVERLAY_MS)
     val reduceMotion = LocalGlassSettings.current.reduceMotion
-    val slideSpec: FiniteAnimationSpec<IntOffset> =
-        if (reduceMotion || state.pageBackSkip) snap() else tween(PAGE_MS, easing = PageEasing)
-    val depthSpec: FiniteAnimationSpec<Float> =
-        if (reduceMotion || state.pageBackSkip) snap() else tween(PAGE_MS, easing = PageEasing)
-    // A page the back gesture has already moved away is removed without sliding out a second time.
-    LaunchedEffect(state.pageBackSkip) {
-        if (state.pageBackSkip) {
-            withFrameNanos { }
-            withFrameNanos { }
-            state.pageBackSkip = false
-        }
-    }
-    val transition = updateTransition(targetState = state.overlays.size to state.overlays.lastOrNull(), label = "overlay")
-    // How many pages are open, as a number that moves smoothly while a page slides in or out. The page underneath
-    // is darkened by how much of it the moving page covers.
-    val depth = transition.animateFloat(transitionSpec = { depthSpec }, label = "depth") { it.first.toFloat() }
-    val below = state.overlays.getOrNull(state.overlays.size - 2)
-    val pulled by remember { derivedStateOf { state.pageBack.value > 0f } }
-    Box(Modifier.fillMaxSize()) {
-        // While a finger pulls the top page away, the page under it is shown (it is not otherwise on screen).
-        if (pulled && below != null) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { translationX = -(1f - state.pageBack.value) * size.width / DRIFT_DIVISOR }
-                    .dimmedBy { (1f - state.pageBack.value) * PAGE_DIM },
-            ) {
-                OverlayPage(below, state, gallery, actions, drive, backup, iconSwitcher, system)
+    val scope = rememberCoroutineScope()
+    val entries = remember { mutableStateListOf<PageEntry>().also { list -> state.overlays.forEach { list.add(PageEntry(it, 1f)) } } }
+    val wanted = state.overlays.toList()
+    LaunchedEffect(wanted) {
+        // The page the back gesture already moved away is removed at once; the rest slide.
+        val skip = state.pageBackSkip
+        state.pageBackSkip = false
+        val live = entries.filter { !it.closing }
+        var same = 0
+        while (same < live.size && same < wanted.size && live[same].overlay == wanted[same]) same++
+        live.drop(same).forEach { entry ->
+            entry.closing = true
+            if (skip || reduceMotion) {
+                entries.remove(entry)
+            } else {
+                scope.launch {
+                    entry.p.animateTo(0f, pageSpec(entry.overlay))
+                    entries.remove(entry)
+                }
             }
         }
-        Box(Modifier.fillMaxSize().graphicsLayer { translationX = state.pageBack.value * size.width }) {
-            transition.AnimatedContent(
-                contentKey = { it.second },
-                transitionSpec = {
-                    val opening = targetState.first > initialState.first
-                    val moving = if (opening) targetState.second else initialState.second
-                    // The page underneath stays fully in place while the new one grows in over it, and is already there
-                    // while the top one shrinks away. Before (24 Oct) both faded, so for a moment the section underneath
-                    // (Albums) showed through when a video or photo opened or closed: the "flash".
-                    if (moving.slidesSideways()) {
-                        if (state.pageBackSkip) {
-                            // The back gesture already moved this page away: take it out at once.
-                            (EnterTransition.None togetherWith ExitTransition.None).apply { targetContentZIndex = -1f }
-                        } else if (opening) {
-                            // The new page slides in from the edge while the one under it drifts a quarter to the left;
-                            // going back, it slides out to the right while the one under it drifts back in.
-                            (slideInHorizontally(slideSpec) { it } togetherWith slideOutHorizontally(slideSpec) { -it / DRIFT_DIVISOR.toInt() })
-                                .apply { targetContentZIndex = 1f }
-                        } else {
-                            (slideInHorizontally(slideSpec) { -it / DRIFT_DIVISOR.toInt() } togetherWith slideOutHorizontally(slideSpec) { it })
-                                .apply { targetContentZIndex = -1f }
-                        }
-                    } else if (opening) {
-                        ((fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith ExitTransition.KeepUntilTransitionsFinished)
-                            .apply { targetContentZIndex = 1f }
-                    } else {
-                        (EnterTransition.None togetherWith (fadeOut(spec) + scaleOut(spec, targetScale = OVERLAY_SCALE)))
-                            .apply { targetContentZIndex = -1f }
+        wanted.drop(same).forEach { overlay ->
+            val entry = PageEntry(overlay, if (reduceMotion) 1f else 0f)
+            entries.add(entry)
+            if (!reduceMotion) {
+                scope.launch {
+                    // Let the new page be built first, so building it never eats into the movement.
+                    withFrameNanos { }
+                    withFrameNanos { }
+                    entry.p.animateTo(1f, pageSpec(overlay))
+                }
+            }
+        }
+        if (skip) state.pageBack.snapTo(0f)
+    }
+    // The section under the first page follows it too (read only while drawing).
+    SideEffect {
+        state.sectionCover = {
+            val first = entries.firstOrNull()
+            if (first == null || !first.overlay.slidesSideways()) 0f
+            else first.p.value * (1f - pulledAway(entries, state, first))
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
+        entries.forEachIndexed { index, entry ->
+            key(entry) {
+                // A page fully covered by another is not built (as before), except the one a finger is uncovering.
+                val covered by remember(entry) {
+                    derivedStateOf {
+                        val at = entries.indexOf(entry)
+                        val full = entries.drop(at + 1).filter { !it.closing && it.p.value >= 1f }
+                        val top = entries.lastOrNull { !it.closing }
+                        full.isNotEmpty() && !(state.pageBack.value > 0f && full.size == 1 && full[0] === top)
                     }
-                },
-            ) { (_, overlay) ->
-                if (overlay == null) return@AnimatedContent
-                // The page that a sliding page is covering (or uncovering) darkens by how much of it is covered.
-                val lower = minOf(transition.currentState.first, transition.targetState.first)
-                val covered = overlay === state.overlays.getOrNull(lower - 1)
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .dimmedBy { if (covered) (depth.value - lower).coerceIn(0f, 1f) * PAGE_DIM else 0f },
-                ) {
-                    OverlayPage(overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                }
+                if (!covered) {
+                    val sideways = entry.overlay.slidesSideways()
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val width = size.width
+                                if (sideways) {
+                                    val top = entries.lastOrNull { !it.closing }
+                                    val own = -(1f - entry.p.value) * width
+                                    val pulled = if (entry === top) state.pageBackDir * state.pageBack.value * width else 0f
+                                    val drift = coverAbove(entries, state, entries.indexOf(entry)) * width / DRIFT_DIVISOR
+                                    translationX = own + pulled + drift
+                                } else {
+                                    val scale = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * entry.p.value
+                                    scaleX = scale
+                                    scaleY = scale
+                                    alpha = entry.p.value
+                                }
+                            }
+                            .dimmedBy { if (sideways) coverAbove(entries, state, entries.indexOf(entry)) * PAGE_DIM else 0f },
+                    ) {
+                        OverlayPage(entry.overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                        if (sideways) {
+                            // A soft shadow runs down the page's leading edge.
+                            Box(
+                                Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .offset(x = PAGE_SHADOW_WIDTH)
+                                    .width(PAGE_SHADOW_WIDTH)
+                                    .fillMaxHeight()
+                                    .background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent))),
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private fun pageSpec(overlay: Overlay): androidx.compose.animation.core.FiniteAnimationSpec<Float> =
+    if (overlay.slidesSideways()) tween(PAGE_MS, easing = PageEasing) else tween(OVERLAY_MS, easing = FastOutSlowInEasing)
+
+/** How much of the page the finger has pulled away, when [entry] is the top page. */
+private fun pulledAway(entries: List<PageEntry>, state: ShellState, entry: PageEntry): Float =
+    if (entry === entries.lastOrNull { !it.closing }) state.pageBack.value else 0f
+
+/** How much of the page at [index] is covered by the page on top of it (0 = not at all, 1 = fully). */
+private fun coverAbove(entries: List<PageEntry>, state: ShellState, index: Int): Float {
+    val next = entries.getOrNull(index + 1) ?: return 0f
+    if (!next.overlay.slidesSideways()) return 0f
+    return next.p.value * (1f - pulledAway(entries, state, next))
 }
 
 /** Darkens what it draws over by the fraction given (read only while drawing, so it never recomposes). */
@@ -330,16 +376,6 @@ private fun OverlayPage(
                     }
                 }
             }
-            if (overlay.slidesSideways()) {
-                Box(
-                    Modifier
-                        .align(Alignment.CenterStart)
-                        .offset(x = -PAGE_SHADOW_WIDTH)
-                        .width(PAGE_SHADOW_WIDTH)
-                        .fillMaxHeight()
-                        .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.22f)))),
-                )
-            }
         }
     }
 }
@@ -366,23 +402,12 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     // Photos and Albums tuck it away while scrolling down; selecting photos rolls it down at once so the
     // selection actions can take its place at the bottom (24 Oct).
     // A Settings page rolls the bar down as it slides in, and back up as it slides out, at the page's speed.
-    val pageOpen = state.overlays.any { it.slidesSideways() }
-    val hidden = pageOpen || state.selecting || state.albumsSelected.isNotEmpty() || (state.chrome.hidden && state.destination in Destination.hidesChrome)
+    // The bar rolls down as a page slides over the section and back up as it leaves, with the page (or with the
+    // finger on the back gesture); the other reasons to tuck it away animate on their own.
+    val tucked = state.selecting || state.albumsSelected.isNotEmpty() || (state.chrome.hidden && state.destination in Destination.hidesChrome)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
-    // Read only while drawing, so the slide doesn't recompose the screens on every frame.
-    // Moves with the page (same speed and curve) when a page slides over a section. When the back gesture pulls the
-    // page away the bar and the section follow the finger instead, and settle without a second animation.
-    val barSpec: androidx.compose.animation.core.FiniteAnimationSpec<Float> =
-        if (state.pageBackSkip) androidx.compose.animation.core.snap()
-        else if (pageOpen || state.overlays.isEmpty()) motionSpec(PAGE_MS, PageEasing)
-        else motionSpec(CHROME_MS)
-    val shift = androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, barSpec, label = "bar")
-    // 1 while a page covers the section; a finger on the back gesture pulls it toward 0 (only when this page is the last).
-    val driftSpec: androidx.compose.animation.core.FiniteAnimationSpec<Float> =
-        if (state.pageBackSkip) androidx.compose.animation.core.snap() else motionSpec(PAGE_MS, PageEasing)
-    val drift = androidx.compose.animation.core.animateFloatAsState(if (pageOpen) 1f else 0f, driftSpec, label = "drift")
-    val driftNow = { if (state.pageBack.value > 0f && state.overlays.size == 1) 1f - state.pageBack.value else drift.value }
+    val shift = androidx.compose.animation.core.animateFloatAsState(if (tucked) travel else 0f, motionSpec(CHROME_MS), label = "bar")
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -392,12 +417,12 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                 bottom = system.calculateBottomPadding() + barSpace,
             ),
         ) {
-            // The section under a page drifts a quarter to the left and darkens as the page slides in (Samsung style).
+            // The section under a page drifts the same way as the page, a quarter as far, and darkens (Samsung style).
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { translationX = -driftNow() * size.width / DRIFT_DIVISOR }
-                    .dimmedBy { driftNow() * PAGE_DIM },
+                    .graphicsLayer { translationX = state.sectionCover() * size.width / DRIFT_DIVISOR }
+                    .dimmedBy { state.sectionCover() * PAGE_DIM },
             ) {
                 SectionPager(nav.pager, screens)
             }
@@ -409,7 +434,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .graphicsLayer {
-                    val y = if (state.pageBack.value > 0f && state.overlays.size == 1) travel * (1f - state.pageBack.value) else shift.value
+                    val y = maxOf(shift.value, travel * state.sectionCover())
                     translationY = y
                     alpha = 1f - (y / travel).coerceIn(0f, 1f)
                 }

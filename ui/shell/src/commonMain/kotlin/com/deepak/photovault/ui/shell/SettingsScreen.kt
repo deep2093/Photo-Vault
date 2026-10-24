@@ -186,14 +186,13 @@ private fun PageCard(
 private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) {
     val theme = LocalGlassTheme.current
     PageCard("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = theme.displayName) {
-        SectionHeader("Glass themes")
-        ThemeRow(GlassThemes.fixed, state)
-        SectionHeader("Adaptive themes")
+        SectionHeader("Light themes")
+        ThemeRow(GlassThemes.lightThemes, state)
+        SectionHeader("Dark themes")
+        ThemeRow(GlassThemes.darkThemes, state)
+        SectionHeader("Photo themes")
         Text("The background takes its colours from the photos on screen.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-        ThemeRow(GlassThemes.adaptiveThemes, state)
-        SectionHeader("Experimental themes")
-        Text("Aurora Glass and Crystal Glass, still being tuned. They are never chosen for you.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-        ThemeRow(GlassThemes.experimental, state)
+        ThemeRow(GlassThemes.photoThemes, state)
         Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         GlassSwitchRow(
             "Glass blur",
