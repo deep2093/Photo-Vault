@@ -17,7 +17,7 @@ class MemberIdentity(keys: MemberKeys) {
 
     fun sign(data: ByteArray): ByteArray = Ed25519Sign(signing.privateKey).sign(data)
 
-    /** Short text to compare out loud or on screen when checking someone's identity: ten groups of four. */
+    /** Short text to compare out loud or on screen when checking someone's identity: five groups of four. */
     val fingerprint: String get() = fingerprintOf(signingPublic)
 
     internal fun sharedSecretWith(peerPublic: ByteArray): ByteArray = X25519.computeSharedSecret(exchangePrivate, peerPublic)

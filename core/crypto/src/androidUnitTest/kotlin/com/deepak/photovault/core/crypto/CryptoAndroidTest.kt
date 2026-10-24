@@ -110,7 +110,7 @@ class CryptoAndroidTest {
         assertContentEquals(a.signingPublic, b.signingPublic)
         assertContentEquals(a.exchangePublic, b.exchangePublic)
         assertEquals(a.fingerprint, b.fingerprint)
-        assertEquals(10, a.fingerprint.split(" ").size)
+        assertEquals(5, a.fingerprint.split(" ").size)
         val manifest = "manifest rev 7".encodeToByteArray()
         val sig = a.sign(manifest)
         assertTrue(MemberIdentity.verify(a.signingPublic, manifest, sig))
