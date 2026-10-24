@@ -129,6 +129,7 @@ private class Screens(
     val iconSwitcher: AppIconSwitcher,
 ) {
     /** A dot on Family while a phone is waiting for the owner. */
+    val settingsDot: Boolean get() = drive.isOwner && drive.feedbackNew > 0
     val familyDot: Boolean get() = drive.isOwner && (drive.requests.isNotEmpty() || drive.spaceRequests.isNotEmpty())
 }
 private const val OVERLAY_SCALE = 0.9f
@@ -167,6 +168,7 @@ fun PhotoVaultApp(
             drive.refresh()
             drive.refreshUsage()
             drive.flushFeedback(actions)
+            drive.refreshFeedbackDot()
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
         }
     }
@@ -468,6 +470,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             indicator = { nav.indicator.value },
             onSelect = state::tapSection,
             familyDot = screens.familyDot,
+            settingsDot = screens.settingsDot,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 // Moved by layout, not a layer translation: the lens glass must learn where the bar is (25 Oct fix for
@@ -592,7 +595,7 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
 
 /** Phones: a floating glass capsule with one highlight that slides between sections. */
 @Composable
-private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, modifier: Modifier = Modifier) {
+private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, settingsDot: Boolean, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
     BoxWithConstraints(
@@ -613,7 +616,7 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->
-                NavItem(destination, indicator(), { onSelect(destination) }, Modifier.weight(1f), dot = familyDot && destination == Destination.FAMILY)
+                NavItem(destination, indicator(), { onSelect(destination) }, Modifier.weight(1f), dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS))
             }
         }
     }

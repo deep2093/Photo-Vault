@@ -297,3 +297,6 @@ real-share tests ran, so a skipped run can't pass silently.
 8. Backed-up files list (Settings > Backup > Drive): thumbnails show, a tap opens the photo, press and hold selects. "Save to this phone" on cloud photos (selection bar and viewer).
 9. A member (not the owner) sees "Leave family" on their own page. Their photos stay on the drive.
 10. A phone joining the family gets its own backup time (2:00, 2:30, 3:00 ...); change it by hand any time.
+11. Owner: when someone sends feedback or a bug report, a dot appears on Settings (checked every minute while the app is open); opening Settings > Send feedback clears it. Every 3 hours in the background the owner's phone also posts "New bug report" or "New feedback" (needs notifications allowed and the drive reachable).
+12. After the tour, the "Let backups run on time" screen shows four steps and opens Pixallery's page in Android settings.
+13. Family Album: press and hold the card > Change cover. Each person's cover is their own.

@@ -69,6 +69,7 @@ class BackupGraph private constructor(context: Context) {
     fun start() {
         BackupNotifications.createChannels(app)
         scope.launch { runCatching { BackupScheduler.ensureScheduled(app, settings.load()) } }
+        runCatching { FeedbackCheck.schedule(app) }
     }
 
     companion object {

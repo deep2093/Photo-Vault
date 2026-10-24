@@ -180,6 +180,7 @@ private fun FeedbackInbox(drive: DriveState) {
     LaunchedEffect(drive.joined?.household?.revision) {
         notes = drive.feedbackInbox()
         loaded = true
+        notes?.let(drive::markFeedbackSeen)
     }
     if (confirmClear) ClearFeedbackDialog(notes.orEmpty().size, { confirmClear = false }) {
         confirmClear = false

@@ -66,6 +66,10 @@ interface DrivePlatform {
     fun rememberedUserId(): String?
     fun rememberUserId(userId: String?)
 
+    /** The newest feedback note the owner has looked at (25 Oct), for the dot on Settings. */
+    fun feedbackSeenAt(): Long = 0L
+    fun setFeedbackSeenAt(millis: Long) = Unit
+
     /** A message safe to show: never includes the password or raw server text. */
     fun describe(error: Throwable): String
 
@@ -641,6 +645,27 @@ class DriveState(private val platform: DrivePlatform) {
         val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
         val sources = files.map { f -> f.name to (actions.openFeedbackFile(f) ?: throw IllegalStateException("File gone")) }
         FeedbackBox(fs).send(note, sources)
+    }
+
+    /** How many received notes the owner hasn't looked at yet (the dot on Settings). */
+    var feedbackNew by mutableStateOf(0)
+        private set
+
+    /** Owner only: counts notes newer than the last one looked at. */
+    suspend fun refreshFeedbackDot() {
+        if (!isOwner) {
+            feedbackNew = 0
+            return
+        }
+        val seen = platform.feedbackSeenAt()
+        feedbackNew = feedbackInbox()?.count { it.note.createdAtMillis > seen } ?: return
+    }
+
+    /** The owner opened the inbox: everything shown is now seen. */
+    fun markFeedbackSeen(entries: List<FeedbackEntry>) {
+        val newest = entries.maxOfOrNull { it.note.createdAtMillis } ?: return
+        if (newest > platform.feedbackSeenAt()) platform.setFeedbackSeenAt(newest)
+        feedbackNew = 0
     }
 
     /** Everyone's feedback, for the owner; null if the drive can't be read. */

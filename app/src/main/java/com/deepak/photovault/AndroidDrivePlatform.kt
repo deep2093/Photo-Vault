@@ -176,6 +176,19 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
 
     override fun rememberedUserId(): String? = prefs.getString(KEY_USER, null)
 
+    override fun feedbackSeenAt(): Long = prefs.getLong(KEY_FEEDBACK_SEEN, 0L)
+
+    override fun setFeedbackSeenAt(millis: Long) {
+        prefs.edit().putLong(KEY_FEEDBACK_SEEN, millis).apply()
+    }
+
+    /** The newest note the 3-hourly check already told the owner about, so it says each one once. */
+    fun feedbackNotifiedAt(): Long = prefs.getLong(KEY_FEEDBACK_NOTIFIED, 0L)
+
+    fun setFeedbackNotifiedAt(millis: Long) {
+        prefs.edit().putLong(KEY_FEEDBACK_NOTIFIED, millis).apply()
+    }
+
     override fun rememberUserId(userId: String?) {
         prefs.edit().apply { if (userId == null) remove(KEY_USER) else putString(KEY_USER, userId) }.apply()
     }
@@ -196,6 +209,8 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
 
     private companion object {
         const val PREFS = "family"
+        private const val KEY_FEEDBACK_SEEN = "feedback_seen_at"
+        private const val KEY_FEEDBACK_NOTIFIED = "feedback_notified_at"
         const val KEY_DEVICE = "device_id"
         const val KEY_USER = "user_id"
 
