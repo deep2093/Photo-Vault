@@ -29,6 +29,12 @@ interface BackupPlatform {
     /** Downloads backed-up photos that aren't on this phone. */
     fun restoreMissing()
 
+    /** Downloads the chosen backups (drive paths) that aren't on this phone (Settings > Storage, 23 Oct). */
+    fun restoreSelected(drivePaths: List<String>) = Unit
+
+    /** Forgets photos whose backup was deleted from the drive, so copies still on the phone back up again. */
+    suspend fun forgetBackedUp(keys: Set<String>) = Unit
+
     /** On mobile data right now (backup then waits for Wi-Fi unless mobile data is allowed). */
     fun onMobileData(): Boolean
 
@@ -103,6 +109,15 @@ class BackupState(private val platform: BackupPlatform) {
     fun stop() = platform.stop()
 
     fun restoreMissing() = platform.restoreMissing()
+
+    /** Brings the chosen backups back to the phone (Settings > Storage). */
+    fun restoreSelected(drivePaths: List<String>) = platform.restoreSelected(drivePaths)
+
+    /** After backups were deleted from the drive: copies still on the phone back up again next time. */
+    suspend fun forgetBackedUp(keys: Set<String>) {
+        platform.forgetBackedUp(keys)
+        backedUpKeys = backedUpKeys - keys
+    }
 
     fun onMobileData() = platform.onMobileData()
 

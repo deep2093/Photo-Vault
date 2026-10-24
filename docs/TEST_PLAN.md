@@ -151,6 +151,31 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Tap between sections fast (Photos ↔ Settings, back and forth, several times): slides stay smooth, never stop
   halfway between two sections and never land on a section you didn't tap. Family still updates while open.
 
+## Phase 4 device checks: fifth round (23-24 Oct, 12 points)
+
+- Open the app away from home Wi-Fi (or with the drive off): it opens normally (crash fixed 24 Oct).
+- Settings: Albums, Appearance, Backup, Drive, Storage, then Send feedback, then About last. Each page slides in
+  from the right while the bottom bar rolls down, and slides back out to the right at the same speed.
+- New install or never-chosen icon: Leaf on Light on the home screen.
+- Photo viewer: tapping hides the buttons and the status and navigation bars together; tap again brings all back.
+- Family: owner PIN then a space choice: the PIN box closes smoothly after the keyboard; the space dialog closes
+  at once; the default-space chips change instantly.
+- Owner's new phone: choose the owner's name and enter the owner PIN: joins as owner at once; can remove the old
+  phone. Wrong PIN: refused. No PIN with approval off: only asks to join.
+- Video: pressing play doesn't make the picture jump; the frame strip opens out of the thumbnail with the
+  video's picture in each box until frames load; closing a playing video shrinks it smoothly with the page.
+- Delete in the viewer, in a selection, deleting an album, Delete for good: after Android's prompt the photos
+  shrink into the delete button; cancelling the prompt keeps them and the selection.
+- Recently deleted: tap a photo to open it, with Restore and Delete for good; long-press still selects.
+- Settings > Storage, Phone and Drive: both show a ring; tapping a ring slice, a legend row, a year bar or an album
+  opens its files. Sort Name / Date / Size; tapping the active one flips the arrow and the order. Long-press and
+  slide selects; Select all / Deselect all; Back clears the selection. Phone: share, delete (flies to the bin),
+  tap opens the viewer. Drive: Save to phone (appears in "Pixallery Restored"); Delete from drive warns, then the
+  files go from the list and the drive; a deleted photo still on the phone backs up again next time.
+- Send feedback: Feedback or Bug, text, up to 5 photos or videos (warns over 300 MB). At home: "Sent"; the owner
+  sees it under Feedback received with who, when, phone and attached names. Away: "Saved on this phone", and it
+  goes by itself with the next drive check. After a crash: the page offers to add the details to a bug report.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)

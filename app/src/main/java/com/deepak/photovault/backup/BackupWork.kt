@@ -48,7 +48,8 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         // in the background; the backup then still runs, and carries on next time if Android stops it.
         runCatching { setForeground(getForegroundInfo()) }
         if (inputData.getBoolean(KEY_RESTORE, false)) {
-            graph.runner.restoreMissing { done, total -> BackupNotifications.restoring(applicationContext, done, total) }
+            val only = if (inputData.getBoolean(KEY_SELECTED, false)) RestoreSelection.take(applicationContext) else null
+            graph.runner.restoreMissing(only) { done, total -> BackupNotifications.restoring(applicationContext, done, total) }
             BackupNotifications.clearProgress(applicationContext)
             return Result.success()
         }
@@ -70,6 +71,7 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
     companion object {
         const val KEY_TRIGGER = "trigger"
         const val KEY_RESTORE = "restore"
+        const val KEY_SELECTED = "selected"
     }
 }
 
@@ -138,14 +140,35 @@ object BackupScheduler {
         WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_NOW, ExistingWorkPolicy.KEEP, request)
     }
 
-    fun restore(context: Context) {
+    fun restore(context: Context, selected: Boolean = false) {
         val request = OneTimeWorkRequestBuilder<BackupWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setInputData(workDataOf(BackupWorker.KEY_RESTORE to true))
+            .setInputData(workDataOf(BackupWorker.KEY_RESTORE to true, BackupWorker.KEY_SELECTED to selected))
             .addTag(TAG_ALL)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_RESTORE, ExistingWorkPolicy.KEEP, request)
+        // A chosen set replaces a waiting one; a full restore keeps the one already running.
+        WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_RESTORE, if (selected) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP, request)
+    }
+}
+
+/**
+ * The backups chosen in Settings > Storage to bring back, kept in a small file because a long list doesn't fit
+ * in WorkManager's input. Read once by the restore job.
+ */
+object RestoreSelection {
+    private fun file(context: Context) = java.io.File(context.applicationContext.filesDir, "backup/restore-selection.txt")
+
+    fun save(context: Context, paths: List<String>) {
+        val f = file(context)
+        f.parentFile?.mkdirs()
+        f.writeText(paths.joinToString("\n"))
+    }
+
+    fun take(context: Context): Set<String> {
+        val f = file(context)
+        if (!f.exists()) return emptySet()
+        return f.readLines().filter { it.isNotBlank() }.toSet().also { f.delete() }
     }
 }
 

@@ -49,6 +49,23 @@ interface MediaActions {
     /** Total and free bytes of the phone's own storage, or null if unknown. */
     fun phoneStorage(): Pair<Long, Long>? = null
 
+    /** Send feedback (23 Oct): pick up to five photos or videos to go with a note. */
+    fun pickFeedbackFiles(onPicked: (List<FeedbackFile>) -> Unit) = Unit
+
+    /** Reads a picked file, or a copy kept while the note waits to be sent. */
+    fun openFeedbackFile(file: FeedbackFile): com.deepak.photovault.core.drive.ByteSource? = null
+
+    /** Notes that couldn't be sent yet (drive out of reach), kept on the phone with copies of their files. */
+    val feedbackOutbox: FeedbackOutbox get() = NoFeedbackOutbox
+
+    /** The app's version, sent with feedback. */
+    val appVersion: String get() = ""
+
+    /** What went wrong the last time the app closed unexpectedly, if it did (24 Oct). */
+    fun lastCrash(): String? = null
+
+    fun clearLastCrash() = Unit
+
     /** Moves every photo of an album to Recently deleted (Android asks first). */
     fun deleteAlbum(albumId: String, onDone: (Boolean) -> Unit = {}) = Unit
 
@@ -85,6 +102,22 @@ object NoMediaActions : MediaActions {
     override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) = Unit
     override fun restore(items: List<MediaItem>) = Unit
     override fun deleteForever(items: List<MediaItem>, onDone: (Boolean) -> Unit) = Unit
+}
+
+/** A photo or video added to a feedback note. [uri] is where to read it (a picked file or a kept copy). */
+data class FeedbackFile(val uri: String, val name: String, val sizeBytes: Long, val isVideo: Boolean)
+
+/** Feedback waiting for the drive. Adding copies the files into the app's own storage, so they can't vanish. */
+interface FeedbackOutbox {
+    fun add(note: com.deepak.photovault.core.household.FeedbackNote, files: List<FeedbackFile>)
+    fun all(): List<Pair<com.deepak.photovault.core.household.FeedbackNote, List<FeedbackFile>>>
+    fun remove(id: String)
+}
+
+object NoFeedbackOutbox : FeedbackOutbox {
+    override fun add(note: com.deepak.photovault.core.household.FeedbackNote, files: List<FeedbackFile>) = Unit
+    override fun all(): List<Pair<com.deepak.photovault.core.household.FeedbackNote, List<FeedbackFile>>> = emptyList()
+    override fun remove(id: String) = Unit
 }
 
 /** The phone's photos as the screens see them. Refreshes itself when the phone's library changes. */

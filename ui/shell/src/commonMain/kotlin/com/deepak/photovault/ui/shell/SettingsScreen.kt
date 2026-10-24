@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Feedback
 import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.PieChart
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -81,6 +82,7 @@ enum class SettingsPage(val title: String) {
     BACKUP("Backup"),
     DRIVE("Drive"),
     STORAGE("Storage"),
+    FEEDBACK("Send feedback"),
     ABOUT("About"),
 }
 
@@ -105,6 +107,7 @@ fun SettingsScreen(
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
                         SettingsPage.STORAGE -> Icons.Rounded.PieChart to "Phone and drive"
+                        SettingsPage.FEEDBACK -> Icons.Rounded.Feedback to (if (drive.feedbackWaiting > 0) "${drive.feedbackWaiting} waiting to send" else "Ideas and bugs, with photos or videos")
                     }
                     SettingsRow(icon, page.title, summary) {
                         if (page == SettingsPage.BACKUP) state.open(Overlay.Backup) else state.open(Overlay.Settings(page))
@@ -163,7 +166,8 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }
-            SettingsPage.STORAGE -> item { StorageContent(gallery, drive, actions) }
+            SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions) }
+            SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
         }
     }
 }

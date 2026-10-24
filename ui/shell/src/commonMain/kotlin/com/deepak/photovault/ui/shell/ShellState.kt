@@ -68,6 +68,12 @@ interface AppearanceStore {
 /** Full-screen pages opened over the main sections. Back closes the top one. */
 sealed interface Overlay {
     /** The photo viewer, swiping through [ids] (the list it was opened from) starting at [startId]. */
+    /**
+     * Settings > Storage: the files behind a slice of a chart (23 Oct). [refs] are phone media IDs, or drive paths
+     * when [onDrive].
+     */
+    data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>) : Overlay
+
     /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
     data class Viewer(val ids: List<Long>, val startId: Long, val trash: Boolean = false) : Overlay
 
@@ -134,10 +140,14 @@ class ShellState(private val store: AppearanceStore) {
     var detailsOpen by mutableStateOf(false)
 
     /** Back has something to close: a page, a selection, or a section other than Photos. */
-    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting || detailsOpen
+    /** Files picked on a Storage file page (phone media IDs or drive paths, 23 Oct). Back clears them first. */
+    var filesSelected by mutableStateOf<Set<String>>(emptySet())
+
+    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty()
 
     fun open(overlay: Overlay) {
         selected = emptySet()
+        filesSelected = emptySet()
         detailsOpen = false
         overlays.add(overlay)
     }
@@ -150,6 +160,10 @@ class ShellState(private val store: AppearanceStore) {
         }
         selecting -> {
             selected = emptySet()
+            true
+        }
+        filesSelected.isNotEmpty() -> {
+            filesSelected = emptySet()
             true
         }
         overlays.isNotEmpty() -> {

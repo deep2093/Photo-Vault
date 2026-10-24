@@ -28,7 +28,7 @@ import java.util.UUID
 import kotlin.math.sqrt
 
 /** An input stream as a [ByteSource]. */
-private class StreamSource(private val input: InputStream) : ByteSource {
+internal class StreamSource(private val input: InputStream) : ByteSource {
     override fun read(buffer: ByteArray): Int = input.read(buffer)
     override fun close() = input.close()
 }

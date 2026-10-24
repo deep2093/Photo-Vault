@@ -34,6 +34,8 @@ data class Manifest(
     val deviceId: String,
     val createdAtMillis: Long,
     val records: List<BackupRecord>,
+    /** Drive paths deleted from the drive by their owner (23 Oct, Settings > Storage). Later manifests win. */
+    val removed: List<String> = emptyList(),
 )
 
 /** A phone file ready to upload: the original, or a smaller copy made by Storage saver. */
@@ -60,6 +62,9 @@ interface MediaReader {
 interface BackupIndex {
     suspend fun keys(): Set<String>
     suspend fun add(records: List<BackupRecord>)
+
+    /** Forgets photos whose backup was deleted from the drive, so a copy still on the phone is backed up again. */
+    suspend fun remove(keys: Set<String>) = Unit
 }
 
 class MemoryBackupIndex : BackupIndex {
@@ -67,6 +72,10 @@ class MemoryBackupIndex : BackupIndex {
     override suspend fun keys(): Set<String> = records.map { it.key }.toSet()
     override suspend fun add(records: List<BackupRecord>) {
         this.records += records
+    }
+
+    override suspend fun remove(keys: Set<String>) {
+        records.removeAll { it.key in keys }
     }
 }
 

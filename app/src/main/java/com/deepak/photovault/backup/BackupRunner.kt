@@ -132,14 +132,14 @@ class BackupRunner(
     }
 
     /** Restores backed-up photos that aren't on this phone. Returns a line for the Backup screen. */
-    suspend fun restoreMissing(onProgress: (Int, Int) -> Unit = { _, _ -> }): String? {
+    suspend fun restoreMissing(only: Set<String>? = null, onProgress: (Int, Int) -> Unit = { _, _ -> }): String? {
         if (!lock.tryLock()) return null
         stopRequested = false
         state.restoring = true
         try {
             return try {
                 coroutineScope {
-                    val job = async { restoreNow(onProgress) }
+                    val job = async { restoreNow(only, onProgress) }
                     current = job
                     job.await()
                 }
@@ -155,7 +155,7 @@ class BackupRunner(
         }
     }
 
-    private suspend fun restoreNow(onProgress: (Int, Int) -> Unit): String {
+    private suspend fun restoreNow(only: Set<String>?, onProgress: (Int, Int) -> Unit): String {
         val connection = platform.loadConnection() ?: return FailureReason.NO_DRIVE.plain
         val fs: SmbDriveFileSystem = try {
             platform.openDetached(connection)
@@ -169,13 +169,13 @@ class BackupRunner(
             val joined = membership as? Membership.Joined ?: return FailureReason.NOT_JOINED.plain
             val engine = RestoreEngine(fs, joined.me.userId) { classify(it) }
             val missing = try {
-                engine.missing(MediaStoreLibrary(context).loadAll())
+                engine.missing(MediaStoreLibrary(context).loadAll()).filter { only == null || it.drivePath in only }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 return classify(e).message
             }
-            if (missing.isEmpty()) return "Everything on the drive is already on this phone."
+            if (missing.isEmpty()) return if (only != null) "Those are already on this phone." else "Everything on the drive is already on this phone."
             val result = engine.restore(missing, AndroidMediaWriter(context)) { done, total ->
                 state.restoreProgress = done to total
                 onProgress(done, total)

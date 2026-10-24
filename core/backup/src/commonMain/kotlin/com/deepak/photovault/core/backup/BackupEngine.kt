@@ -282,26 +282,54 @@ class BackupEngine(
 
 /** Reads what a person has on the drive: every manifest from every one of their phones. */
 class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
-    private val manifests = DrivePaths.join(HouseholdStore.userFolder(userId), BackupEngine.MANIFESTS)
+    private val userFolder = HouseholdStore.userFolder(userId)
+    private val manifests = DrivePaths.join(userFolder, BackupEngine.MANIFESTS)
 
     suspend fun records(): List<BackupRecord> {
-        val out = LinkedHashMap<String, BackupRecord>()
-        for (device in drive.list(manifests).filter { it.isFolder }) {
+        // Every phone's manifests in time order (their names start with the time), so a deletion only hides
+        // what was saved before it, and a photo backed up again afterwards shows again.
+        val files = drive.list(manifests).filter { it.isFolder }.flatMap { device ->
             val folder = DrivePaths.join(manifests, device.name)
-            for (file in drive.list(folder).filter { !it.isFolder && it.name.endsWith(".json") }) {
-                val manifest = try {
-                    BackupEngine.json.decodeFromString(Manifest.serializer(), drive.read(DrivePaths.join(folder, file.name)).decodeToString())
-                } catch (_: DriveNotFound) {
-                    continue
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    continue // A damaged manifest never stops a backup.
-                }
-                manifest.records.forEach { out[it.drivePath] = it }
+            drive.list(folder).filter { !it.isFolder && it.name.endsWith(".json") }.map { DrivePaths.join(folder, it.name) }
+        }.sortedBy { it.substringAfterLast('/') }
+        val out = LinkedHashMap<String, BackupRecord>()
+        for (path in files) {
+            val manifest = try {
+                BackupEngine.json.decodeFromString(Manifest.serializer(), drive.read(path).decodeToString())
+            } catch (_: DriveNotFound) {
+                continue
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                continue // A damaged manifest never stops a backup.
             }
+            manifest.records.forEach { out[it.drivePath] = it }
+            manifest.removed.forEach { out.remove(it) }
         }
         return out.values.toList()
+    }
+
+    /**
+     * Deletes backups from the drive (23 Oct, Settings > Storage, after a warning). Only files inside this
+     * person's own folder. The deletion is written down first, then the files go, so the list never shows a
+     * file that is gone. The phone itself is never touched.
+     */
+    suspend fun remove(records: List<BackupRecord>, deviceId: String, now: Long) {
+        if (records.isEmpty()) return
+        val own = records.filter { it.drivePath.startsWith("$userFolder/") && !it.drivePath.contains("..") }
+        require(own.size == records.size) { "Only your own backups can be deleted" }
+        val folder = DrivePaths.join(manifests, deviceId)
+        drive.mkdirs(folder)
+        val note = Manifest(deviceId = deviceId, createdAtMillis = now, records = emptyList(), removed = own.map { it.drivePath })
+        val bytes = BackupEngine.json.encodeToString(Manifest.serializer(), note).encodeToByteArray()
+        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(now)), bytes)) Unit
+        for (r in own) {
+            try {
+                drive.delete(r.drivePath)
+            } catch (_: DriveNotFound) {
+                // Already gone.
+            }
+        }
     }
 
     /** When each of the person's phones last saved something: deviceId to time. */

@@ -86,3 +86,14 @@ Backup > Restore > Check the drive lists the person's backed-up files (all their
 on this phone: neither the original (name, size, time) nor an earlier restored copy (name and size). Each one is
 downloaded into a new, hidden MediaStore entry under Pictures/Pixallery Restored (videos: Movies/...), its
 SHA-256 checked, and only then made visible. A mismatch is removed. Nothing on the drive changes.
+
+Settings > Storage > Drive (23 Oct) can also **save chosen backups to the phone** the same way (only the ones
+not already on the phone).
+
+## Deleting backups from the drive (23 Oct)
+
+Settings > Storage > Drive lets a person delete **their own** backups, after a warning. First a manifest with
+`removed: [paths]` is written (create-new, like every manifest), then the files are deleted. The catalog reads
+all manifests in time order (names start with the time), so a deletion hides only what was saved before it.
+The phone's backup index forgets those photos, so any copy still on the phone is backed up again next time
+(the warning says so). Paths outside `users/<own id>/` are refused. Nothing on the phone is touched.

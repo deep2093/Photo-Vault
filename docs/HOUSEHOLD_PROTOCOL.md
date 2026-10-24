@@ -45,6 +45,11 @@ Six phones joining at once all end up in the family exactly once (`HouseholdStor
   With **Approve new phones** on (default), the owner approves or declines on the Family page; with it off,
   the phone is added straight away.
 - Each person's folders are created when they are added.
+- **A lost or replaced owner phone (23 Oct):** a phone that chooses the owner and enters the **owner PIN** joins
+  as the owner straight away, even with approval on (nobody else could approve it), then removes the lost
+  phone in Family. Without the PIN it only asks to join and waits for another of the owner's phones; even
+  with approval off, nobody joins as the owner unapproved. The owner PIN is required when a family is
+  created; an owner without one is asked to set it. Wrong PINs count towards the same lock-out.
 
 ## Owner controls
 
@@ -53,7 +58,7 @@ below, the default space and the owner PIN. Settings → Family shows them; othe
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Owner PIN | On | Asks for the PIN before any owner action. Unlocked for 5 minutes at a time |
+| Owner PIN | On | Asks for the PIN before any owner action. Unlocked for 5 minutes at a time. Turning this off stops the asking but keeps the PIN for an owner's new phone |
 | Approve new phones | On | New phones wait for the owner |
 | Space for new people | 100 GB | Starting limit for each new person (1 GB to 100,000 GB) |
 

@@ -61,6 +61,8 @@ fun GlassTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     supporting: String? = null,
     onDone: (() -> Unit)? = null,
+    /** More than 1 for a box that grows as you write (Send feedback). */
+    minLines: Int = 1,
 ) {
     val theme = LocalGlassTheme.current
     Column(modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -73,7 +75,7 @@ fun GlassTextField(
                 .clip(RoundedCornerShape(16.dp))
                 .background(theme.onGlass.copy(alpha = 0.07f))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            contentAlignment = Alignment.CenterStart,
+            contentAlignment = if (minLines > 1) Alignment.TopStart else Alignment.CenterStart,
         ) {
             if (value.isEmpty() && placeholder.isNotEmpty()) {
                 Text(placeholder, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyLarge)
@@ -81,13 +83,15 @@ fun GlassTextField(
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                singleLine = true,
+                singleLine = minLines == 1,
+                minLines = minLines,
+                maxLines = if (minLines == 1) 1 else minLines * 3,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = theme.onGlass),
                 cursorBrush = SolidColor(theme.accent),
                 visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = if (password && keyboardType == KeyboardType.Text) KeyboardType.Password else keyboardType,
-                    autoCorrectEnabled = false,
+                    autoCorrectEnabled = minLines > 1,
                 ),
                 keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
                 modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },

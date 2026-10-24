@@ -137,6 +137,7 @@ fun PhotoVaultApp(
         while (signals.foreground && drive.isSetUp) {
             drive.refresh()
             drive.refreshUsage()
+            drive.flushFeedback(actions)
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
         }
     }
@@ -225,6 +226,7 @@ private fun OverlayHost(
                         is Overlay.Member -> MemberScreen(overlay.userId, state, drive, actions)
                         Overlay.Backup -> BackupScreen(drive, backup, gallery, actions, onBack = { state.back() })
                         is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions)
+                        is Overlay.StorageFiles -> StorageFilesScreen(overlay, state, gallery, drive, backup, actions)
                         is Overlay.Viewer -> Unit
                     }
                 }
@@ -236,7 +238,7 @@ private fun OverlayHost(
 
 /** Pages that open from Settings slide in from the side like a stack of pages; the rest grow in. */
 internal fun Overlay?.slidesSideways(): Boolean =
-    this is Overlay.Settings || this == Overlay.Backup || this == Overlay.DriveSetup
+    this is Overlay.Settings || this == Overlay.Backup || this == Overlay.DriveSetup || this is Overlay.StorageFiles
 
 /** Takes part in touch hit-testing everywhere it covers, so siblings drawn underneath never receive touches. */
 private fun Modifier.blockTouchesBelow(): Modifier = pointerInput(Unit) {

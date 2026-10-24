@@ -199,4 +199,29 @@ class StorageStatsTest {
         assertEquals(1500L, StorageStats.byAlbum(files).first().bytes)
         assertEquals(listOf("2024", "2025", "2026"), StorageStats.byYear(files, zone).map { it.label })
     }
+
+    @Test
+    fun eachSliceOpensExactlyItsFiles() {
+        val types = StorageStats.byType(files, top = 3)
+        assertEquals(listOf("a.jpg", "b.JPEG"), StorageStats.ofType(files, types, "JPG").map { it.name })
+        // "Other" holds every type not shown on its own, and only those.
+        assertEquals(listOf("e.png", "f.gif", "g.webp"), StorageStats.ofType(files, types, "Other").map { it.name })
+        val albums = StorageStats.byAlbum(files, top = 2)
+        assertEquals(listOf("e.png", "f.gif", "g.webp"), StorageStats.ofAlbum(files, albums, "Other").map { it.name })
+        assertEquals(listOf("c.heic"), StorageStats.ofAlbum(files, albums, "WhatsApp Images").map { it.name })
+        assertEquals(listOf("a.jpg", "c.heic", "e.png", "f.gif", "g.webp"), StorageStats.ofYear(files, "2026", zone).map { it.name })
+    }
+
+    @Test
+    fun sortingByNameDateAndSizeBothWays() {
+        val byName = FileOrder().tapped(FileSort.NAME)
+        assertEquals(FileOrder(FileSort.NAME, ascending = true), byName)
+        assertEquals("a.jpg", StorageStats.sorted(files, byName).first().name)
+        assertEquals("g.webp", StorageStats.sorted(files, byName.tapped(FileSort.NAME)).first().name)
+        // Date and size start newest / biggest first; a second tap turns them round.
+        assertEquals("g.webp", StorageStats.sorted(files, FileOrder()).first().name)
+        val bySize = byName.tapped(FileSort.SIZE)
+        assertEquals("d.mp4", StorageStats.sorted(files, bySize).first().name)
+        assertEquals("g.webp", StorageStats.sorted(files, bySize.tapped(FileSort.SIZE)).first().name)
+    }
 }

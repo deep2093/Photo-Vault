@@ -73,6 +73,23 @@ class FileBackupIndex(context: Context) : BackupIndex {
         loaded().addAll(records.map { it.key })
     }
 
+    override suspend fun remove(keys: Set<String>) = lock.withLock {
+        if (keys.isEmpty() || !file.exists()) return@withLock
+        withContext(Dispatchers.IO) {
+            val kept = file.readLines().filter { line ->
+                val key = runCatching { backupJson.decodeFromString(BackupRecord.serializer(), line).key }.getOrNull()
+                key != null && key !in keys
+            }
+            val tmp = File(file.parentFile, "index.jsonl.tmp")
+            tmp.writeText(kept.joinToString("") { it + "\n" })
+            if (!tmp.renameTo(file)) {
+                file.writeText(tmp.readText())
+                tmp.delete()
+            }
+        }
+        loaded().removeAll(keys)
+    }
+
     private suspend fun loaded(): MutableSet<String> {
         cache?.let { return it }
         val keys = withContext(Dispatchers.IO) {

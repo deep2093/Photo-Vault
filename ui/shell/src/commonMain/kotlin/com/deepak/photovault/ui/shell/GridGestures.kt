@@ -57,11 +57,15 @@ private enum class PressResult { TAP, CANCEL }
  * scrolling (Initial pass) so a drag selection can take over the finger; ordinary scrolling, flings and
  * two-finger pinches are left alone.
  */
-fun Modifier.photoGridGestures(grid: LazyGridState, handler: PhotoGridGestureHandler): Modifier = pointerInput(handler) {
+fun Modifier.photoGridGestures(grid: LazyGridState, handler: PhotoGridGestureHandler): Modifier =
+    selectGestures({ grid.isScrollInProgress }, handler)
+
+/** The same gestures for any scrolling list (the Storage file pages, 23 Oct). */
+fun Modifier.selectGestures(isScrolling: () -> Boolean, handler: PhotoGridGestureHandler): Modifier = pointerInput(handler) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         // A tap that stops a fling should only stop it, never open a photo.
-        val wasScrolling = grid.isScrollInProgress
+        val wasScrolling = isScrolling()
         val result = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)

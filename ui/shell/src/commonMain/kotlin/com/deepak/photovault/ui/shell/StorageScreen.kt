@@ -1,6 +1,11 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,23 +64,30 @@ private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Dri
  * by file type, photos per year, and the albums taking the most space.
  */
 @Composable
-internal fun StorageContent(gallery: GalleryState, drive: DriveState, actions: MediaActions) {
+internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: DriveState, actions: MediaActions) {
     val theme = LocalGlassTheme.current
     var source by remember { mutableStateOf(StorageSource.PHONE) }
-    var driveFiles by remember { mutableStateOf<List<StoredFile>?>(null) }
-    var driveLoading by remember { mutableStateOf(false) }
     val zone = remember { TimeZone.currentSystemDefault() }
     val phoneFiles = remember(gallery.items) { StorageStats.fromPhone(gallery.items) }
+    // Read again each time the drive tab opens, so files deleted or backed up since are right.
     LaunchedEffect(source, drive.joined?.me?.userId) {
-        if (source == StorageSource.DRIVE && driveFiles == null && drive.joined != null) {
-            driveLoading = true
-            // Album names come with each backup since 24 Oct; older ones are matched to the phone's photos.
-            val albumByKey = gallery.items.associate { BackupSelection.key(it) to it.albumName }
-            driveFiles = drive.myBackupRecords()?.map { r ->
-                StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album ?: albumByKey[r.key] ?: "Not on this phone")
-            }
-            driveLoading = false
+        if (source == StorageSource.DRIVE && drive.joined != null) {
+            drive.loadBackupRecords(force = true)
+            drive.refreshUsage()
         }
+    }
+    val records = drive.backupRecords
+    val driveFiles = remember(records, gallery.items) {
+        // Album names come with each backup since 24 Oct; older ones are matched to the phone's photos.
+        val albumByKey = gallery.items.associate { BackupSelection.key(it) to it.albumName }
+        records?.map { r ->
+            StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album ?: albumByKey[r.key] ?: "Not on this phone", r.drivePath, r.isVideo)
+        }
+    }
+    val driveLoading = drive.backupRecordsLoading && records == null
+    // Every part of a chart opens the files behind it (23 Oct).
+    fun open(onDrive: Boolean) = { title: String, files: List<StoredFile> ->
+        if (files.isNotEmpty()) state.open(Overlay.StorageFiles(title, onDrive, files.map { it.ref }))
     }
     Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -84,50 +96,60 @@ internal fun StorageContent(gallery: GalleryState, drive: DriveState, actions: M
         when (source) {
             StorageSource.PHONE -> {
                 val phone = remember { actions.phoneStorage() }
-                GlassCard(Modifier.fillMaxWidth()) {
-                    SectionHeader("Phone storage")
-                    val media = phoneFiles.sumOf { it.bytes }
-                    if (phone != null) {
-                        val (total, free) = phone
-                        val other = (total - free - media).coerceAtLeast(0)
-                        UsageBar(
-                            listOf(StorageSlice("Photos and videos", media, phoneFiles.size), StorageSlice("Everything else", other, 0)),
-                            total,
-                        )
-                        Text("${DetailsFormat.size(free)} free of ${DetailsFormat.size(total)}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
-                    } else {
+                val media = phoneFiles.sumOf { it.bytes }
+                if (phone != null) {
+                    val (total, free) = phone
+                    val other = (total - free - media).coerceAtLeast(0)
+                    SpaceCard(
+                        "Phone storage",
+                        listOf(
+                            StorageSlice("Photos and videos", media, phoneFiles.size),
+                            StorageSlice("Everything else", other, 0),
+                            StorageSlice("Free", free, 0),
+                        ),
+                        "${DetailsFormat.size(free)} free of ${DetailsFormat.size(total)}",
+                        onOpen = { i -> if (i == 0) open(false)("Photos and videos", phoneFiles) },
+                    )
+                } else {
+                    GlassCard(Modifier.fillMaxWidth()) {
+                        SectionHeader("Phone storage")
                         Text("Photos and videos: ${DetailsFormat.size(media)}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                Breakdown(phoneFiles, zone)
+                Breakdown(phoneFiles, zone, open(false))
             }
             StorageSource.DRIVE -> {
                 val joined = drive.joined
-                GlassCard(Modifier.fillMaxWidth()) {
-                    SectionHeader("Your backup on the drive")
-                    if (joined == null) {
+                if (joined == null) {
+                    GlassCard(Modifier.fillMaxWidth()) {
+                        SectionHeader("Your backup on the drive")
                         Text("Connect and join your family drive to see this.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-                    } else {
-                        val usage = drive.usage[joined.me.userId]
-                        val limit = usage?.limitBytes ?: joined.me.limitGb * DriveState.GB
-                        val used = usage?.usedBytes ?: 0L
-                        UsageBar(listOf(StorageSlice("Your backup", used, 0)), limit)
-                        Text(
-                            "${DetailsFormat.size(used)} of your ${joined.me.limitGb} GB · ${DetailsFormat.size((limit - used).coerceAtLeast(0))} left",
-                            color = theme.onGlassSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        // The whole drive is the owner's business only.
-                        if (drive.isOwner) {
-                            drive.space?.let {
-                                Text(
-                                    "Whole drive: ${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}",
-                                    color = theme.onGlassSecondary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                        }
                     }
+                } else {
+                    // A ring like the phone's (23 Oct): your backup against your space; the owner also sees the
+                    // rest of the family and the drive's free space.
+                    val usage = drive.usage[joined.me.userId]
+                    val limit = usage?.limitBytes ?: joined.me.limitGb * DriveState.GB
+                    val used = usage?.usedBytes ?: driveFiles?.sumOf { it.bytes } ?: 0L
+                    val space = drive.space
+                    val slices = if (drive.isOwner && space != null) {
+                        val family = drive.usage.filterKeys { it != joined.me.userId }.values.sumOf { it.usedBytes ?: 0L }
+                        val other = (space.totalBytes - space.freeBytes - used - family).coerceAtLeast(0)
+                        listOf(
+                            StorageSlice("Your backup", used, driveFiles?.size ?: 0),
+                            StorageSlice("Rest of the family", family, 0),
+                            StorageSlice("Other files", other, 0),
+                            StorageSlice("Free", space.freeBytes, 0),
+                        )
+                    } else {
+                        listOf(StorageSlice("Your backup", used, driveFiles?.size ?: 0), StorageSlice("Left of your space", (limit - used).coerceAtLeast(0), 0))
+                    }
+                    SpaceCard(
+                        "Your backup on the drive",
+                        slices,
+                        "${DetailsFormat.size(used)} of your ${joined.me.limitGb} GB" + (space?.takeIf { drive.isOwner }?.let { " · drive ${DetailsFormat.size(it.freeBytes)} free" } ?: ""),
+                        onOpen = { i -> if (i == 0) driveFiles?.let { open(true)("Your backup", it) } },
+                    )
                 }
                 val files = driveFiles
                 when {
@@ -135,7 +157,7 @@ internal fun StorageContent(gallery: GalleryState, drive: DriveState, actions: M
                     driveLoading -> Text("Reading the drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     files == null -> Text("Couldn't read the drive. Check you're on the home Wi-Fi.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     files.isEmpty() -> Text("Nothing backed up yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-                    else -> Breakdown(files, zone)
+                    else -> Breakdown(files, zone, open(true))
                 }
             }
         }
@@ -144,25 +166,31 @@ internal fun StorageContent(gallery: GalleryState, drive: DriveState, actions: M
 
 /** File types as a ring, photos per year as bars, and the biggest albums. */
 @Composable
-private fun Breakdown(files: List<StoredFile>, zone: TimeZone) {
+private fun Breakdown(files: List<StoredFile>, zone: TimeZone, onOpen: (String, List<StoredFile>) -> Unit) {
     val theme = LocalGlassTheme.current
     val types = remember(files) { StorageStats.byType(files) }
     val years = remember(files) { StorageStats.byYear(files, zone) }
     val albums = remember(files) { StorageStats.byAlbum(files) }
+    fun openType(i: Int) {
+        types.getOrNull(i)?.let { onOpen(it.label, StorageStats.ofType(files, types, it.label)) }
+    }
+    fun openAlbum(i: Int) {
+        albums.getOrNull(i)?.let { onOpen(it.label, StorageStats.ofAlbum(files, albums, it.label)) }
+    }
     GlassCard(Modifier.fillMaxWidth()) {
         SectionHeader("File types")
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Donut(types, Modifier.size(132.dp))
+            Donut(types, Modifier.size(132.dp), onSlice = ::openType)
             Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                types.forEachIndexed { i, s -> Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}") }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                types.forEachIndexed { i, s -> Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}", onClick = { openType(i) }) }
             }
         }
     }
     if (years.size > 1) {
         GlassCard(Modifier.fillMaxWidth()) {
             SectionHeader("By year")
-            YearBars(years)
+            YearBars(years) { year -> onOpen(year, StorageStats.ofYear(files, year, zone)) }
         }
     }
     GlassCard(Modifier.fillMaxWidth()) {
@@ -170,8 +198,7 @@ private fun Breakdown(files: List<StoredFile>, zone: TimeZone) {
         UsageBar(albums, albums.sumOf { it.bytes })
         Spacer(Modifier.height(8.dp))
         albums.forEachIndexed { i, s ->
-            Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)} items")
-            Spacer(Modifier.height(6.dp))
+            Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)} items", onClick = { openAlbum(i) })
         }
         if (albums.isEmpty()) Text("No photos yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
     }
@@ -179,10 +206,20 @@ private fun Breakdown(files: List<StoredFile>, zone: TimeZone) {
 
 /** A ring split by size. */
 @Composable
-private fun Donut(slices: List<StorageSlice>, modifier: Modifier) {
+private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<Color> = CHART, onSlice: ((Int) -> Unit)? = null) {
     val total = slices.sumOf { it.bytes }.coerceAtLeast(1L)
     val track = LocalGlassTheme.current.onGlass.copy(alpha = 0.08f)
-    Canvas(modifier.semantics { contentDescription = slices.joinToString { "${it.label} ${DetailsFormat.size(it.bytes)}" } }) {
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
+        detectTapGestures { p ->
+            val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - size.height / 2f, slices.map { it.bytes })
+            if (index != null) {
+                haptics.tick()
+                onSlice(index)
+            }
+        }
+    }
+    Canvas(modifier.then(tap).semantics { contentDescription = slices.joinToString { "${it.label} ${DetailsFormat.size(it.bytes)}" } }) {
         val stroke = size.minDimension * 0.22f
         val inset = stroke / 2
         val arcSize = Size(size.width - stroke, size.height - stroke)
@@ -190,7 +227,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier) {
         var start = -90f
         slices.forEachIndexed { i, s ->
             val sweep = 360f * s.bytes / total
-            if (sweep > 0.5f) drawArc(CHART[i % CHART.size], start, (sweep - 1.2f).coerceAtLeast(0.5f), false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+            if (sweep > 0.5f) drawArc(colors[i % colors.size], start, (sweep - 1.2f).coerceAtLeast(0.5f), false, Offset(inset, inset), arcSize, style = Stroke(stroke))
             start += sweep
         }
     }
@@ -219,13 +256,16 @@ private fun UsageBar(parts: List<StorageSlice>, total: Long) {
 }
 
 @Composable
-private fun YearBars(years: List<StorageSlice>) {
+private fun YearBars(years: List<StorageSlice>, onYear: (String) -> Unit) {
     val theme = LocalGlassTheme.current
     val max = years.maxOf { it.bytes }.coerceAtLeast(1L)
     val shown = years.takeLast(6)
     Row(Modifier.fillMaxWidth().height(140.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
         shown.forEach { y ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Show ${y.label}") { onYear(y.label) }.padding(horizontal = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(DetailsFormat.size(y.bytes), color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                 Box(
                     Modifier
@@ -242,14 +282,67 @@ private fun YearBars(years: List<StorageSlice>) {
 }
 
 @Composable
-private fun Legend(color: Color, label: String, detail: String) {
+private fun Legend(color: Color, label: String, detail: String, onClick: (() -> Unit)? = null) {
     val theme = LocalGlassTheme.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Show $label", onClick = onClick) else Modifier)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(Modifier.size(10.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(label, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         }
+        if (onClick != null) {
+            androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = theme.onGlassSecondary)
+        }
+    }
+}
+
+/** A card with a ring and its legend, for how full the phone or your drive space is. Tap a part to see it. */
+@Composable
+private fun SpaceCard(title: String, slices: List<StorageSlice>, summary: String, onOpen: (Int) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val colors = SPACE_COLORS.take(slices.size - 1) + theme.onGlass.copy(alpha = 0.10f)
+    GlassCard(Modifier.fillMaxWidth()) {
+        SectionHeader(title)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Donut(slices, Modifier.size(132.dp), colors = colors, onSlice = onOpen)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                slices.forEachIndexed { i, s ->
+                    val opens = i == 0 && s.count > 0
+                    Legend(colors[i], s.label, if (s.count > 0) "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}" else DetailsFormat.size(s.bytes), onClick = if (opens) ({ onOpen(i) }) else null)
+                }
+            }
+        }
+        Text(summary, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** First part in the accent-like blue, then soft greys; the last ("Free", "Left") is drawn as empty track. */
+private val SPACE_COLORS = listOf(Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0xFF9E9EA7))
+
+/** Which slice of a ring a tap landed on, tested. */
+object DonutMath {
+    /** [dx], [dy] from the centre. Slices start at the top and go clockwise; null when there is nothing to show. */
+    fun sliceAt(dx: Float, dy: Float, sizes: List<Long>): Int? {
+        val total = sizes.sum()
+        if (total <= 0L) return null
+        // 0 degrees at the top, growing clockwise.
+        var angle = kotlin.math.atan2(dx.toDouble(), -dy.toDouble()) * 180.0 / kotlin.math.PI
+        if (angle < 0) angle += 360.0
+        var start = 0.0
+        sizes.forEachIndexed { i, s ->
+            val sweep = 360.0 * s / total
+            if (angle < start + sweep) return i
+            start += sweep
+        }
+        return sizes.lastIndex
     }
 }

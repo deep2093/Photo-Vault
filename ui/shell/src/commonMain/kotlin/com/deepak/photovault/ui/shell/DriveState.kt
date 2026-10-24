@@ -5,6 +5,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.deepak.photovault.core.backup.BackupCatalog
+import com.deepak.photovault.core.household.FeedbackBox
+import com.deepak.photovault.core.household.FeedbackEntry
+import com.deepak.photovault.core.household.FeedbackKind
+import com.deepak.photovault.core.household.FeedbackNote
 import com.deepak.photovault.core.backup.RestoreEngine
 import com.deepak.photovault.core.drive.DriveFileSystem
 import com.deepak.photovault.core.media.MediaItem
@@ -104,6 +108,8 @@ class DriveState(private val platform: DrivePlatform) {
     private val pinAttempts = PinAttempts { platform.now() }
 
     val deviceId: String get() = platform.deviceId
+
+    fun now(): Long = platform.now()
     val isSetUp: Boolean get() = connection?.isComplete == true
     val joined: Membership.Joined? get() = membership as? Membership.Joined
     val isOwner: Boolean get() = joined?.isOwner == true
@@ -347,6 +353,94 @@ class DriveState(private val platform: DrivePlatform) {
         val me = joined?.me ?: return null
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
         return runCatching { BackupCatalog(fs, me.userId).records() }.getOrNull()
+    }
+
+    /** This person's backups on the drive, for Settings > Storage; null until read (or if it can't be). */
+    var backupRecords by mutableStateOf<List<com.deepak.photovault.core.backup.BackupRecord>?>(null)
+        private set
+
+    var backupRecordsLoading by mutableStateOf(false)
+        private set
+
+    suspend fun loadBackupRecords(force: Boolean = false) {
+        if (backupRecordsLoading || (!force && backupRecords != null)) return
+        backupRecordsLoading = true
+        try {
+            backupRecords = myBackupRecords()
+        } finally {
+            backupRecordsLoading = false
+        }
+    }
+
+    /**
+     * Deletes the person's own backups at [paths] from the drive (23 Oct, after a warning). The phone is not
+     * touched. Returns an error, or null.
+     */
+    suspend fun deleteBackups(paths: Set<String>): String? {
+        val me = joined?.me ?: return "Join your family drive first."
+        val records = (backupRecords ?: myBackupRecords() ?: return "Couldn't read the drive.").filter { it.drivePath in paths }
+        return guarded {
+            val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+            BackupCatalog(fs, me.userId).remove(records, platform.deviceId, platform.now())
+            backupRecords = backupRecords?.filterNot { it.drivePath in paths }
+        }
+    }
+
+    // ---- Send feedback (23 Oct) ----
+
+    private val feedbackLock = Mutex()
+
+    /** Notes on this phone still waiting for the drive. */
+    var feedbackWaiting by mutableStateOf(0)
+        private set
+
+    /**
+     * Saves a note on the drive in this person's folder. If the drive can't be reached it waits on the phone
+     * and goes with the next drive check. Returns true if it went now.
+     */
+    suspend fun sendFeedback(kind: FeedbackKind, text: String, files: List<FeedbackFile>, actions: MediaActions): Boolean {
+        val me = joined?.me ?: throw NotAllowed("Join your family drive first.")
+        val note = FeedbackNote(
+            id = "f-${platform.now()}-${kotlin.random.Random.nextInt(0x100000, 0xFFFFFF).toString(16)}",
+            kind = kind,
+            text = text.trim(),
+            fromUserId = me.userId,
+            fromName = me.name,
+            deviceName = platform.deviceName,
+            appVersion = actions.appVersion,
+            createdAtMillis = platform.now(),
+        )
+        val sent = runCatching { deliver(note, files, actions) }.isSuccess
+        if (!sent) {
+            runCatching { actions.feedbackOutbox.add(note, files) }
+                .onFailure { throw NotAllowed("Couldn't reach the drive or keep the note on this phone. Try again later.") }
+        }
+        feedbackWaiting = actions.feedbackOutbox.all().size
+        return sent
+    }
+
+    /** Sends notes that were waiting for the drive (called with each drive check). */
+    suspend fun flushFeedback(actions: MediaActions) {
+        val waiting = actions.feedbackOutbox.all()
+        feedbackWaiting = waiting.size
+        for ((note, files) in waiting) {
+            if (runCatching { deliver(note, files, actions) }.isFailure) break
+            actions.feedbackOutbox.remove(note.id)
+        }
+        feedbackWaiting = actions.feedbackOutbox.all().size
+    }
+
+    private suspend fun deliver(note: FeedbackNote, files: List<FeedbackFile>, actions: MediaActions) = feedbackLock.withLock {
+        val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+        val sources = files.map { f -> f.name to (actions.openFeedbackFile(f) ?: throw IllegalStateException("File gone")) }
+        FeedbackBox(fs).send(note, sources)
+    }
+
+    /** Everyone's feedback, for the owner; null if the drive can't be read. */
+    suspend fun feedbackInbox(): List<FeedbackEntry>? {
+        val household = joined?.takeIf { it.isOwner }?.household ?: return null
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
+        return runCatching { FeedbackBox(fs).inbox(household.members.map { it.userId }) }.getOrNull()
     }
 
     /** How many backed-up photos aren't on this phone; null if the drive can't be read. */

@@ -39,4 +39,13 @@ class DeleteFlightTest {
         assertTrue(!Overlay.Search.slidesSideways())
         assertEquals(SettingsPage.ABOUT, SettingsPage.entries.last())
     }
+
+    @Test
+    fun aTapOnTheRingPicksTheSliceUnderTheFinger() {
+        val halves = listOf(1L, 1L)
+        assertEquals(0, DonutMath.sliceAt(0f, -10f, halves)) // top
+        assertEquals(0, DonutMath.sliceAt(10f, 0f, halves)) // right: first half (clockwise)
+        assertEquals(1, DonutMath.sliceAt(-10f, 0f, halves)) // left
+        assertEquals(null, DonutMath.sliceAt(1f, 1f, listOf(0L)))
+    }
 }

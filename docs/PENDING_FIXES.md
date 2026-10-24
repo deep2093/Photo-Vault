@@ -70,6 +70,10 @@ bar option on tablets only; short setup tips now; videos off by default).
 - [ ] Album cover (asked 24 Oct, next build): on an album, "Choose cover" lets you pick 1 to 4 photos from it. One
       photo fills the card; 2 to 4 make a small mosaic. Saved on this phone; "Use newest" goes back to automatic.
 
+- [ ] First What's new notes (features from 23-24 Oct, for when What's new is built): Storage pages you can tap
+      into (sort by name, date or size, select and act on files, delete backups from the drive or save them to
+      the phone); Send feedback; delete animation; open photos from Recently deleted; full screen viewer; owner's
+      new phone joins with the PIN; Leaf icon by default.
 - [ ] What's new (asked 24 Oct, next build, then every build with a feature change): when the app opens after an
       update that added or changed features, a small pop-up says so (features only, never fixes) with "See what's
       new" and "Skip". "See what's new" opens a page explaining each change. Once seen or skipped it doesn't come

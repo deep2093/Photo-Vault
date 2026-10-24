@@ -44,6 +44,13 @@ class BackupGraph private constructor(context: Context) {
 
         override fun restoreMissing() = BackupScheduler.restore(app)
 
+        override fun restoreSelected(drivePaths: List<String>) {
+            RestoreSelection.save(app, drivePaths)
+            BackupScheduler.restore(app, selected = true)
+        }
+
+        override suspend fun forgetBackedUp(keys: Set<String>) = index.remove(keys)
+
         override fun onMobileData(): Boolean = runner.onMobileData()
 
         override fun notificationsAllowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

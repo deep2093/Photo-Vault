@@ -71,6 +71,26 @@ class BackupEngineTest {
     }
 
     @Test
+    fun deletingFromTheDriveHidesItAndItCanBeBackedUpAgain() = runTest {
+        val index = MemoryBackupIndex()
+        val items = listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg"))
+        run(engine(index), items)
+        val catalog = BackupCatalog(drive, USER)
+        val first = catalog.records().single { it.originalName == "IMG_1.jpg" }
+        catalog.remove(listOf(first), PHONE, clock++)
+        index.remove(setOf(first.key))
+        assertEquals(listOf("IMG_2.jpg"), catalog.records().map { it.originalName })
+        assertFalse(drive.exists(first.drivePath))
+        // Still on the phone: the next backup copies it again, and it shows again.
+        val again = run(engine(index), items)
+        assertEquals(1, again.uploaded)
+        assertEquals(setOf("IMG_1.jpg", "IMG_2.jpg"), catalog.records().map { it.originalName }.toSet())
+        // Nobody can delete outside their own folder.
+        val other = first.copy(drivePath = "users/someone-else/originals/2026/10/IMG_9.jpg")
+        kotlin.test.assertFailsWith<IllegalArgumentException> { catalog.remove(listOf(other), PHONE, clock++) }
+    }
+
+    @Test
     fun secondRunSkipsWhatIsAlreadyBackedUp() = runTest {
         val index = MemoryBackupIndex()
         val items = listOf(photo(1, "IMG_1.jpg"))

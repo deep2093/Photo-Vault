@@ -47,6 +47,8 @@ import com.deepak.photovault.ui.shell.Overlay
 import com.deepak.photovault.ui.shell.IconGlyph
 import com.deepak.photovault.ui.shell.OpeningAnimation
 import com.deepak.photovault.ui.shell.PickedImage
+import com.deepak.photovault.ui.shell.FeedbackFile
+import com.deepak.photovault.ui.shell.FeedbackOutbox
 import com.deepak.photovault.backup.BackupGraph
 import android.graphics.BitmapFactory
 import androidx.activity.result.PickVisualMediaRequest
@@ -108,6 +110,48 @@ class MainActivity : ComponentActivity(), MediaActions {
             done(error)
         }
     }
+
+    /** Send feedback: photos or videos to go with a note (23 Oct). */
+    private var onFeedbackFiles: ((List<FeedbackFile>) -> Unit)? = null
+    private val feedbackPicker = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(5)) { uris ->
+        val done = onFeedbackFiles ?: return@registerForActivityResult
+        onFeedbackFiles = null
+        lifecycleScope.launch {
+            val files = withContext(Dispatchers.IO) { uris.mapNotNull { describeFeedbackFile(it) } }
+            done(files)
+        }
+    }
+
+    private fun describeFeedbackFile(uri: Uri): FeedbackFile? = runCatching {
+        var name = "file"
+        var size = 0L
+        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                name = c.getString(0) ?: name
+                size = c.getLong(1)
+            }
+        }
+        FeedbackFile(uri.toString(), name, size, contentResolver.getType(uri)?.startsWith("video/") == true)
+    }.getOrNull()
+
+    override fun pickFeedbackFiles(onPicked: (List<FeedbackFile>) -> Unit) {
+        onFeedbackFiles = onPicked
+        feedbackPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+    }
+
+    override fun openFeedbackFile(file: FeedbackFile): com.deepak.photovault.core.drive.ByteSource? =
+        runCatching { contentResolver.openInputStream(Uri.parse(file.uri))?.let { com.deepak.photovault.backup.StreamSource(it) } }.getOrNull()
+
+    override val feedbackOutbox: FeedbackOutbox by lazy { com.deepak.photovault.feedback.FileFeedbackOutbox(this) }
+
+    override fun lastCrash(): String? = runCatching { CrashNote.file(application).takeIf { it.exists() }?.readText() }.getOrNull()
+
+    override fun clearLastCrash() {
+        runCatching { CrashNote.file(application).delete() }
+    }
+
+    override val appVersion: String
+        get() = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
 
     /** Waiting for the photo picker to hand back a profile picture. */
     private var onProfilePhoto: ((PickedImage) -> Unit)? = null
