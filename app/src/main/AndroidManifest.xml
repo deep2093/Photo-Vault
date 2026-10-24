@@ -51,6 +51,11 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Shows what went wrong after an unexpected close, to copy or share (24 Oct). -->
+        <activity
+            android:name=".CrashActivity"
+            android:exported="false" />
+
         <!-- App icons. Exactly one is enabled at a time; Settings > Appearance > App icon switches between them.
              Leaf on light is the default (23 Oct 2026; was Four Seasons on light). -->
         <activity-alias

@@ -22,6 +22,19 @@ class PixalleryApplication : Application() {
 object CrashNote {
     fun file(app: Application) = File(app.filesDir, "last-crash.txt")
 
+    private fun seen(app: Application) = File(app.filesDir, "last-crash.seen")
+
+    /** A crash in the last 10 minutes that hasn't been shown yet: show it instead of the app. */
+    fun shouldShow(app: Application): Boolean {
+        val f = file(app)
+        if (!f.exists() || System.currentTimeMillis() - f.lastModified() > 10 * 60_000L) return false
+        return runCatching { seen(app).readText().toLong() }.getOrNull() != f.lastModified()
+    }
+
+    fun markSeen(app: Application) {
+        runCatching { seen(app).writeText(file(app).lastModified().toString()) }
+    }
+
     fun install(app: Application) {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->

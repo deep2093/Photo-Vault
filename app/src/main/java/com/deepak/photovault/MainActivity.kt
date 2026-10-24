@@ -128,6 +128,12 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Just crashed? Show what went wrong instead, so it can be sent (24 Oct).
+        if (savedInstanceState == null && CrashNote.shouldShow(application)) {
+            startActivity(Intent(this, CrashActivity::class.java))
+            finish()
+            return
+        }
         val state = ShellState(PrefsAppearanceStore(this))
         shell = state
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this))
