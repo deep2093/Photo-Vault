@@ -48,6 +48,15 @@ open every folder from a computer. Setup tells the family this once, in plain wo
   so two phones changing the family at once can't corrupt it.
 - "Forget this drive" removes the address and the encrypted password from the phone; nothing on the drive changes.
 
+## Finding the drive when its address changes (24 Oct)
+
+If the drive doesn't answer at its saved address, the app looks for it nearby, but only while the phone is on
+the same network as that address (using the network's real size, never wider than /16), and only for a drive
+it has met before: the drive's SMB server ID is remembered on each successful connection, and a candidate
+must announce the same ID **before** any sign-in is sent. A server with another ID never sees the sign-in.
+The share, the sign-in and the family's folder must then all match before the new address is saved. If the
+drive never gave an ID, or it changed, there is no search: the person enters the address again.
+
 ## Carried over from Veyra
 
 Keystore AES-256-GCM for secrets, `allowBackup=false` plus data-extraction rules, path containment in

@@ -31,6 +31,11 @@ data class SmbProfile(
     val domain: String = "",
     val requireSigning: Boolean = false,
     val requireEncryption: Boolean = false,
+    /**
+     * When set, only a server announcing this ID is signed in to (24 Oct): the ID comes before any password
+     * is sent, so a different server at the address never sees the sign-in.
+     */
+    val expectedServerId: String? = null,
 ) {
     // A data class would print the password in logs and crash reports.
     override fun toString(): String = "SmbProfile(host=$host, share=$share, rootPath=$rootPath, username=$username, password=***)"
@@ -51,6 +56,10 @@ data class SmbEntry(
  * the drive). Write/verify methods for backups are added in Phase 5, with their own tests.
  */
 class SmbConnection(private val profile: SmbProfile) : Closeable {
+    /** The server's own ID (SMB server GUID), learned before signing in; null if it doesn't give one. */
+    var serverId: String? = null
+        private set
+
     private var client: SMBClient? = null
     private var session: Session? = null
     private var share: DiskShare? = null
@@ -67,6 +76,10 @@ class SmbConnection(private val profile: SmbProfile) : Closeable {
         val newClient = SMBClient(config)
         try {
             val connection = newClient.connect(profile.host.trim())
+            serverId = SmbErrors.usableServerId(runCatching { connection.connectionContext.serverGuid?.toString() }.getOrNull())
+            profile.expectedServerId?.let { expected ->
+                if (serverId != expected) throw SmbWrongServerException()
+            }
             val auth = if (profile.username.isBlank()) {
                 AuthenticationContext.anonymous()
             } else {
@@ -380,7 +393,13 @@ class SmbConnection(private val profile: SmbProfile) : Closeable {
 
 class SmbSecurityException : IOException("Required SMB encryption was not negotiated")
 
+/** A different SMB server answered at the address: the sign-in was not sent. */
+class SmbWrongServerException : java.io.IOException("Not the family drive")
+
 object SmbErrors {
+    /** A server ID worth remembering: present and not all zeros. */
+    fun usableServerId(id: String?): String? =
+        id?.trim()?.lowercase()?.takeIf { it.isNotEmpty() && it.any { c -> c != '0' && c != '-' } }
     /**
      * True when nothing answered at the address (timed out, refused, no route). False when a server did answer
      * and said no (wrong password, missing share, security): then trying other addresses wouldn't help.

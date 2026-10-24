@@ -51,6 +51,9 @@ class SmbDriveFileSystem(private val profile: SmbProfile, root: String) : DriveF
     /** Opens the connection now, so setup can report a wrong password or address straight away. */
     suspend fun check() = call { }
 
+    /** The server's own ID once connected (see [SmbProfile.expectedServerId]). */
+    val serverId: String? get() = connection?.serverId
+
     override suspend fun list(path: String): List<DriveEntry> = call { c ->
         try {
             c.list(full(path)).map { DriveEntry(it.name, it.isDirectory, it.size) }

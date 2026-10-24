@@ -154,6 +154,8 @@ Backup (Wi-Fi at home, drive connected, family joined):
 ## Phase 4 device checks: fifth round (23-24 Oct, 12 points)
 
 - Open the app away from home Wi-Fi (or with the drive off): it opens normally (crash fixed 24 Oct).
+- Drive moved to another address (e.g. .71.250 to .71.249) while the phone is home: the app still connects and
+  Settings > Drive shows the new address. On another Wi-Fi or mobile data: no search, just "can't reach".
 - Settings: Albums, Appearance, Backup, Drive, Storage, then Send feedback, then About last. Each page slides in
   from the right while the bottom bar rolls down, and slides back out to the right at the same speed.
 - New install or never-chosen icon: Leaf on Light on the home screen.

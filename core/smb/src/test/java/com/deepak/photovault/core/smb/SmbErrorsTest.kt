@@ -20,6 +20,10 @@ class SmbErrorsTest {
         assertTrue(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 71, 250), 22))
         assertFalse(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 72, 1), 22))
         assertFalse(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 71, 250), 24))
+        // Server IDs: blank or all zeros can't identify a drive.
+        assertEquals(null, SmbErrors.usableServerId("00000000-0000-0000-0000-000000000000"))
+        assertEquals(null, SmbErrors.usableServerId(" "))
+        assertEquals("5f0c2b1e-1111-4a2b-9c3d-abcdef012345", SmbErrors.usableServerId("5F0C2B1E-1111-4A2B-9C3D-ABCDEF012345"))
     }
 
     @Test fun permanentOrCancelledCausesAreNotRetried() {

@@ -97,18 +97,20 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
      */
     private suspend fun openChecked(connection: DriveConnection): SmbDriveFileSystem {
         val first = try {
-            return tryOpen(connection)
+            return tryOpen(connection).also { fs -> fs.serverId?.let { prefs.edit().putString(KEY_SERVER_ID, it).apply() } }
         } catch (e: Throwable) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             e
         }
         val saved = connection.host.trim()
+        // Only a drive we have met before is looked for, by its own ID, so no other server is ever signed in to.
+        val known = prefs.getString(KEY_SERVER_ID, null) ?: throw first
         if (!SmbErrors.isUnreachable(first) || !isIpv4(saved) || !onSameNetwork(saved)) throw first
         val found = runCatching { LanDiscovery.around(context, saved) }.getOrDefault(emptyList())
         for (host in SmbErrors.nearbyFirst(saved, found).take(MAX_TRIES)) {
             val moved = connection.copy(host = host)
             val fs = try {
-                tryOpen(moved).also { fs ->
+                tryOpen(moved, expectedServerId = known).also { fs ->
                     // The family's own folder must be there, or it isn't our drive.
                     if (!fs.exists(HouseholdStore.HOUSEHOLD_DIR)) {
                         fs.close()
@@ -125,8 +127,8 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         throw first
     }
 
-    private suspend fun tryOpen(connection: DriveConnection): SmbDriveFileSystem {
-        val fs = SmbDriveFileSystem(profileOf(connection), connection.folder.trim().trim('/'))
+    private suspend fun tryOpen(connection: DriveConnection, expectedServerId: String? = null): SmbDriveFileSystem {
+        val fs = SmbDriveFileSystem(profileOf(connection).copy(expectedServerId = expectedServerId), connection.folder.trim().trim('/'))
         try {
             fs.check()
         } catch (e: Throwable) {
@@ -196,6 +198,9 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         const val PREFS = "family"
         const val KEY_DEVICE = "device_id"
         const val KEY_USER = "user_id"
+
+        /** The family drive's own SMB server ID, so the address fallback signs in only to it. */
+        const val KEY_SERVER_ID = "drive_server_id"
 
         /** At most this many other addresses are tried before giving up. */
         const val MAX_TRIES = 6
