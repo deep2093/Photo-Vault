@@ -105,3 +105,10 @@ only verified copies. Changes made after reading it:
 Questions to ask Deepak, one at a time, before any code: how the Standard / Private choice screen should look and
 read; whether the recovery helper stays in; what happens to test backups already on the drive (wipe or keep
 readable); the Credential Manager save of the recovery words.
+
+### Answers from Deepak (25 Oct)
+- Choice screen: two big cards (Normal / Private), nothing pre-selected; the person must pick.
+- Recovery helper: stays, optional, off unless a person chooses one member.
+- Test backups from Phase 4 testing: wiped and started fresh when encryption arrives.
+- Recovery words: offer "Save to password manager" plus the write-down option.
+All four questions are answered; the plan still waits for Deepak's final approval before any code.
