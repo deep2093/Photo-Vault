@@ -65,11 +65,53 @@ object DriveMedia {
         }
     }
 
+    private class EnoughBytes : RuntimeException()
+
+    /**
+     * The small preview picture most JPEGs carry in their first few kilobytes. Reads only the first 256 KB of the
+     * file from the drive (25 Oct: fetching the whole photo for every tile took 5 seconds or more each, because the
+     * drive is read one file at a time). Null when the file has no preview.
+     */
+    private suspend fun quickThumbnail(path: String): Bitmap? {
+        val read = reader ?: return null
+        val head = java.io.ByteArrayOutputStream()
+        try {
+            read(path) { bytes, n ->
+                head.write(bytes, 0, minOf(n, HEAD_BYTES - head.size()))
+                if (head.size() >= HEAD_BYTES) throw EnoughBytes()
+            }
+        } catch (_: EnoughBytes) {
+        }
+        val data = head.toByteArray()
+        if (data.size < 1024) return null
+        return runCatching {
+            val exif = androidx.exifinterface.media.ExifInterface(java.io.ByteArrayInputStream(data))
+            val preview = exif.thumbnailBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } ?: return null
+            val degrees = when (exif.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, 1)) {
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+            if (degrees == 0f) preview else Bitmap.createBitmap(preview, 0, 0, preview.width, preview.height, android.graphics.Matrix().apply { postRotate(degrees) }, true)
+        }.getOrNull()
+    }
+
     /** A thumbnail of a drive photo, from the kept thumbnails or made from the downloaded file. */
     suspend fun thumbnail(path: String, sizePx: Int): Bitmap? = withContext(Dispatchers.IO) {
         val dir = thumbs ?: return@withContext null
         val kept = File(dir, "${name(path)}-$sizePx.jpg")
         if (kept.exists()) BitmapFactory.decodeFile(kept.path)?.let { return@withContext it }
+        // Small tiles: the photo's own preview picture, fetched from the first part of the file (about a fifth of a
+        // second instead of seconds). Larger sizes and photos without a preview use the full file.
+        if (sizePx <= QUICK_MAX_PX && cached(path) == null) {
+            val quick = File(dir, "${name(path)}-q.jpg")
+            if (quick.exists()) BitmapFactory.decodeFile(quick.path)?.let { return@withContext it }
+            quickThumbnail(path)?.let { bitmap ->
+                runCatching { FileOutputStream(quick).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
+                return@withContext bitmap
+            }
+        }
         val original = file(path) ?: return@withContext null
         val bitmap = decodeSampled(original, sizePx) ?: return@withContext null
         runCatching { FileOutputStream(kept).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
@@ -98,4 +140,6 @@ object DriveMedia {
     fun pathOf(uri: String): String? = DriveTimeline.pathOf(uri)
 
     private const val KEEP_BYTES = 800L * 1024 * 1024
+    private const val HEAD_BYTES = 256 * 1024
+    private const val QUICK_MAX_PX = 256
 }

@@ -27,6 +27,8 @@ kotlin {
             implementation("io.coil-kt.coil3:coil-gif:3.2.0")
             // Hiding the status and navigation bars in the viewer.
             implementation("androidx.core:core-ktx:1.15.0")
+            // The small preview picture inside a JPEG, for fast cloud thumbnails.
+            implementation("androidx.exifinterface:exifinterface:1.3.7")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
