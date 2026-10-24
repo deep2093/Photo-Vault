@@ -55,6 +55,40 @@ class HouseholdStoreTest {
     }
 
     @Test
+    fun inviteJoinsAtOnceWithApprovalOnWorksOnceAndRunsOut() = runTest {
+        val h = ownerSetUp()
+        val code = Invite.newCode()
+        val text = store().createInvite(OwnerAuth(OWNER_PHONE, "2468"), InviteDrive("192.168.1.1", "usb", "Pixallery"), code, 60_000, wireGuard = "wg")
+        assertFailsWith<NotAllowed> { store().createInvite(OwnerAuth(SAM_PHONE, "2468"), InviteDrive("a", "b", "c"), code, 1000) }
+        val invite = Invite.unlock(text, code)!!
+        assertEquals("wg", invite.wireGuard)
+        assertEquals(1, InviteBoard(drive) { clock }.open().size)
+
+        // Approval is on for this family, yet the invite needs none.
+        assertTrue(h.settings.approveNewPhones)
+        val joined = assertIs<Membership.Joined>(store().joinWithInvite(invite, SAM_PHONE, "Pixel 9", "Sam"))
+        assertEquals("Sam", joined.me.name)
+        assertTrue(joined.me.userId.startsWith("sam-"))
+        assertTrue(InviteBoard(drive) { clock }.open().isEmpty())
+
+        // A second phone can't use the same invite.
+        assertFailsWith<NotAllowed> { store().joinWithInvite(invite, "other-phone-0002", "Moto", "Eve") }
+    }
+
+    @Test
+    fun anExpiredOrTakenBackInviteDoesNotJoin() = runTest {
+        ownerSetUp()
+        val code = Invite.newCode()
+        val expired = Invite.unlock(store().createInvite(OwnerAuth(OWNER_PHONE, "2468"), InviteDrive("a", "b", "c"), code, 10), code)!!
+        clock += 100
+        assertFailsWith<NotAllowed> { store().joinWithInvite(expired, SAM_PHONE, "Pixel", "Sam") }
+
+        val live = Invite.unlock(store().createInvite(OwnerAuth(OWNER_PHONE, "2468"), InviteDrive("a", "b", "c"), code, 60_000), code)!!
+        InviteBoard(drive) { clock }.revoke(live.id)
+        assertFailsWith<NotAllowed> { store().joinWithInvite(live, SAM_PHONE, "Pixel", "Sam") }
+    }
+
+    @Test
     fun declineRemovesTheRequest() = runTest {
         ownerSetUp()
         store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam")

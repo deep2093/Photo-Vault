@@ -6,6 +6,12 @@ expect fun pbkdf2Sha256(pin: String, salt: ByteArray, iterations: Int, bytes: In
 /** Cryptographically strong random bytes. Android: SecureRandom. */
 expect fun secureRandomBytes(count: Int): ByteArray
 
+/** AES-256-GCM seal: returns ciphertext with the 16-byte tag at the end. Android: javax.crypto. */
+expect fun aesGcmSeal(key: ByteArray, nonce: ByteArray, plain: ByteArray): ByteArray
+
+/** The plain bytes, or null when the key is wrong or the data was changed. */
+expect fun aesGcmOpen(key: ByteArray, nonce: ByteArray, sealed: ByteArray): ByteArray?
+
 object OwnerPin {
     const val ITERATIONS = 120_000
     const val MIN_DIGITS = 4

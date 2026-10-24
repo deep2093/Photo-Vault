@@ -113,6 +113,55 @@ class HouseholdStore(
         return Membership.Pending(load() ?: household, request)
     }
 
+    // ---- Invites (25 Oct) ----
+
+    /**
+     * The owner makes an invite: the drive's details (and a WireGuard file, if given) locked with [code]. It works
+     * once, until [validForMillis] passes. Returns the text to share as a file or QR.
+     */
+    suspend fun createInvite(
+        auth: OwnerAuth,
+        drive: InviteDrive,
+        code: String,
+        validForMillis: Long,
+        wireGuard: String? = null,
+        forName: String = "",
+    ): String {
+        authorize(auth)
+        val household = load() ?: throw NotAllowed("No family on this drive")
+        val id = newId()
+        val expires = now() + validForMillis
+        val text = Invite.lock(
+            InvitePayload(id = id, householdId = household.householdId, familyName = household.owner?.name.orEmpty(), expiresAtMillis = expires, drive = drive, wireGuard = wireGuard, forName = cleanName(forName.ifBlank { "Family member" })),
+            code,
+        )
+        InviteBoard(this.drive, now).issue(InviteMarker(id, now(), expires, forName))
+        return text
+    }
+
+    /**
+     * A new person joins with an invite: no approval wait, whatever the family's approval setting. [invite] must be
+     * for this family and still unused and unexpired. A failure after the invite was used gives it back.
+     */
+    suspend fun joinWithInvite(invite: InvitePayload, deviceId: String, deviceName: String, name: String): Membership {
+        val household = load() ?: throw NotAllowed("No family on this drive")
+        household.memberForDevice(deviceId)?.let { return Membership.Joined(household, it) }
+        if (invite.householdId != household.householdId) throw NotAllowed("This invite is for a different family")
+        val board = InviteBoard(drive, now)
+        when (board.claim(invite.id)) {
+            InviteClaim.OK -> Unit
+            InviteClaim.EXPIRED -> throw NotAllowed("This invite has run out. Ask for a new one.")
+            InviteClaim.ALREADY_USED -> throw NotAllowed("This invite was already used. Ask for a new one.")
+            InviteClaim.NOT_FOUND -> throw NotAllowed("This invite was taken back. Ask for a new one.")
+        }
+        return try {
+            admit(JoinRequest(deviceId, cleanDevice(deviceName), cleanName(name), null, now()))
+        } catch (e: Exception) {
+            runCatching { board.release(invite.id) }
+            throw e
+        }
+    }
+
     /** The phone gives up waiting. */
     suspend fun cancelRequest(deviceId: String) = drive.delete(requestPath(deviceId))
 
