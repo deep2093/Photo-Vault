@@ -129,6 +129,8 @@ dependencies {
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     // Invites: draw the QR code, and scan one with Google's code scanner (no camera permission needed).
     implementation("com.google.zxing:core:3.5.3")
+    // The code scanner brings an old Fragment; Android lint needs 1.3 or newer for the activity result launchers.
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     testImplementation("junit:junit:4.13.2")
