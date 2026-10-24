@@ -33,7 +33,9 @@
         </intent>
     </queries>
 
+    <!-- Credential Manager is used only to offer saving the recovery words as a password; no sign-in or passkeys, so no asset links. -->
     <application
+        tools:ignore="CredManMissingDal"
         android:name=".PixalleryApplication"
         android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"
