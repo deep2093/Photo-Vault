@@ -35,8 +35,11 @@ object Contrast {
     fun glassBackgrounds(theme: GlassTheme): List<Color> {
         val glass = listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(Color.White)) +
             wallpaperColors(theme).map { theme.glassFallback.compositeOver(it) }
-        val halo = theme.textHalo ?: return glass
-        return glass.map { halo.copy(alpha = HALO_STRENGTH).compositeOver(it) }
+        // Bound the experimental sheen conservatively by its strongest alpha in white.
+        val sheen = theme.previewGlass?.sheen?.maxOf { it.alpha } ?: 0f
+        val surfaces = if (sheen > 0f) glass + glass.map { Color.White.copy(alpha = sheen).compositeOver(it) } else glass
+        val halo = theme.textHalo ?: return surfaces
+        return surfaces.map { halo.copy(alpha = HALO_STRENGTH).compositeOver(it) }
     }
 
     /** Glass plus the bare wallpaper, which primary text also sits on (photo date headers, empty screens). */

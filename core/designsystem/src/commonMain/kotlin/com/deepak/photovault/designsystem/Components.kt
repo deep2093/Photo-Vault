@@ -95,7 +95,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
     Box(
         modifier
             .size(MinTouchTarget)
-            .clip(CircleShape)
+            .then(if (theme.previewGlass != null) Modifier.glassPanel(CircleShape) else Modifier.clip(CircleShape))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
@@ -108,7 +108,9 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
 @Composable
 fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
-    val background by animateColorAsState(if (selected) theme.accent else Color.Transparent, motionSpec())
+    val selectedFill = theme.previewGlass?.selectedFill ?: theme.accent
+    val selectedText = theme.previewGlass?.onSelected ?: theme.onAccent
+    val background by animateColorAsState(if (selected) selectedFill else Color.Transparent, motionSpec())
     Box(
         modifier
             .heightIn(min = MinTouchTarget)
@@ -119,7 +121,7 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) theme.onAccent else theme.onGlass, style = MaterialTheme.typography.labelLarge)
+        Text(label, color = if (selected) selectedText else theme.onGlass, style = MaterialTheme.typography.labelLarge)
     }
 }
 

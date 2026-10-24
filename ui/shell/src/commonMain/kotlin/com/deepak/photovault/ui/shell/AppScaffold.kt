@@ -365,7 +365,7 @@ private fun FloatingNavigationBar(indicator: Float, onSelect: (Destination) -> U
                 .offset { IntOffset((itemWidth * indicator).roundToPx(), 0) }
                 .size(itemWidth, NAV_ITEM_HEIGHT)
                 .clip(RoundedCornerShape(24.dp))
-                .background(theme.accent),
+                .background(theme.previewGlass?.selectedFill ?: theme.accent),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->
@@ -400,7 +400,7 @@ private fun SideRail(indicator: Float, onSelect: (Destination) -> Unit, modifier
                     .fillMaxWidth()
                     .height(NAV_ITEM_HEIGHT)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(theme.accent),
+                    .background(theme.previewGlass?.selectedFill ?: theme.accent),
             )
             Column(Modifier.selectableGroup()) {
                 Destination.entries.forEach { destination ->
@@ -421,7 +421,7 @@ private val NAV_ITEM_HEIGHT = 58.dp
 private fun NavItem(destination: Destination, indicator: Float, onClick: () -> Unit, modifier: Modifier) {
     val theme = LocalGlassTheme.current
     val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
-    val fg = lerp(theme.onGlass, theme.onAccent, closeness)
+    val fg = lerp(theme.onGlass, theme.previewGlass?.onSelected ?: theme.onAccent, closeness)
     val selected = closeness > 0.5f
     Column(
         modifier

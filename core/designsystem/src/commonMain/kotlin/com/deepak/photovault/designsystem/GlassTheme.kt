@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 enum class GlassThemeId {
     AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS, TRANSLUCENT, FROSTED,
     ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
+    EXPERIMENTAL_AURORA_GLASS, EXPERIMENTAL_CRYSTAL_GLASS,
 }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
@@ -60,6 +61,8 @@ data class GlassTheme(
      * the glass itself is nearly transparent. Null for every other theme.
      */
     val textHalo: Color? = null,
+    /** Opt-in presentation tokens. Null preserves the existing theme rendering. */
+    val previewGlass: PreviewGlassStyle? = null,
 )
 
 object GlassThemes {
@@ -312,7 +315,8 @@ object GlassThemes {
 
     val fixed: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass, Translucent, Frosted)
     val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight)
-    val all: List<GlassTheme> = fixed + adaptiveThemes
+    val experimental: List<GlassTheme> = listOf(ExperimentalGlassThemes.Aurora, ExperimentalGlassThemes.Crystal)
+    val all: List<GlassTheme> = fixed + adaptiveThemes + experimental
     val default: GlassTheme = AuroraFrost
 
     /** Unknown or missing IDs (an older or newer saved setting) fall back to the default. */

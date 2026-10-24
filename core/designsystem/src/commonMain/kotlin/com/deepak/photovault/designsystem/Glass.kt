@@ -109,6 +109,7 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
                 Modifier.background(theme.glassFallback)
             },
         )
+        .previewGlassSheen(theme)
         .glassRim(shape)
 }
 
@@ -116,7 +117,7 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
 @Composable
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
-    return this.clip(shape).background(theme.glassFallback).glassRim(shape)
+    return this.clip(shape).background(theme.glassFallback).previewGlassSheen(theme).glassRim(shape)
 }
 
 val GlassCardShape = RoundedCornerShape(24.dp)
@@ -124,4 +125,10 @@ val GlassCardShape = RoundedCornerShape(24.dp)
 @Composable
 fun GlassCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.glassPanel(GlassCardShape).padding(16.dp), content = content)
+}
+
+/** A very faint specular wash. Drawn behind children so text and photos remain sharp. */
+private fun Modifier.previewGlassSheen(theme: GlassTheme): Modifier {
+    val style = theme.previewGlass ?: return this
+    return background(Brush.linearGradient(style.sheen))
 }

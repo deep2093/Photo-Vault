@@ -114,14 +114,21 @@ fun GlassScreen(
             Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(insets.calculateTopPadding() + 20.dp)
-                .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
+                .height(insets.calculateTopPadding() + if (theme.previewGlass != null) TopBarHeight + 40.dp else 20.dp)
+                .background(
+                    if (theme.previewGlass != null) Brush.verticalGradient(
+                        0f to theme.wallpaper.first().copy(alpha = 0.96f),
+                        0.80f to theme.wallpaper.first().copy(alpha = 0.92f),
+                        1f to theme.wallpaper.first().copy(alpha = 0f),
+                    ) else Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f))),
+                ),
         )
         GlassTopBar(
             title = title,
             subtitle = subtitle,
             onBack = onBack,
             actions = actions,
+            compact = pinned,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .graphicsLayer {
@@ -143,15 +150,17 @@ private fun GlassTopBar(
     subtitle: String?,
     onBack: (() -> Unit)?,
     actions: @Composable RowScope.() -> Unit,
+    compact: Boolean,
     modifier: Modifier,
 ) {
     val theme = LocalGlassTheme.current
+    val openHeader = theme.previewGlass != null && !compact
     Row(
         modifier
             .fillMaxWidth()
             .heightIn(min = TopBarHeight)
-            .glassChrome(RoundedCornerShape(24.dp), elevation = 10.dp)
-            .padding(start = if (onBack != null) 4.dp else 18.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            .then(if (openHeader) Modifier else Modifier.glassChrome(RoundedCornerShape(24.dp), elevation = 10.dp))
+            .padding(start = if (onBack != null || openHeader) 4.dp else 18.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -162,7 +171,7 @@ private fun GlassTopBar(
             Text(
                 title,
                 color = theme.onGlass,
-                style = MaterialTheme.typography.titleMedium,
+                style = if (openHeader) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

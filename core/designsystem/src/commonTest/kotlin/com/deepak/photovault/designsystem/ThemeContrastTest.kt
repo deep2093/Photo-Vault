@@ -2,6 +2,7 @@ package com.deepak.photovault.designsystem
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -99,7 +100,7 @@ class ThemeCatalogTest {
         assertEquals(GlassThemeId.AURORA_FROST, GlassThemes.default.id)
         assertEquals(
             listOf(GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID),
-            GlassThemes.all.filter { it.isDark }.map { it.id },
+            (GlassThemes.fixed + GlassThemes.adaptiveThemes).filter { it.isDark }.map { it.id },
         )
     }
 
@@ -197,6 +198,44 @@ class AdaptivePaletteTest {
             palette.forEach { c ->
                 val ratio = Contrast.ratio(theme.onGlass, veil.compositeOver(c))
                 assertTrue(ratio >= Contrast.TEXT, "${theme.displayName}: text on wallpaper $ratio")
+            }
+        }
+    }
+}
+
+/** The experiment must be additive, persistable and legible, including its white selected capsules. */
+class ExperimentalGlassThemeTest {
+    @Test
+    fun experimentsAreOptInAndHaveStableSavedIds() {
+        assertEquals(listOf("EXPERIMENTAL_AURORA_GLASS", "EXPERIMENTAL_CRYSTAL_GLASS"), GlassThemes.experimental.map { it.id.name })
+        assertEquals(10, (GlassThemes.fixed + GlassThemes.adaptiveThemes).size)
+        assertTrue((GlassThemes.fixed + GlassThemes.adaptiveThemes).all { it.previewGlass == null })
+        assertEquals(GlassThemes.AuroraFrost, GlassThemes.default)
+        GlassThemes.experimental.forEach { assertEquals(it, GlassThemes.byId(it.id.name)) }
+    }
+
+    @Test
+    fun whiteSelectionsKeepReadableLabels() {
+        GlassThemes.experimental.forEach { theme ->
+            val style = theme.previewGlass!!
+            assertTrue(Contrast.ratio(style.onSelected, style.selectedFill) >= Contrast.TEXT, theme.displayName)
+            assertTrue(Contrast.worstAnywhere(theme, theme.onGlassSecondary) >= Contrast.TEXT, theme.displayName)
+        }
+    }
+
+    @Test
+    fun crystalUsesExistingAdaptivePipelineAndAuroraRemainsBlueViolet() {
+        assertEquals(null, ExperimentalGlassThemes.Aurora.adaptive)
+        val crystal = ExperimentalGlassThemes.Crystal.adaptive!!
+        assertTrue(crystal.maxSaturation < GlassThemes.AdaptiveGlow.adaptive!!.minSaturation)
+        assertEquals(26.dp, ExperimentalGlassThemes.Aurora.blurRadius)
+        assertEquals(18.dp, ExperimentalGlassThemes.Crystal.blurRadius)
+        assertEquals(crystal.fallback, adaptivePalette(emptyList(), crystal))
+        val veil = crystal.veil.copy(alpha = crystal.scrim * 0.6f)
+        for (h in 0 until 360 step 5) {
+            val photo = Hsv.toColor(h.toFloat(), 1f, 1f)
+            adaptivePalette(listOf(photo, Color.White), crystal).forEach { color ->
+                assertTrue(Contrast.ratio(ExperimentalGlassThemes.Crystal.onGlassSecondary, veil.compositeOver(color)) >= Contrast.TEXT)
             }
         }
     }

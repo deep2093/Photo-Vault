@@ -82,6 +82,9 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
         SectionHeader("Adaptive themes")
         Text("The background takes its colours from the photos on screen.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
         ThemeRow(GlassThemes.adaptiveThemes, state)
+        SectionHeader("Experimental themes")
+        Text("Preview-inspired Aurora and Crystal glass. Choose any other theme to switch back.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        ThemeRow(GlassThemes.experimental, state)
         Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         GlassSwitchRow(
             "Glass blur",

@@ -34,6 +34,19 @@ class ShellStateTest {
     }
 
     @Test
+    fun experimentalThemesPersistAndRespectExistingAccessibilitySettings() {
+        listOf(GlassThemeId.EXPERIMENTAL_AURORA_GLASS, GlassThemeId.EXPERIMENTAL_CRYSTAL_GLASS).forEach { id ->
+            val store = MemoryAppearanceStore(AppearanceSettings(blurOn = true, reduceMotion = true))
+            val state = ShellState(store)
+            state.updateAppearance { it.copy(themeId = id.name) }
+            val restored = ShellState(store)
+            assertEquals(id, restored.theme.id)
+            assertTrue(restored.glassSettings(PlatformSignals()).reduceMotion)
+            assertFalse(restored.glassSettings(PlatformSignals(powerSaveMode = true)).blurEnabled)
+        }
+    }
+
+    @Test
     fun gridZoomStaysWithinLimits() {
         val state = ShellState(MemoryAppearanceStore())
         state.zoomGrid(+1, currentColumns = 3, maxColumns = 7)
