@@ -90,6 +90,17 @@ SHA-256 checked, and only then made visible. A mismatch is removed. Nothing on t
 Settings > Storage > Drive (23 Oct) can also **save chosen backups to the phone** the same way (only the ones
 not already on the phone).
 
+## Folders and taking turns (24 Oct)
+
+- Backups go to `users/<id>/albums/<phone album>/YYYY/MM/<name>` (album names made safe; earlier test backups
+  used `originals/` and `videos/`).
+- **One phone at a time:** a phone writes `users/<id>/active/<device>.json` when it starts and refreshes it every
+  minute; one older than 3 minutes is ignored. Another phone waits up to 20 minutes, then tries again quietly
+  after 30 (no notification, the one-hour retry isn't used). If two start together, the earlier start (then the
+  smaller device ID) keeps the turn.
+- **Times an hour apart:** each phone publishes its schedule and time zone in `users/<id>/schedules/<device>.json`;
+  Settings > Backup > Schedule won't save a time within an hour of another phone's next five weeks of runs.
+
 ## Deleting backups from the drive (23 Oct)
 
 Settings > Storage > Drive lets a person delete **their own** backups, after a warning. First a manifest with

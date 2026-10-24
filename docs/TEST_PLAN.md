@@ -178,6 +178,30 @@ Backup (Wi-Fi at home, drive connected, family joined):
   sees it under Feedback received with who, when, phone and attached names. Away: "Saved on this phone", and it
   goes by itself with the next drive check. After a crash: the page offers to add the details to a bug report.
 
+## Phase 4 device checks: sixth round (24 Oct, 35 points)
+
+- Test APK is now an optimised build: first opening of Settings pages and other screens is as smooth as later
+  ones; keyboard slides smoothly; installs over the old one.
+- GIFs and animated WebP move in the viewer. Settings > Drive > Find drive lists the drive at .71.x while the
+  phone is on .68.x. Frosted and Crystal themes gone (someone on them moves to Transparent).
+- Albums: press and hold a card, slide to pick more; bar has Share, Rename and Cover (one album), Delete; nav bar
+  rolls down; Back clears. Cover: pick 1-4 photos, mosaic shows; Use newest resets.
+- Settings > Albums: one list in Albums order; press and hold, drag to move (Albums follows); the eye hides with
+  no pop-up and the row fades grey, tapping again brings it back.
+- Inside an album: no top bar; big name at the top, small round back button, tiny count under the last photo.
+- Delete anywhere: first time, "Nicer delete pop-ups?" offers Android's manage-media setting. Allowed: Pixallery's
+  own pop-up in the theme ("Move this photo to the bin?", "Move these 5 photos to the bin?"), a back swipe
+  cancels, no Android pop-up. Not allowed: Android's pop-up as before. The photo then pinches from the bottom and
+  stretches into the delete button.
+- Schedule: Save is blocked within an hour of another family phone (their time zone counted); "Use 3:00 am"
+  offered; other phones' times listed. Two phones starting together: the second shows "Waiting for ... to finish",
+  then backs up; the first person's picture in Family shows a soft pulsing dot meanwhile.
+- New backups land in users/<id>/albums/<album>/YYYY/MM on the drive.
+- Family > your page: phones with last backup time; Manage my backup opens Storage on Drive. Settings > Backup no
+  longer has Your phones. Change space shows only for the owner (already so; check as a member).
+- Pull down at the top of Photos: spinner under the pills, library and drive refresh.
+- Storage saver row: icon lines up with the title, shorter text.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)
