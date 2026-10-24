@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity(), MediaActions {
     }
 
     /** Remote access: pick a WireGuard file, and Android's one-time "allow VPN" question. */
-    private val remote by lazy {
+    private val remote: AndroidRemotePlatform by lazy {
         AndroidRemotePlatform(
             com.deepak.photovault.core.vpn.WireGuardManager.get(this),
             lifecycleScope,
@@ -108,8 +108,8 @@ class MainActivity : ComponentActivity(), MediaActions {
             askVpnPermission = { vpnPermission.launch(it) },
         )
     }
-    private val wireGuardPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { remote.onFilePicked(it) }
-    private val vpnPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+    private val wireGuardPicker: androidx.activity.result.ActivityResultLauncher<Array<String>> = registerForActivityResult(ActivityResultContracts.OpenDocument()) { remote.onFilePicked(it) }
+    private val vpnPermission: androidx.activity.result.ActivityResultLauncher<Intent> = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         remote.onPermissionAnswer(it.resultCode == RESULT_OK)
     }
 
