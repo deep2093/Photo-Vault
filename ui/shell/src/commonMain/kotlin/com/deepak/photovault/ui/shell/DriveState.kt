@@ -191,7 +191,8 @@ class DriveState(private val platform: DrivePlatform) {
         if (!force && platform.now() - usageCountedAt < USAGE_EVERY_MS && usage.values.all { it.usedBytes != null }) return
         if (usageLock.isLocked) return
         usageLock.withLock {
-            val s = ensureStore() ?: return
+            // Never throws: this runs in the background and the drive may be out of reach (crash 24 Oct).
+            val s = try { ensureStore() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { null } ?: return
             val members = joined?.household?.members ?: return
             val counted = members.associate { member -> member.userId to runCatching { s.usedBytes(member.userId) }.getOrNull() }
             usage = (joined?.household?.members ?: members).associate { member ->
