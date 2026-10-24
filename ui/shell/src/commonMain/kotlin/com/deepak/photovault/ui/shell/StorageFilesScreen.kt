@@ -78,6 +78,8 @@ import com.deepak.photovault.core.media.LibraryCounts
 import com.deepak.photovault.core.media.StorageStats
 import com.deepak.photovault.core.media.StoredFile
 import com.deepak.photovault.core.media.Thumb
+import com.deepak.photovault.core.backup.BackupSelection
+import com.deepak.photovault.core.backup.DriveTimeline
 import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.designsystem.GlassIconButton
 import com.deepak.photovault.designsystem.LocalGlassTheme
@@ -118,6 +120,18 @@ fun StorageFilesScreen(
             page.refs.mapNotNull { path -> byPath[path]?.let { r -> StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album.orEmpty(), r.drivePath, r.isVideo) } }
         } else {
             StorageStats.fromPhone(page.refs.mapNotNull { it.toLongOrNull()?.let(gallery::find) })
+        }
+    }
+    // Backups open full screen: the photo on this phone if it is still here, else the drive's copy (one timeline).
+    val openable: Map<String, Long> = remember(page, gallery.items, drive.backupRecords) {
+        if (!page.onDrive) emptyMap() else {
+            val byKey = gallery.items.associateBy { BackupSelection.key(it) }
+            val byNameSize = gallery.items.associateBy { "${it.displayName}|${it.sizeBytes}" }
+            drive.backupRecords.orEmpty().mapNotNull { r ->
+                val id = byKey[r.key]?.id ?: byNameSize["${r.fileName}|${r.sizeBytes}"]?.id
+                    ?: DriveTimeline.idOf(r.drivePath).takeIf { gallery.find(it) != null }
+                id?.let { r.drivePath to it }
+            }.toMap()
         }
     }
     var order by remember { mutableStateOf(FileOrder()) }
@@ -174,7 +188,7 @@ fun StorageFilesScreen(
         var heightPx by remember { mutableStateOf(0f) }
         val topPx = with(density) { padding.calculateTopPadding().toPx() }
         val bottomPx = with(density) { padding.calculateBottomPadding().toPx() }
-        val handler = remember(list, page.onDrive) {
+        val handler = remember(list, page.onDrive, openable) {
             object : PhotoGridGestureHandler {
                 private var anchor = -1
                 private var adding = true
@@ -196,8 +210,12 @@ fun StorageFilesScreen(
                 override fun onTap(id: Long) {
                     val file = currentSorted.getOrNull(id.toInt()) ?: return
                     when {
-                        state.filesSelected.isNotEmpty() || page.onDrive ->
-                            state.filesSelected = state.filesSelected.toggled(file.ref)
+                        state.filesSelected.isNotEmpty() -> state.filesSelected = state.filesSelected.toggled(file.ref)
+                        page.onDrive -> {
+                            val ids = currentSorted.mapNotNull { openable[it.ref] }
+                            val id = openable[file.ref]
+                            if (id != null) state.open(Overlay.Viewer(ids, id)) else actions.toast("This one isn't in your timeline yet. Pull down on Photos to refresh.")
+                        }
                         else -> state.open(Overlay.Viewer(currentSorted.mapNotNull { it.ref.toLongOrNull() }, file.ref.toLong()))
                     }
                 }
@@ -258,7 +276,7 @@ fun StorageFilesScreen(
                     message?.let { WarningNote(it) }
                     if (page.onDrive) {
                         Text(
-                            "Tap or long-press to pick backups. Opening them full screen comes with the drive timeline (Phase 5).",
+                            "Tap to open. Press and hold to pick backups.",
                             color = theme.onGlassSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -270,7 +288,7 @@ fun StorageFilesScreen(
                 val item = if (page.onDrive) null else file.ref.toLongOrNull()?.let(gallery::find)
                 FileRow(
                     file = file,
-                    thumbUri = item?.uri,
+                    thumbUri = if (page.onDrive) DriveTimeline.uriOf(file.ref) else item?.uri,
                     when_ = takenText(file.takenAtMillis, zone),
                     selected = file.ref in selected,
                     selecting = selecting,

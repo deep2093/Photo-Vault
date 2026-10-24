@@ -157,7 +157,7 @@ fun PhotoVaultApp(
     setSingletonImageLoaderFactory { context -> createImageLoader(context) }
     // Photos that are only on the drive go to the drive's Recently deleted; the rest go to the phone's.
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val actions = remember(phoneActions, drive, gallery) { DriveAwareActions(phoneActions, drive, gallery, scope) }
+    val actions = remember(phoneActions, drive, gallery, backup) { DriveAwareActions(phoneActions, drive, gallery, backup, scope) }
     LaunchedEffect(state) { state.intro.start() }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }

@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Pause
@@ -316,6 +317,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             favourite = gallery.isFavourite(current),
                             onShare = { actions.share(listOf(current)) },
                             onFamily = if (LocalFamilyAlbum.current) ({ actions.shareToFamilyAlbum(listOf(current)) }) else null,
+                            onSave = if (current.isDriveOnly) ({ actions.saveToPhone(listOf(current)) }) else null,
                             onFavourite = { gallery.toggleFavourite(listOf(current)) },
                             onInfo = { state.detailsOpen = true },
                             onDelete = {
@@ -432,12 +434,14 @@ private fun ViewerActions(
     modifier: Modifier = Modifier,
     binModifier: Modifier = Modifier,
     onFamily: (() -> Unit)? = null,
+    onSave: (() -> Unit)? = null,
 ) {
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
+        if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
         if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
         GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
         GlassIconButton(Icons.Rounded.Info, "Details", onClick = onInfo)

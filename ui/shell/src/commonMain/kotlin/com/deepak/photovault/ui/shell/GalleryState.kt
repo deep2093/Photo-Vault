@@ -48,6 +48,9 @@ interface MediaActions {
 
     /** Shares photos that are only on the drive: they are fetched to the phone first. */
     fun shareDrive(items: List<MediaItem>) = Unit
+
+    /** Brings photos that are only on the family drive back onto this phone (checked copy, "Restored" album). */
+    fun saveToPhone(items: List<MediaItem>) = Unit
     /** Android 12+: Pixallery may delete without Android's own pop-up ("manage media" allowed), so it asks itself. */
     fun canDeleteWithoutAsking(): Boolean = false
 

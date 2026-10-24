@@ -1,5 +1,7 @@
 package com.deepak.photovault.ui.shell
 
+import com.deepak.photovault.core.backup.isDriveOnly
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -299,6 +301,10 @@ fun SelectableScreen(
                 selectionActions(selectedItems)
             } else {
                 GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selectedItems) })
+                if (selectedItems.any { it.isDriveOnly }) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = {
+                    actions.saveToPhone(selectedItems)
+                    state.selected = emptySet()
+                })
                 if (LocalFamilyAlbum.current) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = {
                     actions.shareToFamilyAlbum(selectedItems)
                     state.selected = emptySet()

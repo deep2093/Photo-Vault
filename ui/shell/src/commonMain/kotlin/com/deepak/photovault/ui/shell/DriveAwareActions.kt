@@ -14,6 +14,7 @@ class DriveAwareActions(
     private val phone: MediaActions,
     private val drive: DriveState,
     private val gallery: GalleryState,
+    private val backup: BackupState,
     private val scope: CoroutineScope,
 ) : MediaActions by phone {
     private fun List<MediaItem>.paths() = mapNotNull { DriveTimeline.pathOf(it.uri) }.toSet()
@@ -32,6 +33,13 @@ class DriveAwareActions(
         val (onDrive, onPhone) = items.partition { it.isDriveOnly }
         if (onPhone.isNotEmpty()) phone.share(onPhone)
         if (onDrive.isNotEmpty()) phone.shareDrive(onDrive)
+    }
+
+    override fun saveToPhone(items: List<MediaItem>) {
+        val paths = items.filter { it.isDriveOnly }.mapNotNull { DriveTimeline.pathOf(it.uri) }
+        if (paths.isEmpty()) return phone.toast("Already on this phone.")
+        backup.restoreSelected(paths)
+        phone.toast("Saving ${paths.size} to this phone (\"Restored\" album)...")
     }
 
     override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) {
