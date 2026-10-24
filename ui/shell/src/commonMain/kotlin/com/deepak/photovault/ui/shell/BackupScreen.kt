@@ -274,6 +274,19 @@ private fun chosenFolders(albums: List<PhoneAlbum>, folders: Set<String>?): List
 private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryState, actions: MediaActions, eligible: Int, done: Int) {
     val theme = LocalGlassTheme.current
     var note by remember { mutableStateOf<String?>(null) }
+    var taps by remember { mutableStateOf(0) }
+    // Tapping Back up now must never look like nothing happened (25 Oct): if it hasn't started in a few seconds, say why.
+    LaunchedEffect(taps) {
+        if (taps == 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(4000)
+        if (!backup.running) {
+            note = if (backup.onMobileData() && !backup.settings.mobileData) {
+                "Waiting for Wi-Fi. You're on mobile data, which backup doesn't use unless you allow it in Backup settings."
+            } else {
+                "Waiting to start. Backup needs a Wi-Fi connection and the drive on; it starts by itself as soon as they are."
+            }
+        }
+    }
     GlassCard(Modifier.cardWidth()) {
         val p = backup.progress
         when {
@@ -327,6 +340,7 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
                         note = if (backup.onMobileData() && !backup.settings.mobileData) "On mobile data: it starts once you're on Wi-Fi." else null
                         if (!backup.notificationsAllowed()) actions.requestNotifications()
                         backup.backUpNow()
+                        taps++
                     })
                 }
                 Spacer(Modifier.height(10.dp))

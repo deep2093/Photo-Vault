@@ -141,7 +141,10 @@ object BackupScheduler {
         WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_RETRY, ExistingWorkPolicy.REPLACE, request)
     }
 
-    /** "Back up now": no charger needed; waits for Wi-Fi unless mobile data is allowed. */
+    /**
+     * "Back up now": no charger needed; waits for Wi-Fi unless mobile data is allowed. Replaces an earlier tap that is
+     * still waiting (25 Oct: with KEEP, a request stuck waiting for Wi-Fi made every later tap do nothing).
+     */
     fun backUpNow(context: Context, settings: BackupSettings) {
         val request = OneTimeWorkRequestBuilder<BackupWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -149,7 +152,7 @@ object BackupScheduler {
             .setInputData(workDataOf(BackupWorker.KEY_TRIGGER to BackupTrigger.MANUAL.name))
             .addTag(TAG_ALL)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_NOW, ExistingWorkPolicy.KEEP, request)
+        WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_NOW, ExistingWorkPolicy.REPLACE, request)
     }
 
     fun restore(context: Context, selected: Boolean = false) {
