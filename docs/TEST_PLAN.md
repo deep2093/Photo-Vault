@@ -300,3 +300,11 @@ real-share tests ran, so a skipped run can't pass silently.
 11. Owner: when someone sends feedback or a bug report, a dot appears on Settings (checked every minute while the app is open); opening Settings > Send feedback clears it. Every 3 hours in the background the owner's phone also posts "New bug report" or "New feedback" (needs notifications allowed and the drive reachable).
 12. After the tour, the "Let backups run on time" screen shows four steps and opens Pixallery's page in Android settings.
 13. Family Album: press and hold the card > Change cover. Each person's cover is their own.
+
+## Round 13 (25 Oct): 5B-2 Invites and Open with
+1. Owner: Family > Invite someone: pick who and how long, optionally attach the WireGuard file for that person, Make invite (asks the owner PIN). A code like K7QD-M2XP shows, with Share invite file and a QR.
+2. Second phone (not set up yet): Settings > Drive (or Connect) > "I have an invite": Choose file (or Scan QR), type the code and your name > Join. It joins at once, even with approval on, and gets its own folder named after you. With a WireGuard file attached the VPN is set up too; away from home turn it on in Settings > Remote access, then try again.
+3. Using the same invite on a second phone fails ("already used"); after the time is up it fails ("run out"); the owner's "Take back" makes it fail ("taken back"); a wrong code says so and nothing is joined.
+4. The invite text shows no address or password if opened in a text editor.
+5. Open with: in Files, tap a photo or video: Pixallery is in the list. It opens in Pixallery's viewer; a photo from your gallery lets you swipe through its folder, one from another app shows just that one.
+6. Settings > Open with Pixallery explains and opens Android's default apps settings.

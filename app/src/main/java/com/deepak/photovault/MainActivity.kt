@@ -319,7 +319,51 @@ class MainActivity : ComponentActivity(), MediaActions {
     }
 
     /** A backup notification opens the Backup section. */
+    /** Another app opened a photo or video with Pixallery: its own viewer; swipe through the folder if it is in the gallery. */
+    private fun openExternal(intent: Intent) {
+        val uri = intent.data ?: return
+        lifecycleScope.launch {
+            // The gallery may still be loading when the app was started by this.
+            var waited = 0
+            while (gallery.items.isEmpty() && gallery.access != MediaAccess.NONE && waited < 30) {
+                kotlinx.coroutines.delay(100)
+                waited++
+            }
+            val mediaId = uri.lastPathSegment?.toLongOrNull()?.takeIf { uri.authority == "media" }
+            val known = mediaId?.let(gallery::find)
+            shell.overlays.clear()
+            if (known != null) {
+                val sameFolder = gallery.items.filter { it.albumId == known.albumId }.map { it.id }
+                shell.open(Overlay.Viewer(sameFolder.ifEmpty { listOf(known.id) }, known.id))
+                return@launch
+            }
+            val type = contentResolver.getType(uri) ?: intent.type.orEmpty()
+            val name = runCatching {
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) to c.getLong(1) else null
+                }
+            }.getOrNull()
+            val id = -(uri.toString().hashCode().toLong().and(0x7fffffffL)) - 1_000_000_000L
+            gallery.openExternal(
+                MediaItem(
+                    id = id, uri = uri.toString(),
+                    type = if (type.startsWith("video")) com.deepak.photovault.core.media.MediaType.VIDEO else com.deepak.photovault.core.media.MediaType.PHOTO,
+                    displayName = name?.first ?: uri.lastPathSegment.orEmpty().ifBlank { "Photo" },
+                    takenAtMillis = System.currentTimeMillis(), sizeBytes = name?.second ?: 0L, width = 0, height = 0,
+                    albumId = "external", albumName = "Opened from another app", mimeType = type,
+                ),
+            )
+            shell.open(Overlay.Viewer(listOf(id), id))
+        }
+    }
+
+    override fun openDefaultAppSettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) }
+            .onFailure { runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) } }
+    }
+
     private fun openFromIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data != null) openExternal(intent)
         if (intent?.getBooleanExtra(EXTRA_OPEN_FAMILY, false) == true) {
             shell.overlays.clear()
             shell.destination = Destination.FAMILY

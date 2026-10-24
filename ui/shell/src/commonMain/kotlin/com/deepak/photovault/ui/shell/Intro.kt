@@ -91,9 +91,11 @@ object IntroLogic {
 
 /** What's new for the current build. Change [ID] and [items] with each update worth announcing. */
 object WhatsNew {
-    const val ID = "2026-10-26"
+    const val ID = "2026-10-27"
     const val TITLE = "What's new"
     val items: List<Pair<String, String>> = listOf(
+        "Invites" to "The owner can invite someone from Family: a file or QR, locked with a code, that works once and runs out. The new person chooses it under Connect your drive > I have an invite, types the code and their name, and joins straight away. It can carry the VPN setup too.",
+        "Open with Pixallery" to "Pixallery is offered when other apps open a photo or video. Settings > Open with Pixallery shows how to make it the one that always opens.",
         "Remote access" to "Settings > Remote access connects Pixallery to your home router with WireGuard, so the family drive works away from home. It is on only while Pixallery is on screen and can be limited to this app. Away-from-home backup in the background is optional and off by default.",
         "Family Album" to "A shared album the whole family sees. Select backed-up photos and tap the family button (also in the viewer). It holds links to each person's own backup, never copies, and you can only remove photos you added.",
         "Cloud badge" to "Photos that are only on the family drive show a small cloud on their thumbnail, and their Details say so.",

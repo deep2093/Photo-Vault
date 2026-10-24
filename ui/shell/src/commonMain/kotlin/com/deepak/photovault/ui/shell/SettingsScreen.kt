@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -85,6 +86,7 @@ enum class SettingsPage(val title: String) {
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
+    OPEN_WITH("Open with Pixallery"),
     REMOTE("Remote access"),
     STORAGE("Storage"),
     FEEDBACK("Send feedback"),
@@ -111,6 +113,7 @@ fun SettingsScreen(
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
+                        SettingsPage.OPEN_WITH -> Icons.AutoMirrored.Rounded.OpenInNew to "Photos and videos from other apps"
                         SettingsPage.REMOTE -> Icons.Rounded.VpnKey to state.remote.summary()
                         SettingsPage.STORAGE -> Icons.Rounded.PieChart to "Phone and drive"
                         SettingsPage.FEEDBACK -> Icons.Rounded.Feedback to (if (drive.feedbackWaiting > 0) "${drive.feedbackWaiting} waiting to send" else "Ideas and bugs, with photos or videos")
@@ -173,6 +176,7 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }
             SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
+            SettingsPage.OPEN_WITH -> item { OpenWithContent(actions) }
             SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
             SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
         }
@@ -333,5 +337,34 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.VpnKey, "Invites", "Next")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
+    }
+}
+
+/** Settings > Open with Pixallery: Android lets only the person choose "Always", so this explains and goes there. */
+@Composable
+private fun OpenWithContent(actions: MediaActions) {
+    val theme = LocalGlassTheme.current
+    PageCard("Open photos and videos with Pixallery", Icons.AutoMirrored.Rounded.OpenInNew, Modifier.cardWidth()) {
+        Text(
+            "Pixallery is offered whenever another app opens a photo or video: Files, My Files, WhatsApp, Chrome downloads, or Share > Open with. " +
+                "It opens in Pixallery's own viewer. If the file is in your gallery you can swipe to the others in its folder.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text("To make it the one that always opens:", color = theme.onGlass, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+        listOf(
+            "Tap the button below to open Android's default apps.",
+            "Choose Gallery (or Photos), then Pixallery.",
+            "Or open any photo from Files once and pick Pixallery, then tap Always.",
+        ).forEachIndexed { i, step ->
+            Text("${i + 1}. $step", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+        }
+        Text(
+            "Android lets only you choose \"Always\"; an app can't set itself. Some camera apps (Samsung Camera's preview button) always open their own gallery, which Pixallery can't change.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        GlassButton("Open Android settings", primary = true, onClick = actions::openDefaultAppSettings, modifier = Modifier.padding(top = 10.dp))
     }
 }

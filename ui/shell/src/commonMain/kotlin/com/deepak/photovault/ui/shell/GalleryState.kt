@@ -49,6 +49,9 @@ interface MediaActions {
     /** Shares photos that are only on the drive: they are fetched to the phone first. */
     fun shareDrive(items: List<MediaItem>) = Unit
 
+    /** Android's own default-apps settings, to choose Pixallery for photos and videos. */
+    fun openDefaultAppSettings() = Unit
+
     /** Brings photos that are only on the family drive back onto this phone (checked copy, "Restored" album). */
     fun saveToPhone(items: List<MediaItem>) = Unit
     /** Android 12+: Pixallery may delete without Android's own pop-up ("manage media" allowed), so it asks itself. */
@@ -332,7 +335,14 @@ class GalleryState(
 
     private var byId: Map<Long, MediaItem> = emptyMap()
 
-    fun find(id: Long): MediaItem? = byId[id] ?: familyById[id]
+    /** A photo or video another app asked Pixallery to open, which isn't in this phone's gallery (Phase 5B-2). */
+    private val externalById = HashMap<Long, MediaItem>()
+
+    fun openExternal(item: MediaItem) {
+        externalById[item.id] = item
+    }
+
+    fun find(id: Long): MediaItem? = byId[id] ?: familyById[id] ?: externalById[id]
 
     fun isFavourite(item: MediaItem) = item.id in favourites
 
