@@ -174,7 +174,7 @@ private fun FlightView(f: DeleteFlight.Flight, onDone: () -> Unit) {
 
 /** The shape maths of the genie effect, tested. */
 object GenieMath {
-    const val STRIPS = 28
+    const val STRIPS = 48
 
     /** Where the photo's picture sits: fitted inside [bounds] (viewer), or filling it and cropped (grid tile). */
     fun imageRect(bounds: Rect, intrinsic: Size?, fit: Boolean): Rect {
@@ -186,24 +186,41 @@ object GenieMath {
         return Rect(bounds.center.x - w / 2, bounds.center.y - h / 2, bounds.center.x + w / 2, bounds.center.y + h / 2)
     }
 
+    /** One edge between strips: how far down it is, where its middle is, and how wide the photo is there. */
+    private class Edge(val y: Float, val centerX: Float, val width: Float, val gone: Boolean)
+
+    private fun edge(area: Rect, j: Int, k: Float, target: Offset, endWidth: Float): Edge {
+        val v = j.toFloat() / STRIPS // 0 top edge, 1 bottom edge
+        // The bottom starts first and the top follows: the photo pinches into a funnel, then pours into the bin.
+        val local = (k * (1f + LEAD) - (1f - v) * LEAD).coerceIn(0f, 1f)
+        val pinch = 1f - (1f - local) * (1f - local) // fast at first: the funnel forms early
+        val fall = local * local * local // slow at first: the photo hangs, then drops
+        val y0 = area.top + area.height * v
+        return Edge(
+            y = y0 + (target.y - y0) * fall,
+            centerX = area.center.x + (target.x - area.center.x) * pinch,
+            width = area.width + (endWidth - area.width) * pinch,
+            gone = local >= 1f,
+        )
+    }
+
     /**
-     * Where strip [i] of [area] is drawn at progress [k]: lower strips start sooner, every strip narrows toward
-     * [endWidth] and slides to the bin at [target]; null once it has gone in.
+     * Where strip [i] of [area] is drawn at progress [k]. Neighbouring strips share their edges, so the photo
+     * stays one smooth piece (24 Oct: the first version showed gaps). Null once the strip is inside the bin.
      */
     fun strip(area: Rect, i: Int, k: Float, target: Offset, endWidth: Float): Rect? {
-        val v = (i + 0.5f) / STRIPS // 0 top, 1 bottom
-        val lead = 0.9f
-        val local = ((k * (1f + lead)) - (1f - v) * lead).coerceIn(0f, 1f)
-        if (local >= 1f) return null
-        val e = local * local * (3f - 2f * local) // smooth start and end
-        val h = area.height / STRIPS
-        val top0 = area.top + h * i
-        val width = area.width + (endWidth - area.width) * e
-        val centerX = area.center.x + (target.x - area.center.x) * e
-        val top = top0 + (target.y - top0) * e
-        val height = (h * (1f - e)).coerceAtLeast(0.5f) + 0.6f // a hair of overlap, so no gaps show between strips
-        return Rect(centerX - width / 2, top, centerX + width / 2, top + height)
+        val top = edge(area, i, k, target, endWidth)
+        val bottom = edge(area, i + 1, k, target, endWidth)
+        if (top.gone && bottom.gone) return null
+        val width = (top.width + bottom.width) / 2f
+        val centerX = (top.centerX + bottom.centerX) / 2f
+        val height = (bottom.y - top.y).coerceAtLeast(0f)
+        if (height < 0.2f) return null
+        // A hair of overlap hides the seams between strips.
+        return Rect(centerX - width / 2f, top.y, centerX + width / 2f, bottom.y + 0.75f)
     }
+
+    private const val LEAD = 1.0f
 }
 
 private const val FLY_MS = 560

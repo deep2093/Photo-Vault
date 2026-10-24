@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.imePadding
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.glassChrome
@@ -145,7 +147,7 @@ fun GlassScreen(
             top = insets.calculateTopPadding() + 8.dp,
         )
         // The selection bar at the bottom, above the system bar (the navigation bar has rolled away).
-        val systemBottom = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+        val systemBottom = androidx.compose.foundation.layout.WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
         var lastBottom by remember { androidx.compose.runtime.mutableStateOf<(@Composable RowScope.() -> Unit)?>(null) }
         if (bottomActions != null) lastBottom = bottomActions
         androidx.compose.animation.AnimatedVisibility(
@@ -157,12 +159,9 @@ fun GlassScreen(
             lastBottom?.let { actions -> FloatingPill(Modifier, actions) }
         }
         if (title == null) {
-            val tucked = chrome?.hidden == true && !pinned
-            val shift by androidx.compose.animation.core.animateFloatAsState(if (tucked) -hidePx else 0f, com.deepak.photovault.designsystem.motionSpec(220), label = "pills")
-            val pillMotion = Modifier.graphicsLayer {
-                translationY = shift
-                alpha = 1f - (-shift / hidePx).coerceIn(0f, 1f)
-            }
+            // The top pills (Years / Months / All, Search, an album's back button) always stay in view (24 Oct);
+            // only the navigation bar tucks away while scrolling.
+            val pillMotion = Modifier
             if (floatingStartActions != null) {
                 FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding), floatingStartActions)
             }
@@ -266,7 +265,8 @@ fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = n
         ScrollToTopEffect(listState)
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            // Only pages that are lists pad for the keyboard, so a text field stays above it.
+            modifier = Modifier.fillMaxSize().imePadding(),
             contentPadding = padding,
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

@@ -59,6 +59,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
@@ -164,7 +165,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     // Full screen (23 Oct): the status and navigation bars go away with the viewer's own buttons and come back
     // with them, like Samsung Gallery. Bar room is remembered, so the buttons don't jump when they come back.
     SystemBarsHidden(hidden = !barsVisible && !state.detailsOpen)
-    val liveSystem = WindowInsets.safeDrawing.asPaddingValues()
+    val liveSystem = WindowInsets.systemBars.asPaddingValues()
     var system by remember { mutableStateOf(liveSystem) }
     if (liveSystem.calculateTopPadding() >= system.calculateTopPadding() && liveSystem.calculateBottomPadding() >= system.calculateBottomPadding()) system = liveSystem
     val scope = rememberCoroutineScope()

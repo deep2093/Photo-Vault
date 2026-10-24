@@ -132,22 +132,26 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                     val limit = usage?.limitBytes ?: joined.me.limitGb * DriveState.GB
                     val used = usage?.usedBytes ?: driveFiles?.sumOf { it.bytes } ?: 0L
                     val space = drive.space
+                    val family = drive.usage.filterKeys { it != joined.me.userId }.values.sumOf { it.usedBytes ?: 0L }
+                    // 24 Oct: the owner sees the whole drive (yours, the rest of the family, free); everyone else sees
+                    // their own backup, the rest of the family as one total, and what's left of their own space.
                     val slices = if (drive.isOwner && space != null) {
-                        val family = drive.usage.filterKeys { it != joined.me.userId }.values.sumOf { it.usedBytes ?: 0L }
-                        val other = (space.totalBytes - space.freeBytes - used - family).coerceAtLeast(0)
                         listOf(
                             StorageSlice("Your backup", used, driveFiles?.size ?: 0),
                             StorageSlice("Rest of the family", family, 0),
-                            StorageSlice("Other files", other, 0),
-                            StorageSlice("Free", space.freeBytes, 0),
+                            StorageSlice("Free on the drive", space.freeBytes, 0),
                         )
                     } else {
-                        listOf(StorageSlice("Your backup", used, driveFiles?.size ?: 0), StorageSlice("Left of your space", (limit - used).coerceAtLeast(0), 0))
+                        listOf(
+                            StorageSlice("Your backup", used, driveFiles?.size ?: 0),
+                            StorageSlice("Rest of the family", family, 0),
+                            StorageSlice("Left of your space", (limit - used).coerceAtLeast(0), 0),
+                        )
                     }
                     SpaceCard(
                         "Your backup on the drive",
                         slices,
-                        "${DetailsFormat.size(used)} of your ${joined.me.limitGb} GB" + (space?.takeIf { drive.isOwner }?.let { " · drive ${DetailsFormat.size(it.freeBytes)} free" } ?: ""),
+                        "${DetailsFormat.size(used)} of your ${joined.me.limitGb} GB" + (space?.takeIf { drive.isOwner }?.let { " · drive ${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}" } ?: ""),
                         onOpen = { i -> if (i == 0) driveFiles?.let { open(true)("Your backup", it) } },
                     )
                 }

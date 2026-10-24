@@ -75,6 +75,12 @@ class DeleteFlightTest {
         val bottom = GenieMath.strip(area, GenieMath.STRIPS - 1, 0.4f, bin, 12f)!!
         assertTrue(bottom.width < top.width)
         assertEquals(null, GenieMath.strip(area, GenieMath.STRIPS - 1, 1f, bin, 12f))
+        // One smooth piece: each strip starts where the one above ends (no gaps).
+        for (i in 0 until GenieMath.STRIPS - 1) {
+            val a1 = GenieMath.strip(area, i, 0.3f, bin, 12f) ?: continue
+            val b1 = GenieMath.strip(area, i + 1, 0.3f, bin, 12f) ?: continue
+            assertEquals(a1.bottom - 0.75f, b1.top, 0.01f)
+        }
         // A wide photo in the viewer is fitted, a grid tile is filled.
         val fitted = GenieMath.imageRect(androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 200f), androidx.compose.ui.geometry.Size(400f, 200f), fit = true)
         assertEquals(100f, fitted.width, 0.01f)

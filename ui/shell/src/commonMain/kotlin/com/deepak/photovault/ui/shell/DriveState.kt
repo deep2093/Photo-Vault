@@ -178,6 +178,7 @@ class DriveState(private val platform: DrivePlatform) {
         }
         space = runCatching { drive?.space() }.getOrNull()
         refreshActive()
+        refreshSpaceRequests(s)
         val current = membership
         if (current is Membership.Joined) {
             privatePhotos = runCatching { s.privatePhotos(current.me.userId) }.getOrDefault(privatePhotos)
@@ -388,6 +389,50 @@ class DriveState(private val platform: DrivePlatform) {
             BackupCatalog(fs, me.userId).remove(records, platform.deviceId, platform.now())
             backupRecords = backupRecords?.filterNot { it.drivePath in paths }
         }
+    }
+
+    // ---- Asking for more space (24 Oct) ----
+
+    /** Open requests for more space (the owner's to answer). */
+    var spaceRequests by mutableStateOf<List<com.deepak.photovault.core.household.SpaceRequest>>(emptyList())
+        private set
+
+    /** This person's own open request, and whether their last one was declined. */
+    var mySpaceRequest by mutableStateOf<com.deepak.photovault.core.household.SpaceRequest?>(null)
+        private set
+    var mySpaceDeclined by mutableStateOf(false)
+        private set
+
+    private fun spaceRequestsOn(fs: DriveFileSystem) = com.deepak.photovault.core.household.SpaceRequests(fs, platform::now)
+
+    private suspend fun refreshSpaceRequests(s: HouseholdStore) {
+        val j = membership as? Membership.Joined ?: return
+        val fs = drive ?: return
+        val requests = spaceRequestsOn(fs)
+        spaceRequests = if (j.isOwner) runCatching { requests.open(j.household) }.getOrDefault(spaceRequests) else emptyList()
+        mySpaceRequest = runCatching { requests.mine(j.household, j.me.userId) }.getOrNull()
+        mySpaceDeclined = runCatching { requests.declined(j.household, j.me.userId) }.getOrDefault(false)
+    }
+
+    suspend fun askForSpace(wantGb: Int, note: String): String? = guarded {
+        val j = joined ?: throw NotAllowed("Join your family drive first.")
+        ensureStore()
+        spaceRequestsOn(drive!!).ask(j.me, wantGb, note)
+        refreshLocked()
+    }
+
+    suspend fun cancelSpaceRequest(): String? = guarded {
+        val j = joined ?: return@guarded
+        ensureStore()
+        spaceRequestsOn(drive!!).cancel(j.me.userId)
+        refreshLocked()
+    }
+
+    /** The owner gives what was asked (the request then closes by itself). */
+    suspend fun approveSpace(request: com.deepak.photovault.core.household.SpaceRequest) = setLimit(request.userId, request.wantGb)
+
+    suspend fun declineSpace(request: com.deepak.photovault.core.household.SpaceRequest) = ownerAction { s ->
+        spaceRequestsOn(drive!!).decline(joined!!.household, request)
     }
 
     // ---- Taking turns (24 Oct) ----

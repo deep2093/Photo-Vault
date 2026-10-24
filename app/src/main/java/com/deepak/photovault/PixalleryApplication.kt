@@ -11,6 +11,7 @@ class PixalleryApplication : Application() {
         super.onCreate()
         CrashNote.install(this)
         BackupGraph.get(this).start()
+        com.deepak.photovault.family.OwnerCheckWorker.schedule(this)
     }
 }
 

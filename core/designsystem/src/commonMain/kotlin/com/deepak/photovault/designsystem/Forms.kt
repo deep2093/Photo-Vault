@@ -65,6 +65,7 @@ fun GlassTextField(
     minLines: Int = 1,
 ) {
     val theme = LocalGlassTheme.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(label, color = theme.onGlass, style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.padding(top = 4.dp))
@@ -92,8 +93,12 @@ fun GlassTextField(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = if (password && keyboardType == KeyboardType.Text) KeyboardType.Password else keyboardType,
                     autoCorrectEnabled = minLines > 1,
+                    imeAction = if (minLines == 1) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
                 ),
-                keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
+                keyboardActions = KeyboardActions(onDone = {
+                    keyboard?.hide()
+                    onDone?.invoke()
+                }),
                 modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
             )
         }

@@ -81,6 +81,7 @@ const val FOLDER_PRIVACY_NOTE =
 @Composable
 fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = NoMediaActions) {
     val scope = rememberCoroutineScope()
+    val theme = LocalGlassTheme.current
     // Fresh numbers when the screen opens, then every 20 seconds (new requests, space used). Only while
     // Family is on screen: sections stay ready in the background and this reads the drive (23 Oct).
     val onScreen = state.destination == Destination.FAMILY
@@ -116,6 +117,31 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
                             onApprove = { asOwner { scope.launch { message = drive.approve(r) } } },
                             onDecline = { asOwner { scope.launch { message = drive.decline(r) } } },
                         )
+                    }
+                }
+            }
+        }
+        // Someone asked for more space (24 Oct): approve gives what they asked for.
+        if (drive.isOwner && drive.spaceRequests.isNotEmpty()) {
+            item {
+                GlassCard(Modifier.cardWidth()) {
+                    SectionHeader("Space requests")
+                    drive.spaceRequests.forEach { r ->
+                        val now = joined.household.member(r.userId)?.limitGb
+                        Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            GlassIcon(Icons.Rounded.Storage, tint = theme.onGlassSecondary)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("${r.name} asks for ${r.wantGb} GB", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    listOfNotNull(now?.let { "Has $it GB now" }, r.note.ifBlank { null }).joinToString(" · "),
+                                    color = theme.onGlassSecondary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                            GlassIconButton(Icons.Rounded.Close, "Decline", onClick = { asOwner { scope.launch { message = drive.declineSpace(r) } } })
+                            GlassIconButton(Icons.Rounded.Check, "Give ${r.wantGb} GB", onClick = { asOwner { scope.launch { message = drive.approveSpace(r) } } })
+                        }
                     }
                 }
             }

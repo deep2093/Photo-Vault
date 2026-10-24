@@ -50,6 +50,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -104,7 +107,7 @@ private class Screens(
     val iconSwitcher: AppIconSwitcher,
 ) {
     /** A dot on Family while a phone is waiting for the owner. */
-    val familyDot: Boolean get() = drive.isOwner && drive.requests.isNotEmpty()
+    val familyDot: Boolean get() = drive.isOwner && (drive.requests.isNotEmpty() || drive.spaceRequests.isNotEmpty())
 }
 private const val OVERLAY_SCALE = 0.9f
 
@@ -148,7 +151,9 @@ fun PhotoVaultApp(
         CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
-                    val system = WindowInsets.safeDrawing.asPaddingValues()
+                    // Bars and cut-outs only, not the keyboard (24 Oct): reading the keyboard here re-laid out the whole
+                    // app on every frame of its slide, which made it stutter. Pages with text fields pad for it themselves.
+                    val system = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
                     val screens = Screens(state, gallery, actions, drive, backup, iconSwitcher)
                     val layout = AdaptiveLayout.navigationFor(maxWidth.value.toInt())
                     // Phones and tablets alike: the floating bar at the bottom (24 Oct: no side menu on tablets).
@@ -189,12 +194,13 @@ private fun OverlayHost(
             // while the top one shrinks away. Before (24 Oct) both faded, so for a moment the section underneath
             // (Albums) showed through when a video or photo opened or closed: the "flash".
             if (moving.slidesSideways()) {
-                // Settings pages (23 Oct): in from the right, out to the right, at the same speed, while the
-                // navigation bar rolls down and back up underneath.
+                // Settings pages, like Samsung's (24 Oct): the new page slides in from the right while the one under it
+                // drifts a quarter to the left; going back, it slides out to the right while the one under it drifts
+                // back in. Same speed both ways.
                 if (opening) {
-                    (slideInHorizontally(slideSpec) { it } togetherWith ExitTransition.KeepUntilTransitionsFinished).apply { targetContentZIndex = 1f }
+                    (slideInHorizontally(slideSpec) { it } togetherWith slideOutHorizontally(slideSpec) { -it / 4 }).apply { targetContentZIndex = 1f }
                 } else {
-                    (EnterTransition.None togetherWith slideOutHorizontally(slideSpec) { it }).apply { targetContentZIndex = -1f }
+                    (slideInHorizontally(slideSpec) { -it / 4 } togetherWith slideOutHorizontally(slideSpec) { it }).apply { targetContentZIndex = -1f }
                 }
             } else if (opening) {
                 ((fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith ExitTransition.KeepUntilTransitionsFinished)
@@ -278,7 +284,11 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                 bottom = system.calculateBottomPadding() + barSpace,
             ),
         ) {
-            SectionPager(nav.pager, screens)
+            // The section under a Settings page drifts a quarter to the left as the page slides in (Samsung style).
+            val drift = androidx.compose.animation.core.animateFloatAsState(if (pageOpen) 1f else 0f, motionSpec(OVERLAY_MS), label = "drift")
+            Box(Modifier.fillMaxSize().graphicsLayer { translationX = -drift.value * size.width / 4f }) {
+                SectionPager(nav.pager, screens)
+            }
         }
         FloatingNavigationBar(
             indicator = { nav.indicator.value },

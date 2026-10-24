@@ -202,6 +202,21 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Pull down at the top of Photos: spinner under the pills, library and drive refresh.
 - Storage saver row: icon lines up with the title, shorter text.
 
+## Phase 4 device checks: seventh round (24 Oct, 8 points)
+
+- Delete: the photo stays one piece, pinches at the bottom and pours into the bin like a genie into its bottle.
+- Settings pages slide like Samsung's: the new page in from the right while the one under it drifts left; back
+  reverses it at the same speed.
+- Storage > Drive: owner sees yours / rest of the family / free on the drive (no "Other files") and the drive's
+  total; a member sees their backup, the rest of the family as one total, and what's left of their space.
+- Member's own page: Ask for more space (amount + note), then Waiting / Cancel. Owner: Space requests card in
+  Family (give or decline, owner PIN), dot on Family, and within about an hour a phone notification with a dot on
+  the app icon, but only while on home Wi-Fi.
+- Recently deleted: tapping a photo opens it (Restore / Delete for good).
+- GIF tiles show a small GIF badge in Photos and albums.
+- Keyboard slides smoothly; Search on the keyboard closes it; Done closes it in text fields.
+- Photos: Years / Months / All and Search stay on screen while scrolling.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)

@@ -84,6 +84,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     var picked by remember { mutableStateOf<PickedImage?>(null) }
     var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
     var limitOpen by remember { mutableStateOf(false) }
+    var askSpace by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
     var removePhone by remember { mutableStateOf<Pair<String, String>?>(null) }
     fun asOwner(action: () -> Unit) {
@@ -145,6 +146,20 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                     }
                     if (drive.isOwner) {
                         GlassButton("Change space", icon = Icons.Rounded.Storage, modifier = Modifier.padding(top = 10.dp), onClick = { asOwner { limitOpen = true } })
+                    }
+                    // Not the owner, on your own page: ask the owner for more (24 Oct).
+                    if (isMe && !drive.isOwner) {
+                        val asked = drive.mySpaceRequest
+                        when {
+                            asked != null -> {
+                                Text("Asked the owner for ${asked.wantGb} GB. Waiting for an answer.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                                GlassButton("Cancel request", modifier = Modifier.padding(top = 6.dp), onClick = { scope.launch { message = drive.cancelSpaceRequest() } })
+                            }
+                            else -> {
+                                if (drive.mySpaceDeclined) Text("The owner said no to your last request.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                                GlassButton("Ask for more space", icon = Icons.Rounded.Storage, modifier = Modifier.padding(top = 10.dp), onClick = { askSpace = true })
+                            }
+                        }
                     }
                 }
             }
@@ -232,6 +247,12 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
             pinFor = null
             action()
         })
+    }
+    if (askSpace) {
+        AskSpaceDialog(member, onDismiss = { askSpace = false }) { gb, note ->
+            askSpace = false
+            scope.launch { message = drive.askForSpace(gb, note) ?: "Sent to the owner." }
+        }
     }
     if (limitOpen) {
         LimitDialog(member, onDismiss = { limitOpen = false }) { gb ->
@@ -384,5 +405,31 @@ object ProfileCrop {
         val left = (cx - side / 2f).coerceIn(0f, w - side)
         val top = (cy - side / 2f).coerceIn(0f, h - side)
         return Triple(left, top, side)
+    }
+}
+
+/** Ask the owner for more space: how much in total, and an optional note (24 Oct). */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AskSpaceDialog(member: com.deepak.photovault.core.household.Member, onDismiss: () -> Unit, onSend: (Int, String) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val options = listOf(50, 100, 200, 500, 1000, 2000).filter { it > member.limitGb }
+    var gb by remember { mutableStateOf(options.firstOrNull() ?: (member.limitGb + 100)) }
+    var note by remember { mutableStateOf("") }
+    com.deepak.photovault.designsystem.GlassDialog(
+        title = "Ask for more space",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton("Cancel", onClick = onDismiss)
+            GlassButton("Send", primary = true, onClick = { onSend(gb, note) })
+        },
+    ) {
+        Text("You have ${member.limitGb} GB. How much would you like in total?", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            (options.ifEmpty { listOf(member.limitGb + 100) }).forEach { option ->
+                com.deepak.photovault.designsystem.GlassChip(if (option >= 1000) "${option / 1000} TB" else "$option GB", selected = gb == option, onClick = { gb = option })
+            }
+        }
+        com.deepak.photovault.designsystem.GlassTextField(note, { note = it.take(300) }, "Note (optional)", placeholder = "Holiday videos")
     }
 }

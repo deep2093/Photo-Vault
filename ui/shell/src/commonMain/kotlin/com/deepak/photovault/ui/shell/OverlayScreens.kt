@@ -197,6 +197,7 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val results = remember(query, gallery.items, gallery.favourites) { MediaSearch.filter(gallery.items, query, gallery.favourites, zone) }
     val sections = remember(results) { Timeline.group(results, TimelineGrouping.MONTH, zone, today(zone)) }
     val focus = remember { FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     SelectableScreen(
         title = "Search",
@@ -227,6 +228,8 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = theme.onGlass),
                             cursorBrush = SolidColor(theme.accent),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            // Search on the keyboard closes it, so the results show in full (24 Oct).
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide() }),
                             modifier = Modifier.weight(1f).focusRequester(focus).semantics { contentDescription = "Search photos" },
                             decorationBox = { inner ->
                                 androidx.compose.foundation.layout.Box {

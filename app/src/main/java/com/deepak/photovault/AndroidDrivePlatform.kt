@@ -144,7 +144,7 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
      * The phone is on the same network as [host] right now (home Wi-Fi, or the VPN later), using the network's
      * real size: a home network like 192.168.68.0/22 covers .68.x to .71.x (24 Oct).
      */
-    private fun onSameNetwork(host: String): Boolean {
+    internal fun onSameNetwork(host: String): Boolean {
         val target = ipv4ToInt(host) ?: return false
         val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return false
         @Suppress("DEPRECATION")

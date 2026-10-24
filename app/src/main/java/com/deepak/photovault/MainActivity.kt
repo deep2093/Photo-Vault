@@ -66,6 +66,7 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity(), MediaActions {
     companion object {
         const val EXTRA_OPEN_BACKUP = "open_backup"
+        const val EXTRA_OPEN_FAMILY = "open_family"
 
         /** The opening animation has played in this run of the app. */
         private var introPlayed = false
@@ -239,6 +240,10 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     /** A backup notification opens the Backup section. */
     private fun openFromIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_FAMILY, false) == true) {
+            shell.overlays.clear()
+            shell.destination = Destination.FAMILY
+        }
         if (intent?.getBooleanExtra(EXTRA_OPEN_BACKUP, false) == true) {
             shell.overlays.clear()
             shell.destination = Destination.SETTINGS

@@ -161,6 +161,7 @@ fun MediaGrid(
         // Photos in screen order, for drag selection.
         val order = remember(sections) { sections.flatMap { s -> s.items.map { it.id } } }
         val positionOf = remember(order) { order.withIndex().associate { (i, id) -> id to i } }
+        val shown = remember(sections) { sections.flatMap { it.items }.associateBy { it.id } }
         val currentOnOpen by rememberUpdatedState(onOpen)
         val spacingPx = with(density) { GRID_SPACING.toPx() }
         val startPadPx = with(density) { contentPadding.calculateStartPadding(LayoutDirection.Ltr).toPx() }
@@ -196,7 +197,8 @@ fun MediaGrid(
                 }
 
                 override fun onTap(id: Long) {
-                    if (state.selecting) state.toggleSelected(id) else gallery.find(id)?.let(currentOnOpen)
+                    // Looked up among this grid's own photos, so Recently deleted ones open too (24 Oct).
+                    if (state.selecting) state.toggleSelected(id) else (shown[id] ?: gallery.find(id))?.let(currentOnOpen)
                 }
 
                 override fun onDragSelectStart(id: Long) {
@@ -475,6 +477,21 @@ private fun PhotoTile(
             if (tileSize >= 72.dp) {
                 Icon(Icons.Rounded.PlayCircle, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.Center).size(28.dp))
             }
+        }
+        // GIFs are marked so they stand out (24 Oct); they move when opened.
+        if (item.mimeType.equals("image/gif", ignoreCase = true)) {
+            Text(
+                "GIF",
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+            )
         }
         if (favourite) {
             Icon(Icons.Rounded.Favorite, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(4.dp).size(16.dp))
