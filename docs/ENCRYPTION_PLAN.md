@@ -71,3 +71,37 @@ during Phase 4 testing can simply be wiped instead.
 
 A backed-up photo, the USB drive opened on a PC: nothing readable for an encrypted person; a fresh phone restores
 from the 24 words and the photo matches byte for byte.
+
+
+## Review of the PDF "Optional encryption + Google Drive backup" (25 Oct 2026)
+
+The PDF agrees with this plan on: optional per person for the whole backed-up library, the owner never holding
+another person's key, recovery code wrapping the master key, a proven library (no home-made crypto),
+decrypt-verify before VERIFIED, signed identity and manifests, truthful wording in the app, and cleanup counting
+only verified copies. Changes made after reading it:
+
+1. **Folder layout stays.** The PDF moves normal files into a `standard/` tree. We keep today's readable layout
+   (`originals/YYYY/MM/name`) so existing backups do not move and PC browsing still works for people who do not
+   encrypt. Encrypted objects sit beside it, as above.
+2. **Default stays off.** The PDF recommends Private. We keep opt-in (decided 24 Oct), but the choice is a clear
+   screen during backup setup (Standard / Private, with the plain-words explanation), not a hidden toggle.
+3. **Switching both ways.** Added Private -> Standard: warn that secrecy is lost, decrypt locally, upload normal
+   objects, verify, never delete the encrypted originals automatically. Standard -> Private stays as
+   "Encrypt my existing backup" (copy, verify, then remove readable copy only with permission). If one
+   destination is Standard and another Private, the app says so and never claims full privacy.
+4. **Thumbnails are required, not optional, for encrypted people.** The "real thumbnails stored on the drive at
+   backup time" item moves from optional to part of 4B: small encrypted thumbnails, so the drive timeline never
+   downloads full photos.
+5. **Phase 5 features must go through the codec for encrypted people:** combined timeline, Open from drive, Save to
+   phone, restore, Family Album (per-photo key sharing as already planned), Open with. 4B includes this pass.
+6. **Google Drive stays at 10A** (later), but the backup code is written for several destinations from the start:
+   a destination interface, per-destination VERIFIED receipts. When both a drive and a cloud destination are on,
+   cleanup eligibility is revisited in 10A (the PDF wants both verified; Phase 6 only warns).
+7. **Order:** 4A and 4B come before Phase 6, because cleanup depends on what "verified" means for encrypted
+   backups, and before Phase 4 is merged and device-tested.
+8. Segment size for Tink streaming AEAD: pick 1 MiB, benchmark seeking on Wi-Fi and mobile data (the PDF suggests
+   4 MiB chunks; to be measured, not guessed). No decrypted temporary files outside app-private storage.
+
+Questions to ask Deepak, one at a time, before any code: how the Standard / Private choice screen should look and
+read; whether the recovery helper stays in; what happens to test backups already on the drive (wipe or keep
+readable); the Credential Manager save of the recovery words.
