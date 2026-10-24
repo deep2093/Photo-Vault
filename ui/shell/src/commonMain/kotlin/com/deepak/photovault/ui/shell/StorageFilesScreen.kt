@@ -243,12 +243,7 @@ fun StorageFilesScreen(
         }
         LazyColumn(
             state = list,
-            contentPadding = PaddingValues(
-                top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding(),
-                start = padding.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-                end = padding.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-            ),
+            contentPadding = padding,
             verticalArrangement = Arrangement.spacedBy(2.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
