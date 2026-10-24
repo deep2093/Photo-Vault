@@ -55,6 +55,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.foundation.layout.Row
+import com.deepak.photovault.core.backup.isDriveOnly
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -449,6 +452,7 @@ private fun PhotoTile(
                     append(if (item.isVideo) "Video" else "Photo")
                     append(", ").append(Timeline.localDate(item.takenAtMillis, kotlinx.datetime.TimeZone.currentSystemDefault()))
                     if (favourite) append(", favourite")
+                    if (item.isDriveOnly) append(", on the family drive")
                 }
                 if (selecting) this.selected = selected
             },
@@ -493,8 +497,18 @@ private fun PhotoTile(
                     .padding(horizontal = 4.dp, vertical = 1.dp),
             )
         }
-        if (favourite) {
-            Icon(Icons.Rounded.Favorite, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(4.dp).size(16.dp))
+        // Bottom left: a cloud for photos that are only on the family drive (25 Oct), and the heart for favourites.
+        val onDrive = item.isDriveOnly
+        if (onDrive || favourite) {
+            Row(Modifier.align(Alignment.BottomStart).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                if (onDrive) {
+                    Icon(
+                        Icons.Rounded.Cloud, "On the family drive", tint = Color.White,
+                        modifier = Modifier.size(18.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.45f)).padding(2.dp),
+                    )
+                }
+                if (favourite) Icon(Icons.Rounded.Favorite, null, tint = Color.White, modifier = Modifier.size(16.dp))
+            }
         }
         if (label != null) {
             Text(

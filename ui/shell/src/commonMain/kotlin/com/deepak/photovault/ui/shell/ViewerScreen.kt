@@ -74,6 +74,8 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
+import com.deepak.photovault.core.backup.isDriveOnly
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
@@ -491,6 +493,24 @@ private fun DetailsPanel(
         )
 
         val d = details
+        if (item.isDriveOnly) {
+            // 25 Oct: say plainly that this one lives on the family drive and not on the phone.
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF1C1C21)).padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(Icons.Rounded.Cloud, null, tint = white)
+                Column {
+                    Text("On the family drive", color = white, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Not saved on this phone. Opening it fetches it from the drive.", color = grey, style = body)
+                    com.deepak.photovault.core.backup.DriveTimeline.pathOf(item.uri)?.let {
+                        Text(it.substringBeforeLast('/'), color = grey, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(10.dp))
         val camera = listOfNotNull(
             d?.camera,

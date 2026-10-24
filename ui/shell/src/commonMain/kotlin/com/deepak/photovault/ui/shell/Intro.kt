@@ -94,6 +94,7 @@ object WhatsNew {
     const val TITLE = "What's new"
     val items: List<Pair<String, String>> = listOf(
         "Family Album" to "A shared album the whole family sees. Select backed-up photos and tap the family button (also in the viewer). It holds links to each person's own backup, never copies, and you can only remove photos you added.",
+        "Cloud badge" to "Photos that are only on the family drive show a small cloud on their thumbnail, and their Details say so.",
         "Recently deleted on the drive" to "Photos you delete that live only on the drive wait 30 days in Recently deleted before they are gone for good, and can be restored.",
         "Share drive photos" to "Photos that are only on the drive can be shared: Pixallery fetches them first.",
         "One timeline" to "Photos you backed up to the family drive now stay in Photos and Albums even after you delete them from the phone.",
