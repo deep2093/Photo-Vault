@@ -16,6 +16,7 @@ class NewPrivateKey(
 )
 
 /** What others may see of a person's private-backup identity: public keys and a short fingerprint. */
+@OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
 class PublicIdentity(val exchangePublic: ByteArray, val fingerprint: String) {
     companion object {
         fun text(signing: ByteArray, exchange: ByteArray, fingerprint: String): String =
