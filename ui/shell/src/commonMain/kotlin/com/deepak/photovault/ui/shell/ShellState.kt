@@ -6,6 +6,8 @@ import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -17,6 +19,7 @@ import com.deepak.photovault.designsystem.AdaptiveLayout
 import com.deepak.photovault.designsystem.GlassSettings
 import com.deepak.photovault.designsystem.GlassTheme
 import com.deepak.photovault.designsystem.GlassThemes
+import com.deepak.photovault.designsystem.PageEasing
 
 enum class Destination(val label: String, val icon: ImageVector) {
     PHOTOS("Photos", Icons.Rounded.PhotoLibrary),
@@ -151,6 +154,40 @@ class ShellState(private val store: AppearanceStore) {
     /** Files picked on a Storage file page (phone media IDs or drive paths, 23 Oct). Back clears them first. */
     var filesSelected by mutableStateOf<Set<String>>(emptySet())
 
+    /**
+     * How far a page has been pulled away by the back gesture (24 Oct): 0 = in place, 1 = gone. The page follows the
+     * finger exactly and stays wherever the finger stops; letting go finishes or cancels it from there.
+     */
+    val pageBack = Animatable(0f)
+
+    /** Set for the one moment when the page that was just pulled away is removed, so it does not slide out twice. */
+    var pageBackSkip by mutableStateOf(false)
+
+    /** A back gesture moves the top page itself only when nothing smaller (a selection, the details) would close first. */
+    val canDragBack: Boolean
+        get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && overlays.lastOrNull().slidesSideways()
+
+    suspend fun dragBack(progress: Float) {
+        pageBack.snapTo(progress.coerceIn(0f, 1f))
+    }
+
+    /** Lets go past the point of no return: slides the rest of the way, then removes the page. */
+    suspend fun finishBack() {
+        if (pageBack.value <= 0f) {
+            back() // no finger-following (old Android, three-button navigation): the normal animation
+            return
+        }
+        pageBack.animateTo(1f, tween((BACK_SETTLE_MS * (1f - pageBack.value)).toInt().coerceAtLeast(60), easing = PageEasing))
+        pageBackSkip = true
+        back()
+        pageBack.snapTo(0f)
+    }
+
+    /** The gesture was cancelled: the page slides back where it was. */
+    suspend fun cancelBack() {
+        pageBack.animateTo(0f, tween((BACK_SETTLE_MS * pageBack.value).toInt().coerceAtLeast(60), easing = PageEasing))
+    }
+
     val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty()
 
     fun open(overlay: Overlay) {
@@ -231,3 +268,5 @@ class MemoryAppearanceStore(private var value: AppearanceSettings = AppearanceSe
         value = settings
     }
 }
+
+private const val BACK_SETTLE_MS = 260

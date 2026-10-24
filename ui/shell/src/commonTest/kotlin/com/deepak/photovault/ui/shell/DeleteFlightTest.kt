@@ -36,7 +36,11 @@ class DeleteFlightTest {
     fun settingsPagesSlideAndAboutComesLast() {
         assertTrue(Overlay.Settings(SettingsPage.ABOUT).slidesSideways())
         assertTrue(Overlay.Backup.slidesSideways())
-        assertTrue(!Overlay.Search.slidesSideways())
+        // Album pages, Search and Recently deleted slide too (24 Oct); only the photo viewer grows in.
+        assertTrue(Overlay.Search.slidesSideways())
+        assertTrue(Overlay.RecentlyDeleted.slidesSideways())
+        assertTrue(!Overlay.Viewer(listOf(1L), 1L).slidesSideways())
+        assertTrue(!(null as Overlay?).slidesSideways())
         assertEquals(SettingsPage.ABOUT, SettingsPage.entries.last())
     }
 
@@ -85,5 +89,18 @@ class DeleteFlightTest {
         val fitted = GenieMath.imageRect(androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 200f), androidx.compose.ui.geometry.Size(400f, 200f), fit = true)
         assertEquals(100f, fitted.width, 0.01f)
         assertEquals(50f, fitted.height, 0.01f)
+    }
+
+    @Test
+    fun theBackGesturePullsASlidingPageButLeavesSelectionsAndTheViewerAlone() {
+        val state = ShellState(MemoryAppearanceStore())
+        assertTrue(!state.canDragBack) // nothing open
+        state.open(Overlay.Settings(SettingsPage.ABOUT))
+        assertTrue(state.canDragBack)
+        state.selected = setOf(1L) // a selection closes first, so the page stays put
+        assertTrue(!state.canDragBack)
+        state.selected = emptySet()
+        state.open(Overlay.Viewer(listOf(1L), 1L)) // the photo viewer keeps its own close
+        assertTrue(!state.canDragBack)
     }
 }

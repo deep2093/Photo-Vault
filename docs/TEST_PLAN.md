@@ -217,6 +217,18 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Keyboard slides smoothly; Search on the keyboard closes it; Done closes it in text fields.
 - Photos: Years / Months / All and Search stay on screen while scrolling.
 
+## Round 8 (24 Oct): sliding pages
+
+- Tap Settings, Backup, an album, Search or Recently deleted: the page slides in from the right edge like a door, the
+  page under it drifts left and darkens, a soft shadow runs down the moving page's edge. The photo viewer still grows in.
+- The back arrow plays the same movement backwards at the same speed.
+- Android back gesture (swipe from the screen edge): the page follows the finger exactly. Stop half way and hold: the
+  page stops there. Let go past half: it finishes; let go before: it slides back. Nothing flickers when it finishes.
+- Same on a page opened from another page (Settings > Storage > a file list): the page under it appears as you pull.
+- The bottom bar rolls back up as you pull a page off a section.
+- With Reduce motion on, pages simply appear and disappear.
+- Needs Android 14+ for the pull-along; on older phones or three-button navigation the page closes with the normal slide.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)

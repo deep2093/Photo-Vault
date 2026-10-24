@@ -1,6 +1,16 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.animation.AnimatedContent
+import com.deepak.photovault.designsystem.PageEasing
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.offset
@@ -95,6 +105,14 @@ import com.deepak.photovault.designsystem.motionSpec
 import dev.chrisbanes.haze.HazeState
 
 private const val OVERLAY_MS = 320
+
+/** Sliding pages (24 Oct): a little longer than a grow-in, with a soft settle. */
+private const val PAGE_MS = 420
+
+/** The page underneath drifts a quarter of the screen and darkens by this much while another covers it. */
+private const val DRIFT_DIVISOR = 4f
+private const val PAGE_DIM = 0.28f
+private val PAGE_SHADOW_WIDTH = 28.dp
 private const val DRIVE_REFRESH_MS = 60_000L
 
 /** Everything a section needs, passed around together. */
@@ -170,7 +188,12 @@ fun PhotoVaultApp(
     }
 }
 
-/** Pages opened on top (viewer, album, search, Recently deleted), animated in and out. */
+/**
+ * Pages opened on top, animated in and out. Every page except the photo viewer slides in from the right edge like a
+ * sliding door (24 Oct): the page under it drifts left and darkens, and a soft shadow runs down the moving page's
+ * edge. Closing by the back arrow plays the same movement backwards; the system back gesture instead pulls the page
+ * along with the finger, stops where the finger stops, and finishes or returns from there.
+ */
 @Composable
 private fun OverlayHost(
     state: ShellState,
@@ -183,45 +206,112 @@ private fun OverlayHost(
 ) {
     // Opening and closing mirror each other at the same speed (feedback 22 Oct: closing was too fast).
     val spec = motionSpec<Float>(OVERLAY_MS)
-    val slideSpec = motionSpec<androidx.compose.ui.unit.IntOffset>(OVERLAY_MS)
-    AnimatedContent(
-        targetState = state.overlays.size to state.overlays.lastOrNull(),
-        contentKey = { it.second },
-        transitionSpec = {
-            val opening = targetState.first > initialState.first
-            val moving = if (opening) targetState.second else initialState.second
-            // The page underneath stays fully in place while the new one grows in over it, and is already there
-            // while the top one shrinks away. Before (24 Oct) both faded, so for a moment the section underneath
-            // (Albums) showed through when a video or photo opened or closed: the "flash".
-            if (moving.slidesSideways()) {
-                // Settings pages, like Samsung's (24 Oct): the new page slides in from the right while the one under it
-                // drifts a quarter to the left; going back, it slides out to the right while the one under it drifts
-                // back in. Same speed both ways.
-                if (opening) {
-                    (slideInHorizontally(slideSpec) { it } togetherWith slideOutHorizontally(slideSpec) { -it / 4 }).apply { targetContentZIndex = 1f }
-                } else {
-                    (slideInHorizontally(slideSpec) { -it / 4 } togetherWith slideOutHorizontally(slideSpec) { it }).apply { targetContentZIndex = -1f }
-                }
-            } else if (opening) {
-                ((fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith ExitTransition.KeepUntilTransitionsFinished)
-                    .apply { targetContentZIndex = 1f }
-            } else {
-                (EnterTransition.None togetherWith (fadeOut(spec) + scaleOut(spec, targetScale = OVERLAY_SCALE)))
-                    .apply { targetContentZIndex = -1f }
+    val reduceMotion = LocalGlassSettings.current.reduceMotion
+    val slideSpec: FiniteAnimationSpec<IntOffset> =
+        if (reduceMotion || state.pageBackSkip) snap() else tween(PAGE_MS, easing = PageEasing)
+    val depthSpec: FiniteAnimationSpec<Float> =
+        if (reduceMotion || state.pageBackSkip) snap() else tween(PAGE_MS, easing = PageEasing)
+    // A page the back gesture has already moved away is removed without sliding out a second time.
+    LaunchedEffect(state.pageBackSkip) {
+        if (state.pageBackSkip) {
+            withFrameNanos { }
+            withFrameNanos { }
+            state.pageBackSkip = false
+        }
+    }
+    val transition = updateTransition(targetState = state.overlays.size to state.overlays.lastOrNull(), label = "overlay")
+    // How many pages are open, as a number that moves smoothly while a page slides in or out. The page underneath
+    // is darkened by how much of it the moving page covers.
+    val depth = transition.animateFloat(transitionSpec = { depthSpec }, label = "depth") { it.first.toFloat() }
+    val below = state.overlays.getOrNull(state.overlays.size - 2)
+    val pulled by remember { derivedStateOf { state.pageBack.value > 0f } }
+    Box(Modifier.fillMaxSize()) {
+        // While a finger pulls the top page away, the page under it is shown (it is not otherwise on screen).
+        if (pulled && below != null) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = -(1f - state.pageBack.value) * size.width / DRIFT_DIVISOR }
+                    .dimmedBy { (1f - state.pageBack.value) * PAGE_DIM },
+            ) {
+                OverlayPage(below, state, gallery, actions, drive, backup, iconSwitcher, system)
             }
-        },
-        label = "overlay",
-    ) { (_, overlay) ->
-        if (overlay == null) return@AnimatedContent
-        // Each page blurs only its own content, never the section underneath it.
-        CompositionLocalProvider(
-            LocalHazeState provides remember { HazeState() },
-            LocalScreenInsets provides system,
-        ) {
-          // Absorb every touch on the page, including its empty areas. Without this, touches on parts of a
-          // page with no buttons fell through to the section underneath: a back swipe on the Camera album
-          // could tap the Camera card on Albums and reopen it (bug found 22 Oct).
-          Box(Modifier.fillMaxSize().blockTouchesBelow()) {
+        }
+        Box(Modifier.fillMaxSize().graphicsLayer { translationX = state.pageBack.value * size.width }) {
+            transition.AnimatedContent(
+                contentKey = { it.second },
+                transitionSpec = {
+                    val opening = targetState.first > initialState.first
+                    val moving = if (opening) targetState.second else initialState.second
+                    // The page underneath stays fully in place while the new one grows in over it, and is already there
+                    // while the top one shrinks away. Before (24 Oct) both faded, so for a moment the section underneath
+                    // (Albums) showed through when a video or photo opened or closed: the "flash".
+                    if (moving.slidesSideways()) {
+                        if (state.pageBackSkip) {
+                            // The back gesture already moved this page away: take it out at once.
+                            (EnterTransition.None togetherWith ExitTransition.None).apply { targetContentZIndex = -1f }
+                        } else if (opening) {
+                            // The new page slides in from the edge while the one under it drifts a quarter to the left;
+                            // going back, it slides out to the right while the one under it drifts back in.
+                            (slideInHorizontally(slideSpec) { it } togetherWith slideOutHorizontally(slideSpec) { -it / DRIFT_DIVISOR.toInt() })
+                                .apply { targetContentZIndex = 1f }
+                        } else {
+                            (slideInHorizontally(slideSpec) { -it / DRIFT_DIVISOR.toInt() } togetherWith slideOutHorizontally(slideSpec) { it })
+                                .apply { targetContentZIndex = -1f }
+                        }
+                    } else if (opening) {
+                        ((fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith ExitTransition.KeepUntilTransitionsFinished)
+                            .apply { targetContentZIndex = 1f }
+                    } else {
+                        (EnterTransition.None togetherWith (fadeOut(spec) + scaleOut(spec, targetScale = OVERLAY_SCALE)))
+                            .apply { targetContentZIndex = -1f }
+                    }
+                },
+            ) { (_, overlay) ->
+                if (overlay == null) return@AnimatedContent
+                // The page that a sliding page is covering (or uncovering) darkens by how much of it is covered.
+                val lower = minOf(transition.currentState.first, transition.targetState.first)
+                val covered = overlay === state.overlays.getOrNull(lower - 1)
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .dimmedBy { if (covered) (depth.value - lower).coerceIn(0f, 1f) * PAGE_DIM else 0f },
+                ) {
+                    OverlayPage(overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                }
+            }
+        }
+    }
+}
+
+/** Darkens what it draws over by the fraction given (read only while drawing, so it never recomposes). */
+private fun Modifier.dimmedBy(alpha: () -> Float): Modifier = drawWithContent {
+    drawContent()
+    val a = alpha()
+    if (a > 0.001f) drawRect(Color.Black.copy(alpha = a))
+}
+
+/** One open page, with its own blur source and a soft shadow down its leading edge while it slides. */
+@Composable
+private fun OverlayPage(
+    overlay: Overlay,
+    state: ShellState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    drive: DriveState,
+    backup: BackupState,
+    iconSwitcher: AppIconSwitcher,
+    system: PaddingValues,
+) {
+    // Each page blurs only its own content, never the section underneath it.
+    CompositionLocalProvider(
+        LocalHazeState provides remember { HazeState() },
+        LocalScreenInsets provides system,
+    ) {
+        // Absorb every touch on the page, including its empty areas. Without this, touches on parts of a
+        // page with no buttons fell through to the section underneath: a back swipe on the Camera album
+        // could tap the Camera card on Albums and reopen it (bug found 22 Oct).
+        Box(Modifier.fillMaxSize().blockTouchesBelow()) {
             if (overlay is Overlay.Viewer) {
                 ViewerScreen(overlay, state, gallery, actions)
             } else {
@@ -240,14 +330,22 @@ private fun OverlayHost(
                     }
                 }
             }
-          }
+            if (overlay.slidesSideways()) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(x = -PAGE_SHADOW_WIDTH)
+                        .width(PAGE_SHADOW_WIDTH)
+                        .fillMaxHeight()
+                        .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.22f)))),
+                )
+            }
         }
     }
 }
 
-/** Pages that open from Settings slide in from the side like a stack of pages; the rest grow in. */
-internal fun Overlay?.slidesSideways(): Boolean =
-    this is Overlay.Settings || this == Overlay.Backup || this == Overlay.DriveSetup || this is Overlay.StorageFiles
+/** Every page except the photo viewer slides in from the edge like a sliding door (24 Oct; before: only Settings pages). */
+internal fun Overlay?.slidesSideways(): Boolean = this != null && this !is Overlay.Viewer
 
 /** Takes part in touch hit-testing everywhere it covers, so siblings drawn underneath never receive touches. */
 private fun Modifier.blockTouchesBelow(): Modifier = pointerInput(Unit) {
@@ -273,8 +371,18 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
     // Read only while drawing, so the slide doesn't recompose the screens on every frame.
-    val barSpec = motionSpec<Float>(if (pageOpen || state.overlays.isEmpty()) OVERLAY_MS else CHROME_MS)
+    // Moves with the page (same speed and curve) when a page slides over a section. When the back gesture pulls the
+    // page away the bar and the section follow the finger instead, and settle without a second animation.
+    val barSpec: androidx.compose.animation.core.FiniteAnimationSpec<Float> =
+        if (state.pageBackSkip) androidx.compose.animation.core.snap()
+        else if (pageOpen || state.overlays.isEmpty()) motionSpec(PAGE_MS, PageEasing)
+        else motionSpec(CHROME_MS)
     val shift = androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, barSpec, label = "bar")
+    // 1 while a page covers the section; a finger on the back gesture pulls it toward 0 (only when this page is the last).
+    val driftSpec: androidx.compose.animation.core.FiniteAnimationSpec<Float> =
+        if (state.pageBackSkip) androidx.compose.animation.core.snap() else motionSpec(PAGE_MS, PageEasing)
+    val drift = androidx.compose.animation.core.animateFloatAsState(if (pageOpen) 1f else 0f, driftSpec, label = "drift")
+    val driftNow = { if (state.pageBack.value > 0f && state.overlays.size == 1) 1f - state.pageBack.value else drift.value }
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -284,9 +392,13 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                 bottom = system.calculateBottomPadding() + barSpace,
             ),
         ) {
-            // The section under a Settings page drifts a quarter to the left as the page slides in (Samsung style).
-            val drift = androidx.compose.animation.core.animateFloatAsState(if (pageOpen) 1f else 0f, motionSpec(OVERLAY_MS), label = "drift")
-            Box(Modifier.fillMaxSize().graphicsLayer { translationX = -drift.value * size.width / 4f }) {
+            // The section under a page drifts a quarter to the left and darkens as the page slides in (Samsung style).
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = -driftNow() * size.width / DRIFT_DIVISOR }
+                    .dimmedBy { driftNow() * PAGE_DIM },
+            ) {
                 SectionPager(nav.pager, screens)
             }
         }
@@ -297,8 +409,9 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .graphicsLayer {
-                    translationY = shift.value
-                    alpha = 1f - (shift.value / travel).coerceIn(0f, 1f)
+                    val y = if (state.pageBack.value > 0f && state.overlays.size == 1) travel * (1f - state.pageBack.value) else shift.value
+                    translationY = y
+                    alpha = 1f - (y / travel).coerceIn(0f, 1f)
                 }
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
         )

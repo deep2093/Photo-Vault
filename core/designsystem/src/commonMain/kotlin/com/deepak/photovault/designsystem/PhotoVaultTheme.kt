@@ -1,6 +1,8 @@
 package com.deepak.photovault.designsystem
 
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -85,5 +87,11 @@ fun GlassIcon(icon: ImageVector, tint: Color, modifier: Modifier = Modifier) {
 
 /** The one animation spec for UI movement. Instant when reduce motion is on. */
 @Composable
-fun <T> motionSpec(durationMillis: Int = 220): FiniteAnimationSpec<T> =
-    if (LocalGlassSettings.current.reduceMotion) snap() else tween(durationMillis, easing = FastOutSlowInEasing)
+fun <T> motionSpec(durationMillis: Int = 220, easing: Easing = FastOutSlowInEasing): FiniteAnimationSpec<T> =
+    if (LocalGlassSettings.current.reduceMotion) snap() else tween(durationMillis, easing = easing)
+
+/**
+ * Pages that slide in from the edge like a sliding door (24 Oct, after the Samsung comparison): leaves quickly, then
+ * settles softly, instead of the even ease the rest of the app uses.
+ */
+val PageEasing: Easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)

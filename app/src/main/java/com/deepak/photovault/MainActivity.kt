@@ -17,7 +17,7 @@ import android.provider.MediaStore
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
@@ -25,6 +25,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.deepak.photovault.core.media.FavouritesStore
@@ -58,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -218,7 +220,19 @@ class MainActivity : ComponentActivity(), MediaActions {
                 val style = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            BackHandler(enabled = state.canGoBack) { state.back() }
+            // The back gesture pulls a sliding page along with the finger (24 Oct): it stops where the finger stops,
+            // then finishes or slides back from there. Anything else (a selection, the photo viewer) closes as before.
+            val backScope = rememberCoroutineScope()
+            PredictiveBackHandler(enabled = state.canGoBack) { events ->
+                val pagePulled = state.canDragBack
+                try {
+                    events.collect { if (pagePulled) state.dragBack(it.progress) }
+                } catch (e: CancellationException) {
+                    if (pagePulled) backScope.launch { state.cancelBack() }
+                    throw e
+                }
+                if (pagePulled) backScope.launch { state.finishBack() } else state.back()
+            }
             Box(Modifier.fillMaxSize()) {
                 PhotoVaultApp(state, gallery, this@MainActivity, drive, backup, signals, iconSwitcher)
                 if (showIntro && introIcon != null) {
