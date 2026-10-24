@@ -235,7 +235,7 @@ private fun CreateFamilyCard(drive: DriveState) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(vertical = 8.dp),
         )
-        GlassTextField(name, { name = it }, "Your name", placeholder = "Deepak")
+        GlassTextField(name, { name = it }, "Your name")
         // Always needed (23 Oct): it protects owner settings, and it is how a new or replacement phone of the
         // owner joins as the owner if the old phone is lost.
         GlassTextField(
