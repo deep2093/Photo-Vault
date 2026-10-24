@@ -205,7 +205,7 @@ class HouseholdStoreTest {
     fun usageCountsEverythingInThePersonsFolder() = runTest {
         val h = ownerSetUp()
         drive.createNew("users/${h.ownerUserId}/albums/a.jpg", ByteArray(1500))
-        drive.createNew("users/${h.ownerUserId}/videos/b.mp4", ByteArray(500))
+        drive.createNew("users/${h.ownerUserId}/manifests/b.json", ByteArray(500))
         assertEquals(2000L, store().usedBytes(h.ownerUserId))
     }
 
