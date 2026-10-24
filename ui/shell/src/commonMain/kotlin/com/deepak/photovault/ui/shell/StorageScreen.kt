@@ -214,6 +214,12 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     val total = slices.sumOf { it.bytes }.coerceAtLeast(1L)
     val track = LocalGlassTheme.current.onGlass.copy(alpha = 0.08f)
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    // The ring sweeps round clockwise when the screen opens (25 Oct); instant with reduce motion.
+    val reduceMotion = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
+    val grow = remember { androidx.compose.animation.core.Animatable(if (reduceMotion) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (!reduceMotion) grow.animateTo(1f, androidx.compose.animation.core.tween(900, easing = com.deepak.photovault.designsystem.PageEasing))
+    }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->
             val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - size.height / 2f, slices.map { it.bytes })
@@ -229,9 +235,11 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
         val arcSize = Size(size.width - stroke, size.height - stroke)
         drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
         var start = -90f
+        val limit = -90f + 360f * grow.value
         slices.forEachIndexed { i, s ->
             val sweep = 360f * s.bytes / total
-            if (sweep > 0.5f) drawArc(colors[i % colors.size], start, (sweep - 1.2f).coerceAtLeast(0.5f), false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+            val shown = minOf(sweep - 1.2f, limit - start)
+            if (sweep > 0.5f && shown > 0.5f) drawArc(colors[i % colors.size], start, shown.coerceAtLeast(0.5f), false, Offset(inset, inset), arcSize, style = Stroke(stroke))
             start += sweep
         }
     }
