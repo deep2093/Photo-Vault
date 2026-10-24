@@ -381,6 +381,34 @@ class SmbConnection(private val profile: SmbProfile) : Closeable {
 class SmbSecurityException : IOException("Required SMB encryption was not negotiated")
 
 object SmbErrors {
+    /**
+     * True when nothing answered at the address (timed out, refused, no route). False when a server did answer
+     * and said no (wrong password, missing share, security): then trying other addresses wouldn't help.
+     */
+    fun isUnreachable(e: Throwable): Boolean {
+        var cause: Throwable? = e
+        var network = false
+        while (cause != null) {
+            when (cause) {
+                is SMBApiException, is SmbSecurityException, is IllegalArgumentException -> return false
+                is TransportException, is IOException -> network = true
+            }
+            cause = cause.cause
+        }
+        return network
+    }
+
+    /** Addresses to try when [saved] stops answering: the same home network only, nearest numbers first. */
+    fun nearbyFirst(saved: String, found: List<String>): List<String> {
+        val prefix = saved.substringBeforeLast('.', "")
+        val last = saved.substringAfterLast('.').toIntOrNull() ?: return emptyList()
+        if (prefix.isEmpty()) return emptyList()
+        return found
+            .filter { it != saved && it.substringBeforeLast('.') == prefix }
+            .mapNotNull { h -> h.substringAfterLast('.').toIntOrNull()?.let { h to kotlin.math.abs(it - last) } }
+            .sortedBy { it.second }
+            .map { it.first }
+    }
     /** Turns an exception into a message that is useful to show on screen. Never includes the password. */
     fun describe(e: Throwable): String {
         var cause: Throwable? = e

@@ -469,6 +469,8 @@ class DriveState(private val platform: DrivePlatform) {
         val c = connection?.takeIf { it.isComplete } ?: return null
         val fs = platform.open(c)
         drive = fs
+        // The drive may have been found at a new address (24 Oct); show and use the one that worked.
+        platform.loadConnection()?.takeIf { it.isComplete && it.host != c.host }?.let { connection = it }
         return HouseholdStore(fs, platform::now).also { store = it }
     }
 

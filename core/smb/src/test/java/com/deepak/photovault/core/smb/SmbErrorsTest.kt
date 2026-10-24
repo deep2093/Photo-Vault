@@ -6,6 +6,17 @@ import org.junit.Test
 import java.io.IOException
 
 class SmbErrorsTest {
+    @Test fun aMovedDriveIsLookedForNearbyOnTheSameNetworkOnly() {
+        assertTrue(SmbErrors.isUnreachable(java.net.SocketTimeoutException("timeout")))
+        assertTrue(SmbErrors.isUnreachable(IOException(java.net.ConnectException("refused"))))
+        // A server that answered "no" (wrong password, bad share) isn't looked for elsewhere.
+        assertFalse(SmbErrors.isUnreachable(IOException(IllegalArgumentException("bad"))))
+        assertFalse(SmbErrors.isUnreachable(IOException(SmbSecurityException())))
+        val found = listOf("192.168.71.1", "192.168.71.249", "192.168.71.250", "192.168.71.253", "10.0.0.249")
+        assertEquals(listOf("192.168.71.249", "192.168.71.253", "192.168.71.1"), SmbErrors.nearbyFirst("192.168.71.250", found))
+        assertTrue(SmbErrors.nearbyFirst("nas.local", found).isEmpty())
+    }
+
     @Test fun permanentOrCancelledCausesAreNotRetried() {
         assertFalse(
             SmbErrors.isTransient(

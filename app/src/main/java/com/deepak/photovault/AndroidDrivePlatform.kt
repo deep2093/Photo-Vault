@@ -6,6 +6,7 @@ import android.provider.Settings
 import com.deepak.photovault.core.drive.DriveFileSystem
 import com.deepak.photovault.core.drive.DriveNotFound
 import com.deepak.photovault.core.household.AlreadySetUp
+import com.deepak.photovault.core.household.HouseholdStore
 import com.deepak.photovault.core.security.SmbCredentialStore
 import com.deepak.photovault.core.security.SmbSettings
 import com.deepak.photovault.core.smb.LanDiscovery
@@ -77,27 +78,54 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
     }
 
     override suspend fun open(connection: DriveConnection): DriveFileSystem {
-        val profile = SmbProfile(
-            host = connection.host.trim(),
-            share = connection.share.trim(),
-            rootPath = "",
-            username = connection.username.trim(),
-            password = connection.password,
-        )
-        val fs = SmbDriveFileSystem(profile, connection.folder.trim().trim('/'))
-        try {
-            fs.check()
-        } catch (e: Throwable) {
-            fs.close()
-            throw e
-        }
+        val fs = openChecked(connection)
         closeOpened()
         opened = fs
         return fs
     }
 
     /** A separate connection for background backup, so it never closes the one the screens are using. */
-    suspend fun openDetached(connection: DriveConnection): SmbDriveFileSystem {
+    suspend fun openDetached(connection: DriveConnection): SmbDriveFileSystem = openChecked(connection)
+
+    /**
+     * Opens the drive at its saved address. If nothing answers there (24 Oct: the drive sometimes moves between
+     * 192.168.71.250 and .249), it looks for it on the same home network, nearest addresses first, and keeps
+     * the new address once the same share and sign-in open there and the family's folder is on it.
+     *
+     * Only addresses in the same network as the saved one are tried, and only while the phone is on that
+     * network, so the sign-in is never offered to servers on someone else's Wi-Fi.
+     */
+    private suspend fun openChecked(connection: DriveConnection): SmbDriveFileSystem {
+        val first = try {
+            return tryOpen(connection)
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            e
+        }
+        val saved = connection.host.trim()
+        if (!SmbErrors.isUnreachable(first) || !isIpv4(saved) || !onSameNetwork(saved)) throw first
+        val found = runCatching { LanDiscovery.find(context, saved).hosts }.getOrDefault(emptyList())
+        for (host in SmbErrors.nearbyFirst(saved, found).take(MAX_TRIES)) {
+            val moved = connection.copy(host = host)
+            val fs = try {
+                tryOpen(moved).also { fs ->
+                    // The family's own folder must be there, or it isn't our drive.
+                    if (!fs.exists(HouseholdStore.HOUSEHOLD_DIR)) {
+                        fs.close()
+                        throw IllegalStateException("Not the family drive")
+                    }
+                }
+            } catch (e: Throwable) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                continue
+            }
+            saveConnection(moved)
+            return fs
+        }
+        throw first
+    }
+
+    private suspend fun tryOpen(connection: DriveConnection): SmbDriveFileSystem {
         val fs = SmbDriveFileSystem(profileOf(connection), connection.folder.trim().trim('/'))
         try {
             fs.check()
@@ -106,6 +134,21 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
             throw e
         }
         return fs
+    }
+
+    private fun isIpv4(host: String) = host.split('.').let { p -> p.size == 4 && p.all { (it.toIntOrNull() ?: -1) in 0..255 } }
+
+    /** The phone has an address in the same /24 network as [host] right now (home Wi-Fi, or the VPN later). */
+    private fun onSameNetwork(host: String): Boolean {
+        val prefix = host.substringBeforeLast('.')
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return false
+        @Suppress("DEPRECATION")
+        val networks = cm.allNetworks
+        return networks.any { n ->
+            cm.getLinkProperties(n)?.linkAddresses.orEmpty().any { la ->
+                (la.address as? java.net.Inet4Address)?.hostAddress?.substringBeforeLast('.') == prefix
+            }
+        }
     }
 
     private fun profileOf(connection: DriveConnection) = SmbProfile(
@@ -142,5 +185,8 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         const val PREFS = "family"
         const val KEY_DEVICE = "device_id"
         const val KEY_USER = "user_id"
+
+        /** At most this many other addresses are tried before giving up. */
+        const val MAX_TRIES = 6
     }
 }
