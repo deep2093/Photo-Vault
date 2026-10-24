@@ -272,6 +272,7 @@ private fun chosenFolders(albums: List<PhoneAlbum>, folders: Set<String>?): List
 
 @Composable
 private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryState, actions: MediaActions, eligible: Int, done: Int) {
+    val soloScope = rememberCoroutineScope()
     val theme = LocalGlassTheme.current
     var note by remember { mutableStateOf<String?>(null) }
     var taps by remember { mutableStateOf(0) }
@@ -311,10 +312,27 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
             drive.joined == null -> {
                 Text("Backup", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (drive.isSetUp) "Join your family on the drive to start backing up." else "Connect your family drive to start backing up.",
+                    when {
+                        !drive.isSetUp -> "Connect your family drive to start backing up."
+                        drive.membership is com.deepak.photovault.core.household.Membership.NoHousehold ->
+                            "This drive has no family yet. You can back up just for yourself, and add family later."
+                        else -> "Join your family on the drive to start backing up."
+                    },
                     color = theme.onGlassSecondary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                // Backing up alone (25 Oct): a family of one, in one tap, no PIN. Family can be added later.
+                if (drive.isSetUp && drive.membership is com.deepak.photovault.core.household.Membership.NoHousehold) {
+                    var startError by remember { mutableStateOf<String?>(null) }
+                    GlassButton(
+                        "Back up just me",
+                        primary = true,
+                        icon = Icons.Rounded.Upload,
+                        onClick = { soloScope.launch { startError = drive.startJustMe() } },
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    startError?.let { WarningNote(it) }
+                }
             }
             gallery.access == MediaAccess.NONE -> {
                 Text("Backup", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

@@ -221,6 +221,9 @@ class DriveState(private val platform: DrivePlatform) {
         refreshLocked()
     }
 
+    /** Backing up alone: a family of one with this person as owner and no PIN (25 Oct). Family can be added later. */
+    suspend fun startJustMe(): String? = createFamily(platform.deviceName.ifBlank { "Me" }, null)
+
     suspend fun join(newName: String? = null, existingUserId: String? = null, ownerPin: String? = null): String? {
         if (ownerPin != null) {
             val locked = pinAttempts.lockedForMillis()
