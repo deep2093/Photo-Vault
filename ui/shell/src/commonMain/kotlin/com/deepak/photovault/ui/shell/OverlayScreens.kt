@@ -57,13 +57,17 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    val spots = remember { TileSpots() }
+    val flight = LocalDeleteFlight.current
+    val bin = remember { ScreenSpot() }
     SelectableScreen(
         title, LibraryCounts.summary(items), state, gallery, actions, onBack = { state.back() },
+        tileSpots = spots,
         // Phone albums can be renamed (not system folders) and deleted (24 Oct).
         normalActions = {
             if (kind is AlbumKind.Phone) {
                 if (!AlbumRules.isSystem(kind.name)) GlassIconButton(Icons.Rounded.Edit, "Rename album", onClick = { renaming = true })
-                if (items.isNotEmpty()) GlassIconButton(Icons.Rounded.Delete, "Delete album", onClick = { deleting = true })
+                if (items.isNotEmpty()) GlassIconButton(Icons.Rounded.Delete, "Delete album", modifier = Modifier.trackSpot(bin), onClick = { deleting = true })
             }
         },
     ) { padding ->
@@ -87,8 +91,13 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
                 onDismiss = { deleting = false },
             ) {
                 deleting = false
-                actions.deleteAlbum(kind.albumId)
-                state.back()
+                val flying = spots.flying(items)
+                actions.deleteAlbum(kind.albumId) { agreed ->
+                    if (agreed) {
+                        flight.launch(flying, bin.bounds)
+                        state.back()
+                    }
+                }
             }
         }
         if (renaming) {
@@ -141,7 +150,11 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
     val byId = remember(trashed) { trashed.associateBy { it.item.id } }
     val section = remember(trashed) { listOf(TimelineSection("bin", "Deleted for good after 30 days", trashed.map { it.item })) }
     val selected = state.selected.mapNotNull { byId[it]?.item }
+    val spots = remember { TileSpots() }
+    val flight = LocalDeleteFlight.current
+    val bin = remember { ScreenSpot() }
     SelectableScreen(
+        tileSpots = spots,
         title = "Recently deleted",
         subtitle = if (trashed.isEmpty()) "Empty" else "${trashed.size} items",
         state = state,
@@ -153,19 +166,25 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
                 actions.restore(selected)
                 state.selected = emptySet()
             })
-            GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", onClick = {
-                actions.deleteForever(selected)
-                state.selected = emptySet()
+            GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = {
+                val flying = spots.flying(selected)
+                actions.deleteForever(selected) { agreed ->
+                    if (agreed) {
+                        flight.launch(flying, bin.bounds)
+                        gallery.dropNow(selected.map { it.id }.toSet())
+                        state.selected = emptySet()
+                    }
+                }
             })
         },
     ) { padding ->
         if (trashed.isEmpty()) {
             EmptyState("Nothing deleted", "Photos and videos you delete stay here for 30 days, so you can change your mind.")
         } else {
-            // Deleted photos can't be opened in the viewer: tapping selects them, so Restore is one tap away.
+            // Opens in the viewer with Restore and Delete for good (23 Oct); long-press still selects.
             MediaGrid(
                 section, state, gallery, padding,
-                onOpen = { state.toggleSelected(it.id) },
+                onOpen = { item -> state.open(Overlay.Viewer(trashed.map { it.item.id }, item.id, trash = true)) },
                 tileLabel = { item ->
                     val days = byId[item.id]?.let { Timeline.daysLeft(it.expiresAtMillis, now) } ?: 0
                     if (days <= 1) "1 day" else "$days days"

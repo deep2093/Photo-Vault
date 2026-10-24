@@ -46,8 +46,8 @@ class AppIconTest {
     fun twelveIconsWithFourSeasonsOnLightAsDefault() {
         // Bloom removed on 24 Oct: three designs on four backgrounds.
         assertEquals(12, AppIconChoice.all.size)
-        assertEquals("IconFourSeasonsLight", AppIconChoice().aliasName)
-        assertEquals("ic_four_seasons_light", AppIconChoice().resourceName)
+        assertEquals("IconLeafLight", AppIconChoice().aliasName)
+        assertEquals("ic_leaf_light", AppIconChoice().resourceName)
         assertEquals("IconPetalsColourful", AppIconChoice(IconGlyph.PETALS, IconBackground.COLOURFUL).aliasName)
         assertEquals("ic_leaf_clear", AppIconChoice(IconGlyph.LEAF, IconBackground.CLEAR).resourceName)
         // Bloom was removed; its old launcher entries hand over to Four Seasons on the same background.

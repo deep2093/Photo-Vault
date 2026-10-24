@@ -84,7 +84,12 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     /** Android's own confirmation for Recently deleted, restore and delete forever. Nothing to do on return:
      * the library notices the change by itself. */
-    private val consentLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { }
+    /** Told whether the person agreed to Android's delete or restore prompt (the delete animation waits for it). */
+    private var consentDone: ((Boolean) -> Unit)? = null
+    private val consentLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        consentDone?.invoke(result.resultCode == RESULT_OK)
+        consentDone = null
+    }
 
     private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -263,22 +268,23 @@ class MainActivity : ComponentActivity(), MediaActions {
         startActivity(Intent.createChooser(send, null))
     }
 
-    override fun moveToRecentlyDeleted(items: List<MediaItem>) = askAndroid(items) { uris ->
+    override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) = askAndroid(items, onDone) { uris ->
         MediaStore.createTrashRequest(contentResolver, uris, true)
     }
 
-    override fun restore(items: List<MediaItem>) = askAndroid(items) { uris ->
+    override fun restore(items: List<MediaItem>) = askAndroid(items, {}) { uris ->
         MediaStore.createTrashRequest(contentResolver, uris, false)
     }
 
-    override fun deleteForever(items: List<MediaItem>) = askAndroid(items) { uris ->
+    override fun deleteForever(items: List<MediaItem>, onDone: (Boolean) -> Unit) = askAndroid(items, onDone) { uris ->
         MediaStore.createDeleteRequest(contentResolver, uris)
     }
 
     /** Shows Android's own confirmation; PhotoVault never deletes around it. */
-    private fun askAndroid(items: List<MediaItem>, request: (List<Uri>) -> android.app.PendingIntent) {
-        if (items.isEmpty()) return
+    private fun askAndroid(items: List<MediaItem>, onDone: (Boolean) -> Unit, request: (List<Uri>) -> android.app.PendingIntent) {
+        if (items.isEmpty()) return onDone(false)
         val pending = request(items.map { Uri.parse(it.uri) })
+        consentDone = onDone
         consentLauncher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
     }
 
@@ -309,7 +315,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         stat.totalBytes to stat.availableBytes
     }.getOrNull()
 
-    override fun deleteAlbum(albumId: String) = moveToRecentlyDeleted(gallery.items.filter { it.albumId == albumId })
+    override fun deleteAlbum(albumId: String, onDone: (Boolean) -> Unit) = moveToRecentlyDeleted(gallery.items.filter { it.albumId == albumId }, onDone)
 
     override fun renameAlbum(albumId: String, newName: String, onDone: (String?) -> Unit) {
         val items = gallery.items.filter { it.albumId == albumId }

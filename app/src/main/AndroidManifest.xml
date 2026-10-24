@@ -34,8 +34,8 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="@string/app_name"
-        android:icon="@mipmap/ic_four_seasons_light"
-        android:roundIcon="@mipmap/ic_four_seasons_light"
+        android:icon="@mipmap/ic_leaf_light"
+        android:roundIcon="@mipmap/ic_leaf_light"
         android:supportsRtl="true"
         android:theme="@style/Theme.PhotoVault">
 
@@ -52,10 +52,10 @@
             android:windowSoftInputMode="adjustResize" />
 
         <!-- App icons. Exactly one is enabled at a time; Settings > Appearance > App icon switches between them.
-             Four Seasons on light is the default (Veyra Photos icon kit, 22 Oct 2026). -->
+             Leaf on light is the default (23 Oct 2026; was Four Seasons on light). -->
         <activity-alias
             android:name=".IconFourSeasonsLight"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_four_seasons_light"
             android:roundIcon="@mipmap/ic_four_seasons_light"
@@ -153,7 +153,7 @@
         </activity-alias>
         <activity-alias
             android:name=".IconLeafLight"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_leaf_light"
             android:roundIcon="@mipmap/ic_leaf_light"

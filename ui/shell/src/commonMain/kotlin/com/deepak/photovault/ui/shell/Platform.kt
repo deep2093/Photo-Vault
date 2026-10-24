@@ -25,6 +25,9 @@ class VideoControls {
     var durationMs by androidx.compose.runtime.mutableLongStateOf(0L)
     var firstFrame by androidx.compose.runtime.mutableStateOf(false)
 
+    /** Width / height of the video as shown (0 until the player knows), so the picture is laid out once. */
+    var aspect by androidx.compose.runtime.mutableFloatStateOf(0f)
+
     /** A position asked for by the scrubber; the player takes it and clears it. */
     var seekRequest by androidx.compose.runtime.mutableStateOf<Long?>(null)
 
@@ -34,6 +37,14 @@ class VideoControls {
         positionMs = to
     }
 }
+
+/** Starts reading a video's strip frames ahead of time, so the frame strip is ready when it opens. */
+@Composable
+expect fun PreloadVideoFrames(uri: String, times: List<Long>, sizePx: Int)
+
+/** Hides Android's status and navigation bars while [hidden] (the viewer, with its own buttons hidden). */
+@Composable
+expect fun SystemBarsHidden(hidden: Boolean)
 
 /** Plays a video with no controls of its own; the viewer draws them. Released when it leaves the screen. */
 @Composable

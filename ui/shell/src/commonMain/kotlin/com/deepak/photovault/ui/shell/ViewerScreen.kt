@@ -10,6 +10,8 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -25,6 +27,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
@@ -64,6 +67,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Info
@@ -122,7 +127,13 @@ import kotlinx.datetime.toLocalDateTime
 @Composable
 fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
     // Photos deleted while the viewer is open drop out of the list.
-    val ids = remember(viewer.ids, gallery.items) { viewer.ids.filter { gallery.find(it) != null } }
+    // Recently deleted photos aren't in the library, so they are looked up among the deleted ones.
+    val trashedById = remember(gallery.trashed) { gallery.trashed.associate { it.item.id to it.item } }
+    val find: (Long) -> MediaItem? = if (viewer.trash) ({ trashedById[it] }) else gallery::find
+    val ids = remember(viewer.ids, gallery.items, trashedById) { viewer.ids.filter { find(it) != null } }
+    val flight = LocalDeleteFlight.current
+    val photoSpot = remember { ScreenSpot() }
+    val bin = remember { ScreenSpot() }
     if (ids.isEmpty()) {
         LaunchedEffect(Unit) { state.back() }
         return
@@ -134,10 +145,14 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     // photo strip; a tap shows them, and while it plays they go away again after 3 seconds without a touch.
     var videoStarted by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage) { videoStarted = false }
-    val current = gallery.find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
+    val current = find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
     val video = remember(current.id) { VideoControls() }
     // The frame strip opens only when the playing video's own thumbnail in the photo strip is tapped (24 Oct).
     var scrubbing by remember(current.id) { mutableStateOf(false) }
+    if (videoStarted && current.isVideo) {
+        val duration = if (current.durationMillis > 0) current.durationMillis else video.durationMs
+        if (duration > 0) PreloadVideoFrames(current.uri, remember(current.id, duration) { ScrubberMath.frameTimes(duration) }, FRAME_PX)
+    }
     var touches by remember { mutableStateOf(0) }
     LaunchedEffect(barsVisible, videoStarted, video.playing, touches) {
         if (barsVisible && videoStarted && video.playing) {
@@ -145,7 +160,12 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
             barsVisible = false
         }
     }
-    val system = WindowInsets.safeDrawing.asPaddingValues()
+    // Full screen (23 Oct): the status and navigation bars go away with the viewer's own buttons and come back
+    // with them, like Samsung Gallery. Bar room is remembered, so the buttons don't jump when they come back.
+    SystemBarsHidden(hidden = !barsVisible && !state.detailsOpen)
+    val liveSystem = WindowInsets.safeDrawing.asPaddingValues()
+    var system by remember { mutableStateOf(liveSystem) }
+    if (liveSystem.calculateTopPadding() >= system.calculateTopPadding() && liveSystem.calculateBottomPadding() >= system.calculateBottomPadding()) system = liveSystem
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalGlassSettings.current.reduceMotion
 
@@ -181,6 +201,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 beyondViewportPageCount = 1,
                 modifier = Modifier
                     .fillMaxSize()
+                    .trackSpot(photoSpot)
                     .graphicsLayer {
                         // The photo slides up as the panel rises, leaving it fully visible above the panel.
                         translationY = -progress.value * panelPx * 0.62f
@@ -192,7 +213,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                         onDragStopped = { velocity -> settle(velocity) },
                     ),
             ) { page ->
-                val item = gallery.find(ids[page]) ?: return@HorizontalPager
+                val item = find(ids[page]) ?: return@HorizontalPager
                 val onTap = { if (state.detailsOpen) state.detailsOpen = false else barsVisible = !barsVisible }
                 if (item.isVideo) {
                     val isCurrent = page == pager.currentPage
@@ -248,18 +269,61 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 ) {
                     val playingHere = videoStarted && current.isVideo
                     if (playingHere) VideoBar(video, onTouch = { touches++ })
-                    if (playingHere && scrubbing) {
-                        VideoScrubber(current, video, onTouch = { touches++ })
-                    } else if (ids.size > 1) {
-                        Filmstrip(ids, gallery, pager, onCurrentClick = if (playingHere) ({ scrubbing = true; touches++ }) else null)
+                    // The frame strip opens out of the video's thumbnail and folds back into it (23 Oct: it popped).
+                    val growIn = motionSpec<androidx.compose.ui.unit.IntSize>(SCRUB_MS)
+                    val fadeSpec = motionSpec<Float>(SCRUB_MS)
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = playingHere && scrubbing,
+                        transitionSpec = {
+                            if (targetState) {
+                                (fadeIn(fadeSpec) + androidx.compose.animation.expandHorizontally(growIn, expandFrom = Alignment.CenterHorizontally)) togetherWith fadeOut(fadeSpec)
+                            } else {
+                                fadeIn(fadeSpec) togetherWith (fadeOut(fadeSpec) + androidx.compose.animation.shrinkHorizontally(growIn, shrinkTowards = Alignment.CenterHorizontally))
+                            }
+                        },
+                        contentAlignment = Alignment.Center,
+                        label = "strip",
+                    ) { scrub ->
+                        if (scrub) {
+                            VideoScrubber(current, video, onTouch = { touches++ })
+                        } else if (ids.size > 1) {
+                            Filmstrip(ids, find, pager, onCurrentClick = if (playingHere) ({ scrubbing = true; touches++ }) else null)
+                        }
                     }
-                    ViewerActions(
-                        favourite = gallery.isFavourite(current),
-                        onShare = { actions.share(listOf(current)) },
-                        onFavourite = { gallery.toggleFavourite(listOf(current)) },
-                        onInfo = { state.detailsOpen = true },
-                        onDelete = { actions.moveToRecentlyDeleted(listOf(current)) },
-                    )
+                    // The photo flies into the bin once Android has asked (23 Oct).
+                    val flyCurrent = { photoSpot.bounds?.let { listOf(FlyingPhoto(current.uri, current.isVideo, it, fit = true)) }.orEmpty() }
+                    if (viewer.trash) {
+                        TrashActions(
+                            onRestore = { actions.restore(listOf(current)) },
+                            onDelete = {
+                                val flying = flyCurrent()
+                                actions.deleteForever(listOf(current)) { agreed ->
+                                    if (agreed) {
+                                        flight.launch(flying, bin.bounds)
+                                        gallery.dropNow(setOf(current.id))
+                                    }
+                                }
+                            },
+                            binModifier = Modifier.trackSpot(bin),
+                        )
+                    } else {
+                        ViewerActions(
+                            favourite = gallery.isFavourite(current),
+                            onShare = { actions.share(listOf(current)) },
+                            onFavourite = { gallery.toggleFavourite(listOf(current)) },
+                            onInfo = { state.detailsOpen = true },
+                            onDelete = {
+                                val flying = flyCurrent()
+                                actions.moveToRecentlyDeleted(listOf(current)) { agreed ->
+                                    if (agreed) {
+                                        flight.launch(flying, bin.bounds)
+                                        gallery.dropNow(setOf(current.id))
+                                    }
+                                }
+                            },
+                            binModifier = Modifier.trackSpot(bin),
+                        )
+                    }
                 }
             }
         }
@@ -267,6 +331,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 }
 
 private const val DETAILS_MS = 320
+private const val SCRUB_MS = 260
 private const val DETAILS_SHARE = 0.4f
 
 private val THUMB_W = 42.dp
@@ -278,7 +343,7 @@ private val THUMB_GAP = 4.dp
  * outlined. Scroll it to move through photos, or tap one to jump there. Swiping the photo moves the strip too.
  */
 @Composable
-private fun Filmstrip(ids: List<Long>, gallery: GalleryState, pager: PagerState, onCurrentClick: (() -> Unit)? = null) {
+private fun Filmstrip(ids: List<Long>, find: (Long) -> MediaItem?, pager: PagerState, onCurrentClick: (() -> Unit)? = null) {
     val strip = rememberLazyListState(initialFirstVisibleItemIndex = pager.currentPage.coerceIn(ids.indices))
     val scope = rememberCoroutineScope()
     val pitchPx = with(LocalDensity.current) { (THUMB_W + THUMB_GAP).toPx() }
@@ -316,7 +381,7 @@ private fun Filmstrip(ids: List<Long>, gallery: GalleryState, pager: PagerState,
             modifier = Modifier.fillMaxWidth().height(THUMB_H + 8.dp),
         ) {
             itemsIndexed(ids, key = { _, id -> id }) { index, id ->
-                val item = gallery.find(id)
+                val item = find(id)
                 val isCurrent = index == pager.currentPage
                 val shape = RoundedCornerShape(6.dp)
                 Box(
@@ -359,6 +424,7 @@ private fun ViewerActions(
     onInfo: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    binModifier: Modifier = Modifier,
 ) {
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
@@ -367,7 +433,19 @@ private fun ViewerActions(
         GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
         GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
         GlassIconButton(Icons.Rounded.Info, "Details", onClick = onInfo)
-        GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete)
+        GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
+    }
+}
+
+/** A photo opened from Recently deleted: put it back, or delete it for good (Android asks either way). */
+@Composable
+private fun TrashActions(onRestore: () -> Unit, onDelete: () -> Unit, binModifier: Modifier = Modifier) {
+    Row(
+        Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        GlassIconButton(Icons.Rounded.Restore, "Restore", onClick = onRestore)
+        GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", onClick = onDelete, modifier = binModifier)
     }
 }
 
@@ -591,14 +669,24 @@ private fun VideoPage(item: MediaItem, isCurrent: Boolean, controls: VideoContro
     LaunchedEffect(isCurrent) { if (!isCurrent) started = false }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         if (started && controls != null) {
-            VideoPlayer(item.uri, controls, Modifier.fillMaxSize())
-            if (!controls.firstFrame) {
-                AsyncImage(
-                    model = Thumb(item.uri, true, 512),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
+            // The video and its still picture share one box, shaped like the video, so the picture can't jump
+            // when the video takes over (23 Oct). The still fades out once the first frame is on screen.
+            BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                val aspect = controls.aspect
+                val screen = if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else 1f
+                val frame = if (aspect > 0f) Modifier.aspectRatio(aspect, matchHeightConstraintsFirst = aspect < screen) else Modifier.fillMaxSize()
+                val stillAlpha by animateFloatAsState(if (controls.firstFrame && aspect > 0f) 0f else 1f, motionSpec(150), label = "still")
+                Box(frame) {
+                    VideoPlayer(item.uri, controls, Modifier.fillMaxSize().graphicsLayer { alpha = if (aspect > 0f) 1f else 0f })
+                    if (stillAlpha > 0f) {
+                        AsyncImage(
+                            model = Thumb(item.uri, true, 512),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = stillAlpha },
+                        )
+                    }
+                }
             }
             // Taps on the playing video show or hide the strip and buttons.
             Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures(onTap = { onTap() }) })
@@ -665,7 +753,8 @@ private fun VideoBar(video: VideoControls, onTouch: () -> Unit) {
  */
 @Composable
 private fun VideoScrubber(item: MediaItem, video: VideoControls, onTouch: () -> Unit) {
-    val duration = (if (video.durationMs > 0) video.durationMs else item.durationMillis).coerceAtLeast(1L)
+    // The phone's own figure first, so frame times match the ones read ahead while the video played.
+    val duration = (if (item.durationMillis > 0) item.durationMillis else video.durationMs).coerceAtLeast(1L)
     val frames = ScrubberMath.frameCount(duration)
     val strip = rememberLazyListState()
     val density = LocalDensity.current
@@ -712,12 +801,16 @@ private fun VideoScrubber(item: MediaItem, video: VideoControls, onTouch: () -> 
             modifier = Modifier.fillMaxWidth().height(THUMB_H),
         ) {
             items(frames) { i ->
-                AsyncImage(
-                    model = VideoFrame(item.uri, ScrubberMath.frameTime(i, frames, duration), 160),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(FRAME_W, THUMB_H).background(Color(0xFF1C1C21)),
-                )
+                // The video's own picture shows until the real frame arrives (23 Oct: empty dark boxes).
+                Box(Modifier.size(FRAME_W, THUMB_H)) {
+                    AsyncImage(Thumb(item.uri, true, 160), null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                    AsyncImage(
+                        model = VideoFrame(item.uri, ScrubberMath.frameTime(i, frames, duration), FRAME_PX),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
             }
         }
         // The playhead.
@@ -732,6 +825,13 @@ object ScrubberMath {
 
     fun frameTime(index: Int, frames: Int, durationMs: Long): Long = durationMs * index / frames
 
+    /** Every frame time of the strip, in order. */
+    fun frameTimes(durationMs: Long): List<Long> {
+        val d = durationMs.coerceAtLeast(1L)
+        val n = frameCount(d)
+        return List(n) { frameTime(it, n, d) }
+    }
+
     fun timeAt(offsetPx: Float, totalPx: Float, durationMs: Long): Long =
         if (totalPx <= 0f) 0L else ((offsetPx / totalPx).coerceIn(0f, 1f) * durationMs).toLong()
 
@@ -740,6 +840,7 @@ object ScrubberMath {
 }
 
 private val FRAME_W = 30.dp
+private const val FRAME_PX = 160
 private const val VIDEO_BARS_MS = 3000L
 
 private fun whenTaken(item: MediaItem): String {

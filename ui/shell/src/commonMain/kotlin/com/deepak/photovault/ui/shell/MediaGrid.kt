@@ -79,6 +79,9 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.runtime.DisposableEffect
 import coil3.compose.AsyncImage
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.Thumb
@@ -229,6 +232,22 @@ fun MediaGrid(
             }
         }
 
+        // Tells the delete animation where each photo is drawn (window coordinates).
+        val spots = LocalTileSpots.current
+        val gridOrigin = remember { floatArrayOf(0f, 0f) }
+        DisposableEffect(spots, gridState) {
+            spots?.lookup = { ids ->
+                val info = gridState.layoutInfo
+                info.visibleItemsInfo.mapNotNull { item ->
+                    val id = item.key as? Long ?: return@mapNotNull null
+                    if (id !in ids) return@mapNotNull null
+                    val left = gridOrigin[0] + item.offset.x
+                    val top = gridOrigin[1] + item.offset.y - info.viewportStartOffset
+                    id to androidx.compose.ui.geometry.Rect(left, top, left + item.size.width, top + item.size.height)
+                }.toMap()
+            }
+            onDispose { spots?.lookup = null }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
@@ -237,6 +256,7 @@ fun MediaGrid(
             verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
             modifier = Modifier
                 .fillMaxSize()
+                .onGloballyPositioned { val p = it.positionInRoot(); gridOrigin[0] = p.x; gridOrigin[1] = p.y }
                 .photoGridGestures(gridState, handler)
                 .pinchToZoom { zoomIn ->
                     val past = currentZoomOut

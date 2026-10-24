@@ -212,10 +212,9 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     }
     if (limitOpen) {
         LimitDialog(member, onDismiss = { limitOpen = false }) { gb ->
-            scope.launch {
-                message = drive.setLimit(member.userId, gb)
-                limitOpen = false
-            }
+            // Closes at once; the drive is updated in the background (23 Oct: the dialog hung while it saved).
+            limitOpen = false
+            scope.launch { message = drive.setLimit(member.userId, gb) }
         }
     }
     if (confirmRemove) {

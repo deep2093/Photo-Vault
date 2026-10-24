@@ -222,9 +222,14 @@ fun SelectableScreen(
     floatingActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
     floatingStartActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
     selectionActions: (@Composable androidx.compose.foundation.layout.RowScope.(List<MediaItem>) -> Unit)? = null,
+    /** Where the grid draws each photo, for the delete animation; the screen's [MediaGrid] fills it in. */
+    tileSpots: TileSpots = remember { TileSpots() },
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) {
     val selectedItems = state.selected.mapNotNull(gallery::find)
+    val flight = LocalDeleteFlight.current
+    val bin = remember { ScreenSpot() }
+    androidx.compose.runtime.CompositionLocalProvider(LocalTileSpots provides tileSpots) {
     // One GlassScreen for both modes, so the grid keeps its scroll position when selection starts.
     // Selecting (24 Oct): the top shows only the count and Cancel; share, favourite and delete rise in at the
     // bottom while the navigation bar rolls down.
@@ -251,12 +256,20 @@ fun SelectableScreen(
                     gallery.toggleFavourite(selectedItems)
                     state.selected = emptySet()
                 })
-                GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = {
-                    actions.moveToRecentlyDeleted(selectedItems)
-                    state.selected = emptySet()
+                GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
+                    // Where the photos are now: by the time Android has asked, the grid may have changed.
+                    val flying = tileSpots.flying(selectedItems)
+                    actions.moveToRecentlyDeleted(selectedItems) { agreed ->
+                        if (agreed) {
+                            flight.launch(flying, bin.bounds)
+                            gallery.dropNow(selectedItems.map { it.id }.toSet())
+                            state.selected = emptySet()
+                        }
+                    }
                 })
             }
         }),
         content = content,
     )
+    }
 }

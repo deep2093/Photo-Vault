@@ -71,14 +71,17 @@ import com.deepak.photovault.designsystem.ThemeSwatch
 import com.deepak.photovault.designsystem.WarningNote
 import kotlinx.coroutines.launch
 
-/** The Settings pages, in alphabetical order (24 Oct). Each opens on its own, like Backup. */
+/**
+ * The Settings pages, listed in this order: alphabetical, then Send feedback, then About always last (23 Oct).
+ * Each opens on its own, like Backup.
+ */
 enum class SettingsPage(val title: String) {
-    ABOUT("About"),
     ALBUMS("Albums"),
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
     STORAGE("Storage"),
+    ABOUT("About"),
 }
 
 /** Settings: one short row per page, alphabetical (24 Oct). Family settings live in Family (owner only). */

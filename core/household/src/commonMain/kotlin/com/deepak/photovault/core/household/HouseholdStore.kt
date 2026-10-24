@@ -83,14 +83,30 @@ class HouseholdStore(
     /**
      * A phone asks to join, as a new person or as another phone of someone already here. When the owner has
      * turned approval off it joins straight away; otherwise it waits for the owner.
+     *
+     * Joining as the owner (23 Oct, for a lost or replaced phone): with the right [ownerPin] the phone joins
+     * straight away, even with approval on, because nobody else could approve it. Without the PIN it waits
+     * for one of the owner's other phones, and it never joins as the owner unapproved.
      */
-    suspend fun requestJoin(deviceId: String, deviceName: String, newName: String? = null, existingUserId: String? = null): Membership {
+    suspend fun requestJoin(
+        deviceId: String,
+        deviceName: String,
+        newName: String? = null,
+        existingUserId: String? = null,
+        ownerPin: String? = null,
+    ): Membership {
         require((newName == null) != (existingUserId == null)) { "Join as a new person or as an existing one" }
         val household = load() ?: return Membership.NoHousehold
         household.memberForDevice(deviceId)?.let { return Membership.Joined(household, it) }
         val request = JoinRequest(deviceId, cleanDevice(deviceName), newName?.let(::cleanName), existingUserId, now())
         if (existingUserId != null) require(household.member(existingUserId) != null) { "That person is not in the family" }
-        if (!household.settings.approveNewPhones) return admit(request)
+        val asOwner = existingUserId != null && existingUserId == household.ownerUserId
+        if (asOwner && ownerPin != null) {
+            val stored = household.ownerPin ?: throw NotAllowed("This family has no owner PIN. Approve this phone from another of the owner's phones.")
+            if (!OwnerPin.matches(ownerPin, stored)) throw NotAllowed("Wrong PIN")
+            return admit(request)
+        }
+        if (!household.settings.approveNewPhones && !asOwner) return admit(request)
         drive.mkdirs(REQUESTS_DIR)
         drive.delete(requestPath(deviceId))
         drive.createNew(requestPath(deviceId), json.encodeToString(JoinRequest.serializer(), request).encodeToByteArray())

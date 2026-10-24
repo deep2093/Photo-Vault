@@ -171,11 +171,34 @@ class DriveState(private val platform: DrivePlatform) {
         val current = membership
         if (current is Membership.Joined) {
             privatePhotos = runCatching { s.privatePhotos(current.me.userId) }.getOrDefault(privatePhotos)
+            // Limits change at once; the space used is counted separately (below), it is slow.
             usage = current.household.members.associate { member ->
-                member.userId to MemberUsage(runCatching { s.usedBytes(member.userId) }.getOrNull(), member.limitGb * GB)
+                member.userId to MemberUsage(usage[member.userId]?.usedBytes, member.limitGb * GB)
             }
         }
         problem = null
+    }
+
+    private val usageLock = Mutex()
+    private var usageCountedAt = 0L
+
+    /**
+     * Counts how much of the drive each person uses. It walks every folder on the drive, which takes seconds
+     * with thousands of backups, so it runs on its own (23 Oct: it held up the PIN and space dialogs, which
+     * waited behind it) and at most every [USAGE_EVERY_MS] unless [force].
+     */
+    suspend fun refreshUsage(force: Boolean = false) {
+        if (!force && platform.now() - usageCountedAt < USAGE_EVERY_MS && usage.values.all { it.usedBytes != null }) return
+        if (usageLock.isLocked) return
+        usageLock.withLock {
+            val s = ensureStore() ?: return
+            val members = joined?.household?.members ?: return
+            val counted = members.associate { member -> member.userId to runCatching { s.usedBytes(member.userId) }.getOrNull() }
+            usage = (joined?.household?.members ?: members).associate { member ->
+                member.userId to MemberUsage(counted[member.userId] ?: usage[member.userId]?.usedBytes, member.limitGb * GB)
+            }
+            usageCountedAt = platform.now()
+        }
     }
 
     // ---- Setting up and joining ----
@@ -186,9 +209,24 @@ class DriveState(private val platform: DrivePlatform) {
         refreshLocked()
     }
 
-    suspend fun join(newName: String? = null, existingUserId: String? = null): String? = guarded {
-        ensureStore()!!.requestJoin(platform.deviceId, platform.deviceName, newName, existingUserId)
-        refreshLocked()
+    suspend fun join(newName: String? = null, existingUserId: String? = null, ownerPin: String? = null): String? {
+        if (ownerPin != null) {
+            val locked = pinAttempts.lockedForMillis()
+            if (locked > 0) return "Too many tries. Wait ${(locked / 1000) + 1} seconds."
+        }
+        return guarded {
+            try {
+                ensureStore()!!.requestJoin(platform.deviceId, platform.deviceName, newName, existingUserId, ownerPin)
+                if (ownerPin != null) {
+                    pinAttempts.recordSuccess()
+                    unlock(ownerPin)
+                }
+            } catch (e: NotAllowed) {
+                if (ownerPin != null) pinAttempts.recordFailure()
+                throw e
+            }
+            refreshLocked()
+        }
     }
 
     suspend fun cancelJoin(): String? = guarded {
@@ -360,6 +398,9 @@ class DriveState(private val platform: DrivePlatform) {
 
     companion object {
         const val GB = 1_000_000_000L
+
+        /** Space used is recounted at most this often (it walks the whole drive). */
+        const val USAGE_EVERY_MS = 5 * 60_000L
         const val OWNER_UNLOCK_MS = 5 * 60_000L
     }
 }

@@ -42,6 +42,7 @@ internal fun OwnerSettingsCard(drive: DriveState) {
     val settings = joined.household.settings
     var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
     var changePin by remember { mutableStateOf(false) }
+    var pendingDefault by remember { mutableStateOf<Int?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action
@@ -56,7 +57,12 @@ internal fun OwnerSettingsCard(drive: DriveState) {
             if (settings.approveNewPhones) "you approve phones" else "phones join freely",
             "${settings.defaultLimitGb} GB each",
         ).joinToString(" · "),
+        initiallyOpen = joined.household.ownerPin == null,
     ) {
+        if (joined.household.ownerPin == null) {
+            // 23 Oct: the PIN is how the owner's next phone takes over if this one is lost.
+            WarningNote("Set an owner PIN. If this phone is lost, your next phone joins as the owner with it; without one, nobody can change family settings again.")
+        }
         GlassSwitchRow(
             "Owner PIN",
             settings.requirePin,
@@ -72,8 +78,15 @@ internal fun OwnerSettingsCard(drive: DriveState) {
         SectionHeader("Space for new members")
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(25, 50, 100, 200, 500).forEach { gb ->
-                GlassChip("$gb GB", selected = settings.defaultLimitGb == gb, onClick = {
-                    asOwner { scope.launch { message = drive.updateSettings { it.copy(defaultLimitGb = gb) } } }
+                // Shows the new choice at once while the drive is updated (23 Oct: it lagged).
+                GlassChip("$gb GB", selected = (pendingDefault ?: settings.defaultLimitGb) == gb, onClick = {
+                    asOwner {
+                        pendingDefault = gb
+                        scope.launch {
+                            message = drive.updateSettings { it.copy(defaultLimitGb = gb) }
+                            pendingDefault = null
+                        }
+                    }
                 })
             }
         }

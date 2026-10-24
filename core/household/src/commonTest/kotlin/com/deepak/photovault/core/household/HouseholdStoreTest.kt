@@ -70,6 +70,28 @@ class HouseholdStoreTest {
     }
 
     @Test
+    fun aLostOwnersNewPhoneJoinsAsOwnerWithThePin() = runTest {
+        val h = ownerSetUp()
+        val newPhone = "owner-new-phone-1"
+        // Wrong PIN: refused, nothing waiting.
+        assertFailsWith<NotAllowed> { store().requestJoin(newPhone, "Galaxy S27", existingUserId = h.ownerUserId, ownerPin = "0000") }
+        // Right PIN: joins at once even though approval is on, and can act as owner, e.g. remove the lost phone.
+        val joined = assertIs<Membership.Joined>(store().requestJoin(newPhone, "Galaxy S27", existingUserId = h.ownerUserId, ownerPin = "2468"))
+        assertTrue(joined.isOwner)
+        val after = store().removeDevice(OwnerAuth(newPhone, "2468"), OWNER_PHONE)
+        assertEquals(listOf(newPhone), after.owner!!.devices.map { it.deviceId })
+    }
+
+    @Test
+    fun nobodyJoinsAsTheOwnerUnapprovedWithoutThePin() = runTest {
+        val h = ownerSetUp()
+        store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
+        // Others still join freely, but picking the owner's name only asks to join.
+        assertIs<Membership.Pending>(store().requestJoin("stranger-phone-1", "Pixel", existingUserId = h.ownerUserId))
+        assertIs<Membership.Joined>(store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam"))
+    }
+
+    @Test
     fun aSecondPhoneOfTheSamePersonSharesTheirFolder() = runTest {
         val h = ownerSetUp(pin = null)
         val joined = store().requestJoin(TABLET, "Tab S10", existingUserId = h.ownerUserId)

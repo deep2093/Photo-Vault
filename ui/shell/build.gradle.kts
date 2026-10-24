@@ -23,7 +23,8 @@ kotlin {
         androidMain.dependencies {
             // Video playback in the viewer (same player library as Veyra).
             implementation("androidx.media3:media3-exoplayer:1.6.1")
-            implementation("androidx.media3:media3-ui:1.6.1")
+            // Hiding the status and navigation bars in the viewer.
+            implementation("androidx.core:core-ktx:1.15.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

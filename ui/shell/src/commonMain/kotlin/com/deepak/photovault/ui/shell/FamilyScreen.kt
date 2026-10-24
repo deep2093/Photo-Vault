@@ -84,6 +84,7 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
     LaunchedEffect(drive.connection, onScreen) {
         while (onScreen && drive.isSetUp) {
             drive.refresh()
+            drive.refreshUsage()
             delay(20_000)
         }
     }
@@ -305,21 +306,34 @@ private fun DriveSpaceCard(drive: DriveState) {
     }
 }
 
+private const val KEYBOARD_SETTLE_MS = 220L
+
 /** Asks for the owner PIN and opens the owner controls for 5 minutes. */
 @Composable
 fun PinDialog(drive: DriveState, onDismiss: () -> Unit, onUnlocked: () -> Unit) {
     val scope = rememberCoroutineScope()
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     GlassDialog(
         title = "Owner PIN",
         onDismiss = onDismiss,
         buttons = {
             GlassButton("Cancel", onClick = onDismiss)
-            GlassButton("Unlock", primary = true, onClick = {
+            GlassButton(if (checking) "Checking..." else "Unlock", primary = true, onClick = {
+                if (checking) return@GlassButton
+                checking = true
                 scope.launch {
                     error = drive.unlockOwner(pin)
-                    if (error == null) onUnlocked()
+                    if (error == null) {
+                        // Let the keyboard slide away first, then close: the dialog closing while the keyboard
+                        // was still moving made it stutter (23 Oct).
+                        keyboard?.hide()
+                        kotlinx.coroutines.delay(KEYBOARD_SETTLE_MS)
+                        onUnlocked()
+                    }
+                    checking = false
                 }
             })
         },

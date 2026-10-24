@@ -68,7 +68,8 @@ interface AppearanceStore {
 /** Full-screen pages opened over the main sections. Back closes the top one. */
 sealed interface Overlay {
     /** The photo viewer, swiping through [ids] (the list it was opened from) starting at [startId]. */
-    data class Viewer(val ids: List<Long>, val startId: Long) : Overlay
+    /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
+    data class Viewer(val ids: List<Long>, val startId: Long, val trash: Boolean = false) : Overlay
 
     data object Search : Overlay
 

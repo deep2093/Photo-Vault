@@ -32,9 +32,10 @@ interface MediaActions {
     /** Open the phone's maps app at a photo's location. Nothing is looked up by PhotoVault itself. */
     fun openMap(latitude: Double, longitude: Double, label: String) = Unit
     fun share(items: List<MediaItem>)
-    fun moveToRecentlyDeleted(items: List<MediaItem>)
+    /** Android asks first; [onDone] says whether the person agreed (the delete animation plays then). */
+    fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit = {})
     fun restore(items: List<MediaItem>)
-    fun deleteForever(items: List<MediaItem>)
+    fun deleteForever(items: List<MediaItem>, onDone: (Boolean) -> Unit = {})
 
     /** Android 13+: ask to show notifications (backup progress and failed backups). */
     fun requestNotifications() = Unit
@@ -49,7 +50,7 @@ interface MediaActions {
     fun phoneStorage(): Pair<Long, Long>? = null
 
     /** Moves every photo of an album to Recently deleted (Android asks first). */
-    fun deleteAlbum(albumId: String) = Unit
+    fun deleteAlbum(albumId: String, onDone: (Boolean) -> Unit = {}) = Unit
 
     /**
      * Renames a phone album (its folder). Android asks to allow changes to photos taken by other apps. [onDone] gets
@@ -81,9 +82,9 @@ class PickedImage(val jpeg: ByteArray, val width: Int, val height: Int)
 object NoMediaActions : MediaActions {
     override fun requestAccess() = Unit
     override fun share(items: List<MediaItem>) = Unit
-    override fun moveToRecentlyDeleted(items: List<MediaItem>) = Unit
+    override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) = Unit
     override fun restore(items: List<MediaItem>) = Unit
-    override fun deleteForever(items: List<MediaItem>) = Unit
+    override fun deleteForever(items: List<MediaItem>, onDone: (Boolean) -> Unit) = Unit
 }
 
 /** The phone's photos as the screens see them. Refreshes itself when the phone's library changes. */
@@ -188,6 +189,17 @@ class GalleryState(
 
     /** Is the Favourites or Videos card (or an album) hidden in Albums? */
     fun isHidden(id: String) = id in hiddenAlbums
+
+    /**
+     * Takes deleted photos off screen at once, as they fly into the bin (23 Oct); the next reload from the
+     * phone's library confirms it.
+     */
+    fun dropNow(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        everything = everything.filterNot { it.id in ids }
+        trashed = trashed.filterNot { it.item.id in ids }
+        applyVisible()
+    }
 
     private fun applyVisible() {
         val visible = if (hiddenAlbums.isEmpty()) everything else everything.filter { it.albumId !in hiddenAlbums }

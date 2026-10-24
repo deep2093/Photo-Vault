@@ -15,8 +15,8 @@ enum class IconGlyph(val label: String, val key: String) {
 
 enum class IconBackground(val label: String) { LIGHT("Light"), DARK("Dark"), COLOURFUL("Colourful"), CLEAR("Clear") }
 
-/** One of the app's sixteen launcher icons. Four Seasons on Light is the default. */
-data class AppIconChoice(val glyph: IconGlyph = IconGlyph.FOUR_SEASONS, val background: IconBackground = IconBackground.LIGHT) {
+/** One of the app's twelve launcher icons. Leaf on Light is the default (23 Oct; was Four Seasons). */
+data class AppIconChoice(val glyph: IconGlyph = IconGlyph.LEAF, val background: IconBackground = IconBackground.LIGHT) {
     /** Matches the activity-alias names in AndroidManifest.xml, e.g. "IconFourSeasonsLight". */
     val aliasName: String
         get() = "Icon" + glyph.key + background.name.lowercase().replaceFirstChar { it.uppercase() }

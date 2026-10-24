@@ -28,6 +28,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -134,12 +136,14 @@ fun PhotoVaultApp(
     LaunchedEffect(drive, signals.foreground) {
         while (signals.foreground && drive.isSetUp) {
             drive.refresh()
+            drive.refreshUsage()
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
         }
     }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
-        CompositionLocalProvider(LocalHazeState provides hazeState) {
+        val deleteFlight = remember { DeleteFlight() }
+        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val system = WindowInsets.safeDrawing.asPaddingValues()
@@ -150,6 +154,8 @@ fun PhotoVaultApp(
                         BottomBarLayout(screens, system)
                     }
                     OverlayHost(state, gallery, actions, drive, backup, iconSwitcher, system)
+                    // Deleted photos flying into the bin, above every page (23 Oct).
+                    DeleteFlightLayer(LocalDeleteFlight.current)
                 }
             }
         }
@@ -169,15 +175,25 @@ private fun OverlayHost(
 ) {
     // Opening and closing mirror each other at the same speed (feedback 22 Oct: closing was too fast).
     val spec = motionSpec<Float>(OVERLAY_MS)
+    val slideSpec = motionSpec<androidx.compose.ui.unit.IntOffset>(OVERLAY_MS)
     AnimatedContent(
         targetState = state.overlays.size to state.overlays.lastOrNull(),
         contentKey = { it.second },
         transitionSpec = {
             val opening = targetState.first > initialState.first
+            val moving = if (opening) targetState.second else initialState.second
             // The page underneath stays fully in place while the new one grows in over it, and is already there
             // while the top one shrinks away. Before (24 Oct) both faded, so for a moment the section underneath
             // (Albums) showed through when a video or photo opened or closed: the "flash".
-            if (opening) {
+            if (moving.slidesSideways()) {
+                // Settings pages (23 Oct): in from the right, out to the right, at the same speed, while the
+                // navigation bar rolls down and back up underneath.
+                if (opening) {
+                    (slideInHorizontally(slideSpec) { it } togetherWith ExitTransition.KeepUntilTransitionsFinished).apply { targetContentZIndex = 1f }
+                } else {
+                    (EnterTransition.None togetherWith slideOutHorizontally(slideSpec) { it }).apply { targetContentZIndex = -1f }
+                }
+            } else if (opening) {
                 ((fadeIn(spec) + scaleIn(spec, initialScale = OVERLAY_SCALE)) togetherWith ExitTransition.KeepUntilTransitionsFinished)
                     .apply { targetContentZIndex = 1f }
             } else {
@@ -218,6 +234,10 @@ private fun OverlayHost(
     }
 }
 
+/** Pages that open from Settings slide in from the side like a stack of pages; the rest grow in. */
+internal fun Overlay?.slidesSideways(): Boolean =
+    this is Overlay.Settings || this == Overlay.Backup || this == Overlay.DriveSetup
+
 /** Takes part in touch hit-testing everywhere it covers, so siblings drawn underneath never receive touches. */
 private fun Modifier.blockTouchesBelow(): Modifier = pointerInput(Unit) {
     awaitEachGesture {
@@ -236,11 +256,14 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     // Photos and Albums: the bar slides away while scrolling down and comes back on scrolling up (24 Oct).
     // Photos and Albums tuck it away while scrolling down; selecting photos rolls it down at once so the
     // selection actions can take its place at the bottom (24 Oct).
-    val hidden = state.selecting || (state.chrome.hidden && state.destination in Destination.hidesChrome)
+    // A Settings page rolls the bar down as it slides in, and back up as it slides out, at the page's speed.
+    val pageOpen = state.overlays.any { it.slidesSideways() }
+    val hidden = pageOpen || state.selecting || (state.chrome.hidden && state.destination in Destination.hidesChrome)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
     // Read only while drawing, so the slide doesn't recompose the screens on every frame.
-    val shift = androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, motionSpec(CHROME_MS), label = "bar")
+    val barSpec = motionSpec<Float>(if (pageOpen || state.overlays.isEmpty()) OVERLAY_MS else CHROME_MS)
+    val shift = androidx.compose.animation.core.animateFloatAsState(if (hidden) travel else 0f, barSpec, label = "bar")
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(

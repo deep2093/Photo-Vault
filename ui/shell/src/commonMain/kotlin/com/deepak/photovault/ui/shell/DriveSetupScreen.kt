@@ -219,7 +219,6 @@ private fun CreateFamilyCard(drive: DriveState) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     var name by rememberSaveable { mutableStateOf("") }
-    var usePin by rememberSaveable { mutableStateOf(true) }
     var pin by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -237,11 +236,17 @@ private fun CreateFamilyCard(drive: DriveState) {
             modifier = Modifier.padding(vertical = 8.dp),
         )
         GlassTextField(name, { name = it }, "Your name", placeholder = "Deepak")
-        GlassSwitchRow("Protect owner settings with a PIN", usePin, { usePin = it }, description = "Asked before changing space, removing people or approving phones.")
-        if (usePin) {
-            GlassTextField(pin, { if (it.length <= OwnerPin.MAX_DIGITS) pin = it.filter(Char::isDigit) }, "Owner PIN", password = true, keyboardType = KeyboardType.NumberPassword, supporting = "4 to 8 digits")
-            GlassTextField(confirm, { if (it.length <= OwnerPin.MAX_DIGITS) confirm = it.filter(Char::isDigit) }, "Confirm PIN", password = true, keyboardType = KeyboardType.NumberPassword)
-        }
+        // Always needed (23 Oct): it protects owner settings, and it is how a new or replacement phone of the
+        // owner joins as the owner if the old phone is lost.
+        GlassTextField(
+            pin,
+            { if (it.length <= OwnerPin.MAX_DIGITS) pin = it.filter(Char::isDigit) },
+            "Owner PIN",
+            password = true,
+            keyboardType = KeyboardType.NumberPassword,
+            supporting = "4 to 8 digits. Keep it safe: it's how your next phone becomes the owner if this one is lost.",
+        )
+        GlassTextField(confirm, { if (it.length <= OwnerPin.MAX_DIGITS) confirm = it.filter(Char::isDigit) }, "Confirm PIN", password = true, keyboardType = KeyboardType.NumberPassword)
         WarningNote(FOLDER_PRIVACY_NOTE)
         error?.let { WarningNote(it) }
         GlassButton(
@@ -250,11 +255,11 @@ private fun CreateFamilyCard(drive: DriveState) {
             onClick = {
                 error = when {
                     name.isBlank() -> "Enter your name."
-                    usePin && !OwnerPin.isValid(pin) -> "The PIN must be 4 to 8 digits."
-                    usePin && pin != confirm -> "The PINs don't match."
+                    !OwnerPin.isValid(pin) -> "The PIN must be 4 to 8 digits."
+                    pin != confirm -> "The PINs don't match."
                     else -> null
                 }
-                if (error == null && !drive.busy) scope.launch { error = drive.createFamily(name, if (usePin) pin else null) }
+                if (error == null && !drive.busy) scope.launch { error = drive.createFamily(name, pin) }
             },
         )
     }
@@ -267,7 +272,10 @@ private fun JoinCard(drive: DriveState, notJoined: Membership.NotJoined, removed
     val household = notJoined.household
     var name by rememberSaveable { mutableStateOf("") }
     var existing by rememberSaveable { mutableStateOf<String?>(null) }
+    var ownerPin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    val asOwner = existing != null && existing == household.ownerUserId
+    val withPin = asOwner && ownerPin.isNotEmpty()
     GlassCard(Modifier.cardWidth()) {
         Text(
             "Join ${household.owner?.name ?: "the"}'s family",
@@ -291,16 +299,39 @@ private fun JoinCard(drive: DriveState, notJoined: Membership.NotJoined, removed
             GlassTextField(name, { name = it }, "Your name")
         } else {
             Text("This phone will back up into ${household.member(existing!!)?.name}'s folder.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+            // A new or replacement phone of the owner (23 Oct): the owner PIN lets it in straight away.
+            if (asOwner && household.ownerPin != null) {
+                GlassTextField(
+                    ownerPin,
+                    { if (it.length <= OwnerPin.MAX_DIGITS) ownerPin = it.filter(Char::isDigit) },
+                    "Owner PIN",
+                    password = true,
+                    keyboardType = KeyboardType.NumberPassword,
+                    supporting = "Joins as the owner straight away. Lost your old phone? Remove it in Family afterwards.",
+                )
+            } else if (asOwner) {
+                WarningNote("Another of the owner's phones must approve this one.")
+            }
         }
         WarningNote(FOLDER_PRIVACY_NOTE)
         error?.let { WarningNote(it) }
         GlassButton(
-            if (household.settings.approveNewPhones) "Ask to join" else "Join",
+            if (withPin || (!household.settings.approveNewPhones && !asOwner)) "Join" else "Ask to join",
             primary = true,
             onClick = {
-                error = if (existing == null && name.isBlank()) "Enter your name." else null
+                error = when {
+                    existing == null && name.isBlank() -> "Enter your name."
+                    withPin && !OwnerPin.isValid(ownerPin) -> "The PIN must be 4 to 8 digits."
+                    else -> null
+                }
                 if (error == null && !drive.busy) {
-                    scope.launch { error = if (existing != null) drive.join(existingUserId = existing) else drive.join(newName = name) }
+                    scope.launch {
+                        error = when {
+                            existing == null -> drive.join(newName = name)
+                            withPin -> drive.join(existingUserId = existing, ownerPin = ownerPin)
+                            else -> drive.join(existingUserId = existing)
+                        }
+                    }
                 }
             },
         )
