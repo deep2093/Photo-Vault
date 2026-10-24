@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -84,9 +86,8 @@ fun Modifier.glassRim(shape: Shape): Modifier {
  * underneath when blur is on and the screen provides [LocalHazeState]; otherwise uses the solid fallback.
  * On Android 11 the blur library falls back to the same tint by itself.
  */
-@Composable
 /** TEMPORARY (25 Oct): finds the pale header line. 0 normal, 1 no shadow, 2 no rim, 3 no blur or lens, 4 none of them. */
-var headerDebug by androidx.compose.runtime.mutableStateOf(0)
+var headerDebug: Int by androidx.compose.runtime.mutableIntStateOf(0)
 
 @Composable
 fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp, debug: Boolean = false): Modifier {
