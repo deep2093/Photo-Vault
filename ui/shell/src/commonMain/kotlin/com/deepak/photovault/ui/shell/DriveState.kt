@@ -305,6 +305,53 @@ class DriveState(private val platform: DrivePlatform) {
 
     suspend fun setLimit(userId: String, gb: Int) = ownerAction { it.setLimit(auth(), userId, gb) }
 
+    // ---- Invites (25 Oct) ----
+
+    /** Owner: makes an invite. Returns its text (to share as file or QR) or a problem. */
+    suspend fun makeInvite(code: String, validForMillis: Long, wireGuard: String?, forName: String): Pair<String?, String?> {
+        var text: String? = null
+        val error = guarded {
+            if (!ownerUnlocked) throw NotAllowed("Enter the owner PIN first")
+            val c = connection ?: throw NotAllowed("No drive connected")
+            text = ensureStore()!!.createInvite(
+                auth(),
+                com.deepak.photovault.core.household.InviteDrive(c.host, c.share, c.folder, c.username, c.password),
+                code, validForMillis, wireGuard, forName,
+            )
+        }
+        return text to error
+    }
+
+    /** Invites not used yet and not run out. */
+    suspend fun openInvites(): List<com.deepak.photovault.core.household.InviteMarker> {
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return emptyList()
+        return runCatching { com.deepak.photovault.core.household.InviteBoard(fs, platform::now).open().filter { it.expiresAtMillis > platform.now() } }.getOrDefault(emptyList())
+    }
+
+    suspend fun revokeInvite(id: String) {
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
+        runCatching { com.deepak.photovault.core.household.InviteBoard(fs, platform::now).revoke(id) }
+    }
+
+    /**
+     * A new person joins with an invite: unlock it, store the WireGuard file if it came with one, connect to the
+     * drive it describes and join straight away. Returns a problem in plain words, or null.
+     */
+    suspend fun joinWithInvite(text: String, code: String, name: String, applyVpn: (String) -> Unit): String? {
+        val invite = com.deepak.photovault.core.household.Invite.unlock(text, code)
+            ?: return "That code doesn't open this invite. Check the code, or ask for a new invite."
+        if (platform.now() > invite.expiresAtMillis) return "This invite has run out. Ask for a new one."
+        invite.wireGuard?.let { runCatching { applyVpn(it) } }
+        val d = invite.drive
+        connect(DriveConnection(d.host, d.share, d.folder, d.username, d.password, true))?.let {
+            return if (invite.wireGuard != null) "$it If you are away from home, turn on the VPN in Settings > Remote access (the invite already set it up), then try again." else it
+        }
+        return guarded {
+            ensureStore()!!.joinWithInvite(invite, platform.deviceId, platform.deviceName, name)
+            refreshLocked()
+        }
+    }
+
     /** The person leaves the family from this phone. Their photos on the drive stay. */
     suspend fun leaveFamily(): String? = guarded {
         if (joined == null || isOwner) return@guarded

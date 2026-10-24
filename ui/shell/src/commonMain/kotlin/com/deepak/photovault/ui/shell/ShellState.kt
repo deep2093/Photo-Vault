@@ -321,6 +321,9 @@ class ShellState(private val store: AppearanceStore) {
     /** Remote access (the VPN) for when the family drive is out of reach at home (Phase 5B-1). */
     var remote: RemoteAccessState = RemoteAccessState()
 
+    /** Invites: files, QR drawing and scanning (Phase 5B-2). */
+    var invites: InvitePlatform = NoInvitePlatform
+
     fun updateAppearance(change: (AppearanceSettings) -> AppearanceSettings) {
         appearance = change(appearance)
         store.save(appearance)

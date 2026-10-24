@@ -147,6 +147,7 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
             }
         }
         item { MembersCard(state, drive) }
+        if (drive.isOwner) item { InviteCard(state, drive, ::asOwner) }
         if (drive.isOwner) {
             item { OwnerSettingsCard(drive) }
             item { DriveSpaceCard(drive) }

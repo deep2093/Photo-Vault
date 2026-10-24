@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -56,14 +57,20 @@ fun DriveSetupScreen(state: ShellState, drive: DriveState) {
     // Reconnect quietly when opened with a saved drive, so the family step shows straight away.
     LaunchedEffect(Unit) { if (drive.isSetUp && membership == null) drive.refresh() }
     var editing by rememberSaveable { mutableStateOf(!drive.isSetUp) }
+    var joinWithInvite by rememberSaveable { mutableStateOf(false) }
     GlassListScreen(
         title = if (editing || membership == null) "Connect your drive" else "Your family",
         subtitle = drive.connection?.takeIf { it.isComplete && !editing }?.let { "${it.host} / ${it.share} / ${it.folder}" },
         onBack = { state.back() },
     ) {
         if (editing || membership == null) {
-            item { ConnectCard(drive, onConnected = { editing = false }) }
-            item { HelpCard() }
+            if (joinWithInvite) {
+                item { InviteJoinCard(state, drive, onDone = { editing = false; joinWithInvite = false }, onCancel = { joinWithInvite = false }) }
+            } else {
+                if (!drive.isSetUp) item { GlassButton("I have an invite", icon = Icons.Rounded.PersonAdd, primary = true, onClick = { joinWithInvite = true }, modifier = Modifier.cardWidth()) }
+                item { ConnectCard(drive, onConnected = { editing = false }) }
+                item { HelpCard() }
+            }
         } else {
             item {
                 when (membership) {

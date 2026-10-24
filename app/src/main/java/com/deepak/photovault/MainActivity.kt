@@ -117,6 +117,14 @@ class MainActivity : ComponentActivity(), MediaActions {
         remote.onPermissionAnswer(it.resultCode == RESULT_OK)
     }
 
+    /** Invites: the file picker's answer goes to whoever asked (a WireGuard file, or an invite file). */
+    private var onTextFilePicked: ((Uri?) -> Unit)? = null
+    private val textFilePicker: androidx.activity.result.ActivityResultLauncher<Array<String>> =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            onTextFilePicked?.invoke(uri)
+            onTextFilePicked = null
+        }
+
     private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (firstRunSetup) askBatteryInSetup()
     }
@@ -248,6 +256,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
         shell = state
         state.remote = remote.state
+        state.invites = AndroidInvites(this) { answer -> onTextFilePicked = answer; textFilePicker.launch(arrayOf("*/*")) }
         state.restoreNavigation(savedInstanceState?.getString("nav"))
         remote.start()
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this, "drive-records.json"), FileDriveRecordCache(this, "family-album.json"))

@@ -127,6 +127,9 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.1")
     // Keeps date, camera and location details when Storage saver shrinks a photo.
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    // Invites: draw the QR code, and scan one with Google's code scanner (no camera permission needed).
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     testImplementation("junit:junit:4.13.2")
 }

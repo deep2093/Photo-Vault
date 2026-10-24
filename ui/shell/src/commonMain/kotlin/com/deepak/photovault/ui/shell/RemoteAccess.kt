@@ -29,6 +29,9 @@ enum class RemoteStatus { NOT_SUPPORTED, NO_CONFIG, OFF, CONNECTING, CONNECTED, 
 interface RemotePlatform {
     /** Pick a WireGuard .conf file from the phone and store it (encrypted). */
     fun importConfig()
+
+    /** Store a WireGuard file that came inside an invite. */
+    fun importConfigText(text: String) = Unit
     fun connect()
     fun disconnect()
     fun removeConfig()

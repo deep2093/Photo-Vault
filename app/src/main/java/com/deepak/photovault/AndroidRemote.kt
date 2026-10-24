@@ -44,6 +44,23 @@ class AndroidRemotePlatform(
 
     override fun importConfig() = pickFile()
 
+    /** A WireGuard file that came inside an invite. */
+    override fun importConfigText(text: String) {
+        val file = java.io.File.createTempFile("invite-wg", ".conf")
+        try {
+            file.writeText(text)
+            scope.launch {
+                state.message = when (val r = manager.importConfig(Uri.fromFile(file))) {
+                    is ImportResult.Success -> "VPN set up from the invite. Tap Connect to use it."
+                    is ImportResult.Failure -> r.message
+                }
+                file.delete()
+            }
+        } catch (e: Exception) {
+            file.delete()
+        }
+    }
+
     fun onFilePicked(uri: Uri?) {
         if (uri == null) return
         scope.launch {
