@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
 import com.deepak.photovault.designsystem.PageEasing
-import com.deepak.photovault.designsystem.withDepth
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -112,7 +111,7 @@ import dev.chrisbanes.haze.HazeState
 private const val OVERLAY_MS = 320
 
 /** Sliding pages (24 Oct): a little longer than a grow-in, with a soft settle. */
-private const val PAGE_MS = 420
+private const val PAGE_MS = 640
 
 /** The page underneath drifts a quarter of the screen and darkens by this much while another covers it. */
 private const val DRIFT_DIVISOR = 4f
@@ -461,9 +460,11 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             familyDot = screens.familyDot,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                // Moved by layout, not a layer translation: the lens glass must learn where the bar is (25 Oct fix for
+                // the bar's lens showing the wrong part of the photos after it tucked away and came back).
+                .offset { androidx.compose.ui.unit.IntOffset(0, maxOf(shift.value, travel * state.sectionCover()).toInt()) }
                 .graphicsLayer {
                     val y = maxOf(shift.value, travel * state.sectionCover())
-                    translationY = y
                     alpha = 1f - (y / travel).coerceIn(0f, 1f)
                 }
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
@@ -659,7 +660,7 @@ private fun NavItem(
             }
         }
         Spacer(Modifier.height(2.dp))
-        Text(destination.label, color = fg, style = MaterialTheme.typography.labelSmall.withDepth(), maxLines = 1)
+        com.deepak.photovault.designsystem.DepthText(destination.label, color = fg, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 

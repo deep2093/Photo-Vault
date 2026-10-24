@@ -6,7 +6,10 @@ import android.graphics.Shader
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -39,10 +42,11 @@ actual fun lensGlassSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSIO
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGlass {
-    private var sourceOrigin = Offset.Zero
+    // Snapshot state: when the source or the bar moves, the bar's drawing is redone with the new offset.
+    private var sourceOrigin by mutableStateOf(Offset.Zero)
 
     override fun source(active: Boolean): Modifier = Modifier
-        .onGloballyPositioned { sourceOrigin = it.positionInRoot() }
+        .onGloballyPositioned { val o = it.positionInRoot(); if (o != sourceOrigin) sourceOrigin = o }
         .drawWithContent {
             // Always in the chain; only records while lens glass is on, so a runtime switch needs no re-attach.
             if (active) {
@@ -57,13 +61,12 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
     override fun lens(shape: Shape, tint: Color, active: Boolean): Modifier {
         val effectLayer = rememberGraphicsLayer()
         val shader = remember { RuntimeShader(LENS_SHADER) }
-        val barOrigin = remember { FloatArray(2) }
+        var barOrigin by remember { mutableStateOf(Offset.Zero) }
         val applied = remember { FloatArray(3) { -1f } }
         return Modifier
             .onGloballyPositioned {
                 val o = it.positionInRoot()
-                barOrigin[0] = o.x
-                barOrigin[1] = o.y
+                if (o != barOrigin) barOrigin = o
             }
             .drawWithContent {
                 if (!active) {
@@ -86,7 +89,7 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
                     applied[2] = radius
                 }
                 effectLayer.record {
-                    translate(sourceOrigin.x - barOrigin[0], sourceOrigin.y - barOrigin[1]) { drawLayer(sourceLayer) }
+                    translate(sourceOrigin.x - barOrigin.x, sourceOrigin.y - barOrigin.y) { drawLayer(sourceLayer) }
                 }
                 drawLayer(effectLayer)
                 drawRect(tint)

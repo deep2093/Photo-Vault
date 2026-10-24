@@ -70,6 +70,7 @@ fun GlassButton(
     modifier: Modifier = Modifier,
     primary: Boolean = false,
     icon: ImageVector? = null,
+    centered: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
@@ -84,7 +85,7 @@ fun GlassButton(
             })
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = if (centered) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
     ) {
         val fg = if (primary) theme.onAccent else theme.onGlass
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))

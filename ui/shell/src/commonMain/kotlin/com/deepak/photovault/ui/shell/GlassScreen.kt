@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import com.deepak.photovault.designsystem.GlassIconButton
-import com.deepak.photovault.designsystem.withDepth
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -187,8 +187,8 @@ fun GlassScreen(
             actions = actions,
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .offset { androidx.compose.ui.unit.IntOffset(0, offset.toInt()) }
                 .graphicsLayer {
-                    translationY = offset
                     alpha = 1f - (-offset / hidePx).coerceIn(0f, 1f) * 0.6f
                 }
                 .padding(
@@ -242,10 +242,10 @@ private fun GlassTopBar(
             GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onClick = onBack)
         }
         Column(Modifier.weight(1f)) {
-            Text(
+            com.deepak.photovault.designsystem.DepthText(
                 title,
                 color = theme.onGlass,
-                style = MaterialTheme.typography.titleMedium.withDepth(),
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

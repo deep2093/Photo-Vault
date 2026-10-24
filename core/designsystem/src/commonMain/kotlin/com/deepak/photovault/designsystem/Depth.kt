@@ -7,9 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -43,7 +41,27 @@ fun DepthIcon(icon: ImageVector, contentDescription: String?, tint: Color, modif
     }
 }
 
-/** The same text style with a soft shadow under the letters, in lens glass. */
+/**
+ * Text with a soft shadow in lens glass (25 Oct). The shadow is a blurred copy under the letters, like [DepthIcon]:
+ * a text-style shadow drew a pale band across the whole title bar in Clear Light.
+ */
 @Composable
-fun TextStyle.withDepth(): TextStyle =
-    if (glassDepthOn()) copy(shadow = Shadow(depthColor(), Offset(0f, 3f), 5f)) else this
+fun DepthText(
+    text: String,
+    color: Color,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    fontWeight: androidx.compose.ui.text.font.FontWeight? = null,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: androidx.compose.ui.text.style.TextOverflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+) {
+    Box(modifier) {
+        if (glassDepthOn()) {
+            androidx.compose.material3.Text(
+                text, color = depthColor(), style = style, fontWeight = fontWeight, maxLines = maxLines, overflow = overflow,
+                modifier = Modifier.offset(y = 1.5.dp).blur(2.dp, BlurredEdgeTreatment.Unbounded),
+            )
+        }
+        androidx.compose.material3.Text(text, color = color, style = style, fontWeight = fontWeight, maxLines = maxLines, overflow = overflow)
+    }
+}

@@ -35,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import com.deepak.photovault.designsystem.LocalGlassTheme
-import com.deepak.photovault.designsystem.withDepth
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
@@ -228,10 +227,10 @@ private fun ViewButtons(gallery: GalleryState) {
                     .padding(horizontal = 9.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
+                com.deepak.photovault.designsystem.DepthText(
                     option.label,
                     color = if (selected) theme.onAccent else theme.onGlass,
-                    style = MaterialTheme.typography.labelSmall.withDepth(),
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 )
             }

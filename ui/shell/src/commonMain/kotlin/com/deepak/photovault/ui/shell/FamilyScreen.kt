@@ -132,9 +132,9 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
                             GlassIcon(Icons.Rounded.Storage, tint = theme.onGlassSecondary)
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("${r.name} asks for ${r.wantGb} GB", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
+                                Text(if (now != null && r.wantGb > now) "${r.name} asks for ${r.wantGb - now} GB more" else "${r.name} asks for ${r.wantGb} GB", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    listOfNotNull(now?.let { "Has $it GB now" }, r.note.ifBlank { null }).joinToString(" · "),
+                                    listOfNotNull(now?.let { "Has $it GB now, would have ${r.wantGb} GB" }, r.note.ifBlank { null }).joinToString(" · "),
                                     color = theme.onGlassSecondary,
                                     style = MaterialTheme.typography.bodyMedium,
                                 )

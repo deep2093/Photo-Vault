@@ -130,6 +130,59 @@ class ShellState(private val store: AppearanceStore) {
     /** Open pages, newest last. */
     val overlays = mutableStateListOf<Overlay>()
 
+    /**
+     * Where the person was, as text, so a recreated app (rotation, theme or font change, Android reclaiming memory
+     * while another app was open) opens on the same section and pages instead of Photos (25 Oct).
+     * Pages that depend on a photo list (the viewer, storage files, cover picker) are not restored.
+     */
+    fun saveNavigation(): String {
+        val pages = overlays.mapNotNull { o ->
+            when (o) {
+                is Overlay.Settings -> listOf("settings", o.page.name, o.startOnDrive.toString())
+                is Overlay.Album -> when (val k = o.kind) {
+                    is AlbumKind.Phone -> listOf("album", "phone", k.albumId, k.name)
+                    AlbumKind.Favourites -> listOf("album", "favourites")
+                    AlbumKind.Videos -> listOf("album", "videos")
+                    AlbumKind.Family -> listOf("album", "family")
+                }
+                is Overlay.Member -> listOf("member", o.userId)
+                Overlay.Backup -> listOf("backup")
+                Overlay.DriveSetup -> listOf("setup")
+                Overlay.RecentlyDeleted -> listOf("trash")
+                Overlay.Search -> listOf("search")
+                else -> null
+            }?.joinToString("\u001F")
+        }
+        return (listOf(destination.name) + pages).joinToString("\u001E")
+    }
+
+    fun restoreNavigation(saved: String?) {
+        if (saved.isNullOrEmpty()) return
+        val parts = saved.split("\u001E")
+        Destination.entries.firstOrNull { it.name == parts.first() }?.let { destination = it }
+        overlays.clear()
+        parts.drop(1).forEach { raw ->
+            val f = raw.split("\u001F")
+            val overlay: Overlay? = when (f.firstOrNull()) {
+                "settings" -> SettingsPage.entries.firstOrNull { it.name == f.getOrNull(1) }?.let { Overlay.Settings(it, f.getOrNull(2) == "true") }
+                "album" -> when (f.getOrNull(1)) {
+                    "phone" -> if (f.size >= 4) Overlay.Album(AlbumKind.Phone(f[2], f[3])) else null
+                    "favourites" -> Overlay.Album(AlbumKind.Favourites)
+                    "videos" -> Overlay.Album(AlbumKind.Videos)
+                    "family" -> Overlay.Album(AlbumKind.Family)
+                    else -> null
+                }
+                "member" -> f.getOrNull(1)?.let { Overlay.Member(it) }
+                "backup" -> Overlay.Backup
+                "setup" -> Overlay.DriveSetup
+                "trash" -> Overlay.RecentlyDeleted
+                "search" -> Overlay.Search
+                else -> null
+            }
+            if (overlay != null) overlays.add(overlay)
+        }
+    }
+
     /** How many times each section was tapped while already open; each tap scrolls it to the top. */
     val reselects = mutableStateMapOf<Destination, Int>()
 

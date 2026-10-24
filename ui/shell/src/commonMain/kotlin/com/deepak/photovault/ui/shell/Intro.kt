@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -45,7 +46,7 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import kotlinx.coroutines.launch
 
 /** What the intro shows: the Welcome tour (new people) or What's new (after an update). */
-enum class IntroKind { TOUR, WHATS_NEW }
+enum class IntroKind { TOUR, WHATS_NEW, PERMISSIONS }
 
 /** What the phone remembers about the intro. Android: SharedPreferences. */
 interface IntroStore {
@@ -130,6 +131,7 @@ class IntroState(private val store: IntroStore = MemoryIntroStore()) {
     /** Called once when the app opens. */
     fun start() {
         val d = IntroLogic.decide(store.seenId(), store.tourDone(), store.existingUser(), WhatsNew.ID)
+        autoTour = d.show == IntroKind.TOUR
         showing = d.show
         store.save(d.seenId, d.tourDone)
     }
@@ -139,8 +141,24 @@ class IntroState(private val store: IntroStore = MemoryIntroStore()) {
         showing = kind
     }
 
+    /** Asks for photo access, notifications and background running, one after another (set by the platform). */
+    var setUpAccess: (() -> Unit)? = null
+
+    private var autoTour = false
+
     fun close() {
+        // New people: after the tour comes the one-time setup of what backup needs (25 Oct).
+        if (showing == IntroKind.TOUR && autoTour && setUpAccess != null) {
+            autoTour = false
+            showing = IntroKind.PERMISSIONS
+        } else {
+            showing = null
+        }
+    }
+
+    fun finishAccess(go: Boolean) {
         showing = null
+        if (go) setUpAccess?.invoke()
     }
 }
 
@@ -150,7 +168,36 @@ fun IntroHost(intro: IntroState) {
     when (intro.showing) {
         IntroKind.WHATS_NEW -> WhatsNewDialog(onClose = intro::close)
         IntroKind.TOUR -> WelcomeTour(onClose = intro::close)
+        IntroKind.PERMISSIONS -> AccessDialog(onLater = { intro.finishAccess(false) }, onContinue = { intro.finishAccess(true) })
         null -> Unit
+    }
+}
+
+@Composable
+private fun AccessDialog(onLater: () -> Unit, onContinue: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    GlassDialog(
+        title = "Let's set up backup",
+        onDismiss = onLater,
+        buttons = {
+            GlassButton("Not now", onClick = onLater)
+            GlassButton("Continue", primary = true, onClick = onContinue)
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Android will ask for three things, one after another:", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+            listOf(
+                "Photos and videos" to "so Pixallery can show and back them up.",
+                "Notifications" to "so you can see when a backup finishes or needs you.",
+                "Run in the background" to "so backups can run on time while the app is closed.",
+            ).forEach { (title, body) ->
+                Column {
+                    Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleSmall)
+                    Text(body, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Text("You can change any of these later in Settings.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
@@ -213,7 +260,8 @@ private fun WelcomeTour(onClose: () -> Unit) {
                 if (last) "Get started" else "Next",
                 primary = true,
                 onClick = { if (last) onClose() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
-                modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp),
+                modifier = Modifier.width(176.dp),
+                centered = true,
             )
         }
     }

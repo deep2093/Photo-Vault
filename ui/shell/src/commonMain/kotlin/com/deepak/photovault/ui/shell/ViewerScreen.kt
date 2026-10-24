@@ -174,6 +174,9 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     if (liveSystem.calculateTopPadding() >= system.calculateTopPadding() && liveSystem.calculateBottomPadding() >= system.calculateBottomPadding()) system = liveSystem
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalGlassSettings.current.reduceMotion
+    // Lens glass on the toolbar too (25 Oct): the photo is recorded so the bar can look through it.
+    val lensOn = LocalGlassSettings.current.lensEnabled && com.deepak.photovault.designsystem.LocalGlassTheme.current.lens
+    val lens = rememberLensGlass()
 
     // 0 = photo only, 1 = details panel fully open.
     val progress = remember { Animatable(0f) }
@@ -207,6 +210,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 beyondViewportPageCount = 1,
                 modifier = Modifier
                     .fillMaxSize()
+                    .then(lens?.source(lensOn) ?: Modifier)
                     .trackSpot(photoSpot)
                     .graphicsLayer {
                         // The photo slides up as the panel rises, leaving it fully visible above the panel.
@@ -298,6 +302,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                     }
                     // The photo flies into the bin once Android has asked (23 Oct).
                     val flyCurrent = { photoSpot.bounds?.let { listOf(FlyingPhoto(current.uri, current.isVideo, it, fit = true)) }.orEmpty() }
+                    CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
                     if (viewer.trash) {
                         TrashActions(
                             onRestore = { actions.restore(listOf(current)) },
@@ -331,6 +336,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             },
                             binModifier = Modifier.trackSpot(bin),
                         )
+                    }
                     }
                 }
             }

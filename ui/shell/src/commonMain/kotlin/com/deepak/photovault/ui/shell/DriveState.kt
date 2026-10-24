@@ -641,6 +641,13 @@ class DriveState(private val platform: DrivePlatform) {
         return runCatching { FeedbackBox(fs).inbox(household.members.map { it.userId }) }.getOrNull()
     }
 
+    /** The owner clears everything received. Returns a problem message, or null. */
+    suspend fun clearFeedback(entries: List<FeedbackEntry>): String? = guarded {
+        if (joined?.isOwner != true) return@guarded
+        ensureStore()
+        FeedbackBox(drive!!).clear(entries)
+    }
+
     /** How many backed-up photos aren't on this phone; null if the drive can't be read. */
     suspend fun missingOnPhone(onPhone: List<MediaItem>): Int? {
         val me = joined?.me ?: return null

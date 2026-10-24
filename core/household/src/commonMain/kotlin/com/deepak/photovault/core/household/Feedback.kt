@@ -67,6 +67,23 @@ class FeedbackBox(private val drive: DriveFileSystem) {
         }
     }.sortedByDescending { it.note.createdAtMillis }
 
+    /**
+     * The owner clears received notes (25 Oct): the note and its attached files are deleted. The empty folder stays
+     * (a drive can't delete folders from here); without its note it no longer shows in the inbox.
+     */
+    suspend fun clear(entries: List<FeedbackEntry>) {
+        for (entry in entries) {
+            val files = try {
+                drive.list(entry.folder).filter { !it.isFolder }
+            } catch (_: DriveNotFound) {
+                emptyList()
+            }
+            // The note goes last, so a half-cleared one still shows until it is fully gone.
+            files.filter { it.name != NOTE }.forEach { drive.delete(DrivePaths.join(entry.folder, it.name)) }
+            drive.delete(DrivePaths.join(entry.folder, NOTE))
+        }
+    }
+
     companion object {
         const val FOLDER = "feedback"
         const val NOTE = "note.json"

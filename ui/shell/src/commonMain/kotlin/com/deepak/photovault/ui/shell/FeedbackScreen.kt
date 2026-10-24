@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -173,16 +174,29 @@ private fun FeedbackInbox(drive: DriveState) {
     val theme = LocalGlassTheme.current
     var notes by remember { mutableStateOf<List<FeedbackEntry>?>(null) }
     var loaded by remember { mutableStateOf(false) }
+    var confirmClear by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(drive.joined?.household?.revision) {
         notes = drive.feedbackInbox()
         loaded = true
+    }
+    if (confirmClear) ClearFeedbackDialog(notes.orEmpty().size, { confirmClear = false }) {
+        confirmClear = false
+        val entries = notes.orEmpty()
+        scope.launch {
+            problem = drive.clearFeedback(entries)
+            notes = drive.feedbackInbox()
+        }
     }
     GlassCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Inbox, null, tint = theme.accent)
             Spacer(Modifier.width(10.dp))
-            Text("Feedback received", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("Feedback received", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            if (!notes.isNullOrEmpty()) GlassButton("Clear", icon = Icons.Rounded.DeleteSweep, onClick = { confirmClear = true })
         }
+        problem?.let { WarningNote(it) }
         val list = notes
         when {
             !loaded -> Text("Reading the drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
@@ -212,6 +226,17 @@ private fun FeedbackInbox(drive: DriveState) {
             }
         }
     }
+}
+
+@Composable
+private fun ClearFeedbackDialog(count: Int, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    ConfirmDialog(
+        title = "Clear all feedback?",
+        body = "$count received ${if (count == 1) "note is" else "notes are"} deleted from the drive, with their photos and videos. This can't be undone. Nothing else is touched.",
+        confirm = "Clear",
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+    )
 }
 
 private const val MAX_FILES = 5

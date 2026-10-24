@@ -152,7 +152,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                         val asked = drive.mySpaceRequest
                         when {
                             asked != null -> {
-                                Text("Asked the owner for ${asked.wantGb} GB. Waiting for an answer.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                                Text("Asked the owner for ${asked.wantGb} GB in total. Waiting for an answer.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                                 GlassButton("Cancel request", modifier = Modifier.padding(top = 6.dp), onClick = { scope.launch { message = drive.cancelSpaceRequest() } })
                             }
                             else -> {
@@ -413,23 +413,25 @@ object ProfileCrop {
 @Composable
 private fun AskSpaceDialog(member: com.deepak.photovault.core.household.Member, onDismiss: () -> Unit, onSend: (Int, String) -> Unit) {
     val theme = LocalGlassTheme.current
-    val options = listOf(50, 100, 200, 500, 1000, 2000).filter { it > member.limitGb }
-    var gb by remember { mutableStateOf(options.firstOrNull() ?: (member.limitGb + 100)) }
+    // Extra space on top of what they have now (25 Oct): the request still carries the new total.
+    val options = listOf(25, 50, 100, 200, 1000)
+    var extra by remember { mutableStateOf(options.first()) }
     var note by remember { mutableStateOf("") }
     com.deepak.photovault.designsystem.GlassDialog(
         title = "Ask for more space",
         onDismiss = onDismiss,
         buttons = {
             GlassButton("Cancel", onClick = onDismiss)
-            GlassButton("Send", primary = true, onClick = { onSend(gb, note) })
+            GlassButton("Send", primary = true, onClick = { onSend(member.limitGb + extra, note) })
         },
     ) {
-        Text("You have ${member.limitGb} GB. How much would you like in total?", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        Text("You have ${member.limitGb} GB. How much more would you like? It is added on top of that, if the owner agrees.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-            (options.ifEmpty { listOf(member.limitGb + 100) }).forEach { option ->
-                com.deepak.photovault.designsystem.GlassChip(if (option >= 1000) "${option / 1000} TB" else "$option GB", selected = gb == option, onClick = { gb = option })
+            options.forEach { option ->
+                com.deepak.photovault.designsystem.GlassChip("+" + (if (option >= 1000) "${option / 1000} TB" else "$option GB"), selected = extra == option, onClick = { extra = option })
             }
         }
+        Text("New total: ${member.limitGb + extra} GB", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
         com.deepak.photovault.designsystem.GlassTextField(note, { note = it.take(300) }, "Note (optional)", placeholder = "Holiday videos")
     }
 }

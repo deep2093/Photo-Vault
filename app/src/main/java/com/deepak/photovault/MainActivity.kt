@@ -86,8 +86,12 @@ class MainActivity : ComponentActivity(), MediaActions {
         override fun onReceive(context: Context, intent: Intent) = refreshSignals()
     }
 
+    /** First-run setup after the tour: photos, then notifications, then running in the background (25 Oct). */
+    private var firstRunSetup = false
+
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         refreshAccess()
+        if (firstRunSetup) askNotificationsInSetup()
     }
 
     /** Android's own confirmation for Recently deleted, restore and delete forever. Nothing to do on return:
@@ -113,7 +117,25 @@ class MainActivity : ComponentActivity(), MediaActions {
         remote.onPermissionAnswer(it.resultCode == RESULT_OK)
     }
 
-    private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (firstRunSetup) askBatteryInSetup()
+    }
+
+    private fun startFirstRunSetup() {
+        firstRunSetup = true
+        if (gallery.access == MediaAccess.NONE) requestAccess() else askNotificationsInSetup()
+    }
+
+    private fun askNotificationsInSetup() {
+        val needed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !granted(Manifest.permission.POST_NOTIFICATIONS)
+        if (needed) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) else askBatteryInSetup()
+    }
+
+    private fun askBatteryInSetup() {
+        firstRunSetup = false
+        val power = getSystemService(PowerManager::class.java)
+        if (power?.isIgnoringBatteryOptimizations(packageName) == false) openBatterySettings()
+    }
 
     /** Waiting for Android's "allow changes" answer before renaming an album. */
     private var pendingRename: Triple<List<MediaItem>, String, (String?) -> Unit>? = null
@@ -217,8 +239,10 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
         val state = ShellState(PrefsAppearanceStore(this))
         state.intro = com.deepak.photovault.ui.shell.IntroState(PrefsIntroStore(this))
+        state.intro.setUpAccess = { startFirstRunSetup() }
         shell = state
         state.remote = remote.state
+        state.restoreNavigation(savedInstanceState?.getString("nav"))
         remote.start()
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this, "drive-records.json"), FileDriveRecordCache(this, "family-album.json"))
         drive = DriveState(AndroidDrivePlatform(this))
@@ -267,6 +291,11 @@ class MainActivity : ComponentActivity(), MediaActions {
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (::shell.isInitialized) outState.putString("nav", shell.saveNavigation())
     }
 
     override fun onNewIntent(intent: Intent) {
