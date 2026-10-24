@@ -167,6 +167,12 @@ fun PhotoVaultApp(
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
         }
     }
+    // One timeline (Phase 5): read what the drive holds when the app opens and after each backup, and let Photos
+    // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
+    LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
+        if (signals.foreground && drive.joined != null) drive.loadBackupRecords(force = true)
+    }
+    LaunchedEffect(gallery, drive.backupRecords) { drive.backupRecords?.let(gallery::setDriveRecords) }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }

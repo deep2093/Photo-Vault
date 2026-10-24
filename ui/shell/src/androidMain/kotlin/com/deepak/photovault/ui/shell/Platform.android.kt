@@ -7,6 +7,7 @@ import android.util.Size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -35,9 +36,15 @@ import kotlinx.coroutines.withContext
 @Composable
 actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier) {
     val context = LocalContext.current
-    val player = remember(uri) {
+    // A drive-only video is downloaded first (kept on the phone for next time), then played from the file.
+    val playable by androidx.compose.runtime.produceState<String?>(if (DriveMedia.pathOf(uri) == null) uri else null, uri) {
+        val path = DriveMedia.pathOf(uri)
+        value = if (path == null) uri else DriveMedia.file(path)?.let { Uri.fromFile(it).toString() }
+    }
+    val source = playable ?: return
+    val player = remember(source) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(androidx.media3.common.MediaItem.fromUri(uri))
+            setMediaItem(androidx.media3.common.MediaItem.fromUri(source))
             prepare()
             playWhenReady = controls.playing
         }
@@ -116,6 +123,7 @@ actual fun SystemBarsHidden(hidden: Boolean) {
 actual fun createImageLoader(context: PlatformContext): ImageLoader =
     ImageLoader.Builder(context)
         .components {
+            add(DriveFileFetcher.Factory())
             add(ThumbFetcher.Factory(context.contentResolver))
             add(ThumbKeyer)
             add(VideoFrameFetcher.Factory(context))
@@ -143,12 +151,35 @@ actual fun mainColorOf(image: Image): Int? = try {
  */
 private class ThumbFetcher(private val thumb: Thumb, private val resolver: ContentResolver) : Fetcher {
     override suspend fun fetch(): FetchResult = withContext(Dispatchers.IO) {
+        DriveMedia.pathOf(thumb.uri)?.let { path ->
+            // Only on the drive: videos show a placeholder until opened (a video is too big to fetch for a tile).
+            if (thumb.isVideo) error("Drive video thumbnail not cached")
+            val bitmap = DriveMedia.thumbnail(path, thumb.sizePx) ?: error("Drive photo not available")
+            return@withContext ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)
+        }
         val bitmap = resolver.loadThumbnail(Uri.parse(thumb.uri), Size(thumb.sizePx, thumb.sizePx), null)
         ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)
     }
 
     class Factory(private val resolver: ContentResolver) : Fetcher.Factory<Thumb> {
         override fun create(data: Thumb, options: Options, imageLoader: ImageLoader): Fetcher = ThumbFetcher(data, resolver)
+    }
+}
+
+/** The full photo of a drive-only item (the viewer's `ImageRequest.data("drive:...")`): fetched once, then from disk. */
+private class DriveFileFetcher(private val path: String) : Fetcher {
+    override suspend fun fetch(): FetchResult {
+        val file = DriveMedia.file(path) ?: error("Drive photo not available")
+        return coil3.fetch.SourceFetchResult(
+            source = coil3.decode.ImageSource(file = okio.Path.Companion.run { file.path.toPath() }, fileSystem = okio.FileSystem.SYSTEM),
+            mimeType = null,
+            dataSource = DataSource.DISK,
+        )
+    }
+
+    class Factory : Fetcher.Factory<coil3.Uri> {
+        override fun create(data: coil3.Uri, options: Options, imageLoader: ImageLoader): Fetcher? =
+            DriveMedia.pathOf(data.toString())?.let { DriveFileFetcher(it) }
     }
 }
 
@@ -176,7 +207,10 @@ private object VideoFrames {
             cache.get(key(uri, timeMs, sizePx))?.let { return@withLock it }
             if (openUri != uri) {
                 retriever?.release()
-                retriever = android.media.MediaMetadataRetriever().apply { setDataSource(context, Uri.parse(uri)) }
+                retriever = android.media.MediaMetadataRetriever().apply {
+                    val cached = DriveMedia.pathOf(uri)?.let { DriveMedia.cached(it) }
+                    if (DriveMedia.pathOf(uri) != null) setDataSource(cached?.path ?: error("Drive video not downloaded")) else setDataSource(context, Uri.parse(uri))
+                }
                 openUri = uri
             }
             val bitmap = retriever!!.getScaledFrameAtTime(

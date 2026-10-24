@@ -24,6 +24,8 @@ class AndroidMediaDetails(context: Context) : MediaDetailsSource {
         app.checkSelfPermission(Manifest.permission.ACCESS_MEDIA_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     override suspend fun details(item: MediaItem): MediaDetails = withContext(Dispatchers.IO) {
+        // Only on the family drive (uri "drive:..."): the phone has no file to read camera details from.
+        if (item.uri.startsWith("drive:")) return@withContext MediaDetails()
         val uri = Uri.parse(item.uri)
         val folder = folderOf(uri)
         runCatching { if (item.isVideo) video(uri) else photo(uri) }

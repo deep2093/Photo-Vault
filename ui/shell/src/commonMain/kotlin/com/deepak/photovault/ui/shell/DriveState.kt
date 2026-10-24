@@ -360,6 +360,22 @@ class DriveState(private val platform: DrivePlatform) {
         return runCatching { BackupCatalog(fs, me.userId).records() }.getOrNull()
     }
 
+    /**
+     * Streams one file of the drive to [sink] (a drive-only photo being opened or shown as a thumbnail). Returns false
+     * when the drive can't be reached or the file is gone. Runs next to other drive work, not inside its lock.
+     */
+    suspend fun readDriveFile(path: String, sink: (ByteArray, Int) -> Unit): Boolean {
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return false
+        return try {
+            fs.readStream(path, sink)
+            true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /** This person's backups on the drive, for Settings > Storage; null until read (or if it can't be). */
     var backupRecords by mutableStateOf<List<com.deepak.photovault.core.backup.BackupRecord>?>(null)
         private set

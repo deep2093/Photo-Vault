@@ -4,6 +4,10 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.deepak.photovault.core.backup.BackupRecord
+import com.deepak.photovault.core.backup.DriveRecordCache
+import com.deepak.photovault.core.backup.DriveTimeline
+import com.deepak.photovault.core.backup.MemoryDriveRecordCache
 import com.deepak.photovault.core.media.FavouritesStore
 import com.deepak.photovault.core.media.MediaAccess
 import com.deepak.photovault.core.media.LibraryView
@@ -188,6 +192,8 @@ class GalleryState(
     val detailsSource: MediaDetailsSource = NoMediaDetails,
     private val hiddenStore: HiddenAlbumsStore = MemoryHiddenAlbumsStore(),
     private val layoutStore: AlbumLayoutStore = MemoryAlbumLayoutStore(),
+    /** What the drive held when last read, so backed-up photos still show offline (Phase 5, 25 Oct). */
+    private val driveCache: DriveRecordCache = MemoryDriveRecordCache(),
 ) {
     /** The person's own order of album cards (album IDs plus [FAVOURITES_CARD] and [VIDEOS_CARD]). */
     var albumOrder by mutableStateOf(layoutStore.loadOrder())
@@ -245,6 +251,26 @@ class GalleryState(
         private set
 
     private var everything: List<MediaItem> = emptyList()
+
+    /** Backed-up files from the drive; the ones no longer on the phone join the timeline. */
+    private var driveRecords: List<BackupRecord> = driveCache.load()
+
+    /** Photos only on the drive right now (not on the phone, and not waiting in the phone's Recently deleted). */
+    private var driveOnly: List<MediaItem> = emptyList()
+
+    /** The drive was read (or a backup finished): show what it holds that the phone doesn't. */
+    fun setDriveRecords(records: List<BackupRecord>) {
+        driveRecords = records
+        driveCache.save(records)
+        recomputeDriveOnly()
+        allAlbums = PhoneAlbums.from(everything + driveOnly)
+        applyVisible()
+    }
+
+    private fun recomputeDriveOnly() {
+        // A photo in the phone's Recently deleted isn't "gone" yet, so it doesn't come back from the drive.
+        driveOnly = DriveTimeline.driveOnly(driveRecords, everything + trashed.map { it.item })
+    }
 
     fun setHidden(albumId: String, hidden: Boolean) {
         hiddenAlbums = if (hidden) hiddenAlbums + albumId else hiddenAlbums - albumId
@@ -304,7 +330,8 @@ class GalleryState(
     private fun setItems(all: List<MediaItem>, bin: List<TrashedItem>) {
         everything = all
         trashed = bin.sortedBy { it.expiresAtMillis }
-        allAlbums = PhoneAlbums.from(all)
+        recomputeDriveOnly()
+        allAlbums = PhoneAlbums.from(all + driveOnly)
         applyVisible()
     }
 
@@ -323,7 +350,8 @@ class GalleryState(
     }
 
     private fun applyVisible() {
-        val visible = if (hiddenAlbums.isEmpty()) everything else everything.filter { it.albumId !in hiddenAlbums }
+        val merged = if (driveOnly.isEmpty()) everything else everything + driveOnly
+        val visible = if (hiddenAlbums.isEmpty()) merged else merged.filter { it.albumId !in hiddenAlbums }
         items = visible
         byId = visible.associateBy { it.id }
         albums = allAlbums.filter { it.id !in hiddenAlbums }

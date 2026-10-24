@@ -2,6 +2,8 @@ package com.deepak.photovault
 
 import android.Manifest
 import android.content.BroadcastReceiver
+import com.deepak.photovault.core.backup.isDriveOnly
+import com.deepak.photovault.ui.shell.DriveMedia
 import android.content.ClipData
 import android.content.ComponentName
 import android.content.Context
@@ -201,8 +203,10 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
         val state = ShellState(PrefsAppearanceStore(this))
         shell = state
-        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this))
+        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this))
         drive = DriveState(AndroidDrivePlatform(this))
+        // Photos that are only on the drive are fetched through the same connection the rest of the app uses.
+        DriveMedia.install(this) { path, sink -> drive.readDriveFile(path, sink) }
         val backup = BackupGraph.get(this).state
         runCatching { iconSwitcher.tidyUp() }
         refreshSignals()
@@ -334,7 +338,17 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     // ---- Actions ----
 
-    override fun share(items: List<MediaItem>) {
+    /** Photos that are only on the drive have no phone file to hand over yet; say so instead of failing. */
+    private fun phoneOnly(all: List<MediaItem>): List<MediaItem> {
+        val phone = all.filterNot { it.isDriveOnly }
+        if (phone.size < all.size) {
+            android.widget.Toast.makeText(this, "Photos that are only on the drive can't be shared or deleted from here yet.", android.widget.Toast.LENGTH_LONG).show()
+        }
+        return phone
+    }
+
+    override fun share(all: List<MediaItem>) {
+        val items = phoneOnly(all)
         if (items.isEmpty()) return
         val uris = items.map { Uri.parse(it.uri) }
         val type = when {
@@ -355,7 +369,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         startActivity(Intent.createChooser(send, null))
     }
 
-    override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) = askAndroid(items, onDone) { uris ->
+    override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) = askAndroid(phoneOnly(items), onDone) { uris ->
         MediaStore.createTrashRequest(contentResolver, uris, true)
     }
 
@@ -363,7 +377,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         MediaStore.createTrashRequest(contentResolver, uris, false)
     }
 
-    override fun deleteForever(items: List<MediaItem>, onDone: (Boolean) -> Unit) = askAndroid(items, onDone) { uris ->
+    override fun deleteForever(items: List<MediaItem>, onDone: (Boolean) -> Unit) = askAndroid(phoneOnly(items), onDone) { uris ->
         MediaStore.createDeleteRequest(contentResolver, uris)
     }
 
@@ -605,5 +619,23 @@ private class PrefsFavouritesStore(context: Context) : FavouritesStore {
 
     override fun save(ids: Set<Long>) {
         prefs.edit().putStringSet("ids", ids.map(Long::toString).toSet()).apply()
+    }
+}
+
+/** The drive's backed-up list as last read, so Photos still shows drive-only photos with no connection. */
+private class FileDriveRecordCache(context: Context) : com.deepak.photovault.core.backup.DriveRecordCache {
+    private val file = java.io.File(context.applicationContext.filesDir, "backup/drive-records.json")
+    private val serializer = kotlinx.serialization.builtins.ListSerializer(com.deepak.photovault.core.backup.BackupRecord.serializer())
+
+    override fun load(): List<com.deepak.photovault.core.backup.BackupRecord> =
+        runCatching { com.deepak.photovault.backup.backupJson.decodeFromString(serializer, file.readText()) }.getOrDefault(emptyList())
+
+    override fun save(records: List<com.deepak.photovault.core.backup.BackupRecord>) {
+        runCatching {
+            file.parentFile?.mkdirs()
+            val temp = java.io.File(file.parentFile, "drive-records.tmp")
+            temp.writeText(com.deepak.photovault.backup.backupJson.encodeToString(serializer, records))
+            temp.renameTo(file)
+        }
     }
 }
