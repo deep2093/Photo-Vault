@@ -242,7 +242,8 @@ private fun GlassTopBar(
             GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onClick = onBack)
         }
         Column(Modifier.weight(1f)) {
-            com.deepak.photovault.designsystem.DepthText(
+            // Plain text, no shadow: in lens glass any shadow here drew a pale band across the whole bar (25 Oct).
+            Text(
                 title,
                 color = theme.onGlass,
                 style = MaterialTheme.typography.titleMedium,

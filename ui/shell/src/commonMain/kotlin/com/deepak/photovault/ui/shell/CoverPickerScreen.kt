@@ -20,10 +20,12 @@ import kotlinx.datetime.TimeZone
 @Composable
 fun CoverPickerScreen(page: Overlay.CoverPicker, state: ShellState, gallery: GalleryState) {
     val zone = remember { TimeZone.currentSystemDefault() }
-    val items = remember(page.cardId, gallery.items, gallery.favourites) {
+    val items = remember(page.cardId, gallery.items, gallery.favourites, gallery.familyAlbum) {
         when (page.cardId) {
             GalleryState.FAVOURITES_CARD -> gallery.items.filter { it.id in gallery.favourites }
             GalleryState.VIDEOS_CARD -> gallery.items.filter { it.isVideo }
+            // Everyone picks their own Family Album cover: it is kept on each phone, not shared (25 Oct).
+            FAMILY_CARD -> gallery.familyAlbum
             else -> gallery.items.filter { it.albumId == page.cardId }
         }
     }

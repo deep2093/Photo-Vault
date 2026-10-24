@@ -134,7 +134,8 @@ class MainActivity : ComponentActivity(), MediaActions {
     private fun askBatteryInSetup() {
         firstRunSetup = false
         val power = getSystemService(PowerManager::class.java)
-        if (power?.isIgnoringBatteryOptimizations(packageName) == false) openBatterySettings()
+        // Its own screen with the steps, after the two Android pop-ups (25 Oct).
+        if (power?.isIgnoringBatteryOptimizations(packageName) == false) shell.intro.showBackgroundHelp()
     }
 
     /** Waiting for Android's "allow changes" answer before renaming an album. */
@@ -240,6 +241,11 @@ class MainActivity : ComponentActivity(), MediaActions {
         val state = ShellState(PrefsAppearanceStore(this))
         state.intro = com.deepak.photovault.ui.shell.IntroState(PrefsIntroStore(this))
         state.intro.setUpAccess = { startFirstRunSetup() }
+        state.intro.openBackgroundSettings = {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }.onFailure { openBatterySettings() }
+        }
         shell = state
         state.remote = remote.state
         state.restoreNavigation(savedInstanceState?.getString("nav"))

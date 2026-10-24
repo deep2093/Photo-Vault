@@ -72,7 +72,7 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.glassPanel
 
 /** One card in Albums: a phone album, or the Favourites / Videos collections. */
-private const val FAMILY_CARD = "@family"
+internal const val FAMILY_CARD = "@family"
 
 private class AlbumCardData(val id: String, val name: String, val items: () -> List<MediaItem>, val count: Int, val newest: MediaItem?, val icon: ImageVector?, val kind: AlbumKind)
 
@@ -138,7 +138,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             val single = chosen.singleOrNull()
             val renamable = single?.kind is AlbumKind.Phone && !AlbumRules.isSystem(single.name)
             if (renamable) GlassIconButton(Icons.Rounded.Edit, "Rename", onClick = { renaming = single })
-            if (single != null && single.kind != AlbumKind.Family) GlassIconButton(Icons.Rounded.Wallpaper, "Change cover", onClick = {
+            if (single != null) GlassIconButton(Icons.Rounded.Wallpaper, "Change cover", onClick = {
                 state.albumsSelected = emptySet()
                 state.open(Overlay.CoverPicker(single.id, single.name))
             })

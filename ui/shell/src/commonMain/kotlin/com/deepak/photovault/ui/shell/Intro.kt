@@ -46,7 +46,7 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import kotlinx.coroutines.launch
 
 /** What the intro shows: the Welcome tour (new people) or What's new (after an update). */
-enum class IntroKind { TOUR, WHATS_NEW, PERMISSIONS }
+enum class IntroKind { TOUR, WHATS_NEW, PERMISSIONS, BACKGROUND }
 
 /** What the phone remembers about the intro. Android: SharedPreferences. */
 interface IntroStore {
@@ -156,6 +156,19 @@ class IntroState(private val store: IntroStore = MemoryIntroStore()) {
         }
     }
 
+    /** Opens this app's own page in Android's settings, where battery use is set (set by the platform). */
+    var openBackgroundSettings: (() -> Unit)? = null
+
+    /** After photo access and notifications: how to let backups run in the background, step by step. */
+    fun showBackgroundHelp() {
+        showing = IntroKind.BACKGROUND
+    }
+
+    fun finishBackground(open: Boolean) {
+        showing = null
+        if (open) openBackgroundSettings?.invoke()
+    }
+
     fun finishAccess(go: Boolean) {
         showing = null
         if (go) setUpAccess?.invoke()
@@ -168,6 +181,7 @@ fun IntroHost(intro: IntroState) {
     when (intro.showing) {
         IntroKind.WHATS_NEW -> WhatsNewDialog(onClose = intro::close)
         IntroKind.TOUR -> WelcomeTour(onClose = intro::close)
+        IntroKind.BACKGROUND -> BackgroundDialog(onSkip = { intro.finishBackground(false) }, onOpen = { intro.finishBackground(true) })
         IntroKind.PERMISSIONS -> AccessDialog(onLater = { intro.finishAccess(false) }, onContinue = { intro.finishAccess(true) })
         null -> Unit
     }
@@ -185,18 +199,62 @@ private fun AccessDialog(onLater: () -> Unit, onContinue: () -> Unit) {
         },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Android will ask for three things, one after another:", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+            Text("Android will ask for two things, one after another:", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
             listOf(
                 "Photos and videos" to "so Pixallery can show and back them up.",
                 "Notifications" to "so you can see when a backup finishes or needs you.",
-                "Run in the background" to "so backups can run on time while the app is closed.",
             ).forEach { (title, body) ->
                 Column {
                     Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleSmall)
                     Text(body, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            Text("You can change any of these later in Settings.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+            Text("After that, one more screen shows how to let backups run on time while the app is closed. You can change all of this later in Settings.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun BackgroundDialog(onSkip: () -> Unit, onOpen: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    GlassDialog(
+        title = "Let backups run on time",
+        onDismiss = onSkip,
+        buttons = {
+            GlassButton("Skip", onClick = onSkip)
+            GlassButton("Open app settings", primary = true, onClick = onOpen)
+        },
+    ) {
+        LazyColumn(Modifier.heightInMax(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Text(
+                    "Android puts apps to sleep to save battery, and a sleeping app can miss its backup time. " +
+                        "Tell Android that Pixallery may run in the background:",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            items(
+                listOf(
+                    "1. Tap \"Open app settings\"" to "Pixallery's page in Android settings opens.",
+                    "2. Tap Battery" to "It may be called \"App battery usage\", \"Battery usage\" or \"Power\".",
+                    "3. Choose Unrestricted" to "Some phones say \"Don't optimise\", \"No restrictions\" or \"Allow background activity\".",
+                    "4. Go back to Pixallery" to "Use the back arrow or swipe back. That's all.",
+                ),
+            ) { (title, body) ->
+                Column {
+                    Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleSmall)
+                    Text(body, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            item {
+                Text(
+                    "On Xiaomi, Oppo, Vivo, Huawei and OnePlus phones there can also be an \"Autostart\" or \"Allow background running\" switch in the same place: turn it on too. " +
+                        "You can do this later from Backup, under \"Run on time in background\".",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

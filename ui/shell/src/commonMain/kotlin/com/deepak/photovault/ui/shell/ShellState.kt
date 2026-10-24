@@ -347,4 +347,5 @@ class MemoryAppearanceStore(private var value: AppearanceSettings = AppearanceSe
     }
 }
 
-private const val BACK_SETTLE_MS = 260
+// The same time as a page takes to slide in (25 Oct: leaving felt faster than arriving).
+private const val BACK_SETTLE_MS = 640
