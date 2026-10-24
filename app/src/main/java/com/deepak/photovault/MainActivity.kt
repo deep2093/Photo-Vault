@@ -650,7 +650,7 @@ private class PrefsFavouritesStore(context: Context) : FavouritesStore {
 }
 
 /** The drive's backed-up list as last read, so Photos still shows drive-only photos with no connection. */
-private class FileDriveRecordCache(context: Context, name: String) : com.deepak.photovault.core.backup.DriveRecordCache {
+private class FileDriveRecordCache(context: Context, private val name: String) : com.deepak.photovault.core.backup.DriveRecordCache {
     private val file = java.io.File(context.applicationContext.filesDir, "backup/$name")
     private val serializer = kotlinx.serialization.builtins.ListSerializer(com.deepak.photovault.core.backup.BackupRecord.serializer())
 
