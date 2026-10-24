@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.withDepth
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -298,6 +299,10 @@ fun SelectableScreen(
                 selectionActions(selectedItems)
             } else {
                 GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selectedItems) })
+                if (LocalFamilyAlbum.current) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = {
+                    actions.shareToFamilyAlbum(selectedItems)
+                    state.selected = emptySet()
+                })
                 GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
                     gallery.toggleFavourite(selectedItems)
                     state.selected = emptySet()

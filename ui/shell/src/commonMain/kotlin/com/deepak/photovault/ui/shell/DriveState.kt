@@ -393,6 +393,58 @@ class DriveState(private val platform: DrivePlatform) {
         }
     }
 
+    // ---- Family Album (Phase 5A, 25 Oct) ----
+
+    /** Photos in the Family Album (everyone's), or null until read. */
+    var familyAlbumRecords by mutableStateOf<List<com.deepak.photovault.core.backup.BackupRecord>?>(null)
+        private set
+
+    suspend fun loadFamilyAlbum() {
+        val j = joined ?: return
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
+        runCatching { com.deepak.photovault.core.backup.FamilyAlbum(fs, j.me.userId).records(j.household.members.map { it.userId }) }
+            .getOrNull()?.let { familyAlbumRecords = it }
+    }
+
+    /** What happened when photos were offered to the Family Album. */
+    data class FamilyAddResult(val added: Int, val notBackedUp: Int, val error: String? = null)
+
+    /**
+     * Adds [items] (phone photos that are backed up, or drive photos of your own) to the Family Album. The album keeps
+     * a pointer to the backed-up file, so a photo that isn't backed up yet has to wait for its backup.
+     */
+    suspend fun addToFamilyAlbum(items: List<MediaItem>): FamilyAddResult {
+        val j = joined ?: return FamilyAddResult(0, items.size, "Join your family drive first.")
+        val records = backupRecords ?: myBackupRecords() ?: return FamilyAddResult(0, items.size, "Couldn't read the drive.")
+        val byPath = records.associateBy { it.drivePath }
+        val byKey = records.associateBy { it.key }
+        val mine = "${com.deepak.photovault.core.household.HouseholdStore.userFolder(j.me.userId)}/"
+        val found = items.mapNotNull { item ->
+            val path = com.deepak.photovault.core.backup.DriveTimeline.pathOf(item.uri)
+            (if (path != null) byPath[path] else byKey[com.deepak.photovault.core.backup.BackupSelection.key(item)])
+                ?.takeIf { it.drivePath.startsWith(mine) }
+        }.distinctBy { it.drivePath }
+        if (found.isEmpty()) return FamilyAddResult(0, items.size)
+        val error = guarded {
+            val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+            com.deepak.photovault.core.backup.FamilyAlbum(fs, j.me.userId).add(found, platform.now())
+        }
+        if (error == null) loadFamilyAlbum()
+        return FamilyAddResult(if (error == null) found.size else 0, items.size - found.size, error)
+    }
+
+    /** Takes [items] you added out of the Family Album. Returns an error, or null. */
+    suspend fun removeFromFamilyAlbum(items: List<MediaItem>): String? {
+        val j = joined ?: return "Join your family drive first."
+        val paths = items.mapNotNull { com.deepak.photovault.core.backup.DriveTimeline.pathOf(it.uri) }
+        val error = guarded {
+            val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+            com.deepak.photovault.core.backup.FamilyAlbum(fs, j.me.userId).remove(paths, platform.now())
+        }
+        if (error == null) loadFamilyAlbum()
+        return error
+    }
+
     /** What is in the drive's Recently deleted (30 days); null until read. */
     var driveTrash by mutableStateOf<List<com.deepak.photovault.core.backup.TrashedBackup>?>(null)
         private set

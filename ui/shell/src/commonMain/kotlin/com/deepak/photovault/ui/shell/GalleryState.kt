@@ -37,6 +37,15 @@ interface MediaActions {
     fun openMap(latitude: Double, longitude: Double, label: String) = Unit
     fun share(items: List<MediaItem>)
 
+    /** Adds backed-up photos to the Family Album (Phase 5A). */
+    fun shareToFamilyAlbum(items: List<MediaItem>) = Unit
+
+    /** Takes photos you added out of the Family Album. They stay in your backup. */
+    fun removeFromFamilyAlbum(items: List<MediaItem>) = Unit
+
+    /** A short message at the bottom of the screen. */
+    fun toast(message: String) = Unit
+
     /** Shares photos that are only on the drive: they are fetched to the phone first. */
     fun shareDrive(items: List<MediaItem>) = Unit
     /** Android 12+: Pixallery may delete without Android's own pop-up ("manage media" allowed), so it asks itself. */
@@ -197,6 +206,8 @@ class GalleryState(
     private val layoutStore: AlbumLayoutStore = MemoryAlbumLayoutStore(),
     /** What the drive held when last read, so backed-up photos still show offline (Phase 5, 25 Oct). */
     private val driveCache: DriveRecordCache = MemoryDriveRecordCache(),
+    /** The Family Album as last read, kept for offline. */
+    private val familyCache: DriveRecordCache = MemoryDriveRecordCache(),
 ) {
     /** The person's own order of album cards (album IDs plus [FAVOURITES_CARD] and [VIDEOS_CARD]). */
     var albumOrder by mutableStateOf(layoutStore.loadOrder())
@@ -270,6 +281,18 @@ class GalleryState(
     /** Backed-up files from the drive; the ones no longer on the phone join the timeline. */
     private var driveRecords: List<BackupRecord> = driveCache.load()
 
+    /** The Family Album (Phase 5A): photos from everyone's backups that the family chose to share, newest first. */
+    var familyAlbum by mutableStateOf(DriveTimeline.driveOnly(familyCache.load(), emptyList()).sortedByDescending { it.takenAtMillis })
+        private set
+
+    private var familyById: Map<Long, MediaItem> = familyAlbum.associateBy { it.id }
+
+    fun setFamilyAlbum(records: List<BackupRecord>) {
+        familyCache.save(records)
+        familyAlbum = DriveTimeline.driveOnly(records, emptyList()).sortedByDescending { it.takenAtMillis }
+        familyById = familyAlbum.associateBy { it.id }
+    }
+
     /** Photos only on the drive right now (not on the phone, and not waiting in the phone's Recently deleted). */
     private var driveOnly: List<MediaItem> = emptyList()
 
@@ -305,7 +328,7 @@ class GalleryState(
 
     private var byId: Map<Long, MediaItem> = emptyMap()
 
-    fun find(id: Long): MediaItem? = byId[id]
+    fun find(id: Long): MediaItem? = byId[id] ?: familyById[id]
 
     fun isFavourite(item: MediaItem) = item.id in favourites
 

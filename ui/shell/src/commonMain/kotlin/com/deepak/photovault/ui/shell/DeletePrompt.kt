@@ -110,3 +110,6 @@ fun DeletePromptHost(prompt: DeletePrompt) {
         Text(r.body, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
     }
 }
+
+/** Whether this phone is in a family on the drive, so "Share to Family Album" is offered (Phase 5A). */
+val LocalFamilyAlbum = staticCompositionLocalOf { false }

@@ -204,7 +204,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         val state = ShellState(PrefsAppearanceStore(this))
         state.intro = com.deepak.photovault.ui.shell.IntroState(PrefsIntroStore(this))
         shell = state
-        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this))
+        gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this, "drive-records.json"), FileDriveRecordCache(this, "family-album.json"))
         drive = DriveState(AndroidDrivePlatform(this))
         // Photos that are only on the drive are fetched through the same connection the rest of the app uses.
         DriveMedia.install(this) { path, sink -> drive.readDriveFile(path, sink) }
@@ -338,6 +338,10 @@ class MainActivity : ComponentActivity(), MediaActions {
     }
 
     // ---- Actions ----
+
+    override fun toast(message: String) {
+        android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+    }
 
     /** Photos that are only on the drive have no phone file to hand over yet; say so instead of failing. */
     private fun phoneOnly(all: List<MediaItem>): List<MediaItem> {
@@ -646,8 +650,8 @@ private class PrefsFavouritesStore(context: Context) : FavouritesStore {
 }
 
 /** The drive's backed-up list as last read, so Photos still shows drive-only photos with no connection. */
-private class FileDriveRecordCache(context: Context) : com.deepak.photovault.core.backup.DriveRecordCache {
-    private val file = java.io.File(context.applicationContext.filesDir, "backup/drive-records.json")
+private class FileDriveRecordCache(context: Context, name: String) : com.deepak.photovault.core.backup.DriveRecordCache {
+    private val file = java.io.File(context.applicationContext.filesDir, "backup/$name")
     private val serializer = kotlinx.serialization.builtins.ListSerializer(com.deepak.photovault.core.backup.BackupRecord.serializer())
 
     override fun load(): List<com.deepak.photovault.core.backup.BackupRecord> =
@@ -656,7 +660,7 @@ private class FileDriveRecordCache(context: Context) : com.deepak.photovault.cor
     override fun save(records: List<com.deepak.photovault.core.backup.BackupRecord>) {
         runCatching {
             file.parentFile?.mkdirs()
-            val temp = java.io.File(file.parentFile, "drive-records.tmp")
+            val temp = java.io.File(file.parentFile, "$name.tmp")
             temp.writeText(com.deepak.photovault.backup.backupJson.encodeToString(serializer, records))
             temp.renameTo(file)
         }

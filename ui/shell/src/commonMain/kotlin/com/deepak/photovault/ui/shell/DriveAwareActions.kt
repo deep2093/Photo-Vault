@@ -24,6 +24,8 @@ class DriveAwareActions(
         drive.loadDriveTrash()
         drive.backupRecords?.let(gallery::setDriveRecords)
         drive.driveTrash?.let(gallery::setDriveTrash)
+        drive.loadFamilyAlbum()
+        drive.familyAlbumRecords?.let(gallery::setFamilyAlbum)
     }
 
     override fun share(items: List<MediaItem>) {
@@ -59,6 +61,29 @@ class DriveAwareActions(
             val failed = drive.deleteTrashedForever(onDrive.paths()) != null
             reread()
             if (onPhone.isEmpty()) onDone(!failed) else phone.deleteForever(onPhone, onDone)
+        }
+    }
+
+    override fun shareToFamilyAlbum(items: List<MediaItem>) {
+        scope.launch {
+            val r = drive.addToFamilyAlbum(items)
+            drive.familyAlbumRecords?.let(gallery::setFamilyAlbum)
+            phone.toast(
+                when {
+                    r.error != null -> r.error
+                    r.added == 0 -> "Not shared: back these up to the drive first, then share them."
+                    r.notBackedUp > 0 -> "Added ${r.added} to the Family Album. ${r.notBackedUp} not backed up yet, so they wait."
+                    else -> "Added ${r.added} to the Family Album."
+                },
+            )
+        }
+    }
+
+    override fun removeFromFamilyAlbum(items: List<MediaItem>) {
+        scope.launch {
+            val error = drive.removeFromFamilyAlbum(items)
+            drive.familyAlbumRecords?.let(gallery::setFamilyAlbum)
+            phone.toast(error ?: "Removed from the Family Album. Only photos you added can be removed.")
         }
     }
 }

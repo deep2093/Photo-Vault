@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteForever
@@ -46,13 +47,14 @@ private fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpoc
 
 /** An album page: a phone folder, Favourites or Videos, with the same grid and selection as Photos. */
 @Composable
-fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actions: MediaActions) {
+fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState) {
     val zone = remember { TimeZone.currentSystemDefault() }
-    val (title, items) = remember(kind, gallery.items, gallery.favourites) {
+    val (title, items) = remember(kind, gallery.items, gallery.favourites, gallery.familyAlbum) {
         when (kind) {
             is AlbumKind.Phone -> kind.name to gallery.items.filter { it.albumId == kind.albumId }
             AlbumKind.Favourites -> "Favourites" to gallery.items.filter { it.id in gallery.favourites }
             AlbumKind.Videos -> "Videos" to gallery.items.filter { it.isVideo }
+            AlbumKind.Family -> "Family Album" to gallery.familyAlbum
         }
     }
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
@@ -64,11 +66,22 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
         null, null, state, gallery, actions, onBack = { state.back() },
         tileSpots = spots,
         floatingStartActions = { SmallPillButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back") { state.back() } },
+        selectionActions = if (kind != AlbumKind.Family) null else ({ selected ->
+            GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selected) })
+            GlassIconButton(Icons.Rounded.RemoveCircleOutline, "Remove from Family Album", onClick = {
+                actions.removeFromFamilyAlbum(selected)
+                state.selected = emptySet()
+            })
+        }),
     ) { padding ->
         if (items.isEmpty()) {
             EmptyState(
                 title = "Nothing here yet",
-                body = if (kind == AlbumKind.Favourites) "Tap the heart on a photo to add it here." else "This album is empty.",
+                body = when (kind) {
+                    AlbumKind.Favourites -> "Tap the heart on a photo to add it here."
+                    AlbumKind.Family -> "Select backed-up photos and tap the family button to share them with everyone on the drive."
+                    else -> "This album is empty."
+                },
             )
         } else {
             MediaGrid(

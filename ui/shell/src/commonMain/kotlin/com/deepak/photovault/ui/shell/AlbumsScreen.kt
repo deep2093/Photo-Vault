@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Lock
@@ -71,10 +72,12 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.glassPanel
 
 /** One card in Albums: a phone album, or the Favourites / Videos collections. */
+private const val FAMILY_CARD = "@family"
+
 private class AlbumCardData(val id: String, val name: String, val items: () -> List<MediaItem>, val count: Int, val newest: MediaItem?, val icon: ImageVector?, val kind: AlbumKind)
 
 @Composable
-fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions) {
+fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState) {
     val selected = state.albumsSelected
     val selecting = selected.isNotEmpty()
     val flight = LocalDeleteFlight.current
@@ -84,7 +87,8 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     // Worked out once per library change, not on every frame (libraries can hold tens of thousands of items).
     val favourites = remember(gallery.items, gallery.favourites) { gallery.items.filter { it.id in gallery.favourites } }
     val videos = remember(gallery.items) { gallery.items.filter { it.isVideo } }
-    val cards: List<AlbumCardData> = remember(gallery.items, gallery.albums, gallery.albumOrder, gallery.hiddenAlbums, favourites, videos) {
+    val inFamily = drive.joined != null
+    val cards: List<AlbumCardData> = remember(gallery.items, gallery.albums, gallery.albumOrder, gallery.hiddenAlbums, favourites, videos, gallery.familyAlbum, inFamily) {
         val byId = buildMap {
             put(GalleryState.FAVOURITES_CARD, AlbumCardData(GalleryState.FAVOURITES_CARD, "Favourites", { favourites }, favourites.size, favourites.maxByOrNull { it.takenAtMillis }, Icons.Rounded.Favorite, AlbumKind.Favourites))
             put(GalleryState.VIDEOS_CARD, AlbumCardData(GalleryState.VIDEOS_CARD, "Videos", { videos }, videos.size, videos.maxByOrNull { it.takenAtMillis }, Icons.Rounded.VideoLibrary, AlbumKind.Videos))
@@ -93,7 +97,8 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             }
         }
         // The order chosen in Settings > Albums (24 Oct); hidden ones left out.
-        gallery.orderedCards().filter { it !in gallery.hiddenAlbums }.mapNotNull { byId[it] }
+        val family = if (inFamily) listOf(AlbumCardData(FAMILY_CARD, "Family Album", { gallery.familyAlbum }, gallery.familyAlbum.size, gallery.familyAlbum.firstOrNull(), Icons.Rounded.Groups, AlbumKind.Family)) else emptyList()
+        family + gallery.orderedCards().filter { it !in gallery.hiddenAlbums }.mapNotNull { byId[it] }
     }
     val chosen = cards.filter { it.id in selected }
     val gridState = rememberLazyGridState()
@@ -133,7 +138,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             val single = chosen.singleOrNull()
             val renamable = single?.kind is AlbumKind.Phone && !AlbumRules.isSystem(single.name)
             if (renamable) GlassIconButton(Icons.Rounded.Edit, "Rename", onClick = { renaming = single })
-            if (single != null) GlassIconButton(Icons.Rounded.Wallpaper, "Change cover", onClick = {
+            if (single != null && single.kind != AlbumKind.Family) GlassIconButton(Icons.Rounded.Wallpaper, "Change cover", onClick = {
                 state.albumsSelected = emptySet()
                 state.open(Overlay.CoverPicker(single.id, single.name))
             })

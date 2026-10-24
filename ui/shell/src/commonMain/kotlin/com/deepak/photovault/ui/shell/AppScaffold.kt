@@ -177,15 +177,17 @@ fun PhotoVaultApp(
         if (signals.foreground && drive.joined != null) {
             drive.loadBackupRecords(force = true)
             drive.loadDriveTrash()
+            drive.loadFamilyAlbum()
         }
     }
+    LaunchedEffect(gallery, drive.familyAlbumRecords) { drive.familyAlbumRecords?.let(gallery::setFamilyAlbum) }
     LaunchedEffect(gallery, drive.backupRecords) { drive.backupRecords?.let(gallery::setDriveRecords) }
     LaunchedEffect(gallery, drive.driveTrash) { drive.driveTrash?.let(gallery::setDriveTrash) }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }
         val deletePrompt = remember { DeletePrompt() }
-        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt) {
+        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides (drive.joined != null)) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     // Bars and cut-outs only, not the keyboard (24 Oct): reading the keyboard here re-laid out the whole
@@ -379,7 +381,7 @@ private fun OverlayPage(
             } else {
                 GlassBackground(Modifier.fillMaxSize()) {
                     when (overlay) {
-                        is Overlay.Album -> AlbumScreen(overlay.kind, state, gallery, actions)
+                        is Overlay.Album -> AlbumScreen(overlay.kind, state, gallery, actions, drive)
                         Overlay.RecentlyDeleted -> RecentlyDeletedScreen(state, gallery, actions)
                         Overlay.Search -> SearchScreen(state, gallery, actions)
                         Overlay.DriveSetup -> DriveSetupScreen(state, drive)
@@ -569,7 +571,7 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
         ) {
             when (destination) {
                 Destination.PHOTOS -> PhotosScreen(state, screens.gallery, screens.actions, screens.drive)
-                Destination.ALBUMS -> AlbumsScreen(state, screens.gallery, screens.actions)
+                Destination.ALBUMS -> AlbumsScreen(state, screens.gallery, screens.actions, screens.drive)
                 Destination.FAMILY -> FamilyScreen(state, screens.drive, screens.actions)
                 Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher, screens.backup, screens.gallery)
             }

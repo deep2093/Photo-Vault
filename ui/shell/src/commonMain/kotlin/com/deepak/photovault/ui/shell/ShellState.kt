@@ -114,6 +114,9 @@ sealed interface AlbumKind {
     data object Favourites : AlbumKind
 
     data object Videos : AlbumKind
+
+    /** The album shared with the whole family (Phase 5A). */
+    data object Family : AlbumKind
 }
 
 /**
