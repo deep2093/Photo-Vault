@@ -88,7 +88,8 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
     val saved = drive.connection ?: DriveConnection()
     var host by rememberSaveable { mutableStateOf(saved.host) }
     var share by rememberSaveable { mutableStateOf(saved.share) }
-    var folder by rememberSaveable { mutableStateOf(saved.folder) }
+    // The folder is not asked for any more: new drives use "Pixallery", and a saved connection keeps its own.
+    val folder = saved.folder
     var user by rememberSaveable { mutableStateOf(saved.username) }
     var password by remember { mutableStateOf(saved.password) }
     var savePassword by rememberSaveable { mutableStateOf(saved.savePassword) }
@@ -124,7 +125,6 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
         }
         GlassTextField(host, { host = it.trim() }, "Address", placeholder = "192.168.1.1", keyboardType = KeyboardType.Uri)
         GlassTextField(share, { share = it.trim() }, "Shared folder", placeholder = "usb or media")
-        GlassTextField(folder, { folder = it }, "Pixallery folder inside it", supporting = "Created if it doesn't exist. Everyone in the family must use the same one.")
         GlassTextField(user, { user = it }, "Username", placeholder = "Leave empty for guest access")
         GlassTextField(password, { password = it }, "Password", password = true)
         GlassSwitchRow(
@@ -138,7 +138,7 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
             if (drive.busy) "Connecting..." else "Connect",
             primary = true,
             onClick = {
-                val candidate = DriveConnection(host, share, folder.trim().ifEmpty { DriveConnection.DEFAULT_FOLDER }, user, password, savePassword)
+                val candidate = DriveConnection(host, share, folder.ifBlank { DriveConnection.DEFAULT_FOLDER }, user, password, savePassword)
                 if (!candidate.isComplete) {
                     error = "Enter the drive's address and shared folder."
                 } else if (!drive.busy) {
@@ -170,7 +170,7 @@ private fun NoFamilyCard(drive: DriveState, onChangeDrive: () -> Unit) {
         Text("No family found in this folder", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(
             "If you already set up Pixallery on another phone, this phone is probably looking in a different folder. " +
-                "Check that the shared folder and Pixallery folder match the other phone exactly (Settings > Drive on that phone).",
+                "Check that the address and shared folder match the other phone exactly (Settings > Drive on that phone).",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(vertical = 8.dp),
@@ -205,7 +205,7 @@ private fun HelpCard() {
                 "Address: the router's address, often 192.168.0.1 or 192.168.1.1. Tap Find drives to look for it.",
                 "Shared folder: the name the router gives the USB drive (for example \"usb\", \"G\" or \"volume1\").",
                 "Username and password: the ones set for file sharing on the router. Leave empty if it allows guests.",
-                "Every phone in the family must use the same shared folder and the same Pixallery folder, written exactly the same.",
+                "Every phone in the family must use the same address and shared folder, written exactly the same. Pixallery makes its own folder inside it.",
                 "Be on the home Wi-Fi while setting up. Using the drive away from home (VPN) comes later.",
             ).forEach { tip ->
                 Text("• $tip", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))

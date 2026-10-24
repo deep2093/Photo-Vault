@@ -66,7 +66,7 @@ class HouseholdStore(
         if (pin != null) require(OwnerPin.isValid(pin)) { "PIN must be 4 to 8 digits" }
         drive.mkdirs(HOUSEHOLD_DIR)
         drive.mkdirs(REQUESTS_DIR)
-        val owner = Member(newId(), name, DEFAULT_LIMIT_GB, now(), listOf(Device(deviceId, deviceName, now())))
+        val owner = Member(memberId(name), name, DEFAULT_LIMIT_GB, now(), listOf(Device(deviceId, deviceName, now())))
         val household = Household(
             householdId = newId(),
             revision = 1,
@@ -318,7 +318,7 @@ class HouseholdStore(
                 joinedUserId = request.existingUserId
                 h.copy(members = members.map { if (it.userId == request.existingUserId) it.copy(devices = it.devices + device) else it })
             } else {
-                val member = Member(newId(), request.newName ?: "Family member", h.settings.defaultLimitGb, now(), listOf(device))
+                val member = Member(memberId(request.newName ?: "Family member"), request.newName ?: "Family member", h.settings.defaultLimitGb, now(), listOf(device))
                 joinedUserId = member.userId
                 h.copy(members = members + member)
             }
@@ -391,6 +391,17 @@ class HouseholdStore(
         fun versionOf(name: String): Int? = Regex("""v(\d{6,})\.json""").matchEntire(name)?.groupValues?.get(1)?.toIntOrNull()
 
         fun newId(): String = Uuid.random().toString()
+
+        /**
+         * A new person's ID, which is also the name of their folder on the drive (25 Oct): the name they chose,
+         * made safe, plus a short random ending so two people called Sam never share a folder. People who joined
+         * before this keep the folder they have.
+         */
+        fun memberId(name: String): String {
+            val slug = name.lowercase().map { if (it in 'a'..'z' || it in '0'..'9') it else '-' }.joinToString("")
+                .replace(Regex("-+"), "-").trim('-').take(24).trim('-').ifEmpty { "member" }
+            return slug + "-" + newId().take(8)
+        }
 
         internal fun safeId(id: String): String {
             require(id.matches(Regex("[A-Za-z0-9-]{8,64}"))) { "Invalid ID" }

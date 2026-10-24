@@ -134,6 +134,16 @@ class HouseholdStoreTest {
     }
 
     @Test
+    fun aNewPersonsFolderIsNamedAfterThemAndStaysUnique() {
+        val a = HouseholdStore.memberId("Sam O'Neil!")
+        val b = HouseholdStore.memberId("Sam O'Neil!")
+        assertTrue(a.startsWith("sam-o-neil-"))
+        assertTrue(a != b)
+        assertTrue(Regex("[a-z0-9-]{8,64}").matches(HouseholdStore.memberId("张伟")))
+        HouseholdStore.safeId(a)
+    }
+
+    @Test
     fun aPersonCanLeaveTheirPhotosStayAndTheOwnerCannotLeave() = runTest {
         ownerSetUp()
         store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }

@@ -43,8 +43,11 @@ data class DriveConnection(
     override fun toString() = "DriveConnection(host=$host, share=$share, folder=$folder, username=$username, password=***)"
 
     companion object {
-        /** Kept as "PhotoVault" after the rename to Pixallery: families already set up use this folder. */
-        const val DEFAULT_FOLDER = "PhotoVault"
+        /** New drives use this folder (25 Oct); nobody is asked for a name any more. */
+        const val DEFAULT_FOLDER = "Pixallery"
+
+        /** Families set up before the rename to Pixallery use this folder; a phone joining one finds it by itself. */
+        const val LEGACY_FOLDER = "PhotoVault"
     }
 }
 
@@ -136,10 +139,23 @@ class DriveState(private val platform: DrivePlatform) {
 
     /** Tries [candidate]; on success saves it and loads the family. Returns an error message or null. */
     suspend fun connect(candidate: DriveConnection): String? = guarded {
-        val fs = platform.open(candidate)
+        var use = candidate
+        var fs = platform.open(use)
+        if (use.folder == DriveConnection.DEFAULT_FOLDER) {
+            // No family in the new folder, but one in the old "PhotoVault" folder: this phone is joining that one.
+            val here = runCatching { HouseholdStore(fs, platform::now).load() != null }.getOrDefault(false)
+            if (!here) {
+                val old = use.copy(folder = DriveConnection.LEGACY_FOLDER)
+                val oldFs = runCatching { platform.open(old) }.getOrNull()
+                if (oldFs != null && runCatching { HouseholdStore(oldFs, platform::now).load() != null }.getOrDefault(false)) {
+                    use = old
+                    fs = oldFs
+                }
+            }
+        }
         fs.mkdirs("")
-        platform.saveConnection(candidate)
-        connection = candidate
+        platform.saveConnection(use)
+        connection = use
         drive = fs
         store = HouseholdStore(fs, platform::now)
         refreshLocked()
