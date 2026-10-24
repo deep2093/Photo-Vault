@@ -20,6 +20,10 @@ class SmbErrorsTest {
         assertTrue(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 71, 250), 22))
         assertFalse(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 72, 1), 22))
         assertFalse(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 71, 250), 24))
+        // Find drive searches the whole home network (a Deco /22 is four blocks), never more than a /22.
+        assertEquals(listOf("192.168.68", "192.168.69", "192.168.70", "192.168.71"), LanDiscovery.blocksOf("192.168.69.20", 22))
+        assertEquals(listOf("192.168.1"), LanDiscovery.blocksOf("192.168.1.20", 24))
+        assertEquals(4, LanDiscovery.blocksOf("10.0.5.9", 16).size)
         // Server IDs: blank or all zeros can't identify a drive.
         assertEquals(null, SmbErrors.usableServerId("00000000-0000-0000-0000-000000000000"))
         assertEquals(null, SmbErrors.usableServerId(" "))

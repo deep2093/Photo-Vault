@@ -51,7 +51,9 @@ object LanDiscovery {
         val prefixes = LinkedHashSet<String>()
         for (address in addresses) {
             val ip = address.address.hostAddress ?: continue
-            if (isPrivate(ip)) prefixes.add(ip.substringBeforeLast('.'))
+            // The whole home network, not just the phone's own /24 (24 Oct: a Deco network is 192.168.68.0/22,
+            // the phone on .68.x and the drive on .71.x, so the drive was never found).
+            if (isPrivate(ip)) prefixes.addAll(blocksOf(ip, address.prefixLength))
         }
         // Some devices expose only a VPN as active: also take Wi-Fi DHCP address and gateway.
         @Suppress("DEPRECATION")
@@ -66,7 +68,7 @@ object LanDiscovery {
             if (dhcp.gateway != 0) candidates.add(gateway)
         }
         // The saved host can be a router or NAS on a different subnet; always probe it.
-        for (prefix in prefixes.take(2)) for (last in 1..254) candidates.add("$prefix.$last")
+        for (prefix in prefixes.take(MAX_BLOCKS)) for (last in 1..254) candidates.add("$prefix.$last")
 
         if (candidates.isEmpty()) {
             return@withContext Result(
@@ -75,7 +77,7 @@ object LanDiscovery {
             )
         }
 
-        val executor = Executors.newFixedThreadPool(48)
+        val executor = Executors.newFixedThreadPool(96)
         val found = LinkedHashSet<String>()
         try {
             val tasks = candidates.map { host ->
@@ -102,7 +104,7 @@ object LanDiscovery {
                     }
                 }
             }
-            val futures = executor.invokeAll(tasks, 12, TimeUnit.SECONDS)
+            val futures = executor.invokeAll(tasks, 25, TimeUnit.SECONDS)
             futures.forEach { future ->
                 if (!future.isCancelled) runCatching { future.get() }.getOrNull()?.let(found::add)
             }
@@ -147,6 +149,18 @@ object LanDiscovery {
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    /** At most a /22 (four blocks of 254 addresses) is searched, to keep it quick. */
+    private const val MAX_BLOCKS = 4
+
+    /** The /24 blocks ("192.168.68") that make up [ip]'s network of [prefixLength] bits, at most a /22. */
+    fun blocksOf(ip: String, prefixLength: Int): List<String> {
+        val p = ip.split('.').mapNotNull(String::toIntOrNull)
+        if (p.size != 4) return emptyList()
+        val bits = prefixLength.coerceIn(22, 24)
+        val third = p[2] and (0xFF shl (24 - bits) and 0xFF)
+        return (0 until (1 shl (24 - bits))).map { "${p[0]}.${p[1]}.${third + it}" }
     }
 
     private fun isPrivate(ip: String): Boolean {

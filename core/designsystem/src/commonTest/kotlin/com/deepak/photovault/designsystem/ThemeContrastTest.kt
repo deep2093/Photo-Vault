@@ -74,7 +74,6 @@ class ThemeContrastTest {
         // Renamed from Translucent and made adaptive (23 Oct); the saved ID is unchanged.
         assertEquals(GlassThemes.Transparent, GlassThemes.byId("TRANSLUCENT"))
         assertTrue(GlassThemes.Transparent.glassFallback.alpha < 0.6f)
-        assertTrue(GlassThemes.Transparent.glassTint.alpha < GlassThemes.Frosted.glassTint.alpha)
         assertTrue(GlassThemes.Transparent.adaptive!!.light)
     }
 }
@@ -83,7 +82,7 @@ class ThemeCatalogTest {
     @Test
     fun hasTheAgreedGlassAndAdaptiveThemesWithUniqueIds() {
         assertEquals(
-            listOf("Crystal", "Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass", "Frosted"),
+            listOf("Aurora Frost", "Midnight Prism", "Pearl Mist", "Ocean Glass"),
             GlassThemes.fixed.map { it.displayName },
         )
         assertEquals(
@@ -155,9 +154,9 @@ class AdaptivePaletteTest {
     }
 
     @Test
-    fun frostedBlursMoreThanTransparent() {
-        assertTrue(GlassThemes.Frosted.blurRadius > GlassThemes.Transparent.blurRadius)
-        assertTrue(GlassThemes.Frosted.grain > GlassThemes.Transparent.grain)
+    fun removedThemesFallBackToTheDefault() {
+        assertEquals(GlassThemes.default, GlassThemes.byId("FROSTED"))
+        assertEquals(GlassThemes.default, GlassThemes.byId("CRYSTAL"))
     }
 
     @Test

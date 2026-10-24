@@ -23,6 +23,8 @@ kotlin {
         androidMain.dependencies {
             // Video playback in the viewer (same player library as Veyra).
             implementation("androidx.media3:media3-exoplayer:1.6.1")
+            // Moving GIFs (and animated WebP/HEIF) in the viewer (24 Oct).
+            implementation("io.coil-kt.coil3:coil-gif:3.2.0")
             // Hiding the status and navigation bars in the viewer.
             implementation("androidx.core:core-ktx:1.15.0")
         }

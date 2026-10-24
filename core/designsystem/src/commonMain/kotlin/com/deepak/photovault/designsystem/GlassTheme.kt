@@ -7,8 +7,8 @@ import androidx.compose.ui.unit.dp
 
 /** Stable IDs: saved in settings, so never rename them. */
 enum class GlassThemeId {
-    AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS, TRANSLUCENT, FROSTED,
-    ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT, CRYSTAL,
+    AURORA_FROST, MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS, TRANSLUCENT,
+    ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
 }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
@@ -155,31 +155,6 @@ object GlassThemes {
         onBadge = Color(0xFFFFFFFF),
         sampleHues = listOf(Color(0xFF4FB7B3), Color(0xFF7FD3CF), Color(0xFF2A8C9A), Color(0xFFA5E4E0), Color(0xFF3F9E8F)),
     )
-
-    /** Milky frosted glass with a fine grain: the calmest, most private-looking bars. */
-    val Frosted = GlassTheme(
-        id = GlassThemeId.FROSTED,
-        displayName = "Frosted",
-        bestFor = "Calm, milky frosted glass",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFF1F3F6), Color(0xFFFAFBFC), Color(0xFFE6EAEF)),
-        glows = listOf(Glow(0.5f, 0.0f, 0.8f, Color(0x40FFFFFF)), Glow(0.9f, 0.9f, 0.6f, Color(0x1A8FA6C0))),
-        glassTint = Color(0xE6F7F8FA),
-        glassFallback = Color(0xF5F8F9FB),
-        glassRim = Color(0xFFB4BCC8),
-        onGlass = Color(0xFF15191F),
-        onGlassSecondary = Color(0xFF3A414C),
-        accent = Color(0xFF2D6A8E),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF2D6A8E),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF9FB4C7), Color(0xFFC7B59F), Color(0xFFA9C7B0), Color(0xFFB9A9C7), Color(0xFFC7C29F)),
-        blurRadius = 40.dp,
-        grain = 0.12f,
-    )
-
     /**
      * Dark adaptive themes: the wallpaper is made from the photos on screen (first ported from Veyra). After the
      * Phase 3 review (23 Oct) each one also has its own wallpaper shape, not just different numbers, so they
@@ -315,36 +290,8 @@ object GlassThemes {
         blurRadius = 20.dp,
         grain = 0f,
     )
-
-    /**
-     * Crystal (24 Oct): the clean look of the iPad Photos app in the reference video. A plain, quiet light-grey
-     * background, white cards, and very clear glass bars that let the photos underneath show through. No colour
-     * wash, no glows, no grain.
-     */
-    val Crystal = GlassTheme(
-        id = GlassThemeId.CRYSTAL,
-        displayName = "Crystal",
-        bestFor = "Clean and clear, like iPad Photos",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFF2F2F7), Color(0xFFF6F6FA), Color(0xFFEFEFF4)),
-        glows = emptyList(),
-        glassTint = Color(0xB8FFFFFF),
-        glassFallback = Color(0xF5FFFFFF),
-        glassRim = Color(0xFFD8D8E0),
-        onGlass = Color(0xFF1C1C1E),
-        onGlassSecondary = Color(0xFF3A3A3C),
-        accent = Color(0xFF0057B7),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF0057B7),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF8FB8E8), Color(0xFFE8B08F), Color(0xFF9CD3AE), Color(0xFFC7AEEA), Color(0xFFEAD48F)),
-        blurRadius = 30.dp,
-        grain = 0f,
-    )
-
-    val fixed: List<GlassTheme> = listOf(Crystal, AuroraFrost, MidnightPrism, PearlMist, OceanGlass, Frosted)
+    /** Frosted and Crystal were removed (24 Oct); anyone using them moves to the default. */
+    val fixed: List<GlassTheme> = listOf(AuroraFrost, MidnightPrism, PearlMist, OceanGlass)
     val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight, Transparent)
     val all: List<GlassTheme> = fixed + adaptiveThemes
     /** Transparent for everyone who hasn't picked a theme (decided 24 Oct; was Aurora Frost). */

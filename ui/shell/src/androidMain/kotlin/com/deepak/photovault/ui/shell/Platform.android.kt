@@ -120,6 +120,8 @@ actual fun createImageLoader(context: PlatformContext): ImageLoader =
             add(ThumbKeyer)
             add(VideoFrameFetcher.Factory(context))
             add(VideoFrameKeyer)
+            // GIFs and animated WebP play in the viewer; grid thumbnails stay still (Android's thumbnails).
+            add(coil3.gif.AnimatedImageDecoder.Factory())
         }
         .build()
 

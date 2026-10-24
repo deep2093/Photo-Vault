@@ -67,9 +67,21 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Unsigned unless a release key is configured above; never signed with the preview key.
             signingConfigs.findByName("release")?.let { signingConfig = it }
+        }
+        // The test APK (24 Oct): optimised like the real app, so it is as smooth as the real thing (debug builds
+        // run much slower, most of all the first time each screen opens). Same ID and key as before, so it
+        // updates in place. Names are left readable so the crash screen still says where things went wrong.
+        create("preview") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".preview"
+            versionNameSuffix = "-preview"
+            resValue("string", "app_name", "Pixallery Preview")
+            signingConfig = signingConfigs.getByName("preview")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro", "preview-rules.pro")
+            matchingFallbacks += listOf("release")
         }
     }
 

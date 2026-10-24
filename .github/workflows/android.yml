@@ -73,7 +73,8 @@ jobs:
             **/build/reports/lint-results-debug.*
       - name: Build preview APKs
         run: |
-          if ! ./gradlew :app:assembleDebug --stacktrace > debug.log 2>&1; then
+          # The test APK is the optimised "preview" build (24 Oct), not a debug build.
+          if ! ./gradlew :app:assemblePreview --stacktrace > debug.log 2>&1; then
             grep -E '^e: |ERROR|What went wrong' -A2 debug.log | grep -v '^--$' | head -40 | sed -e 's#/home/runner/work/[^/]*/[^/]*/##' | while IFS= read -r line; do echo "::error::${line}"; done
             tail -40 debug.log
             exit 1
@@ -90,12 +91,12 @@ jobs:
           fi
       - name: Report APK size
         run: |
-          apk=app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+          apk=app/build/outputs/apk/preview/app-arm64-v8a-preview.apk
           echo "::notice title=APK size::PhotoVault-arm64 $(( $(stat -c %s "$apk") / 1048576 )) MB"
       - uses: actions/upload-artifact@v4
         with:
           # The one to install on phones and tablets.
           name: PhotoVault-preview-arm64-apk
-          path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+          path: app/build/outputs/apk/preview/app-arm64-v8a-preview.apk
           if-no-files-found: error
 
