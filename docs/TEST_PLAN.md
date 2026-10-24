@@ -319,3 +319,15 @@ real-share tests ran, so a skipped run can't pass silently.
 7. Storage: the ring starts empty and the whole ring fills round.
 8. About shows Done items and Phase 6, 7, 8.
 9. Header line: Settings > About > "Header test", tap to change mode, open a page (e.g. Open with) and see which mode removes the pale line. Tell me the mode number.
+
+## Round 15 (25 Oct): gap fixes and Phase 4A (keys and recovery; no encrypted uploading yet)
+Automated (run on every build): 16 crypto tests, including the public 24-word test vectors, tamper and wrong-key cases, seeking, identity and helper keys, and a full "fresh phone" recovery.
+1. Open a photo from WhatsApp or Files in Pixallery: the bar shows only Share, Save (copies it to Pictures/Pixallery) and Details. No Delete, no favourite.
+2. Join with an invite that has a WireGuard file, away from home (Wi-Fi off): Android asks "Allow VPN?" once, the VPN turns on by itself and the join completes.
+3. Backup now before choosing: it says "Choose how your backup is kept first". Settings > Backup shows a "Backup privacy" card.
+4. Choose Normal: backups run as before.
+5. Choose Private > Make my key: 24 words appear only after "Show my words". "Save to password manager" may be accepted or declined by your phone. Check asks for 3 of the words (wrong word is refused). Finish writes keys to the drive (Pixallery/users/<you>/keys/): a recovery-v1.bin of random-looking bytes and identity-v1.txt of public keys only; open them in a text editor on a PC: no words, no key.
+6. After Private: Backup now says nothing is uploaded yet (encrypted uploading is step 4B). Nothing new appears on the drive.
+7. Second family member also sets up Private, then in your setup the "recovery helper" step lists them. Choosing one writes helper-<id>.bin. (Handing a key back through the helper is not built yet.)
+8. Wipe the app data (or use another phone), join again, Backup > "Restore my key": typing your 24 words brings the key back; a wrong or misspelt word gives a plain message.
+9. Change to Normal from the choice screen: a warning appears first.
