@@ -293,7 +293,7 @@ class GalleryState(
         familyById = familyAlbum.associateBy { it.id }
     }
 
-    /** Photos only on the drive right now (not on the phone, and not waiting in the phone's Recently deleted). */
+    /** Photos only on the drive right now (not on the phone). A photo in the phone's Recently deleted counts as gone from the phone. */
     private var driveOnly: List<MediaItem> = emptyList()
 
     /** The drive was read (or a backup finished): show what it holds that the phone doesn't. */
@@ -306,8 +306,9 @@ class GalleryState(
     }
 
     private fun recomputeDriveOnly() {
-        // A photo in the phone's Recently deleted isn't "gone" yet, so it doesn't come back from the drive.
-        driveOnly = DriveTimeline.driveOnly(driveRecords, everything + phoneTrash.map { it.item })
+        // 25 Oct: a photo deleted from the phone (even one still in its Recently deleted) shows from the drive at once;
+        // before, it stayed hidden for 30 days, which looked like the backup had lost it.
+        driveOnly = DriveTimeline.driveOnly(driveRecords, everything)
     }
 
     fun setHidden(albumId: String, hidden: Boolean) {
