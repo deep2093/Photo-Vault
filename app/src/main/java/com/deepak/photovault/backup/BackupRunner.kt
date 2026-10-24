@@ -128,6 +128,12 @@ class BackupRunner(
             BackupRun(trigger, started, System.currentTimeMillis(), 0, 0, 0, 0, 0, reason, detail)
 
         if (!hasPhotoAccess()) return failed(FailureReason.NO_PHOTO_ACCESS)
+        // Each person chooses Normal or Private before anything is uploaded; Private uploads wait for step 4B.
+        when (settingsStore.load().privacy) {
+            com.deepak.photovault.core.backup.BackupPrivacy.UNSET -> return failed(FailureReason.PRIVACY_NOT_CHOSEN)
+            com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE -> return failed(FailureReason.PRIVATE_NOT_READY)
+            com.deepak.photovault.core.backup.BackupPrivacy.NORMAL -> Unit
+        }
         val connection = platform.loadConnection() ?: return failed(FailureReason.NO_DRIVE)
         if (connection.username.isNotBlank() && connection.password.isEmpty()) return failed(FailureReason.NO_PASSWORD)
         val drive = try {

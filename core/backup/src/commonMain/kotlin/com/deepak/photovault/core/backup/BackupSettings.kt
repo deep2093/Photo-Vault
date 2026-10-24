@@ -86,6 +86,10 @@ data class BackupSchedule(
     }
 }
 
+/** How this person's backup is kept (Phase 4A, 25 Oct). Chosen once, on purpose; nothing is pre-selected. */
+@Serializable
+enum class BackupPrivacy { UNSET, NORMAL, PRIVATE }
+
 /** This phone's backup choices. Saved on the phone (each phone chooses its own). */
 @Serializable
 data class BackupSettings(
@@ -106,6 +110,8 @@ data class BackupSettings(
     val awayBackup: Boolean = false,
     /** This phone's backup time was moved to its own slot when it joined the family (25 Oct), so it only happens once. */
     val staggered: Boolean = false,
+    /** Normal or Private (encrypted) backup. UNSET until the person picks; backup does not run before that. */
+    val privacy: BackupPrivacy = BackupPrivacy.UNSET,
 )
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */

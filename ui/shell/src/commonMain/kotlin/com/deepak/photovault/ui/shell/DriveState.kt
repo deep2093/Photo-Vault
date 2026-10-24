@@ -357,6 +357,54 @@ class DriveState(private val platform: DrivePlatform) {
         }
     }
 
+    // ---- Private backup keys (Phase 4A, 25 Oct) ----
+
+    class KeyFiles(val recovery: ByteArray, val identity: String)
+
+    /** Household and member IDs the keys are bound to, or null when this phone isn't in a family. */
+    fun keyContext(): Pair<String, String>? = joined?.let { it.household.householdId to it.me.userId }
+
+    private fun keysFolder(userId: String) = "${com.deepak.photovault.core.household.HouseholdStore.userFolder(userId)}/keys"
+
+    /** The recovery file and public identity this person already has on the drive, or null when none. */
+    suspend fun readKeyFiles(userId: String? = null): KeyFiles? {
+        val who = userId ?: joined?.me?.userId ?: return null
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
+        return runCatching {
+            KeyFiles(fs.read("${keysFolder(who)}/recovery-v1.bin"), fs.read("${keysFolder(who)}/identity-v1.txt").decodeToString())
+        }.getOrNull()
+    }
+
+    /** Writes the person's recovery file and public identity. Never replaces what is there. Returns a problem, or null. */
+    suspend fun publishKeys(recovery: ByteArray, identity: String): String? = guarded {
+        val me = joined?.me?.userId ?: throw NotAllowed("Join the family first")
+        val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+        fs.mkdirs(keysFolder(me))
+        if (!fs.createNew("${keysFolder(me)}/recovery-v1.bin", recovery)) {
+            throw NotAllowed("Private backup is already set up for you on the drive. Use \"Restore my key\" with your 24 words instead.")
+        }
+        fs.createNew("${keysFolder(me)}/identity-v1.txt", identity.encodeToByteArray())
+    }
+
+    /** Family members who also use Private backup, so one of them can be chosen as the recovery helper. */
+    class HelperCandidate(val userId: String, val name: String, val identity: PublicIdentity)
+
+    suspend fun helperCandidates(): List<HelperCandidate> {
+        val j = joined ?: return emptyList()
+        return j.household.members.filter { it.userId != j.me.userId }.mapNotNull { m ->
+            val text = readKeyFiles(m.userId)?.identity ?: return@mapNotNull null
+            PublicIdentity.parse(text)?.let { HelperCandidate(m.userId, m.name, it) }
+        }
+    }
+
+    /** Stores the person's key sealed to [helperUserId]'s public key. Only that person can open it. */
+    suspend fun publishHelperWrap(helperUserId: String, wrapped: ByteArray): String? = guarded {
+        val me = joined?.me?.userId ?: throw NotAllowed("Join the family first")
+        val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+        fs.mkdirs(keysFolder(me))
+        fs.createNew("${keysFolder(me)}/helper-$helperUserId.bin", wrapped)
+    }
+
     /** The person leaves the family from this phone. Their photos on the drive stay. */
     suspend fun leaveFamily(): String? = guarded {
         if (joined == null || isOwner) return@guarded

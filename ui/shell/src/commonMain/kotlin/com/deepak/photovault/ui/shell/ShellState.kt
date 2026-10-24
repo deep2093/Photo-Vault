@@ -106,6 +106,15 @@ sealed interface Overlay {
 
     /** One family member's page: picture, space, phones (24 Oct). */
     data class Member(val userId: String) : Overlay
+
+    /** Normal or Private backup: the two big cards (Phase 4A). */
+    data object PrivacyChoice : Overlay
+
+    /** Setting up Private backup: understand, 24 words, check, helper (Phase 4A). */
+    data object PrivateSetup : Overlay
+
+    /** Getting the private key back on a new phone with the 24 words. */
+    data object RestoreKeys : Overlay
 }
 
 sealed interface AlbumKind {
@@ -147,6 +156,7 @@ class ShellState(private val store: AppearanceStore) {
                 }
                 is Overlay.Member -> listOf("member", o.userId)
                 Overlay.Backup -> listOf("backup")
+                Overlay.PrivacyChoice -> listOf("privacy")
                 Overlay.DriveSetup -> listOf("setup")
                 Overlay.RecentlyDeleted -> listOf("trash")
                 Overlay.Search -> listOf("search")
@@ -174,6 +184,7 @@ class ShellState(private val store: AppearanceStore) {
                 }
                 "member" -> f.getOrNull(1)?.let { Overlay.Member(it) }
                 "backup" -> Overlay.Backup
+                "privacy" -> Overlay.PrivacyChoice
                 "setup" -> Overlay.DriveSetup
                 "trash" -> Overlay.RecentlyDeleted
                 "search" -> Overlay.Search
@@ -323,6 +334,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** Invites: files, QR drawing and scanning (Phase 5B-2). */
     var invites: InvitePlatform = NoInvitePlatform
+
+    /** Private backup keys (Phase 4A). */
+    var encryption: EncryptionState = EncryptionState()
 
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)

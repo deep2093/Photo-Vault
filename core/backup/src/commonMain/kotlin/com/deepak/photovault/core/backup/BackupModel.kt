@@ -97,6 +97,8 @@ enum class FailureReason(val plain: String) {
     STOPPED("Backup was stopped. It carries on from where it stopped next time."),
     VPN_PERMISSION("Away-from-home backup needs the VPN permission. Open Settings > Remote access and tap Connect once."),
     VPN_FAILED("The VPN couldn't start for the away-from-home backup. Open Settings > Remote access to see why."),
+    PRIVACY_NOT_CHOSEN("Choose how your backup is kept first: open Settings > Backup and pick Normal or Private."),
+    PRIVATE_NOT_READY("Private backup is set up, but encrypted uploading isn't switched on yet in this version, so nothing was uploaded. Your photos stay safe on the phone."),
     BUSY("Another phone in the family is backing up. This one takes its turn in about half an hour."),
     OTHER("Something went wrong while backing up."),
 }

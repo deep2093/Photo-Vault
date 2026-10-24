@@ -113,6 +113,7 @@ dependencies {
     implementation(project(":core:security"))
     implementation(project(":core:smb"))
     implementation(project(":core:vpn"))
+    implementation(project(":core:crypto"))
     // Shared with the PC app: design system and screens.
     implementation(project(":ui:shell"))
 
@@ -131,6 +132,9 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     // The code scanner brings an old Fragment; Android lint needs 1.3 or newer for the activity result launchers.
     implementation("androidx.fragment:fragment-ktx:1.8.5")
+    // Offer the recovery words to the phone's password manager (Samsung Pass, Google Password Manager). It may decline.
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     testImplementation("junit:junit:4.13.2")

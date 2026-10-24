@@ -256,6 +256,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
         shell = state
         state.remote = remote.state
+        state.encryption = com.deepak.photovault.ui.shell.EncryptionState(AndroidEncryption(this))
         state.invites = AndroidInvites(this) { answer -> onTextFilePicked = answer; textFilePicker.launch(arrayOf("*/*")) }
         state.restoreNavigation(savedInstanceState?.getString("nav"))
         remote.start()
