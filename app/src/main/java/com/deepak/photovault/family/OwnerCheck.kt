@@ -26,7 +26,7 @@ import com.deepak.photovault.core.household.SpaceRequests
 import java.util.concurrent.TimeUnit
 
 /**
- * The owner's phone looks at the drive about once an hour (24 Oct) for people asking for more space or phones
+ * The owner's phone looks at the drive about once every 3 hours (24 Oct) for people asking for more space or phones
  * asking to join, and shows a notification (Android adds the dot on the app icon). Only on Wi-Fi, only when the
  * phone is on the home network, only on the owner's phone; anywhere else it does nothing at all. A couple of
  * seconds each time.
@@ -90,9 +90,9 @@ class OwnerCheckWorker(context: Context, params: WorkerParameters) : CoroutineWo
         private const val ID = 51
         private const val UNIQUE = "owner-check"
 
-        /** Hourly, Wi-Fi only (unmetered), battery not low. Runs on every phone but acts only on the owner's. */
+        /** Every 3 hours, Wi-Fi only (unmetered), battery not low. Runs on every phone but acts only on the owner's. */
         fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<OwnerCheckWorker>(1, TimeUnit.HOURS)
+            val request = PeriodicWorkRequestBuilder<OwnerCheckWorker>(3, TimeUnit.HOURS)
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.UNMETERED)
@@ -100,7 +100,7 @@ class OwnerCheckWorker(context: Context, params: WorkerParameters) : CoroutineWo
                         .build(),
                 )
                 .build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(UNIQUE, ExistingPeriodicWorkPolicy.KEEP, request)
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(UNIQUE, ExistingPeriodicWorkPolicy.UPDATE, request)
         }
     }
 }

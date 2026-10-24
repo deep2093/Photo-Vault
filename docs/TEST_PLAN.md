@@ -210,7 +210,7 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Storage > Drive: owner sees yours / rest of the family / free on the drive (no "Other files") and the drive's
   total; a member sees their backup, the rest of the family as one total, and what's left of their space.
 - Member's own page: Ask for more space (amount + note), then Waiting / Cancel. Owner: Space requests card in
-  Family (give or decline, owner PIN), dot on Family, and within about an hour a phone notification with a dot on
+  Family (give or decline, owner PIN), dot on Family, and within about 3 hours a phone notification with a dot on
   the app icon, but only while on home Wi-Fi.
 - Recently deleted: tapping a photo opens it (Restore / Delete for good).
 - GIF tiles show a small GIF badge in Photos and albums.
