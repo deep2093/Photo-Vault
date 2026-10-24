@@ -217,8 +217,12 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     // The ring sweeps round clockwise when the screen opens (25 Oct); instant with reduce motion.
     val reduceMotion = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
     val grow = remember { androidx.compose.animation.core.Animatable(if (reduceMotion) 1f else 0f) }
-    LaunchedEffect(Unit) {
-        if (!reduceMotion) grow.animateTo(1f, androidx.compose.animation.core.tween(900, easing = com.deepak.photovault.designsystem.PageEasing))
+    // Starts empty and waits for the page to slide in and for the sizes to arrive, so the whole ring fills, not just the last slice.
+    LaunchedEffect(slices.map { it.bytes }) {
+        if (slices.isEmpty() || reduceMotion) return@LaunchedEffect
+        grow.snapTo(0f)
+        kotlinx.coroutines.delay(350)
+        grow.animateTo(1f, androidx.compose.animation.core.tween(900, easing = com.deepak.photovault.designsystem.PageEasing))
     }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->
