@@ -259,6 +259,9 @@ class ShellState(private val store: AppearanceStore) {
 
     val theme: GlassTheme get() = if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default
 
+    /** The Welcome tour and What's new (Phase 5, 25 Oct). The platform swaps in one that remembers. */
+    var intro: IntroState = IntroState()
+
     fun updateAppearance(change: (AppearanceSettings) -> AppearanceSettings) {
         appearance = change(appearance)
         store.save(appearance)

@@ -155,6 +155,7 @@ fun PhotoVaultApp(
     iconSwitcher: AppIconSwitcher = NoAppIconSwitcher,
 ) {
     setSingletonImageLoaderFactory { context -> createImageLoader(context) }
+    LaunchedEffect(state) { state.intro.start() }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
     // Check the family drive when the app opens, then every minute while it is on screen, so Backup, Family and
@@ -193,6 +194,7 @@ fun PhotoVaultApp(
                     // Deleted photos flying into the bin, above every page (23 Oct).
                     DeleteFlightLayer(LocalDeleteFlight.current)
                     DeletePromptHost(LocalDeletePrompt.current)
+                    IntroHost(state.intro)
                 }
             }
         }

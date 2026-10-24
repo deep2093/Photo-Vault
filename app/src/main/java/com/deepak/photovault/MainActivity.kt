@@ -202,6 +202,7 @@ class MainActivity : ComponentActivity(), MediaActions {
             return
         }
         val state = ShellState(PrefsAppearanceStore(this))
+        state.intro = com.deepak.photovault.ui.shell.IntroState(PrefsIntroStore(this))
         shell = state
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this))
         drive = DriveState(AndroidDrivePlatform(this))
@@ -637,5 +638,28 @@ private class FileDriveRecordCache(context: Context) : com.deepak.photovault.cor
             temp.writeText(com.deepak.photovault.backup.backupJson.encodeToString(serializer, records))
             temp.renameTo(file)
         }
+    }
+}
+
+/**
+ * What the intro has shown. Someone whose phone already had settings or a drive connection before the intro existed
+ * counts as an existing user: no Welcome tour for them, only What's new.
+ */
+private class PrefsIntroStore(private val context: Context) : com.deepak.photovault.ui.shell.IntroStore {
+    private val prefs = context.applicationContext.getSharedPreferences("intro", Context.MODE_PRIVATE)
+
+    override fun seenId() = prefs.getString("seen_id", "").orEmpty()
+
+    override fun tourDone() = prefs.getBoolean("tour_done", false)
+
+    override fun save(seenId: String, tourDone: Boolean) {
+        prefs.edit().putString("seen_id", seenId).putBoolean("tour_done", tourDone).apply()
+    }
+
+    override fun existingUser(): Boolean {
+        val app = context.applicationContext
+        return app.getSharedPreferences("appearance", Context.MODE_PRIVATE).all.isNotEmpty() ||
+            app.getSharedPreferences("backup", Context.MODE_PRIVATE).all.isNotEmpty() ||
+            app.getSharedPreferences("albums", Context.MODE_PRIVATE).all.isNotEmpty()
     }
 }

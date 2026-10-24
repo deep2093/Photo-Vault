@@ -35,6 +35,8 @@ import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.Password
@@ -163,7 +165,7 @@ private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
 fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, gallery: GalleryState, actions: MediaActions, startOnDrive: Boolean = false) {
     GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }) {
         when (page) {
-            SettingsPage.ABOUT -> item { AboutSection() }
+            SettingsPage.ABOUT -> item { AboutSection(state) }
             SettingsPage.ALBUMS -> albumsPage(gallery)
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
             SettingsPage.BACKUP -> Unit
@@ -319,9 +321,11 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
 }
 
 @Composable
-private fun AboutSection() {
+private fun AboutSection(state: ShellState) {
     PageCard("About", Icons.Rounded.Info, Modifier.cardWidth()) {
-        InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Phase 5")
+        SettingsRow(Icons.Rounded.AutoAwesome, "What's new", "See what changed in this update") { state.intro.open(IntroKind.WHATS_NEW) }
+        SettingsRow(Icons.Rounded.Explore, "Welcome tour", "A quick look around the app") { state.intro.open(IntroKind.TOUR) }
+        InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN) and invites", "Phase 5")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
