@@ -58,3 +58,13 @@ expect fun createImageLoader(context: PlatformContext): ImageLoader
 
 /** Main colour of a loaded thumbnail for adaptive themes (ARGB), or null if it can't be read. */
 expect fun mainColorOf(image: Image): Int?
+
+/**
+ * Lens glass for the floating navigation bar (24 Oct, experimental): returns the platform's lens, or null where it
+ * can't be drawn (Android 12 and older). The bar and the content behind it share it.
+ */
+@Composable
+expect fun rememberLensGlass(): com.deepak.photovault.designsystem.LensGlass?
+
+/** Whether this device can draw lens glass at all (Android 13 and newer), so Settings only offers it there. */
+expect fun lensGlassSupported(): Boolean

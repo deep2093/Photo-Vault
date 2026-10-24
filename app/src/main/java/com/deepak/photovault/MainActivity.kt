@@ -545,6 +545,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         tabletBottomBar = prefs.getBoolean("tablet_bottom_bar", false),
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
+        lensGlass = prefs.getBoolean("lens_glass", false),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -554,6 +555,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("reduce_motion", settings.reduceMotion)
             .putBoolean("tablet_bottom_bar", settings.tabletBottomBar)
             .putBoolean("theme_chosen", settings.themeChosen)
+            .putBoolean("lens_glass", settings.lensGlass)
             .apply()
     }
 }

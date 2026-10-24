@@ -41,6 +41,8 @@ data class GlassSettings(
     val blurEnabled: Boolean = true,
     /** Replace movement with instant changes. */
     val reduceMotion: Boolean = false,
+    /** Lens glass on the floating navigation bar (Clear themes, Android 13+, asked 24 Oct). */
+    val lensEnabled: Boolean = false,
 )
 
 val LocalGlassTheme = staticCompositionLocalOf { GlassThemes.default }

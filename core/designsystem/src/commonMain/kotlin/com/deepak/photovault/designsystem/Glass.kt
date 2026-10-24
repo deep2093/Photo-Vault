@@ -88,13 +88,19 @@ fun Modifier.glassRim(shape: Shape): Modifier {
 fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
     val theme = LocalGlassTheme.current
     val haze = LocalHazeState.current
-    val blur = LocalGlassSettings.current.blurEnabled && haze != null
+    val settings = LocalGlassSettings.current
+    val blur = settings.blurEnabled && haze != null
+    // Lens glass (experimental): only for themes that offer it, and only where the platform gave the bar a lens.
+    val lens = LocalLensGlass.current.takeIf { settings.lensEnabled && settings.blurEnabled && theme.lens }
     val shadowColor = Color.Black.copy(alpha = if (theme.isDark) 0.6f else 0.18f)
     return this
         .shadow(elevation, shape, ambientColor = shadowColor, spotColor = shadowColor)
         .clip(shape)
         .then(
-            if (blur && haze != null) {
+            if (lens != null) {
+                // A little less solid than the blur version, so the bending shows; never below the 0.6 text-contrast floor.
+                lens.lens(shape, theme.glassTint.copy(alpha = LENS_TINT_ALPHA))
+            } else if (blur && haze != null) {
                 Modifier.hazeEffect(
                     state = haze,
                     style = HazeStyle(
@@ -123,6 +129,9 @@ fun Modifier.glassPanel(shape: Shape): Modifier {
 }
 
 val GlassCardShape = RoundedCornerShape(24.dp)
+
+/** Lens glass keeps the tint at the readability floor (0.6, see ThemeContrastTest). */
+private const val LENS_TINT_ALPHA = 0.62f
 
 @Composable
 fun GlassCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {

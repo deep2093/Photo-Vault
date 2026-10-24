@@ -72,4 +72,15 @@ class ShellStateTest {
         assertTrue(MOBILE_DATA_WARNING.contains("twice"))
         assertTrue(FOLDER_PRIVACY_NOTE.contains("drive password"))
     }
+
+    @Test
+    fun lensGlassIsOffByDefaultAndFollowsBlurAndBatterySaver() {
+        val signals = PlatformSignals()
+        assertFalse(ShellState(MemoryAppearanceStore()).glassSettings(signals).lensEnabled)
+        val on = ShellState(MemoryAppearanceStore(AppearanceSettings(lensGlass = true)))
+        assertTrue(on.glassSettings(signals).lensEnabled)
+        assertFalse(on.glassSettings(PlatformSignals(powerSaveMode = true)).lensEnabled)
+        val blurOff = ShellState(MemoryAppearanceStore(AppearanceSettings(lensGlass = true, blurOn = false)))
+        assertFalse(blurOff.glassSettings(signals).lensEnabled)
+    }
 }

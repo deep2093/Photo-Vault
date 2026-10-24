@@ -61,6 +61,8 @@ data class AppearanceSettings(
     val tabletBottomBar: Boolean = false,
     /** The person picked a theme themselves. Until then they follow the default (Photo Light since 24 Oct). */
     val themeChosen: Boolean = false,
+    /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
+    val lensGlass: Boolean = false,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
@@ -264,6 +266,7 @@ class ShellState(private val store: AppearanceStore) {
     fun glassSettings(signals: PlatformSignals): GlassSettings = GlassSettings(
         blurEnabled = appearance.blurOn && !signals.powerSaveMode,
         reduceMotion = appearance.reduceMotion || signals.systemReduceMotion,
+        lensEnabled = appearance.lensGlass && appearance.blurOn && !signals.powerSaveMode,
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */

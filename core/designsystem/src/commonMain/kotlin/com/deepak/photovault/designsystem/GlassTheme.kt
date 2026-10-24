@@ -57,6 +57,8 @@ data class GlassTheme(
     val blurRadius: Dp = 24.dp,
     /** Fine grain in the glass; higher looks more frosted. */
     val grain: Float = 0.03f,
+    /** Offers the "Lens glass" setting (24 Oct): the Clear themes. */
+    val lens: Boolean = false,
 )
 
 object GlassThemes {
@@ -313,6 +315,7 @@ object GlassThemes {
         sampleHues = listOf(Color(0xFFB8C2CC), Color(0xFF9AA5B1), Color(0xFFD0D6DC), Color(0xFF7D8894), Color(0xFFC4CCD4)),
         blurRadius = 18.dp,
         grain = 0f,
+        lens = true,
     )
 
     val CrystalGlassDark = GlassTheme(
@@ -336,6 +339,7 @@ object GlassThemes {
         sampleHues = listOf(Color(0xFF3A3F45), Color(0xFF4F565D), Color(0xFF2A2E33), Color(0xFF62696F), Color(0xFF454B52)),
         blurRadius = 18.dp,
         grain = 0f,
+        lens = true,
     )
 
     /**

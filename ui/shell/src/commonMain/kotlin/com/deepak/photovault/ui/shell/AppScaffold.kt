@@ -408,6 +408,8 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
     val shift = androidx.compose.animation.core.animateFloatAsState(if (tucked) travel else 0f, motionSpec(CHROME_MS), label = "bar")
+    val lensOn = LocalGlassSettings.current.lensEnabled && LocalGlassTheme.current.lens
+    val lens = if (lensOn) rememberLensGlass() else null
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -424,9 +426,14 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                     .graphicsLayer { translationX = state.sectionCover() * size.width / DRIFT_DIVISOR }
                     .dimmedBy { state.sectionCover() * PAGE_DIM },
             ) {
-                SectionPager(nav.pager, screens)
+                // Lens glass (experimental): the sections are also recorded so the bar can look through them.
+                Box(Modifier.fillMaxSize().then(lens?.source() ?: Modifier)) {
+                    SectionPager(nav.pager, screens)
+                }
             }
         }
+        // Only the bar gets the lens; anything inside the recorded sections would otherwise draw itself.
+        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
         FloatingNavigationBar(
             indicator = { nav.indicator.value },
             onSelect = state::tapSection,
@@ -440,6 +447,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                 }
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
         )
+        }
     }
 }
 

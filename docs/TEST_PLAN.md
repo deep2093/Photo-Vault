@@ -236,6 +236,13 @@ Backup (Wi-Fi at home, drive connected, family joined):
 - Years / Months / All and the Search button are smaller.
 - Settings > Appearance: Light themes, Dark themes, Photo themes. Aurora Frost and Transparent are gone; an old choice of either becomes Photo Light.
 
+## Round 9 (24 Oct, night): lens glass
+
+- Settings > Appearance > pick Clear Light or Clear Night: a "Lens glass (experimental)" switch appears (Android 13+ only; hidden on other themes and on older Android).
+- Switch on: the bottom bar shows the photos behind it bent and magnified toward its rounded edges, lightly blurred; labels still easy to read over a very bright and a very dark photo.
+- Scrolling Photos stays smooth with it on (watch for stutter); battery saver or Glass blur off turns it off by itself.
+- Switch off: the normal blur returns.
+
 ## Device and integration tests (from the phase that needs them)
 
 - Two and three users upload the same file names at the same time; folders never mix. (4, 5)

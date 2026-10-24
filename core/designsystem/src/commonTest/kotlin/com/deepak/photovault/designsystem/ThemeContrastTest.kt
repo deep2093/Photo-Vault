@@ -108,6 +108,14 @@ class ThemeCatalogTest {
     }
 
     @Test
+    fun onlyTheClearThemesOfferLensGlass() {
+        assertEquals(
+            listOf(GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_DARK),
+            GlassThemes.all.filter { it.lens }.map { it.id },
+        )
+    }
+
+    @Test
     fun removedThemesFallBackToTheDefault() {
         listOf("AURORA_FROST", "TRANSLUCENT", "FROSTED", "CRYSTAL").forEach { assertEquals(GlassThemes.default, GlassThemes.byId(it)) }
     }

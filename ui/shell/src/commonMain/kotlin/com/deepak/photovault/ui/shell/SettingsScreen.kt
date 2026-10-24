@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Storage
@@ -201,6 +202,15 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             icon = Icons.Rounded.BlurOn,
             description = "Turns off by itself on battery saver",
         )
+        if (theme.lens && lensGlassSupported()) {
+            GlassSwitchRow(
+                "Lens glass (experimental)",
+                state.appearance.lensGlass,
+                { on -> state.updateAppearance { it.copy(lensGlass = on) } },
+                icon = Icons.Rounded.ZoomIn,
+                description = "The bottom bar bends and magnifies the photos behind it, like thick glass",
+            )
+        }
         GlassSwitchRow(
             "Reduce motion",
             state.appearance.reduceMotion,
