@@ -48,4 +48,36 @@ class DeleteFlightTest {
         assertEquals(1, DonutMath.sliceAt(-10f, 0f, halves)) // left
         assertEquals(null, DonutMath.sliceAt(1f, 1f, listOf(0L)))
     }
+
+    private fun item(id: Long, video: Boolean = false) = com.deepak.photovault.core.media.MediaItem(
+        id = id, uri = "content://$id", type = if (video) com.deepak.photovault.core.media.MediaType.VIDEO else com.deepak.photovault.core.media.MediaType.PHOTO,
+        displayName = "f$id", takenAtMillis = 0, sizeBytes = 1, width = 1, height = 1, albumId = "a", albumName = "A",
+        mimeType = if (video) "video/mp4" else "image/jpeg",
+    )
+
+    @Test
+    fun deletePopUpWords() {
+        assertEquals("Move this photo to the bin?", DeleteText.trash(listOf(item(1))))
+        assertEquals("Move this video to the bin?", DeleteText.trash(listOf(item(1, video = true))))
+        assertEquals("Move these 5 photos to the bin?", DeleteText.trash((1L..5L).map { item(it) }))
+        assertEquals("Move these 2 items to the bin?", DeleteText.trash(listOf(item(1), item(2, video = true))))
+        assertEquals("Delete this photo for good?", DeleteText.forever(listOf(item(1))))
+    }
+
+    @Test
+    fun genieStartsWholePinchesFromTheBottomAndEndsInTheBin() {
+        val area = androidx.compose.ui.geometry.Rect(0f, 0f, 280f, 280f)
+        val bin = androidx.compose.ui.geometry.Offset(300f, 900f)
+        val first = GenieMath.strip(area, 0, 0f, bin, 12f)!!
+        assertEquals(280f, first.width, 0.01f)
+        // Half way, the bottom strip is further along (narrower and lower) than the top one.
+        val top = GenieMath.strip(area, 0, 0.4f, bin, 12f)!!
+        val bottom = GenieMath.strip(area, GenieMath.STRIPS - 1, 0.4f, bin, 12f)!!
+        assertTrue(bottom.width < top.width)
+        assertEquals(null, GenieMath.strip(area, GenieMath.STRIPS - 1, 1f, bin, 12f))
+        // A wide photo in the viewer is fitted, a grid tile is filled.
+        val fitted = GenieMath.imageRect(androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 200f), androidx.compose.ui.geometry.Size(400f, 200f), fit = true)
+        assertEquals(100f, fitted.width, 0.01f)
+        assertEquals(50f, fitted.height, 0.01f)
+    }
 }

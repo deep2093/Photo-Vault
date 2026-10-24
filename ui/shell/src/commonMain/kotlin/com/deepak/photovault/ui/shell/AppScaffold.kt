@@ -144,7 +144,8 @@ fun PhotoVaultApp(
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }
-        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight) {
+        val deletePrompt = remember { DeletePrompt() }
+        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val system = WindowInsets.safeDrawing.asPaddingValues()
@@ -157,6 +158,7 @@ fun PhotoVaultApp(
                     OverlayHost(state, gallery, actions, drive, backup, iconSwitcher, system)
                     // Deleted photos flying into the bin, above every page (23 Oct).
                     DeleteFlightLayer(LocalDeleteFlight.current)
+                    DeletePromptHost(LocalDeletePrompt.current)
                 }
             }
         }

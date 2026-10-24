@@ -111,6 +111,7 @@ fun StorageFilesScreen(
     val zone = remember { TimeZone.currentSystemDefault() }
     val scope = rememberCoroutineScope()
     val flight = LocalDeleteFlight.current
+    val prompt = LocalDeletePrompt.current
     val files: List<StoredFile> = remember(page, gallery.items, drive.backupRecords) {
         if (page.onDrive) {
             val byPath = drive.backupRecords.orEmpty().associateBy { it.drivePath }
@@ -154,7 +155,7 @@ fun StorageFilesScreen(
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
                     val items = chosen.mapNotNull { it.ref.toLongOrNull()?.let(gallery::find) }
                     val flying = items.mapNotNull { item -> thumbs[item.id.toString()]?.let { FlyingPhoto(item.uri, item.isVideo, it) } }
-                    actions.moveToRecentlyDeleted(items) { agreed ->
+                    prompt.trash(actions, items) { agreed ->
                         if (agreed) {
                             flight.launch(flying, bin.bounds)
                             gallery.dropNow(items.map { it.id }.toSet())

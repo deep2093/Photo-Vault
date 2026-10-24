@@ -132,6 +132,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     val find: (Long) -> MediaItem? = if (viewer.trash) ({ trashedById[it] }) else gallery::find
     val ids = remember(viewer.ids, gallery.items, trashedById) { viewer.ids.filter { find(it) != null } }
     val flight = LocalDeleteFlight.current
+    val prompt = LocalDeletePrompt.current
     val photoSpot = remember { ScreenSpot() }
     val bin = remember { ScreenSpot() }
     if (ids.isEmpty()) {
@@ -297,7 +298,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             onRestore = { actions.restore(listOf(current)) },
                             onDelete = {
                                 val flying = flyCurrent()
-                                actions.deleteForever(listOf(current)) { agreed ->
+                                prompt.deleteForever(actions, listOf(current)) { agreed ->
                                     if (agreed) {
                                         flight.launch(flying, bin.bounds)
                                         gallery.dropNow(setOf(current.id))
@@ -314,7 +315,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             onInfo = { state.detailsOpen = true },
                             onDelete = {
                                 val flying = flyCurrent()
-                                actions.moveToRecentlyDeleted(listOf(current)) { agreed ->
+                                prompt.trash(actions, listOf(current)) { agreed ->
                                     if (agreed) {
                                         flight.launch(flying, bin.bounds)
                                         gallery.dropNow(setOf(current.id))

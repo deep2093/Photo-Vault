@@ -145,6 +145,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
     val selected = state.selected.mapNotNull { byId[it]?.item }
     val spots = remember { TileSpots() }
     val flight = LocalDeleteFlight.current
+    val prompt = LocalDeletePrompt.current
     val bin = remember { ScreenSpot() }
     SelectableScreen(
         tileSpots = spots,
@@ -161,7 +162,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
             })
             GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = {
                 val flying = spots.flying(selected)
-                actions.deleteForever(selected) { agreed ->
+                prompt.deleteForever(actions, selected) { agreed ->
                     if (agreed) {
                         flight.launch(flying, bin.bounds)
                         gallery.dropNow(selected.map { it.id }.toSet())

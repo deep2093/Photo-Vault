@@ -18,6 +18,10 @@
     <!-- Backup (Phase 4): progress and "backup didn't finish" notifications, and a foreground job while a long
          backup or restore runs. WorkManager keeps scheduled backups across restarts. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 12+: lets Pixallery delete with its own themed pop-up instead of Android's (24 Oct), once allowed. -->
+    <uses-permission
+        android:name="android.permission.MANAGE_MEDIA"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 

@@ -32,6 +32,17 @@ interface MediaActions {
     /** Open the phone's maps app at a photo's location. Nothing is looked up by PhotoVault itself. */
     fun openMap(latitude: Double, longitude: Double, label: String) = Unit
     fun share(items: List<MediaItem>)
+    /** Android 12+: Pixallery may delete without Android's own pop-up ("manage media" allowed), so it asks itself. */
+    fun canDeleteWithoutAsking(): Boolean = false
+
+    /** Opens Android's setting to allow "manage media". */
+    fun askDeletePermission() = Unit
+
+    /** Whether Pixallery has already offered the "manage media" setting once. */
+    fun deletePermissionOffered(): Boolean = true
+
+    fun markDeletePermissionOffered() = Unit
+
     /** Android asks first; [onDone] says whether the person agreed (the delete animation plays then). */
     fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit = {})
     fun restore(items: List<MediaItem>)

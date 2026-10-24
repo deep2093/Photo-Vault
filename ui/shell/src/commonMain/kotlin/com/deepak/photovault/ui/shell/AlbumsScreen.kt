@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,9 +78,9 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val selected = state.albumsSelected
     val selecting = selected.isNotEmpty()
     val flight = LocalDeleteFlight.current
+    val prompt = LocalDeletePrompt.current
     val bin = remember { ScreenSpot() }
     var renaming by remember { mutableStateOf<AlbumCardData?>(null) }
-    var deleting by remember { mutableStateOf<List<AlbumCardData>?>(null) }
     // Worked out once per library change, not on every frame (libraries can hold tens of thousands of items).
     val favourites = remember(gallery.items, gallery.favourites) { gallery.items.filter { it.id in gallery.favourites } }
     val videos = remember(gallery.items) { gallery.items.filter { it.isVideo } }
@@ -107,6 +108,20 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         }.toMap()
     }
 
+    // Asked with Pixallery's own pop-up (or Android's), then the covers fly into the bin.
+    fun deleteAlbums(albums: List<AlbumCardData>) {
+        val items = albums.flatMap { it.items() }
+        val bounds = cardBounds(albums.map { it.id }.toSet())
+        val flying = albums.mapNotNull { a -> bounds[a.id]?.let { r -> a.newest?.let { FlyingPhoto(it.uri, it.isVideo, r) } } }
+        prompt.trash(actions, items) { agreed ->
+            if (agreed) {
+                flight.launch(flying, bin.bounds)
+                gallery.dropNow(items.map { it.id }.toSet())
+                state.albumsSelected = emptySet()
+            }
+        }
+    }
+
     GlassScreen(
         title = if (selecting) "${selected.size} selected" else null,
         subtitle = null,
@@ -123,7 +138,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 state.open(Overlay.CoverPicker(single.id, single.name))
             })
             if (chosen.any { it.kind is AlbumKind.Phone }) {
-                GlassIconButton(Icons.Rounded.Delete, "Delete", modifier = Modifier.trackSpot(bin), onClick = { deleting = chosen.filter { it.kind is AlbumKind.Phone } })
+                GlassIconButton(Icons.Rounded.Delete, "Delete", modifier = Modifier.trackSpot(bin), onClick = { deleteAlbums(chosen.filter { it.kind is AlbumKind.Phone }) })
             }
         }),
     ) { padding ->
@@ -242,26 +257,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             }
         }
     }
-    deleting?.let { albums ->
-        val items = albums.flatMap { it.items() }
-        ConfirmDialog(
-            title = if (albums.size == 1) "Delete ${albums.single().name}?" else "Delete ${albums.size} albums?",
-            body = "All ${LibraryCounts.grouped(items.size)} photos and videos in ${if (albums.size == 1) "it" else "them"} move to the bin (Recently deleted) for 30 days. Backups on the drive are not touched.",
-            confirm = "Delete",
-            onDismiss = { deleting = null },
-        ) {
-            deleting = null
-            val bounds = cardBounds(albums.map { it.id }.toSet())
-            val flying = albums.mapNotNull { a -> bounds[a.id]?.let { r -> a.newest?.let { FlyingPhoto(it.uri, it.isVideo, r) } } }
-            actions.moveToRecentlyDeleted(items) { agreed ->
-                if (agreed) {
-                    flight.launch(flying, bin.bounds)
-                    gallery.dropNow(items.map { it.id }.toSet())
-                    state.albumsSelected = emptySet()
-                }
-            }
-        }
-    }
+
 }
 
 /** Album card sizes for pinching, smallest first. */

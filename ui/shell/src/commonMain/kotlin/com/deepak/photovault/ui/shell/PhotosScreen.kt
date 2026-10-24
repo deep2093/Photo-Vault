@@ -267,6 +267,7 @@ fun SelectableScreen(
 ) {
     val selectedItems = state.selected.mapNotNull(gallery::find)
     val flight = LocalDeleteFlight.current
+    val prompt = LocalDeletePrompt.current
     val bin = remember { ScreenSpot() }
     androidx.compose.runtime.CompositionLocalProvider(LocalTileSpots provides tileSpots) {
     // One GlassScreen for both modes, so the grid keeps its scroll position when selection starts.
@@ -298,7 +299,7 @@ fun SelectableScreen(
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
                     // Where the photos are now: by the time Android has asked, the grid may have changed.
                     val flying = tileSpots.flying(selectedItems)
-                    actions.moveToRecentlyDeleted(selectedItems) { agreed ->
+                    prompt.trash(actions, selectedItems) { agreed ->
                         if (agreed) {
                             flight.launch(flying, bin.bounds)
                             gallery.dropNow(selectedItems.map { it.id }.toSet())

@@ -3,6 +3,7 @@ package com.deepak.photovault.ui.shell
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -20,6 +21,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.unit.dp
+import coil3.compose.rememberAsyncImagePainter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
@@ -132,32 +139,71 @@ private fun FlightView(f: DeleteFlight.Flight, onDone: () -> Unit) {
         onDone()
     }
     if (reduceMotion) return
-    val density = LocalDensity.current
-    Box(Modifier.fillMaxSize()) {
-        f.photos.forEachIndexed { index, p ->
-            val w = with(density) { p.bounds.width.toDp() }
-            val h = with(density) { p.bounds.height.toDp() }
-            AsyncImage(
-                model = Thumb(p.uri, p.isVideo, if (p.fit) 512 else 256),
-                contentDescription = null,
-                contentScale = if (p.fit) ContentScale.Fit else ContentScale.Crop,
-                modifier = Modifier
-                    .offset { IntOffset(p.bounds.left.roundToInt(), p.bounds.top.roundToInt()) }
-                    .size(w, h)
-                    .graphicsLayer {
-                        val k = FlightMath.progress(t.value, index, f.photos.size)
-                        val move = FlightMath.travel(k)
-                        translationX = (f.target.x - p.bounds.center.x) * move
-                        translationY = (f.target.y - p.bounds.center.y) * move
-                        scaleX = FlightMath.scaleX(k)
-                        scaleY = FlightMath.scaleY(k)
-                        alpha = FlightMath.alpha(k)
-                        shape = RoundedCornerShape(12f * k + 4f)
-                        clip = true
-                    },
-            )
+    f.photos.forEachIndexed { index, p ->
+        val painter = rememberAsyncImagePainter(Thumb(p.uri, p.isVideo, if (p.fit) 512 else 256))
+        // Drawn in thin horizontal strips, each squeezed and pulled toward the bin on its own, bottom first:
+        // the photo pinches at the bottom and stretches down into the button, like a window minimising (24 Oct).
+        Canvas(Modifier.fillMaxSize()) {
+            val k = FlightMath.progress(t.value, index, f.photos.size)
+            if (k >= 1f) return@Canvas
+            val intrinsic = painter.intrinsicSize
+            val image = GenieMath.imageRect(p.bounds, intrinsic.takeIf { it.isSpecified && it.width > 0f && it.height > 0f }, p.fit)
+            val area = if (p.fit) image else p.bounds
+            val corner = 6.dp.toPx()
+            val target = f.target
+            for (i in 0 until GenieMath.STRIPS) {
+                val strip = GenieMath.strip(area, i, k, target, endWidth = corner * 2) ?: continue
+                val srcTop = area.top + area.height * i / GenieMath.STRIPS
+                val srcHeight = area.height / GenieMath.STRIPS
+                val sx = strip.width / area.width
+                val sy = strip.height / srcHeight
+                withTransform({
+                    clipRect(strip.left, strip.top, strip.right, strip.bottom)
+                    translate(strip.left, strip.top)
+                    scale(sx, sy, pivot = Offset.Zero)
+                    translate(-area.left, -srcTop)
+                }) {
+                    translate(image.left, image.top) {
+                        with(painter) { draw(image.size, alpha = FlightMath.alpha(k)) }
+                    }
+                }
+            }
         }
     }
 }
 
-private const val FLY_MS = 520
+/** The shape maths of the genie effect, tested. */
+object GenieMath {
+    const val STRIPS = 28
+
+    /** Where the photo's picture sits: fitted inside [bounds] (viewer), or filling it and cropped (grid tile). */
+    fun imageRect(bounds: Rect, intrinsic: Size?, fit: Boolean): Rect {
+        if (intrinsic == null) return bounds
+        val scale = if (fit) minOf(bounds.width / intrinsic.width, bounds.height / intrinsic.height)
+        else maxOf(bounds.width / intrinsic.width, bounds.height / intrinsic.height)
+        val w = intrinsic.width * scale
+        val h = intrinsic.height * scale
+        return Rect(bounds.center.x - w / 2, bounds.center.y - h / 2, bounds.center.x + w / 2, bounds.center.y + h / 2)
+    }
+
+    /**
+     * Where strip [i] of [area] is drawn at progress [k]: lower strips start sooner, every strip narrows toward
+     * [endWidth] and slides to the bin at [target]; null once it has gone in.
+     */
+    fun strip(area: Rect, i: Int, k: Float, target: Offset, endWidth: Float): Rect? {
+        val v = (i + 0.5f) / STRIPS // 0 top, 1 bottom
+        val lead = 0.9f
+        val local = ((k * (1f + lead)) - (1f - v) * lead).coerceIn(0f, 1f)
+        if (local >= 1f) return null
+        val e = local * local * (3f - 2f * local) // smooth start and end
+        val h = area.height / STRIPS
+        val top0 = area.top + h * i
+        val width = area.width + (endWidth - area.width) * e
+        val centerX = area.center.x + (target.x - area.center.x) * e
+        val top = top0 + (target.y - top0) * e
+        val height = (h * (1f - e)).coerceAtLeast(0.5f) + 0.6f // a hair of overlap, so no gaps show between strips
+        return Rect(centerX - width / 2, top, centerX + width / 2, top + height)
+    }
+}
+
+private const val FLY_MS = 560

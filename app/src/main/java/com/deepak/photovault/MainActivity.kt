@@ -144,6 +144,23 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     override val feedbackOutbox: FeedbackOutbox by lazy { com.deepak.photovault.feedback.FileFeedbackOutbox(this) }
 
+    // ---- Own delete pop-up (24 Oct) ----
+
+    override fun canDeleteWithoutAsking(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && runCatching { MediaStore.canManageMedia(this) }.getOrDefault(false)
+
+    override fun askDeletePermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        runCatching { startActivity(Intent(android.provider.Settings.ACTION_REQUEST_MANAGE_MEDIA, Uri.parse("package:$packageName"))) }
+    }
+
+    override fun deletePermissionOffered(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || getSharedPreferences("albums", MODE_PRIVATE).getBoolean("manage_media_offered", false)
+
+    override fun markDeletePermissionOffered() {
+        getSharedPreferences("albums", MODE_PRIVATE).edit().putBoolean("manage_media_offered", true).apply()
+    }
+
     override fun lastCrash(): String? = runCatching { CrashNote.file(application).takeIf { it.exists() }?.readText() }.getOrNull()
 
     override fun clearLastCrash() {
