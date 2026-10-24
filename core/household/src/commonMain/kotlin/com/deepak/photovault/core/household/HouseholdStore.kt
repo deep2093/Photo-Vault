@@ -366,7 +366,8 @@ class HouseholdStore(
         /** Inside a person's own folder: their private pictures of other members. */
         const val PRIVATE_PEOPLE = "people"
         const val MAX_PHOTO_BYTES = 512 * 1024
-        val USER_FOLDERS = listOf("originals", "videos", "manifests", "thumbnails", "recently-deleted")
+        /** Backups go in albums/<phone album>/... (24 Oct; was originals/ and videos/). */
+        val USER_FOLDERS = listOf("albums", "manifests", "thumbnails", "recently-deleted")
         private const val MAX_ATTEMPTS = 8
         private const val KEEP_VERSIONS = 20
 

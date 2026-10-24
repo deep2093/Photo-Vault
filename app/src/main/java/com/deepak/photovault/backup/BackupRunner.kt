@@ -7,6 +7,7 @@ import android.net.ConnectivityManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.deepak.photovault.AndroidDrivePlatform
+import com.deepak.photovault.core.backup.BackupCoordinator
 import com.deepak.photovault.core.backup.BackupEngine
 import com.deepak.photovault.core.backup.BackupFailure
 import com.deepak.photovault.core.backup.BackupProgress
@@ -27,6 +28,10 @@ import com.hierynomus.mserref.NtStatus
 import com.hierynomus.mssmb2.SMBApiException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -124,9 +129,38 @@ class BackupRunner(
                 zone = TimeZone.currentSystemDefault(),
                 classify = { classify(it) },
             )
-            return engine.run(items, settings, joined.me.limitGb * DriveState.GB, trigger) { p ->
-                state.progress = p
-                onProgress(p)
+            // One phone in the family at a time (24 Oct): wait for another phone's backup to finish, up to a while.
+            val everyone = joined.household.members.map { it.userId }
+            val turn = BackupCoordinator(fs, joined.me.userId, platform.deviceId, platform.deviceName, System::currentTimeMillis)
+            val giveUpAt = System.currentTimeMillis() + MAX_WAIT_MS
+            while (!runCatching { turn.tryStart(everyone) }.getOrDefault(true)) {
+                state.waitingFor = runCatching { turn.othersRunning(everyone).firstOrNull()?.deviceName }.getOrNull() ?: "another phone"
+                if (System.currentTimeMillis() > giveUpAt) {
+                    state.waitingFor = null
+                    return failed(FailureReason.BUSY)
+                }
+                delay(WAIT_STEP_MS)
+            }
+            state.waitingFor = null
+            return try {
+                coroutineScope {
+                    val beat = launch {
+                        while (true) {
+                            delay(HEARTBEAT_MS)
+                            turn.heartbeat()
+                        }
+                    }
+                    try {
+                        engine.run(items, settings, joined.me.limitGb * DriveState.GB, trigger) { p ->
+                            state.progress = p
+                            onProgress(p)
+                        }
+                    } finally {
+                        beat.cancel()
+                    }
+                }
+            } finally {
+                withContext(NonCancellable) { turn.finish() }
             }
         }
     }
@@ -203,6 +237,10 @@ class BackupRunner(
     fun onMobileData(): Boolean = context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true
 
     companion object {
+        /** How long a backup waits for another family phone's backup to finish before trying later. */
+        private const val MAX_WAIT_MS = 20 * 60_000L
+        private const val WAIT_STEP_MS = 60_000L
+        private const val HEARTBEAT_MS = 60_000L
         /** SMB and network errors in words a person can act on. Never includes the password or server text. */
         fun classify(e: Throwable): BackupFailure {
             var cause: Throwable? = e

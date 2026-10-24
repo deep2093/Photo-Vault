@@ -41,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -157,7 +159,11 @@ private fun MembersCard(state: ShellState, drive: DriveState) {
                         .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Avatar(member, drive, size = AVATAR_TILE - 8.dp)
+                    androidx.compose.foundation.layout.Box {
+                        Avatar(member, drive, size = AVATAR_TILE - 8.dp)
+                        // A small soft dot while this person's phone is backing up (24 Oct), gently pulsing.
+                        if (member.userId in drive.backingUpNow) BackingUpDot(Modifier.align(Alignment.TopEnd).padding(4.dp))
+                    }
                     Spacer(Modifier.height(6.dp))
                     if (canSee) {
                         SpaceBar(drive.usage[member.userId], member, Modifier.width(AVATAR_TILE - 8.dp))
@@ -178,6 +184,29 @@ private fun MembersCard(state: ShellState, drive: DriveState) {
 }
 
 private val AVATAR_TILE = 80.dp
+
+@Composable
+private fun BackingUpDot(modifier: Modifier = Modifier) {
+    val theme = LocalGlassTheme.current
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "backing up")
+    val alpha by pulse.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 0.9f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(1200),
+            androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "dot",
+    )
+    androidx.compose.foundation.layout.Box(
+        modifier
+            .size(10.dp)
+            .graphicsLayer { this.alpha = alpha }
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(theme.accent)
+            .semantics { contentDescription = "Backing up now" },
+    )
+}
 
 /** A slim bar for someone's space; empty while it is still being counted. */
 @Composable

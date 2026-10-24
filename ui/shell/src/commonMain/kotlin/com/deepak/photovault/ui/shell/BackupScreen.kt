@@ -87,6 +87,10 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
     var scheduleOpen by remember { mutableStateOf(false) }
     // What is backed up changes after every run; refresh when the screen opens and when a run ends.
     LaunchedEffect(backup.running, backup.history.size) { backup.refreshKeys() }
+    // Let the family see this phone's backup time, so nobody picks the same hour (24 Oct).
+    LaunchedEffect(drive.joined?.me?.userId) {
+        if (drive.joined != null) drive.publishSchedule(settings.schedule, kotlinx.datetime.TimeZone.currentSystemDefault().id)
+    }
     val eligible = remember(gallery.items, settings) { BackupSelection.eligible(gallery.items, settings) }
     val done = remember(eligible, backup.backedUpKeys) { eligible.count { BackupSelection.key(it) in backup.backedUpKeys } }
 
@@ -156,7 +160,7 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
         }
     }
     if (scheduleOpen) {
-        ScheduleDialog(backup, actions, onDismiss = { scheduleOpen = false })
+        ScheduleDialog(backup, actions, drive, onDismiss = { scheduleOpen = false })
     }
 }
 
@@ -202,23 +206,60 @@ private fun SettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
 
 /** Everything about when backups run, in one small window. */
 @Composable
-private fun ScheduleDialog(backup: BackupState, actions: MediaActions, onDismiss: () -> Unit) {
+private fun ScheduleDialog(backup: BackupState, actions: MediaActions, drive: DriveState, onDismiss: () -> Unit) {
     val theme = LocalGlassTheme.current
-    val settings = backup.settings
-    GlassDialog(title = "Schedule", onDismiss = onDismiss, buttons = { GlassButton("Done", primary = true, onClick = onDismiss) }) {
+    val scope = rememberCoroutineScope()
+    // Changes are a draft until Save, so a time too close to another phone's is never scheduled (24 Oct).
+    var draft by remember { mutableStateOf(backup.settings) }
+    var others by remember { mutableStateOf<List<com.deepak.photovault.core.backup.PublishedSchedule>?>(null) }
+    LaunchedEffect(Unit) { others = drive.otherSchedules() }
+    val zone = remember { kotlinx.datetime.TimeZone.currentSystemDefault() }
+    val now = remember { backup.now() }
+    val clashes = remember(draft.schedule, others) {
+        others?.let { com.deepak.photovault.core.backup.SlotRules.clashes(draft.schedule, zone, it, now) }.orEmpty()
+    }
+    val suggestion = remember(draft.schedule, others, clashes) {
+        if (clashes.isEmpty()) null else others?.let { com.deepak.photovault.core.backup.SlotRules.nearestFree(draft.schedule, zone, it, now) }
+    }
+    GlassDialog(
+        title = "Schedule",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton("Cancel", onClick = onDismiss)
+            GlassButton("Save", primary = true, onClick = {
+                if (clashes.isNotEmpty()) return@GlassButton
+                backup.update { draft }
+                scope.launch { drive.publishSchedule(draft.schedule, zone.id) }
+                onDismiss()
+            })
+        },
+    ) {
         GlassSwitchRow(
             "Back up automatically",
-            settings.schedule.enabled,
+            draft.schedule.enabled,
             { on ->
-                backup.update { it.copy(schedule = it.schedule.copy(enabled = on)) }
+                draft = draft.copy(schedule = draft.schedule.copy(enabled = on))
                 if (on && !backup.notificationsAllowed()) actions.requestNotifications()
             },
         )
-        if (settings.schedule.enabled) {
-            ScheduleControls(backup)
-            GlassSwitchRow("Only while charging", settings.chargingOnly, { on -> backup.update { it.copy(chargingOnly = on) } })
+        if (draft.schedule.enabled) {
+            ScheduleControls(draft.schedule) { f -> draft = draft.copy(schedule = f(draft.schedule)) }
+            if (clashes.isNotEmpty()) {
+                val who = clashes.joinToString { "${it.userName}'s ${it.deviceName} (${it.schedule.describe().replaceFirstChar { c -> c.lowercase() }}${if (it.zoneId != zone.id) ", their time" else ""})" }
+                WarningNote("Too close to $who. Only one phone backs up at a time, so pick a time at least an hour away.")
+                suggestion?.let { free ->
+                    GlassButton("Use ${BackupSchedule.timeLabel(free.hour, free.minute)}", onClick = { draft = draft.copy(schedule = free) })
+                }
+            } else if (!others.isNullOrEmpty()) {
+                Text(
+                    "Other family phones: " + others.orEmpty().joinToString("; ") { "${it.userName}'s ${it.deviceName} ${it.schedule.describe().replaceFirstChar { c -> c.lowercase() }}" },
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            GlassSwitchRow("Only while charging", draft.chargingOnly, { on -> draft = draft.copy(chargingOnly = on) })
             Text(
-                if (settings.chargingOnly) "Not charging then? It starts once the phone is charging on Wi-Fi." else "Starts at that time once on Wi-Fi.",
+                if (draft.chargingOnly) "Not charging then? It starts once the phone is charging on Wi-Fi." else "Starts at that time once on Wi-Fi.",
                 color = theme.onGlassSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -241,7 +282,8 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
                     Column(Modifier.weight(1f)) {
                         Text("Backing up", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (p == null || p.total == 0) "Getting ready..." else "${p.done} of ${p.total}" + (p.current?.let { " · $it" } ?: ""),
+                            backup.waitingFor?.let { "Waiting for $it to finish its backup" }
+                                ?: if (p == null || p.total == 0) "Getting ready..." else "${p.done} of ${p.total}" + (p.current?.let { " · $it" } ?: ""),
                             color = theme.onGlassSecondary,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
@@ -307,10 +349,8 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
 
 /** Frequency, day and time. The time moves in 15-minute steps. */
 @Composable
-private fun ScheduleControls(backup: BackupState) {
+private fun ScheduleControls(schedule: BackupSchedule, change: ((BackupSchedule) -> BackupSchedule) -> Unit) {
     val theme = LocalGlassTheme.current
-    val schedule = backup.settings.schedule
-    fun change(f: (BackupSchedule) -> BackupSchedule) = backup.update { it.copy(schedule = f(it.schedule)) }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Frequency.entries.forEach { option -> GlassChip(option.label, selected = schedule.frequency == option, onClick = { change { it.copy(frequency = option) } }) }
     }

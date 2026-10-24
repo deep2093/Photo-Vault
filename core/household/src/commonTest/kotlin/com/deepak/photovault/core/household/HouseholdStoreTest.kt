@@ -49,7 +49,7 @@ class HouseholdStoreTest {
         val h = store().approve(OwnerAuth(OWNER_PHONE, "2468"), request)
         val sam = h.members.single { it.name == "Sam" }
         assertEquals(DEFAULT_LIMIT_GB, sam.limitGb)
-        assertTrue(drive.exists("users/${sam.userId}/originals"))
+        assertTrue(drive.exists("users/${sam.userId}/albums"))
         assertTrue(store().pendingRequests().isEmpty())
         assertIs<Membership.Joined>(store().membership(SAM_PHONE))
     }

@@ -8,10 +8,15 @@ package com.deepak.photovault.core.backup
 object RetryPolicy {
     const val RETRY_DELAY_MILLIS = 60 * 60_000L
 
-    enum class Action { NOTHING, RETRY_IN_AN_HOUR, NOTIFY }
+    /** Waiting for another family phone to finish (24 Oct): try again after this, quietly. */
+    const val TURN_DELAY_MILLIS = 30 * 60_000L
+
+    enum class Action { NOTHING, RETRY_IN_AN_HOUR, NOTIFY, TRY_AFTER_TURN }
 
     fun after(run: BackupRun): Action = when {
         run.succeeded || run.failure == FailureReason.STOPPED -> Action.NOTHING
+        // Another phone had its turn: not a failure, so no notification and the one-hour rule isn't used up.
+        run.failure == FailureReason.BUSY && run.trigger != BackupTrigger.MANUAL -> Action.TRY_AFTER_TURN
         run.trigger == BackupTrigger.SCHEDULED -> Action.RETRY_IN_AN_HOUR
         run.trigger == BackupTrigger.RETRY -> Action.NOTIFY
         else -> Action.NOTHING

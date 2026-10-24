@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.deepak.photovault.core.backup.BackupCatalog
+import com.deepak.photovault.core.backup.BackupCoordinator
+import com.deepak.photovault.core.backup.BackupSchedule
+import com.deepak.photovault.core.backup.PublishedSchedule
 import com.deepak.photovault.core.household.FeedbackBox
 import com.deepak.photovault.core.household.FeedbackEntry
 import com.deepak.photovault.core.household.FeedbackKind
@@ -174,6 +177,7 @@ class DriveState(private val platform: DrivePlatform) {
             }
         }
         space = runCatching { drive?.space() }.getOrNull()
+        refreshActive()
         val current = membership
         if (current is Membership.Joined) {
             privatePhotos = runCatching { s.privatePhotos(current.me.userId) }.getOrDefault(privatePhotos)
@@ -384,6 +388,35 @@ class DriveState(private val platform: DrivePlatform) {
             BackupCatalog(fs, me.userId).remove(records, platform.deviceId, platform.now())
             backupRecords = backupRecords?.filterNot { it.drivePath in paths }
         }
+    }
+
+    // ---- Taking turns (24 Oct) ----
+
+    /** People whose phone is backing up right now (a subtle dot on their picture in Family). */
+    var backingUpNow by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    private fun coordinator(fs: DriveFileSystem, me: com.deepak.photovault.core.household.Member) =
+        BackupCoordinator(fs, me.userId, platform.deviceId, platform.deviceName, platform::now)
+
+    private suspend fun refreshActive() {
+        val j = joined ?: return
+        val fs = drive ?: return
+        backingUpNow = runCatching { coordinator(fs, j.me).activeUsers(j.household.members.map { it.userId }) }.getOrDefault(backingUpNow)
+    }
+
+    /** Every other family phone's backup time; null if the drive can't be read. */
+    suspend fun otherSchedules(): List<PublishedSchedule>? {
+        val j = joined ?: return null
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
+        return runCatching { coordinator(fs, j.me).otherSchedules(j.household.members.map { it.userId }) }.getOrNull()
+    }
+
+    /** Tells the family when this phone backs up, so they can pick another hour. */
+    suspend fun publishSchedule(schedule: BackupSchedule, zoneId: String) {
+        val j = joined ?: return
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
+        runCatching { coordinator(fs, j.me).publish(schedule, j.me.name, zoneId) }
     }
 
     // ---- Send feedback (23 Oct) ----

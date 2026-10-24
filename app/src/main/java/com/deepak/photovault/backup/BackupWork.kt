@@ -60,6 +60,7 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
             when (RetryPolicy.after(run)) {
                 RetryPolicy.Action.RETRY_IN_AN_HOUR -> BackupScheduler.retryInAnHour(applicationContext, graph.settings.load())
                 RetryPolicy.Action.NOTIFY -> BackupNotifications.failed(applicationContext, run.failureMessage ?: "Backup didn't finish.")
+                RetryPolicy.Action.TRY_AFTER_TURN -> BackupScheduler.afterTurn(applicationContext, graph.settings.load(), run.trigger)
                 RetryPolicy.Action.NOTHING -> Unit
             }
         }
@@ -124,6 +125,17 @@ object BackupScheduler {
             .setInitialDelay(RetryPolicy.RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS)
             .setConstraints(constraints(settings, scheduled = true))
             .setInputData(workDataOf(BackupWorker.KEY_TRIGGER to BackupTrigger.RETRY.name))
+            .addTag(TAG_ALL)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_RETRY, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    /** Another family phone was backing up (24 Oct): quietly try again in half an hour, same kind of backup. */
+    fun afterTurn(context: Context, settings: BackupSettings, trigger: BackupTrigger) {
+        val request = OneTimeWorkRequestBuilder<BackupWorker>()
+            .setInitialDelay(RetryPolicy.TURN_DELAY_MILLIS, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints(settings, scheduled = true))
+            .setInputData(workDataOf(BackupWorker.KEY_TRIGGER to trigger.name))
             .addTag(TAG_ALL)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_RETRY, ExistingWorkPolicy.REPLACE, request)

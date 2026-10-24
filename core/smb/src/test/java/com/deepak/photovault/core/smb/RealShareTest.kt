@@ -105,8 +105,8 @@ class RealShareTest {
                     )
             }
             // A different file already has one of the names: it must survive untouched.
-            drive.mkdirs("users/u1/originals/2026/10")
-            drive.createNew("users/u1/originals/2026/10/IMG_1.jpg", "not yours".encodeToByteArray())
+            drive.mkdirs("users/u1/albums/Camera/2026/10")
+            drive.createNew("users/u1/albums/Camera/2026/10/IMG_1.jpg", "not yours".encodeToByteArray())
             val index = com.deepak.photovault.core.backup.MemoryBackupIndex()
             val engine = com.deepak.photovault.core.backup.BackupEngine(
                 drive, "u1", "phone-test-0001", reader, index, System::currentTimeMillis, kotlinx.datetime.TimeZone.UTC,
@@ -114,9 +114,9 @@ class RealShareTest {
             val run = engine.run(items, com.deepak.photovault.core.backup.BackupSettings(), 10_000_000_000L, com.deepak.photovault.core.backup.BackupTrigger.MANUAL)
             assertTrue(run.toString(), run.succeeded)
             assertEquals(3, run.uploaded)
-            assertArrayEquals("not yours".encodeToByteArray(), drive.read("users/u1/originals/2026/10/IMG_1.jpg"))
+            assertArrayEquals("not yours".encodeToByteArray(), drive.read("users/u1/albums/Camera/2026/10/IMG_1.jpg"))
             val back = java.io.ByteArrayOutputStream()
-            drive.readStream("users/u1/originals/2026/10/IMG_1 (2).jpg") { b, n -> back.write(b, 0, n) }
+            drive.readStream("users/u1/albums/Camera/2026/10/IMG_1 (2).jpg") { b, n -> back.write(b, 0, n) }
             assertArrayEquals(photos.getValue(1L), back.toByteArray())
             assertTrue(drive.list("users/u1/.incoming").isEmpty())
             assertEquals(1, drive.list("users/u1/manifests/phone-test-0001").size)

@@ -23,7 +23,7 @@ import kotlin.uuid.Uuid
  * For every photo:
  * 1. Stream it to a private temporary file in users/<id>/.incoming, working out its SHA-256 on the way.
  * 2. Read the temporary file back from the drive and work out its SHA-256 again.
- * 3. Only if both match, publish it with a rename that never replaces anything (originals/YYYY/MM/name).
+ * 3. Only if both match, publish it with a rename that never replaces anything (albums/<album>/YYYY/MM/name).
  *    If the name is taken by the very same file it counts as already there; a different file gets "name (2)".
  * 4. Only then is it recorded as backed up: in this phone's index and in a manifest file on the drive.
  *
@@ -223,10 +223,10 @@ class BackupEngine(
         return hasher.hex() to size
     }
 
+    /** users/<id>/albums/<phone album>/YYYY/MM (24 Oct: the drive mirrors the phone's albums). */
     private fun folderFor(item: MediaItem): String {
         val date = Instant.fromEpochMilliseconds(item.takenAtMillis).toLocalDateTime(zone).date
-        val kind = if (item.isVideo) "videos" else "originals"
-        return DrivePaths.join(userFolder, kind, date.year.toString(), date.monthNumber.toString().padStart(2, '0'))
+        return DrivePaths.join(userFolder, ALBUMS, albumFolder(item.albumName), date.year.toString(), date.monthNumber.toString().padStart(2, '0'))
     }
 
     /** Leftovers from a backup that was cut off (this phone's only; another phone may be uploading now). */
@@ -256,6 +256,15 @@ class BackupEngine(
     companion object {
         const val INCOMING = ".incoming"
         const val MANIFESTS = "manifests"
+
+        /** Each phone album gets its own folder under this one (24 Oct). */
+        const val ALBUMS = "albums"
+
+        /** A phone album's name made safe as a folder name on any drive. */
+        fun albumFolder(name: String): String {
+            val clean = name.replace(Regex("[\\\\/:*?\"<>|\\u0000-\\u001f]"), "_").trim().trim('.').trim().take(60)
+            return clean.ifEmpty { "No album" }
+        }
         const val TEMP_SUFFIX = ".part"
         /** Stop before the drive is completely full, so the router and other phones still work. */
         const val DRIVE_MARGIN_BYTES = 1_000_000_000L

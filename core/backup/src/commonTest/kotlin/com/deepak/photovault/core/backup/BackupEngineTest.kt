@@ -59,15 +59,23 @@ class BackupEngineTest {
         assertTrue(result.succeeded)
         assertEquals(2, result.uploaded)
         val all = drive.allFiles()
-        assertTrue("users/$USER/originals/2026/10/IMG_1.jpg" in all, all.toString())
-        assertTrue("users/$USER/videos/2026/10/VID_2.mp4" in all)
+        assertTrue("users/$USER/albums/Camera/2026/10/IMG_1.jpg" in all, all.toString())
+        assertTrue("users/$USER/albums/Camera/2026/10/VID_2.mp4" in all)
         // Exact bytes on the drive.
-        assertTrue(files[1]!!.contentEquals(drive.read("users/$USER/originals/2026/10/IMG_1.jpg")))
+        assertTrue(files[1]!!.contentEquals(drive.read("users/$USER/albums/Camera/2026/10/IMG_1.jpg")))
         // No temporary files left; one manifest written for this phone.
         assertTrue(all.none { it.endsWith(".part") })
         assertEquals(1, all.count { it.startsWith("users/$USER/manifests/$PHONE/") })
         assertEquals(2, index.records.size)
         assertEquals(64, index.records.first().sha256.length)
+    }
+
+    @Test
+    fun albumFoldersAreSafeNames() {
+        assertEquals("Camera", BackupEngine.albumFolder("Camera"))
+        assertEquals("WhatsApp_Images", BackupEngine.albumFolder("WhatsApp/Images"))
+        assertEquals("No album", BackupEngine.albumFolder(" .. "))
+        assertEquals("No album", BackupEngine.albumFolder(""))
     }
 
     @Test
@@ -86,7 +94,7 @@ class BackupEngineTest {
         assertEquals(1, again.uploaded)
         assertEquals(setOf("IMG_1.jpg", "IMG_2.jpg"), catalog.records().map { it.originalName }.toSet())
         // Nobody can delete outside their own folder.
-        val other = first.copy(drivePath = "users/someone-else/originals/2026/10/IMG_9.jpg")
+        val other = first.copy(drivePath = "users/someone-else/albums/Camera/2026/10/IMG_9.jpg")
         kotlin.test.assertFailsWith<IllegalArgumentException> { catalog.remove(listOf(other), PHONE, clock++) }
     }
 
@@ -102,12 +110,12 @@ class BackupEngineTest {
 
     @Test
     fun neverOverwritesADifferentFileWithTheSameName() = runTest {
-        drive.mkdirs("users/$USER/originals/2026/10")
-        drive.createNew("users/$USER/originals/2026/10/IMG_1.jpg", "someone else's".encodeToByteArray())
+        drive.mkdirs("users/$USER/albums/Camera/2026/10")
+        drive.createNew("users/$USER/albums/Camera/2026/10/IMG_1.jpg", "someone else's".encodeToByteArray())
         val result = run(engine(), listOf(photo(1, "IMG_1.jpg")))
         assertTrue(result.succeeded)
-        assertEquals("someone else's", drive.read("users/$USER/originals/2026/10/IMG_1.jpg").decodeToString())
-        assertTrue(files[1]!!.contentEquals(drive.read("users/$USER/originals/2026/10/IMG_1 (2).jpg")))
+        assertEquals("someone else's", drive.read("users/$USER/albums/Camera/2026/10/IMG_1.jpg").decodeToString())
+        assertTrue(files[1]!!.contentEquals(drive.read("users/$USER/albums/Camera/2026/10/IMG_1 (2).jpg")))
     }
 
     @Test
@@ -133,7 +141,7 @@ class BackupEngineTest {
         assertEquals(FailureReason.CHECK_FAILED, result.failure)
         assertEquals(1, result.failedItems)
         assertTrue(index.records.isEmpty())
-        assertTrue(drive.allFiles().none { it.contains("originals") || it.endsWith(".part") }, drive.allFiles().toString())
+        assertTrue(drive.allFiles().none { it.contains("/albums/") || it.endsWith(".part") }, drive.allFiles().toString())
         // Fixed cable: the next run backs it up.
         drive.corruptWrites = false
         assertTrue(run(engine(index), listOf(photo(1, "IMG_1.jpg"))).succeeded)
@@ -145,7 +153,7 @@ class BackupEngineTest {
         val result = run(engine(), items, limit = 2500)
         assertEquals(FailureReason.SPACE_LIMIT_FULL, result.failure)
         assertEquals(2, result.uploaded)
-        assertTrue(drive.folderSize("users/$USER/originals") <= 2500)
+        assertTrue(drive.folderSize("users/$USER/albums") <= 2500)
     }
 
     @Test
@@ -175,7 +183,7 @@ class BackupEngineTest {
         val second = run(engine(index), items)
         assertTrue(second.succeeded, second.toString())
         assertEquals(2, second.uploaded)
-        assertEquals(4, drive.allFiles().count { it.contains("/originals/") })
+        assertEquals(4, drive.allFiles().count { it.contains("/albums/") })
     }
 
     @Test

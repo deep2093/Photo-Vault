@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 data class BackupRecord(
     /** [BackupSelection.key] of the phone photo it came from. */
     val key: String,
-    /** Inside the PhotoVault folder, e.g. users/<id>/originals/2026/10/IMG_1234.jpg. */
+    /** Inside the PhotoVault folder, e.g. users/<id>/albums/Camera/2026/10/IMG_1234.jpg (originals/... before 24 Oct). */
     val drivePath: String,
     val sha256: String,
     /** Size of the file on the drive (smaller than the phone's when Storage saver shrank it). */
@@ -91,6 +91,7 @@ enum class FailureReason(val plain: String) {
     DRIVE_FULL("The drive itself is full. Make room on it, then back up again."),
     CHECK_FAILED("Some files didn't match after uploading, so they weren't counted as backed up. They'll be tried again next time."),
     STOPPED("Backup was stopped. It carries on from where it stopped next time."),
+    BUSY("Another phone in the family is backing up. This one takes its turn in about half an hour."),
     OTHER("Something went wrong while backing up."),
 }
 

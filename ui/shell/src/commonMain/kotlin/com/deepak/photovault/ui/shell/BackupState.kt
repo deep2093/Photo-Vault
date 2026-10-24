@@ -89,6 +89,9 @@ class BackupState(private val platform: BackupPlatform) {
     /** Restore progress: done to total. */
     var restoreProgress by mutableStateOf<Pair<Int, Int>?>(null)
 
+    /** Waiting for another family phone's backup to finish (24 Oct): that phone's name. */
+    var waitingFor by mutableStateOf<String?>(null)
+
     /** A short line about the last restore, shown on the Backup screen. */
     var restoreMessage by mutableStateOf<String?>(null)
 
