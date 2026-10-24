@@ -287,7 +287,7 @@ class GalleryState(
 
     private var familyById: Map<Long, MediaItem> = familyAlbum.associateBy { it.id }
 
-    fun setFamilyAlbum(records: List<BackupRecord>) {
+    fun updateFamilyAlbum(records: List<BackupRecord>) {
         familyCache.save(records)
         familyAlbum = DriveTimeline.driveOnly(records, emptyList()).sortedByDescending { it.takenAtMillis }
         familyById = familyAlbum.associateBy { it.id }

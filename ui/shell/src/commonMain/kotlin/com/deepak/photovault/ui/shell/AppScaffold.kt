@@ -180,7 +180,7 @@ fun PhotoVaultApp(
             drive.loadFamilyAlbum()
         }
     }
-    LaunchedEffect(gallery, drive.familyAlbumRecords) { drive.familyAlbumRecords?.let(gallery::setFamilyAlbum) }
+    LaunchedEffect(gallery, drive.familyAlbumRecords) { drive.familyAlbumRecords?.let(gallery::updateFamilyAlbum) }
     LaunchedEffect(gallery, drive.backupRecords) { drive.backupRecords?.let(gallery::setDriveRecords) }
     LaunchedEffect(gallery, drive.driveTrash) { drive.driveTrash?.let(gallery::setDriveTrash) }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
