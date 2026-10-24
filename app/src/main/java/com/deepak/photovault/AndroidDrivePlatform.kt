@@ -104,7 +104,7 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         }
         val saved = connection.host.trim()
         if (!SmbErrors.isUnreachable(first) || !isIpv4(saved) || !onSameNetwork(saved)) throw first
-        val found = runCatching { LanDiscovery.find(context, saved).hosts }.getOrDefault(emptyList())
+        val found = runCatching { LanDiscovery.around(context, saved) }.getOrDefault(emptyList())
         for (host in SmbErrors.nearbyFirst(saved, found).take(MAX_TRIES)) {
             val moved = connection.copy(host = host)
             val fs = try {
@@ -138,17 +138,28 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
 
     private fun isIpv4(host: String) = host.split('.').let { p -> p.size == 4 && p.all { (it.toIntOrNull() ?: -1) in 0..255 } }
 
-    /** The phone has an address in the same /24 network as [host] right now (home Wi-Fi, or the VPN later). */
+    /**
+     * The phone is on the same network as [host] right now (home Wi-Fi, or the VPN later), using the network's
+     * real size: a home network like 192.168.68.0/22 covers .68.x to .71.x (24 Oct).
+     */
     private fun onSameNetwork(host: String): Boolean {
-        val prefix = host.substringBeforeLast('.')
+        val target = ipv4ToInt(host) ?: return false
         val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return false
         @Suppress("DEPRECATION")
         val networks = cm.allNetworks
         return networks.any { n ->
             cm.getLinkProperties(n)?.linkAddresses.orEmpty().any { la ->
-                (la.address as? java.net.Inet4Address)?.hostAddress?.substringBeforeLast('.') == prefix
+                val mine = (la.address as? java.net.Inet4Address)?.hostAddress?.let(::ipv4ToInt) ?: return@any false
+                // Never wider than /16, so a phone on some huge network doesn't count as "home".
+                SmbErrors.sameNetwork(mine, target, la.prefixLength.coerceIn(16, 32))
             }
         }
+    }
+
+    private fun ipv4ToInt(ip: String): Int? {
+        val p = ip.split('.').map { it.toIntOrNull() ?: return null }
+        if (p.size != 4 || p.any { it !in 0..255 }) return null
+        return (p[0] shl 24) or (p[1] shl 16) or (p[2] shl 8) or p[3]
     }
 
     private fun profileOf(connection: DriveConnection) = SmbProfile(

@@ -120,6 +120,35 @@ object LanDiscovery {
         Result(found.sorted(), explanation)
     }
 
+    /**
+     * SMB servers in the same /24 block as [host] (24 Oct: a drive that moved from .71.250 to .71.249 while the
+     * phone itself is on .68.x of a larger home network). Nearest addresses first; [host] itself left out.
+     */
+    suspend fun around(context: Context, host: String): List<String> = withContext(Dispatchers.IO) {
+        val prefix = host.substringBeforeLast('.')
+        val last = host.substringAfterLast('.').toIntOrNull() ?: return@withContext emptyList()
+        if (!isPrivate(host)) return@withContext emptyList()
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork
+        val executor = Executors.newFixedThreadPool(48)
+        try {
+            val tasks = (1..254).filter { it != last }.map { n ->
+                Callable {
+                    val candidate = "$prefix.$n"
+                    val open = runCatching {
+                        (network?.socketFactory?.createSocket() ?: Socket()).use { it.connect(InetSocketAddress(candidate, 445), 500) }
+                    }.isSuccess || runCatching { Socket().use { it.connect(InetSocketAddress(candidate, 445), 500) } }.isSuccess
+                    if (open) candidate else null
+                }
+            }
+            executor.invokeAll(tasks, 8, TimeUnit.SECONDS)
+                .mapNotNull { f -> if (f.isCancelled) null else runCatching { f.get() }.getOrNull() }
+                .sortedBy { kotlin.math.abs((it.substringAfterLast('.').toIntOrNull() ?: 0) - last) }
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
     private fun isPrivate(ip: String): Boolean {
         val parts = ip.split('.').mapNotNull(String::toIntOrNull)
         if (parts.size != 4) return false

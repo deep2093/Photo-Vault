@@ -398,6 +398,12 @@ object SmbErrors {
         return network
     }
 
+    /** Whether two IPv4 addresses (as 32-bit numbers) are in the same network of [prefixLength] bits. */
+    fun sameNetwork(a: Int, b: Int, prefixLength: Int): Boolean {
+        val mask = if (prefixLength <= 0) 0 else (-1 shl (32 - prefixLength.coerceAtMost(32)))
+        return (a and mask) == (b and mask)
+    }
+
     /** Addresses to try when [saved] stops answering: the same home network only, nearest numbers first. */
     fun nearbyFirst(saved: String, found: List<String>): List<String> {
         val prefix = saved.substringBeforeLast('.', "")

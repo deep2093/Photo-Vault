@@ -15,6 +15,11 @@ class SmbErrorsTest {
         val found = listOf("192.168.71.1", "192.168.71.249", "192.168.71.250", "192.168.71.253", "10.0.0.249")
         assertEquals(listOf("192.168.71.249", "192.168.71.253", "192.168.71.1"), SmbErrors.nearbyFirst("192.168.71.250", found))
         assertTrue(SmbErrors.nearbyFirst("nas.local", found).isEmpty())
+        // Deepak's home network is 192.168.68.0/22: a phone on .68.x and the drive on .71.x are both home.
+        fun ip(a: Int, b: Int, c: Int, d: Int) = (a shl 24) or (b shl 16) or (c shl 8) or d
+        assertTrue(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 71, 250), 22))
+        assertFalse(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 72, 1), 22))
+        assertFalse(SmbErrors.sameNetwork(ip(192, 168, 68, 77), ip(192, 168, 71, 250), 24))
     }
 
     @Test fun permanentOrCancelledCausesAreNotRetried() {
