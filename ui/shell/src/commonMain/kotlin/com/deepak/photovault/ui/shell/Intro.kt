@@ -93,6 +93,9 @@ object WhatsNew {
     const val ID = "2026-10-25"
     const val TITLE = "What's new"
     val items: List<Pair<String, String>> = listOf(
+        "Family Album" to "A shared album the whole family sees. Select backed-up photos and tap the family button (also in the viewer). It holds links to each person's own backup, never copies, and you can only remove photos you added.",
+        "Recently deleted on the drive" to "Photos you delete that live only on the drive wait 30 days in Recently deleted before they are gone for good, and can be restored.",
+        "Share drive photos" to "Photos that are only on the drive can be shared: Pixallery fetches them first.",
         "One timeline" to "Photos you backed up to the family drive now stay in Photos and Albums even after you delete them from the phone.",
         "Pages slide like a door" to "Settings and other pages slide in from the left edge and follow your finger when you swipe back.",
         "New theme sections" to "Themes are sorted into Light, Dark and Photo, and Photo Light is the new default. Aurora Frost and Transparent are gone.",

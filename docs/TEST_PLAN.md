@@ -267,3 +267,12 @@ Unit tests and lint for every module, debug (preview-signed) and release
 (shrinker) builds, arm64 preview APK as an artifact. Since Phase 3 a throwaway Samba share
 (`tools/start_test_share.sh`) runs before the unit tests, and the "Report test counts" step shows how many
 real-share tests ran, so a skipped run can't pass silently.
+
+## Round 10 (25 Oct): Phase 5A
+1. **One timeline:** back up a few photos, delete them from the phone, empty the phone's Recently deleted. They should still show in Photos and in their album (offline too, thumbnails once seen). Tap one: it opens; a video downloads first, then plays.
+2. **Pull down on Photos** (top, All view): new drive photos appear after a backup from another phone.
+3. **Delete a drive-only photo:** it goes to Recently deleted ("Deleted for good after 30 days"); Restore puts it back in the same album; Delete for good removes it from the drive.
+4. **Share a drive-only photo:** "Getting the file from the drive…" then the share sheet.
+5. **Family Album:** Albums shows a "Family Album" card first (only in a family). Select backed-up photos, tap the family button; also from the viewer. A second phone sees them. You cannot remove someone else's photo. Photos not yet backed up say so.
+6. **What's new / Welcome tour:** a fresh install shows the tour once; an updated install shows What's new once. Both reopen from Settings > About.
+7. **Storage rings** sweep in when Storage opens.
