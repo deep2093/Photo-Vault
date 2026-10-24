@@ -126,10 +126,10 @@ class HouseholdStoreTest {
         ownerSetUp()
         store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
         val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
-        drive.createNew("users/${sam.userId}/originals/a.jpg", ByteArray(10))
+        drive.createNew("users/${sam.userId}/albums/a.jpg", ByteArray(10))
         store().removeMember(OwnerAuth(OWNER_PHONE, "2468"), sam.userId)
         assertIs<Membership.Removed>(store().membership(SAM_PHONE, rememberedUserId = sam.userId))
-        assertTrue(drive.exists("users/${sam.userId}/originals/a.jpg"))
+        assertTrue(drive.exists("users/${sam.userId}/albums/a.jpg"))
         assertFailsWith<IllegalArgumentException> { store().removeMember(OwnerAuth(OWNER_PHONE, "2468"), store().load()!!.ownerUserId) }
     }
 
@@ -152,7 +152,7 @@ class HouseholdStoreTest {
         assertTrue(!drive.exists(first))
         store().clearPhoto(SAM_PHONE, sam.userId)
         assertNull(store().load()!!.member(sam.userId)!!.photo)
-        assertFailsWith<IllegalArgumentException> { store().readPhoto("users/$owner/originals/a.jpg") }
+        assertFailsWith<IllegalArgumentException> { store().readPhoto("users/$owner/albums/a.jpg") }
     }
 
     @Test
@@ -204,7 +204,7 @@ class HouseholdStoreTest {
     @Test
     fun usageCountsEverythingInThePersonsFolder() = runTest {
         val h = ownerSetUp()
-        drive.createNew("users/${h.ownerUserId}/originals/a.jpg", ByteArray(1500))
+        drive.createNew("users/${h.ownerUserId}/albums/a.jpg", ByteArray(1500))
         drive.createNew("users/${h.ownerUserId}/videos/b.mp4", ByteArray(500))
         assertEquals(2000L, store().usedBytes(h.ownerUserId))
     }

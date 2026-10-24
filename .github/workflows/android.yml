@@ -34,7 +34,8 @@ jobs:
       - name: Unit tests (all modules)
         run: |
           if ! ./gradlew testDebugUnitTest --stacktrace > unit-tests.log 2>&1; then
-            grep -E '^e: |FAILED|AssertionError|What went wrong' -A2 unit-tests.log | grep -v '^--$' | head -40 | sed -e 's#/home/runner/work/[^/]*/[^/]*/##' | while IFS= read -r line; do echo "::error::${line}"; done
+            # GitHub shows only 10 errors per step: compile errors first, then failed tests.
+            { grep -E '^e: ' unit-tests.log | head -8; grep -E 'FAILED|AssertionError|What went wrong' -A2 unit-tests.log | grep -v '^--$' | head -20; } | sed -e 's#/home/runner/work/[^/]*/[^/]*/##' | while IFS= read -r line; do echo "::error::${line}"; done
             tail -40 unit-tests.log
             exit 1
           fi
