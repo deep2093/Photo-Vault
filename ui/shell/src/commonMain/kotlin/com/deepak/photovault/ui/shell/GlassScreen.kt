@@ -233,7 +233,7 @@ private fun GlassTopBar(
         modifier
             .fillMaxWidth()
             .heightIn(min = TopBarHeight)
-            .glassChrome(RoundedCornerShape(24.dp), elevation = 10.dp)
+            .glassChrome(RoundedCornerShape(24.dp), elevation = 10.dp, debug = true)
             .padding(start = if (onBack != null) 4.dp else 18.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),

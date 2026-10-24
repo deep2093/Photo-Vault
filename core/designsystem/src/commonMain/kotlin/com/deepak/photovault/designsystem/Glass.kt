@@ -85,17 +85,30 @@ fun Modifier.glassRim(shape: Shape): Modifier {
  * On Android 11 the blur library falls back to the same tint by itself.
  */
 @Composable
-fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
+/** TEMPORARY (25 Oct): finds the pale header line. 0 normal, 1 no shadow, 2 no rim, 3 no blur or lens, 4 none of them. */
+var headerDebug by androidx.compose.runtime.mutableStateOf(0)
+
+@Composable
+fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp, debug: Boolean = false): Modifier {
+    val mode = if (debug) headerDebug else 0
+    val noShadow = mode == 1 || mode == 4
+    val noRim = mode == 2 || mode == 4
+    val noBlur = mode == 3 || mode == 4
+    return glassChromeInner(shape, elevation, noShadow, noRim, noBlur)
+}
+
+@Composable
+private fun Modifier.glassChromeInner(shape: Shape, elevation: Dp, noShadow: Boolean, noRim: Boolean, noBlur: Boolean): Modifier {
     val theme = LocalGlassTheme.current
     val haze = LocalHazeState.current
     val settings = LocalGlassSettings.current
-    val blur = settings.blurEnabled && haze != null
+    val blur = settings.blurEnabled && haze != null && !noBlur
     // Lens glass (experimental): only for themes that offer it, and only where the platform gave the bar a lens.
-    val lens = LocalLensGlass.current
+    val lens = if (noBlur) null else LocalLensGlass.current
     val lensActive = lens != null && settings.lensEnabled && settings.blurEnabled && theme.lens
     val shadowColor = Color.Black.copy(alpha = if (theme.isDark) 0.6f else 0.18f)
     return this
-        .shadow(elevation, shape, ambientColor = shadowColor, spotColor = shadowColor)
+        .then(if (noShadow) Modifier else Modifier.shadow(elevation, shape, ambientColor = shadowColor, spotColor = shadowColor))
         .clip(shape)
         // Always in place when the platform offers a lens (it only draws while lens glass is on), so turning it on
         // later never has to attach it to a bar that is already on screen.
@@ -121,7 +134,7 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
                 Modifier.background(theme.glassFallback)
             },
         )
-        .glassRim(shape)
+        .then(if (noRim) Modifier else Modifier.glassRim(shape))
 }
 
 /** Glass for panels and cards that sit on the wallpaper. No blur needed: the wallpaper is calm. */

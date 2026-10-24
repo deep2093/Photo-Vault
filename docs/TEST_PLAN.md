@@ -308,3 +308,14 @@ real-share tests ran, so a skipped run can't pass silently.
 4. The invite text shows no address or password if opened in a text editor.
 5. Open with: in Files, tap a photo or video: Pixallery is in the list. It opens in Pixallery's viewer; a photo from your gallery lets you swipe through its folder, one from another app shows just that one.
 6. Settings > Open with Pixallery explains and opens Android's default apps settings.
+
+## Round 14 (25 Oct): invite files, join pop-up, fixes
+1. Owner phone open on any screen; a second phone asks to join (approval on): a pop-up with a buzz appears with Approve, Decline, Later. Approve asks the PIN if locked.
+2. Make an invite with "Lock with a code" off: no code shows; the joiner is not asked for one and joins once.
+3. Share the invite file (WhatsApp or Files), tap it on the second phone: Pixallery should be in "Open with" and open the join screen with the invite loaded. (Android and WhatsApp decide the list; if Pixallery is missing, use Choose file, Paste or Scan QR.)
+4. "Paste" on the join screen takes an invite copied with "Copy text".
+5. What's new appears after the opening animation, not over it.
+6. Enter and leave a Settings page very quickly several times: the slide animation always plays.
+7. Storage: the ring starts empty and the whole ring fills round.
+8. About shows Done items and Phase 6, 7, 8.
+9. Header line: Settings > About > "Header test", tap to change mode, open a page (e.g. Open with) and see which mode removes the pale line. Tell me the mode number.
