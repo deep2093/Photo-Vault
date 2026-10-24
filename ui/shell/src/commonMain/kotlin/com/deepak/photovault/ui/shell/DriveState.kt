@@ -337,14 +337,19 @@ class DriveState(private val platform: DrivePlatform) {
      * A new person joins with an invite: unlock it, store the WireGuard file if it came with one, connect to the
      * drive it describes and join straight away. Returns a problem in plain words, or null.
      */
-    suspend fun joinWithInvite(text: String, code: String, name: String, applyVpn: (String) -> Unit): String? {
+    suspend fun joinWithInvite(text: String, code: String, name: String, applyVpn: (String) -> Unit, startVpn: suspend () -> Boolean = { false }): String? {
         val invite = com.deepak.photovault.core.household.Invite.unlock(text, code)
             ?: return "That code doesn't open this invite. Check the code, or ask for a new invite."
         if (platform.now() > invite.expiresAtMillis) return "This invite has run out. Ask for a new one."
         invite.wireGuard?.let { runCatching { applyVpn(it) } }
         val d = invite.drive
-        connect(DriveConnection(d.host, d.share, d.folder, d.username, d.password, true))?.let {
-            return if (invite.wireGuard != null) "$it If you are away from home, turn on the VPN in Settings > Remote access (the invite already set it up), then try again." else it
+        val link = DriveConnection(d.host, d.share, d.folder, d.username, d.password, true)
+        var problem = connect(link)
+        // Away from home the drive only answers through the VPN, so the invite's own VPN file is switched on here
+        // (Android asks its one-time "Allow VPN?" question) and the connection is tried again (25 Oct).
+        if (problem != null && invite.wireGuard != null && startVpn()) problem = connect(link)
+        problem?.let {
+            return if (invite.wireGuard != null) "$it If you are away from home, check the VPN is on in Settings > Remote access, then try again." else it
         }
         return guarded {
             ensureStore()!!.joinWithInvite(invite, platform.deviceId, platform.deviceName, name)

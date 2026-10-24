@@ -221,7 +221,18 @@ internal fun InviteJoinCard(state: ShellState, drive: DriveState, onDone: () -> 
                 }
                 val invite = text
                 if (error == null && invite != null && !drive.busy) scope.launch {
-                    error = drive.joinWithInvite(invite, code, name) { wg -> state.remote.platform.importConfigText(wg) }
+                    error = drive.joinWithInvite(invite, code, name, { wg -> state.remote.platform.importConfigText(wg) }, {
+                        // Turn the VPN on and wait for it (up to 40 s, so there is time to answer Android's question).
+                        kotlinx.coroutines.delay(600)
+                        state.remote.platform.connect()
+                        var waited = 0
+                        while (waited < 40_000 && state.remote.status != RemoteStatus.CONNECTED && state.remote.status != RemoteStatus.ERROR) {
+                            kotlinx.coroutines.delay(250)
+                            waited += 250
+                        }
+                        if (state.remote.status == RemoteStatus.CONNECTED) kotlinx.coroutines.delay(1_500)
+                        state.remote.status == RemoteStatus.CONNECTED
+                    })
                     if (error == null) onDone()
                 }
             })

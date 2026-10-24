@@ -470,6 +470,25 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     // ---- Actions ----
 
+    override fun saveOpenedFile(item: com.deepak.photovault.core.media.MediaItem) {
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val ok = runCatching {
+                val src = Uri.parse(item.uri)
+                val values = android.content.ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, item.displayName.ifBlank { "Pixallery-${System.currentTimeMillis()}" })
+                    put(MediaStore.MediaColumns.MIME_TYPE, item.mimeType.ifBlank { if (item.isVideo) "video/mp4" else "image/jpeg" })
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, (if (item.isVideo) "Movies" else "Pictures") + "/Pixallery")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val table = if (item.isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                val dest = contentResolver.insert(table, values) ?: error("no destination")
+                contentResolver.openInputStream(src)!!.use { input -> contentResolver.openOutputStream(dest)!!.use { input.copyTo(it) } }
+                contentResolver.update(dest, android.content.ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+            }.isSuccess
+            runOnUiThread { toast(if (ok) "Saved to Pictures/Pixallery." else "Couldn't save this file.") }
+        }
+    }
+
     override fun toast(message: String) {
         android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
     }

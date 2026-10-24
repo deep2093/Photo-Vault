@@ -54,6 +54,9 @@ interface MediaActions {
 
     /** Brings photos that are only on the family drive back onto this phone (checked copy, "Restored" album). */
     fun saveToPhone(items: List<MediaItem>) = Unit
+
+    /** Copies a photo or video another app opened in Pixallery into this phone's gallery (Pictures/Pixallery). */
+    fun saveOpenedFile(item: MediaItem) = Unit
     /** Android 12+: Pixallery may delete without Android's own pop-up ("manage media" allowed), so it asks itself. */
     fun canDeleteWithoutAsking(): Boolean = false
 
@@ -341,6 +344,9 @@ class GalleryState(
     fun openExternal(item: MediaItem) {
         externalById[item.id] = item
     }
+
+    /** True for a file another app opened here that is not part of this phone's gallery: only Share and Save are safe for it. */
+    fun isExternal(item: MediaItem): Boolean = item.id in externalById && item.id !in byId
 
     fun find(id: Long): MediaItem? = byId[id] ?: familyById[id] ?: externalById[id]
 
