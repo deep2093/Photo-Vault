@@ -38,9 +38,6 @@ import com.deepak.photovault.designsystem.SectionHeader
 import com.deepak.photovault.designsystem.WarningNote
 import kotlinx.coroutines.launch
 
-/** Phase 4A. Until encrypted uploading (4B) exists, Private people upload nothing; the screens say so plainly. */
-private const val NOT_YET = "Encrypted uploading arrives with the next update. Until then nothing is uploaded for a Private backup: your photos stay safe on this phone."
-
 /** The two big cards. Nothing is pre-selected: the person must pick. */
 @Composable
 internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: BackupState) {
@@ -79,17 +76,19 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
                     "You get 24 recovery words. If you lose your phone AND the words, the backup can't be opened by anyone.",
                     "Photos open only inside Pixallery, not straight from the drive.",
                 ),
-                onClick = { state.open(Overlay.PrivateSetup) },
+                onClick = {
+                    // Already have the key on this phone: nothing to set up, just use it.
+                    if (state.encryption.keyOnPhone) { backup.update { it.copy(privacy = BackupPrivacy.PRIVATE) }; state.back() } else state.open(Overlay.PrivateSetup)
+                },
             )
         }
-        item { WarningNote(NOT_YET, Modifier.cardWidth()) }
     }
     if (confirmNormal) {
         GlassDialog(
             title = "Switch to Normal?",
             onDismiss = { confirmNormal = false },
             buttons = {
-                GlassButton("Keep Private", onClick = { confirmNormal = false })
+                GlassButton("Cancel", onClick = { confirmNormal = false })
                 GlassButton("Switch to Normal", primary = true, onClick = {
                     confirmNormal = false
                     backup.update { it.copy(privacy = BackupPrivacy.NORMAL) }
@@ -133,6 +132,7 @@ internal fun PrivateSetupScreen(state: ShellState, drive: DriveState, backup: Ba
     val scope = rememberCoroutineScope()
     var step by rememberSaveable { mutableStateOf(0) }
     var problem by remember { mutableStateOf<String?>(null) }
+    var alreadyOnDrive by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     var shown by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf<Boolean?>(null) }
@@ -159,9 +159,12 @@ internal fun PrivateSetupScreen(state: ShellState, drive: DriveState, backup: Ba
                         ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
                     }
                 }
-                item { WarningNote(NOT_YET, Modifier.cardWidth()) }
                 item { problem?.let { Text(it, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.cardWidth()) } }
-                item {
+                if (alreadyOnDrive) {
+                    item {
+                        GlassButton("Restore my key", primary = true, onClick = { state.open(Overlay.RestoreKeys) })
+                    }
+                } else item {
                     GlassButton("Make my key", primary = true, onClick = {
                         val ctx = drive.keyContext()
                         if (ctx == null) { problem = "Join the family first (Settings > Drive)."; return@GlassButton }
@@ -170,7 +173,8 @@ internal fun PrivateSetupScreen(state: ShellState, drive: DriveState, backup: Ba
                             val existing = drive.readKeyFiles()
                             working = false
                             if (existing != null) {
-                                problem = "Private backup is already set up for you on the drive. Use \"Restore my key\" in Backup, with your 24 words."
+                                alreadyOnDrive = true
+                                problem = "Private backup is already set up for you on the drive. Restore your key on this phone with your 24 words."
                             } else {
                                 val made = enc.platform.createKey(ctx.first, ctx.second)
                                 if (made == null) problem = "This phone can't make a private key." else { enc.pending = made; problem = null; step = 1 }
@@ -322,7 +326,7 @@ internal fun PrivacyCard(state: ShellState, drive: DriveState, backup: BackupSta
                 needsRestore -> "You use Private backup, but this phone doesn't have your key yet."
                 privacy == BackupPrivacy.UNSET -> "Not chosen yet. Backup waits until you pick Normal or Private."
                 privacy == BackupPrivacy.NORMAL -> "Normal: your photos are saved as ordinary pictures."
-                else -> "Private: only you can open your backed-up photos. $NOT_YET"
+                else -> "Private: only you can open your backed-up photos."
             },
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodyMedium,
