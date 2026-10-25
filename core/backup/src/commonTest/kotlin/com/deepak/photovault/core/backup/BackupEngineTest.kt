@@ -208,9 +208,9 @@ class BackupEngineTest {
         val index = MemoryBackupIndex()
         val items = (1L..4L).map { photo(it, "IMG_$it.jpg", taken = OCT_15 + it) }
         drive.failAfterWrites = 2
-        val first = BackupEngine(drive, USER, PHONE, reader, index, { clock++ }, TimeZone.UTC) {
+        val first = BackupEngine(drive, USER, PHONE, reader, index, { clock++ }, TimeZone.UTC, classify = {
             BackupFailure(FailureReason.DRIVE_UNREACHABLE)
-        }.run(items, BackupSettings(), 100 * GB, BackupTrigger.SCHEDULED)
+        }).run(items, BackupSettings(), 100 * GB, BackupTrigger.SCHEDULED)
         assertEquals(FailureReason.DRIVE_UNREACHABLE, first.failure)
         assertEquals(2, first.uploaded)
         assertEquals(2, index.records.size)
