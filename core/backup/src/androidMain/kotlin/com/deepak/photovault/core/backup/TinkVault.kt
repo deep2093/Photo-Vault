@@ -93,7 +93,6 @@ private class EncryptingSource(private val plain: ByteSource, key: ByteArray, aa
     override fun read(buffer: ByteArray): Int {
         while (at >= ready.size) {
             if (finished) return -1
-            sink.reset()
             val n = plain.read(chunk)
             if (n < 0) {
                 encrypting.close()
@@ -101,7 +100,9 @@ private class EncryptingSource(private val plain: ByteSource, key: ByteArray, aa
             } else {
                 encrypting.write(chunk, 0, n)
             }
+            // The stream's header is written when it is created, so it is taken with the first bytes (never reset before).
             ready = sink.toByteArray()
+            sink.reset()
             at = 0
         }
         val n = minOf(buffer.size, ready.size - at)
