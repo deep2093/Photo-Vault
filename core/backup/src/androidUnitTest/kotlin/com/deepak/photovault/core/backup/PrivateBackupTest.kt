@@ -26,6 +26,9 @@ class PrivateBackupTest {
     private val context = KeyContext("house-1", USER)
     private val vault = TinkVault(MemberKeys.generate(), context)
 
+    /** Each note gets its own time, as in real use (notes with the same time have no fixed order). */
+    private fun tick(): Long { clock += 1000; return clock }
+
     private val reader = object : MediaReader {
         override suspend fun open(item: MediaItem, storageSaver: Boolean): PreparedFile {
             val bytes = files.getValue(item.id)
@@ -126,7 +129,7 @@ class PrivateBackupTest {
 
         val catalog = BackupCatalog(drive, USER, vault)
         val record = catalog.records().single()
-        catalog.trash(listOf(record), PHONE, clock)
+        catalog.trash(listOf(record), PHONE, tick())
         assertTrue(catalog.records().isEmpty())
         val trashed = catalog.trashed().single()
         assertTrue(drive.allFiles().none { "IMG_1" in it })
@@ -135,12 +138,12 @@ class PrivateBackupTest {
         // Nobody without the key sees the trash notes.
         assertTrue(BackupCatalog(drive, USER).trashed().isEmpty())
 
-        catalog.restore(listOf(trashed), PHONE, clock)
+        catalog.restore(listOf(trashed), PHONE, tick())
         assertEquals(1, catalog.records().size)
         assertTrue(drive.exists(record.drivePath))
         assertTrue(catalog.trashed().isEmpty())
 
-        catalog.trash(catalog.records(), PHONE, clock + 5)
+        catalog.trash(catalog.records(), PHONE, tick())
         catalog.deleteForever(catalog.trashed())
         assertTrue(drive.allFiles().none { it.endsWith(".pxo") || it.endsWith(".pxt") || it.contains("/trash/") }, drive.allFiles().toString())
     }
