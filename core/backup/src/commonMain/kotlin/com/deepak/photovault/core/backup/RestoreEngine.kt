@@ -31,8 +31,9 @@ class RestoreEngine(
     private val drive: DriveFileSystem,
     userId: String,
     private val classify: (Throwable) -> BackupFailure = { BackupFailure(FailureReason.OTHER, it.message) },
+    private val vault: PrivateVault? = null,
 ) {
-    private val catalog = BackupCatalog(drive, userId)
+    private val catalog = BackupCatalog(drive, userId, vault)
 
     /**
      * Backed-up photos that aren't on this phone: neither the original nor an earlier restored copy. A restored
@@ -56,10 +57,20 @@ class RestoreEngine(
                 val target = writer.begin(record)
                 val hasher = newSha256()
                 try {
-                    drive.readStream(record.drivePath) { bytes, n ->
+                    val plain: (ByteArray, Int) -> Unit = { bytes, n ->
                         hasher.update(bytes, 0, n)
                         target.write(bytes, n)
                     }
+                    if (record.encrypted) {
+                        val v = vault ?: throw IllegalStateException("No private key on this phone")
+                        v.decrypt(ObjectKind.MEDIA, PrivatePaths.idOf(record.drivePath), { sink -> drive.readStream(record.drivePath, sink) }, plain)
+                    } else {
+                        drive.readStream(record.drivePath, plain)
+                    }
+                } catch (_: ObjectAuthenticationFailed) {
+                    target.abort()
+                    failed++
+                    continue
                 } catch (e: Throwable) {
                     target.abort()
                     throw e

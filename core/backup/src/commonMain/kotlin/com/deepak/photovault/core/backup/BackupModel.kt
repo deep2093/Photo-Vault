@@ -23,8 +23,10 @@ data class BackupRecord(
     val storageSaver: Boolean = false,
     /** The phone album it came from (since 24 Oct; older records leave it empty). For the Storage page. */
     val album: String? = null,
+    /** True for a Private person's backup (Phase 4B): [drivePath] is an encrypted object; [sha256] is of the plain bytes. */
+    val encrypted: Boolean = false,
 ) {
-    val fileName: String get() = drivePath.substringAfterLast('/')
+    val fileName: String get() = if (encrypted) originalName else drivePath.substringAfterLast('/')
 }
 
 /** A backup moved to the drive's Recently deleted (30 days), with the record it needs to come back. */
@@ -60,6 +62,9 @@ class PreparedFile(
 /** Reads photos from the phone. Android: MediaStore (original bytes, location kept). */
 interface MediaReader {
     suspend fun open(item: MediaItem, storageSaver: Boolean): PreparedFile
+
+    /** A small JPEG of the photo or video for Private backups, whose files can't show a preview on the drive. Null when none can be made. */
+    suspend fun thumbnail(item: MediaItem): ByteArray? = null
 }
 
 /** What this phone already knows is backed up. Android: a file in the app's private storage. */
@@ -99,6 +104,7 @@ enum class FailureReason(val plain: String) {
     VPN_FAILED("The VPN couldn't start for the away-from-home backup. Open Settings > Remote access to see why."),
     PRIVACY_NOT_CHOSEN("Choose how your backup is kept first: open Settings > Backup and pick Normal or Private."),
     PRIVATE_NOT_READY("Private backup is set up, but encrypted uploading isn't switched on yet in this version, so nothing was uploaded. Your photos stay safe on the phone."),
+    NO_PRIVATE_KEY("This phone doesn't have your private key. Open Settings > Backup and restore it with your 24 words."),
     BUSY("Another phone in the family is backing up. This one takes its turn in about half an hour."),
     OTHER("Something went wrong while backing up."),
 }

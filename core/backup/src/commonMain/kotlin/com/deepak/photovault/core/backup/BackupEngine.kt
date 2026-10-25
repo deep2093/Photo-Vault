@@ -1,6 +1,7 @@
 package com.deepak.photovault.core.backup
 
 import com.deepak.photovault.core.drive.ByteSource
+import com.deepak.photovault.core.drive.BytesSource
 import com.deepak.photovault.core.drive.DriveFileSystem
 import com.deepak.photovault.core.drive.DriveNotFound
 import com.deepak.photovault.core.drive.DrivePaths
@@ -40,6 +41,8 @@ class BackupEngine(
     private val zone: TimeZone = TimeZone.currentSystemDefault(),
     /** Turns a platform error (SMB) into a reason a person can act on. */
     private val classify: (Throwable) -> BackupFailure = { BackupFailure(FailureReason.OTHER, it.message) },
+    /** Set for a Private person: everything uploaded is encrypted with their key first. */
+    private val vault: PrivateVault? = null,
 ) {
     private val userFolder = HouseholdStore.userFolder(userId)
     private val incoming = DrivePaths.join(userFolder, INCOMING)
@@ -142,7 +145,97 @@ class BackupEngine(
         data class Stop(val reason: FailureReason) : Outcome
     }
 
-    private suspend fun backUpOne(item: MediaItem, prepared: PreparedFile): Outcome {
+    private suspend fun backUpOne(item: MediaItem, prepared: PreparedFile): Outcome =
+        if (vault != null) backUpPrivate(vault, item, prepared) else backUpNormal(item, prepared)
+
+    /**
+     * Private: the same safety as Normal, with encryption in between. The photo is encrypted as it streams, the
+     * stored copy is read back, decrypted and checked against the plain SHA-256, and only then published under a
+     * random name. A thumbnail is stored encrypted beside it.
+     */
+    private suspend fun backUpPrivate(vault: PrivateVault, item: MediaItem, prepared: PreparedFile): Outcome {
+        val temp = DrivePaths.join(incoming, "$deviceId-${Uuid.random()}$TEMP_SUFFIX")
+        val hasher = newSha256()
+        var size = 0L
+        val hashing = object : ByteSource {
+            override fun read(buffer: ByteArray): Int {
+                val n = prepared.source.read(buffer)
+                if (n > 0) {
+                    hasher.update(buffer, 0, n)
+                    size += n
+                }
+                return n
+            }
+
+            override fun close() = Unit
+        }
+        val id = vault.newObjectId()
+        try {
+            check(drive.writeNew(temp, vault.encrypt(hashing, ObjectKind.MEDIA, id))) { "Temporary name already in use" }
+            val local = hasher.hex()
+            val checker = newSha256()
+            var checkedSize = 0L
+            try {
+                vault.decrypt(ObjectKind.MEDIA, id, { sink -> drive.readStream(temp, sink) }) { b, n ->
+                    checker.update(b, 0, n)
+                    checkedSize += n
+                }
+            } catch (_: ObjectAuthenticationFailed) {
+                drive.delete(temp)
+                return Outcome.Mismatch
+            }
+            if (checker.hex() != local || checkedSize != size) {
+                drive.delete(temp)
+                return Outcome.Mismatch
+            }
+            val path = PrivatePaths.path(userFolder, ObjectKind.MEDIA, id)
+            drive.mkdirs(DrivePaths.parent(path))
+            check(drive.rename(temp, path)) { "Encrypted name already in use" }
+            writeThumbnail(vault, item, id)
+            return Outcome.Saved(
+                BackupRecord(
+                    key = BackupSelection.key(item),
+                    drivePath = path,
+                    sha256 = local,
+                    sizeBytes = size,
+                    originalName = safeName(prepared.name),
+                    takenAtMillis = item.takenAtMillis,
+                    mimeType = prepared.mimeType,
+                    isVideo = item.isVideo,
+                    savedAtMillis = now(),
+                    deviceId = deviceId,
+                    storageSaver = prepared.compressed,
+                    album = item.albumName.ifBlank { null },
+                    encrypted = true,
+                ),
+            )
+        } catch (e: Throwable) {
+            withContext(NonCancellable) { runCatching { drive.delete(temp) } }
+            throw e
+        }
+    }
+
+    /** Best effort: a photo without a thumbnail still backs up, and shows as a plain tile until it is opened. */
+    private suspend fun writeThumbnail(vault: PrivateVault, item: MediaItem, id: String) {
+        val bytes = try {
+            reader.thumbnail(item)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        } ?: return
+        val path = PrivatePaths.path(userFolder, ObjectKind.THUMB, id)
+        try {
+            drive.mkdirs(DrivePaths.parent(path))
+            drive.writeNew(path, vault.encrypt(BytesSource(bytes), ObjectKind.THUMB, id))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            runCatching { drive.delete(path) }
+        }
+    }
+
+    private suspend fun backUpNormal(item: MediaItem, prepared: PreparedFile): Outcome {
         val temp = DrivePaths.join(incoming, "$deviceId-${Uuid.random()}$TEMP_SUFFIX")
         val hasher = newSha256()
         var size = 0L
@@ -241,15 +334,15 @@ class BackupEngine(
         val manifest = Manifest(deviceId = deviceId, createdAtMillis = now(), records = pending.toList())
         val folder = DrivePaths.join(userFolder, MANIFESTS, deviceId)
         drive.mkdirs(folder)
-        val bytes = json.encodeToString(Manifest.serializer(), manifest).encodeToByteArray()
-        while (!drive.createNew(DrivePaths.join(folder, manifestName(manifest.createdAtMillis)), bytes)) Unit
+        val bytes = encodeManifest(vault, manifest)
+        while (!drive.createNew(DrivePaths.join(folder, manifestName(manifest.createdAtMillis, vault != null)), bytes)) Unit
         pending.clear()
     }
 
     /** A new phone, or the app reinstalled: learn what is already on the drive before uploading anything. */
     private suspend fun syncIndexIfEmpty() {
         if (index.keys().isNotEmpty()) return
-        val records = BackupCatalog(drive, userId).records()
+        val records = BackupCatalog(drive, userId, vault).records()
         if (records.isNotEmpty()) index.add(records)
     }
 
@@ -276,9 +369,19 @@ class BackupEngine(
             encodeDefaults = true
         }
 
-        fun manifestName(millis: Long) = "m-${millis.toString().padStart(14, '0')}-${Uuid.random().toString().take(8)}.json"
+        /** A Private person's manifests are sealed and end in .pxm; Normal ones are readable .json. */
+        fun manifestName(millis: Long, sealed: Boolean = false) =
+            "m-${millis.toString().padStart(14, '0')}-${Uuid.random().toString().take(8)}.${if (sealed) "pxm" else "json"}"
 
-        fun manifestTime(name: String): Long? = Regex("""m-(\d{14})-[0-9a-f]{8}\.json""").matchEntire(name)?.groupValues?.get(1)?.toLongOrNull()
+        fun manifestTime(name: String): Long? = Regex("""m-(\d{14})-[0-9a-f]{8}\.(json|pxm)""").matchEntire(name)?.groupValues?.get(1)?.toLongOrNull()
+
+        internal const val MANIFEST_PURPOSE = "manifest"
+        internal const val NOTE_PURPOSE = "trash-note"
+
+        internal fun encodeManifest(vault: PrivateVault?, manifest: Manifest): ByteArray {
+            val plain = json.encodeToString(Manifest.serializer(), manifest).encodeToByteArray()
+            return vault?.sealRecord(plain, MANIFEST_PURPOSE) ?: plain
+        }
 
         /** Characters that SMB drives refuse, replaced; empty names get a stand-in. */
         fun safeName(name: String): String {
@@ -290,7 +393,7 @@ class BackupEngine(
 }
 
 /** Reads what a person has on the drive: every manifest from every one of their phones. */
-class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
+class BackupCatalog(private val drive: DriveFileSystem, userId: String, private val vault: PrivateVault? = null) {
     private val userFolder = HouseholdStore.userFolder(userId)
     private val manifests = DrivePaths.join(userFolder, BackupEngine.MANIFESTS)
 
@@ -299,12 +402,12 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
         // what was saved before it, and a photo backed up again afterwards shows again.
         val files = drive.list(manifests).filter { it.isFolder }.flatMap { device ->
             val folder = DrivePaths.join(manifests, device.name)
-            drive.list(folder).filter { !it.isFolder && it.name.endsWith(".json") }.map { DrivePaths.join(folder, it.name) }
+            drive.list(folder).filter { !it.isFolder && (it.name.endsWith(".json") || it.name.endsWith(".pxm")) }.map { DrivePaths.join(folder, it.name) }
         }.sortedBy { it.substringAfterLast('/') }
         val out = LinkedHashMap<String, BackupRecord>()
         for (path in files) {
             val manifest = try {
-                BackupEngine.json.decodeFromString(Manifest.serializer(), drive.read(path).decodeToString())
+                readManifest(path) ?: continue
             } catch (_: DriveNotFound) {
                 continue
             } catch (e: CancellationException) {
@@ -316,6 +419,12 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
             manifest.removed.forEach { out.remove(it) }
         }
         return out.values.toList()
+    }
+
+    private suspend fun readManifest(path: String): Manifest? {
+        val raw = drive.read(path)
+        val plain = if (path.endsWith(".pxm")) (vault?.openRecord(raw, BackupEngine.MANIFEST_PURPOSE) ?: return null) else raw
+        return BackupEngine.json.decodeFromString(Manifest.serializer(), plain.decodeToString())
     }
 
     /**
@@ -330,14 +439,15 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
         val folder = DrivePaths.join(manifests, deviceId)
         drive.mkdirs(folder)
         val note = Manifest(deviceId = deviceId, createdAtMillis = now, records = emptyList(), removed = own.map { it.drivePath })
-        val bytes = BackupEngine.json.encodeToString(Manifest.serializer(), note).encodeToByteArray()
-        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(now)), bytes)) Unit
+        val bytes = BackupEngine.encodeManifest(vault, note)
+        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(now, vault != null)), bytes)) Unit
         for (r in own) {
             try {
                 drive.delete(r.drivePath)
             } catch (_: DriveNotFound) {
                 // Already gone.
             }
+            deleteThumb(r.drivePath)
         }
     }
 
@@ -356,10 +466,10 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
         val folder = DrivePaths.join(manifests, deviceId)
         drive.mkdirs(folder)
         val note = Manifest(deviceId = deviceId, createdAtMillis = now, records = records, removed = removed)
-        val bytes = BackupEngine.json.encodeToString(Manifest.serializer(), note).encodeToByteArray()
+        val bytes = BackupEngine.encodeManifest(vault, note)
         var at = now
         // Manifest names start with the time; a clash means another note landed in the same millisecond.
-        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(at)), bytes)) at++
+        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(at, vault != null)), bytes)) at++
     }
 
     /**
@@ -372,15 +482,17 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
         drive.mkdirs(trashFiles)
         val moved = mutableListOf<BackupRecord>()
         for ((i, r) in chosen.withIndex()) {
-            val target = DrivePaths.join(trashFiles, "$now-$i-${r.fileName}")
+            // An encrypted file keeps its random ID in the trash, so nothing about the photo is readable there.
+            val target = DrivePaths.join(trashFiles, if (r.encrypted) "$now-$i-${PrivatePaths.idOf(r.drivePath)}.pxo" else "$now-$i-${r.fileName}")
             val note = TrashedBackup(r, target, now)
             val noteBytes = BackupEngine.json.encodeToString(TrashedBackup.serializer(), note).encodeToByteArray()
+            val noteFile = DrivePaths.join(trashFolder, "$now-$i.${if (vault != null) "pxn" else "json"}")
             // The note first, so a file in the trash can never be without its record.
-            if (!drive.createNew(DrivePaths.join(trashFolder, "$now-$i.json"), noteBytes)) continue
+            if (!drive.createNew(noteFile, vault?.sealRecord(noteBytes, BackupEngine.NOTE_PURPOSE) ?: noteBytes)) continue
             try {
-                if (drive.rename(r.drivePath, target)) moved += r else drive.delete(DrivePaths.join(trashFolder, "$now-$i.json"))
+                if (drive.rename(r.drivePath, target)) moved += r else drive.delete(noteFile)
             } catch (_: DriveNotFound) {
-                drive.delete(DrivePaths.join(trashFolder, "$now-$i.json"))
+                drive.delete(noteFile)
             }
         }
         if (moved.isNotEmpty()) writeManifest(deviceId, now, emptyList(), moved.map { it.drivePath })
@@ -388,9 +500,11 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
 
     /** What is in the drive's Recently deleted, newest first. */
     suspend fun trashed(): List<TrashedBackup> =
-        drive.list(trashFolder).filter { !it.isFolder && it.name.endsWith(".json") }.mapNotNull { f ->
+        drive.list(trashFolder).filter { !it.isFolder && (it.name.endsWith(".json") || it.name.endsWith(".pxn")) }.mapNotNull { f ->
             try {
-                BackupEngine.json.decodeFromString(TrashedBackup.serializer(), drive.read(DrivePaths.join(trashFolder, f.name)).decodeToString())
+                val raw = drive.read(DrivePaths.join(trashFolder, f.name))
+                val plain = if (f.name.endsWith(".pxn")) (vault?.openRecord(raw, BackupEngine.NOTE_PURPOSE) ?: return@mapNotNull null) else raw
+                BackupEngine.json.decodeFromString(TrashedBackup.serializer(), plain.decodeToString())
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -425,6 +539,7 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
                 drive.delete(t.trashPath)
             } catch (_: DriveNotFound) {
             }
+            deleteThumb(t.record.drivePath)
             forgetNote(t)
         }
     }
@@ -440,7 +555,20 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String) {
     private suspend fun forgetNote(t: TrashedBackup) {
         // The note is named after the file in the trash: "<time>-<n>-<name>" -> "<time>-<n>.json".
         val stem = t.trashPath.substringAfterLast('/').split('-', limit = 3).take(2).joinToString("-")
-        drive.delete(DrivePaths.join(trashFolder, "$stem.json"))
+        for (ext in listOf("json", "pxn")) {
+            try {
+                drive.delete(DrivePaths.join(trashFolder, "$stem.$ext"))
+            } catch (_: DriveNotFound) {
+            }
+        }
+    }
+
+    private suspend fun deleteThumb(objectPath: String) {
+        val thumb = PrivatePaths.thumbFor(objectPath) ?: return
+        try {
+            drive.delete(thumb)
+        } catch (_: DriveNotFound) {
+        }
     }
 
     companion object {

@@ -92,4 +92,17 @@ class CryptoCommonTest {
         assertNotEquals(a.hex(), MemberKeys.objectAad(context, "obj-2").hex())
         assertNotEquals(a.hex(), MemberKeys.objectAad(context.copy(memberId = "alex-11111111"), "obj-1").hex())
     }
+
+    @Test
+    fun sealedRecordsOpenOnlyWithTheRightKeyAndPurpose() {
+        val keys = MemberKeys.generate()
+        val aad = "manifest".encodeToByteArray()
+        val text = "{\"originalName\":\"IMG_1.jpg\"}".encodeToByteArray()
+        val sealed = RecordSeal.seal(keys.recordKey("manifest"), text, aad)
+        assertTrue(sealed.hex().indexOf(text.hex()) < 0)
+        assertContentEquals(text, RecordSeal.open(keys.recordKey("manifest"), sealed, aad))
+        assertNull(RecordSeal.open(MemberKeys.generate().recordKey("manifest"), sealed, aad))
+        assertNull(RecordSeal.open(keys.recordKey("manifest"), sealed, "trash".encodeToByteArray()))
+        assertNull(RecordSeal.open(keys.recordKey("manifest"), sealed.copyOf().also { it[20] = (it[20].toInt() xor 1).toByte() }, aad))
+    }
 }
