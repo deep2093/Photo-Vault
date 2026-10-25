@@ -269,7 +269,7 @@ class GalleryState(
         driveTrash = items.map {
             TrashedItem(DriveTimeline.trashedItem(it), it.deletedAtMillis + com.deepak.photovault.core.backup.BackupCatalog.TRASH_DAYS * 24L * 60 * 60 * 1000)
         }
-        trashed = (phoneTrash + driveTrash).sortedBy { it.expiresAtMillis }
+        trashed = (phoneTrash + driveTrash).sortedByDescending { it.expiresAtMillis }
     }
 
     var albums by mutableStateOf<List<PhoneAlbum>>(emptyList())
@@ -388,7 +388,7 @@ class GalleryState(
     private fun setItems(all: List<MediaItem>, bin: List<TrashedItem>) {
         everything = all
         phoneTrash = bin
-        trashed = (phoneTrash + driveTrash).sortedBy { it.expiresAtMillis }
+        trashed = (phoneTrash + driveTrash).sortedByDescending { it.expiresAtMillis }
         recomputeDriveOnly()
         allAlbums = PhoneAlbums.from(all + driveOnly)
         applyVisible()

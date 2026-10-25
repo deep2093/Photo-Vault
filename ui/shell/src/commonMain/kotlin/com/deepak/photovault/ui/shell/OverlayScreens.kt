@@ -23,6 +23,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.deepak.photovault.core.backup.isDriveOnly
+import com.deepak.photovault.designsystem.WarningNote
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -151,9 +153,10 @@ internal fun RenameAlbumDialog(current: String, onDismiss: () -> Unit, onSave: (
  * delete now; both go through Android's own confirmation.
  */
 @Composable
-fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: MediaActions) {
+fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: MediaActions, driveOnly: Boolean = false) {
     val now = Clock.System.now().toEpochMilliseconds()
-    val trashed = gallery.trashed
+    // Newest deleted first. The drive's own bin (from Storage) shows only what was deleted from the drive.
+    val trashed = remember(gallery.trashed, driveOnly) { if (driveOnly) gallery.trashed.filter { it.item.isDriveOnly } else gallery.trashed }
     val byId = remember(trashed) { trashed.associateBy { it.item.id } }
     val section = remember(trashed) { listOf(TimelineSection("bin", "Deleted for good after 30 days", trashed.map { it.item })) }
     val selected = state.selected.mapNotNull { byId[it]?.item }
@@ -163,7 +166,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
     val bin = remember { ScreenSpot() }
     SelectableScreen(
         tileSpots = spots,
-        title = "Recently deleted",
+        title = if (driveOnly) "Deleted from the drive" else "Recently deleted",
         subtitle = if (trashed.isEmpty()) "Empty" else "${trashed.size} items",
         state = state,
         gallery = gallery,
@@ -192,6 +195,16 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
             // Opens in the viewer with Restore and Delete for good (23 Oct); long-press still selects.
             MediaGrid(
                 section, state, gallery, padding,
+                header = {
+                    item(key = "warning", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = SCREEN_MARGIN)) {
+                            WarningNote(
+                                if (driveOnly) "Backups here are deleted for good after 30 days. After that, or after Delete for good, they can't be brought back."
+                                else "Photos here are deleted for good after 30 days. After that, or after Delete for good, they can't be brought back.",
+                            )
+                        }
+                    }
+                },
                 onOpen = { item -> state.open(Overlay.Viewer(trashed.map { it.item.id }, item.id, trash = true)) },
                 tileLabel = { item ->
                     val days = byId[item.id]?.let { Timeline.daysLeft(it.expiresAtMillis, now) } ?: 0

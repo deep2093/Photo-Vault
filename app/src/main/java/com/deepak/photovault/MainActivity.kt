@@ -744,6 +744,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
+        photoSource = prefs.getString("photo_source", null) ?: AppearanceSettings().photoSource,
+        filterChips = prefs.getBoolean("filter_chips", false),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -755,6 +757,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
+            .putString("photo_source", settings.photoSource)
+            .putBoolean("filter_chips", settings.filterChips)
             .apply()
     }
 }

@@ -1,5 +1,8 @@
 package com.deepak.photovault.ui.shell
 
+import com.deepak.photovault.core.backup.isDriveOnly
+import com.deepak.photovault.designsystem.GlassButton
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -153,6 +156,14 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                         slices,
                         "${DetailsFormat.size(used)} of your ${joined.me.limitGb} GB" + (space?.takeIf { drive.isOwner }?.let { " · drive ${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}" } ?: ""),
                         onOpen = { i -> if (i == 0) driveFiles?.let { open(true)("Your backup", it) } },
+                    )
+                }
+                if (joined != null) {
+                    val binned = gallery.trashed.count { it.item.isDriveOnly }
+                    GlassButton(
+                        if (binned == 0) "Recently deleted on the drive" else "Recently deleted on the drive ($binned)",
+                        onClick = { state.open(Overlay.DriveRecentlyDeleted) },
+                        icon = Icons.Rounded.Delete,
                     )
                 }
                 val files = driveFiles

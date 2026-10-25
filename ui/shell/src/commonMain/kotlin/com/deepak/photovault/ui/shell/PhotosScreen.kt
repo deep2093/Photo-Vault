@@ -1,5 +1,8 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudQueue
 import com.deepak.photovault.core.backup.isDriveOnly
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.foundation.layout.Arrangement
@@ -76,9 +79,18 @@ import kotlinx.datetime.TimeZone
 fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState) {
     val zone = remember { TimeZone.currentSystemDefault() }
     val today = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
-    val sections = remember(gallery.items, today) { Timeline.group(gallery.items, TimelineGrouping.DAY, zone, today) }
-    val months = remember(gallery.items) { LibraryLevels.months(gallery.items, zone) }
-    val years = remember(gallery.items, today) { LibraryLevels.years(gallery.items, zone, today) }
+    val source = PhotoSource.entries.firstOrNull { it.name == state.appearance.photoSource } ?: PhotoSource.ALL
+    // Only on the phone / only on the drive (cloud) / both in one timeline (25 Oct).
+    val shown = remember(gallery.items, source) {
+        when (source) {
+            PhotoSource.ALL -> gallery.items
+            PhotoSource.PHONE -> gallery.items.filterNot { it.isDriveOnly }
+            PhotoSource.DRIVE -> gallery.items.filter { it.isDriveOnly }
+        }
+    }
+    val sections = remember(shown, today) { Timeline.group(shown, TimelineGrouping.DAY, zone, today) }
+    val months = remember(shown) { LibraryLevels.months(shown, zone) }
+    val years = remember(shown, today) { LibraryLevels.years(shown, zone, today) }
     // Kept here, so going Years -> Months -> back to Years returns to the same place.
     val yearsGrid = rememberLazyGridState()
     val monthsGrid = rememberLazyGridState()
@@ -98,7 +110,10 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         gallery = gallery,
         actions = actions,
         floatingStartActions = { ViewButtons(gallery) },
-        floatingActions = { SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) } },
+        floatingActions = {
+            if (!state.appearance.filterChips) SourceButton(source) { next -> state.updateAppearance { it.copy(photoSource = next.name) } }
+            SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
+        },
     ) { padding ->
         when {
             gallery.access == MediaAccess.NONE -> EmptyState(
@@ -155,6 +170,17 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             header = {
                                 item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
                                     androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = SCREEN_MARGIN)) {
+                                        if (state.appearance.filterChips) {
+                                            androidx.compose.foundation.layout.Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                PhotoSource.entries.forEach { s ->
+                                                    com.deepak.photovault.designsystem.GlassChip(
+                                                        when (s) { PhotoSource.ALL -> "Both"; PhotoSource.PHONE -> "Phone"; PhotoSource.DRIVE -> "Cloud" },
+                                                        selected = s == source,
+                                                        onClick = { state.updateAppearance { it.copy(photoSource = s.name) } },
+                                                    )
+                                                }
+                                            }
+                                        }
                                         if (gallery.access == MediaAccess.PARTIAL) {
                                             WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
                                             GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
@@ -165,6 +191,26 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                         ) }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** The Photos filter as one small button: its icon shows the current choice; tapping lists the three. */
+@Composable
+private fun SourceButton(current: PhotoSource, onPick: (PhotoSource) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        SmallPillButton(
+            when (current) { PhotoSource.ALL -> Icons.Rounded.CloudQueue; PhotoSource.PHONE -> Icons.Rounded.PhoneAndroid; PhotoSource.DRIVE -> Icons.Rounded.CloudDone },
+            "Show: ${current.label}",
+        ) { open = true }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            PhotoSource.entries.forEach { s ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(if (s == current) "✓ ${s.label}" else s.label) },
+                    onClick = { open = false; onPick(s) },
+                )
             }
         }
     }

@@ -65,7 +65,14 @@ data class AppearanceSettings(
     val lensGlass: Boolean = false,
     /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
     val pinBottomBar: Boolean = false,
+    /** Photos shows everything in one timeline, only this phone's, or only the drive's (25 Oct). */
+    val photoSource: String = PhotoSource.ALL.name,
+    /** The Photos filter as three chips under the top bar instead of a button (25 Oct; one of the two goes in Phase 6). */
+    val filterChips: Boolean = false,
 )
+
+/** Which photos the Photos page shows. */
+enum class PhotoSource(val label: String) { ALL("Phone and drive"), PHONE("Only on this phone"), DRIVE("Only on the drive (cloud)") }
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
 interface AppearanceStore {
@@ -93,6 +100,9 @@ sealed interface Overlay {
     data class Album(val kind: AlbumKind) : Overlay
 
     data object RecentlyDeleted : Overlay
+
+    /** Settings > Storage: just the backups deleted from the drive (25 Oct). */
+    data object DriveRecentlyDeleted : Overlay
 
     /** Connecting the family drive, creating the family or joining it. */
     data object DriveSetup : Overlay
@@ -159,6 +169,7 @@ class ShellState(private val store: AppearanceStore) {
                 Overlay.PrivacyChoice -> listOf("privacy")
                 Overlay.DriveSetup -> listOf("setup")
                 Overlay.RecentlyDeleted -> listOf("trash")
+                Overlay.DriveRecentlyDeleted -> listOf("drivetrash")
                 Overlay.Search -> listOf("search")
                 else -> null
             }?.joinToString("\u001F")
@@ -187,6 +198,7 @@ class ShellState(private val store: AppearanceStore) {
                 "privacy" -> Overlay.PrivacyChoice
                 "setup" -> Overlay.DriveSetup
                 "trash" -> Overlay.RecentlyDeleted
+                "drivetrash" -> Overlay.DriveRecentlyDeleted
                 "search" -> Overlay.Search
                 else -> null
             }

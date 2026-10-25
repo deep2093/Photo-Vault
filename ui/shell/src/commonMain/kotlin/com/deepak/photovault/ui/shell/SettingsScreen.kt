@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -229,6 +230,13 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             { on -> state.updateAppearance { it.copy(pinBottomBar = on) } },
             icon = Icons.Rounded.PushPin,
             description = "The bar stays put instead of tucking away while you scroll",
+        )
+        GlassSwitchRow(
+            "Photos filter as chips",
+            state.appearance.filterChips,
+            { on -> state.updateAppearance { it.copy(filterChips = on) } },
+            icon = Icons.Rounded.CloudQueue,
+            description = "Off: a cloud button in the Photos top bar. On: three chips above your photos",
         )
         GlassSwitchRow(
             "Reduce motion",
