@@ -90,6 +90,8 @@ fun Modifier.selectGestures(isScrolling: () -> Boolean, handler: PhotoGridGestur
             null -> {
                 val anchor = handler.photoAt(down.position) ?: return@awaitEachGesture
                 handler.onDragSelectStart(anchor)
+                // Holding still is not a swipe: the finger only counts once it has moved (feedback 25 Oct).
+                var swiping = false
                 try {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -97,7 +99,8 @@ fun Modifier.selectGestures(isScrolling: () -> Boolean, handler: PhotoGridGestur
                         if (!change.pressed) break
                         // Take the finger from the grid, so it selects instead of scrolling.
                         change.consume()
-                        handler.onDragSelectMove(change.position)
+                        if (!swiping && (change.position - down.position).getDistance() > viewConfiguration.touchSlop * 2) swiping = true
+                        if (swiping) handler.onDragSelectMove(change.position)
                     }
                 } finally {
                     handler.onDragSelectEnd()
@@ -106,3 +109,6 @@ fun Modifier.selectGestures(isScrolling: () -> Boolean, handler: PhotoGridGestur
         }
     }
 }
+
+/** Where the finger is before a swipe starts: no edge zone matches, so nothing auto-scrolls. */
+internal val NOWHERE = Offset(0f, Float.NaN)

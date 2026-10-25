@@ -193,7 +193,7 @@ fun StorageFilesScreen(
                 private var anchor = -1
                 private var adding = true
                 private var initial: Set<Long> = emptySet()
-                private var finger = Offset.Zero
+                private var finger = NOWHERE
                 private var autoScroll: Job? = null
 
                 private fun indexOf(ref: String) = currentSorted.indexOfFirst { it.ref == ref }
@@ -256,7 +256,7 @@ fun StorageFilesScreen(
                 override fun onDragSelectEnd() {
                     autoScroll?.cancel()
                     autoScroll = null
-                    finger = Offset.Zero
+                    finger = NOWHERE
                 }
             }
         }

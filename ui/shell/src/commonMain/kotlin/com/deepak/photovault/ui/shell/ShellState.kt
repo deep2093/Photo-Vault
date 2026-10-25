@@ -282,7 +282,14 @@ class ShellState(private val store: AppearanceStore) {
         pageBack.animateTo(0f, tween((BACK_SETTLE_MS * pageBack.value).toInt().coerceAtLeast(60), easing = PageEasing))
     }
 
-    val canGoBack: Boolean get() = overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty()
+    /** Photos is showing Months or Years (or came there from one): back steps up a level before the app closes. */
+    var canStepBack by mutableStateOf(false)
+    var stepBack: (() -> Unit)? = null
+
+    /** Settings > Storage remembers Phone or Drive while pages are opened on top (25 Oct). */
+    var storageOnDrive: Boolean? by mutableStateOf(null)
+
+    val canGoBack: Boolean get() = canStepBack || overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty()
 
     fun open(overlay: Overlay) {
         selected = emptySet()
@@ -318,6 +325,10 @@ class ShellState(private val store: AppearanceStore) {
         }
         overlays.isNotEmpty() -> {
             overlays.removeAt(overlays.lastIndex)
+            true
+        }
+        canStepBack && stepBack != null -> {
+            stepBack?.invoke()
             true
         }
         else -> false

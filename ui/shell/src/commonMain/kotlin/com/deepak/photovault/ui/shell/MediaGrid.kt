@@ -179,7 +179,7 @@ fun MediaGrid(
                 private var anchor = -1
                 private var adding = true
                 private var initial: Set<Long> = emptySet()
-                private var finger = Offset.Zero
+                private var finger = NOWHERE
                 private var autoScroll: Job? = null
 
                 override fun photoAt(position: Offset): Long? {
@@ -234,7 +234,7 @@ fun MediaGrid(
                 override fun onDragSelectEnd() {
                     autoScroll?.cancel()
                     autoScroll = null
-                    finger = Offset.Zero
+                    finger = NOWHERE
                 }
             }
         }

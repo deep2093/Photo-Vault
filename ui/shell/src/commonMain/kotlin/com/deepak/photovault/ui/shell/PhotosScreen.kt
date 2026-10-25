@@ -95,12 +95,23 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val yearsGrid = rememberLazyGridState()
     val monthsGrid = rememberLazyGridState()
     val scope = rememberCoroutineScope()
+    // Back climbs from a month to its months, then the years, then the day view; only then does the app close.
+    val canStep = gallery.view != LibraryView.ALL || gallery.viewHistory.isNotEmpty()
+    androidx.compose.runtime.SideEffect {
+        state.canStepBack = canStep
+        state.stepBack = {
+            gallery.view = if (gallery.viewHistory.isNotEmpty()) gallery.viewHistory.removeAt(gallery.viewHistory.lastIndex) else LibraryView.ALL
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { state.canStepBack = false; state.stepBack = null } }
     fun openYear(year: Int) {
+        gallery.viewHistory.add(gallery.view)
         gallery.view = LibraryView.MONTHS
         scope.launch { monthsGrid.scrollToItem(LibraryLevels.firstMonthOf(year, months)) }
     }
     fun openMonth(month: MonthSummary) {
         gallery.jumpTo = month.firstDayKey
+        gallery.viewHistory.add(gallery.view)
         gallery.view = LibraryView.ALL
     }
     SelectableScreen(
@@ -269,7 +280,7 @@ private fun ViewButtons(gallery: GalleryState) {
                     .heightIn(min = 30.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(background)
-                    .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.view = option })
+                    .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.viewHistory.clear(); gallery.view = option })
                     .padding(horizontal = 9.dp),
                 contentAlignment = Alignment.Center,
             ) {

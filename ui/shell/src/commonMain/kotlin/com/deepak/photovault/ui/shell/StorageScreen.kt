@@ -69,9 +69,11 @@ private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Dri
 @Composable
 internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: DriveState, actions: MediaActions, startOnDrive: Boolean = false) {
     val theme = LocalGlassTheme.current
-    var source by remember { mutableStateOf(if (startOnDrive) StorageSource.DRIVE else StorageSource.PHONE) }
+    // Remembered across the pages opened from here, so Back returns to the tab you were on.
+    val source = if (state.storageOnDrive ?: startOnDrive) StorageSource.DRIVE else StorageSource.PHONE
     val zone = remember { TimeZone.currentSystemDefault() }
     val phoneFiles = remember(gallery.items) { StorageStats.fromPhone(gallery.items) }
+    LaunchedEffect(startOnDrive) { if (startOnDrive) state.storageOnDrive = true }
     // Read again each time the drive tab opens, so files deleted or backed up since are right.
     LaunchedEffect(source, drive.joined?.me?.userId) {
         if (source == StorageSource.DRIVE && drive.joined != null) {
@@ -94,7 +96,7 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     }
     Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StorageSource.entries.forEach { s -> GlassChip(s.label, selected = source == s, onClick = { source = s }) }
+            StorageSource.entries.forEach { s -> GlassChip(s.label, selected = source == s, onClick = { state.storageOnDrive = s == StorageSource.DRIVE }) }
         }
         when (source) {
             StorageSource.PHONE -> {
@@ -158,14 +160,6 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                         onOpen = { i -> if (i == 0) driveFiles?.let { open(true)("Your backup", it) } },
                     )
                 }
-                if (joined != null) {
-                    val binned = gallery.trashed.count { it.item.isDriveOnly }
-                    GlassButton(
-                        if (binned == 0) "Recently deleted on the drive" else "Recently deleted on the drive ($binned)",
-                        onClick = { state.open(Overlay.DriveRecentlyDeleted) },
-                        icon = Icons.Rounded.Delete,
-                    )
-                }
                 val files = driveFiles
                 when {
                     joined == null -> Unit
@@ -173,6 +167,14 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                     files == null -> Text("Couldn't read the drive. Check you're on the home Wi-Fi.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     files.isEmpty() -> Text("Nothing backed up yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     else -> Breakdown(files, zone, open(true))
+                }
+                if (joined != null) {
+                    val binned = gallery.trashed.count { it.item.isDriveOnly }
+                    GlassButton(
+                        if (binned == 0) "Recently deleted on the drive" else "Recently deleted on the drive ($binned)",
+                        onClick = { state.open(Overlay.DriveRecentlyDeleted) },
+                        icon = Icons.Rounded.Delete,
+                    )
                 }
             }
         }

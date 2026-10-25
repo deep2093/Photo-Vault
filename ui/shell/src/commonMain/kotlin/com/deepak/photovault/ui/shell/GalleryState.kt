@@ -251,6 +251,9 @@ class GalleryState(
     /** Years, Months or All on Photos (24 Oct; replaced Day / Month / Year headings). */
     var view by mutableStateOf(LibraryView.ALL)
 
+    /** Levels left behind by opening a year or a month, so Back climbs the same steps (25 Oct). */
+    val viewHistory = androidx.compose.runtime.mutableStateListOf<LibraryView>()
+
     /** A day section for All to scroll to once it shows (after tapping a month card). */
     var jumpTo by mutableStateOf<String?>(null)
 
