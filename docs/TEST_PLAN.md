@@ -327,7 +327,20 @@ Automated (run on every build): 16 crypto tests, including the public 24-word te
 3. Backup now before choosing: it says "Choose how your backup is kept first". Settings > Backup shows a "Backup privacy" card.
 4. Choose Normal: backups run as before.
 5. Choose Private > Make my key: 24 words appear only after "Show my words". "Save to password manager" may be accepted or declined by your phone. Check asks for 3 of the words (wrong word is refused). Finish writes keys to the drive (Pixallery/users/<you>/keys/): a recovery-v1.bin of random-looking bytes and identity-v1.txt of public keys only; open them in a text editor on a PC: no words, no key.
-6. After Private: Backup now says nothing is uploaded yet (encrypted uploading is step 4B). Nothing new appears on the drive.
+6. (Replaced by Round 16: Private now uploads encrypted.)
 7. Second family member also sets up Private, then in your setup the "recovery helper" step lists them. Choosing one writes helper-<id>.bin. (Handing a key back through the helper is not built yet.)
 8. Wipe the app data (or use another phone), join again, Backup > "Restore my key": typing your 24 words brings the key back; a wrong or misspelt word gives a plain message.
 9. Change to Normal from the choice screen: a warning appears first.
+
+## Round 16 (25 Oct): Phase 4B, encrypted backup
+Automated (run on every build): 5 tests with a pretend drive: nothing readable lands on it (no file names, sealed manifests), restore needs the key, a changed file is never restored, someone else's key fails the check, trash and delete-forever keep names hidden and clean up thumbnails.
+Not testable here: the real router, the phone's Keystore, the speed of encrypting large videos. Please test these on the device.
+1. Choose Private (new key). Backup now with a few photos and one video. It finishes; the Backup screen shows them as backed up.
+2. On a PC, open the USB drive > Pixallery > users > your folder. You should see only objects/, thumbs/, manifests/ with random-looking names (.pxo, .pxt, .pxm). No photo opens, no file name or date is readable.
+3. In Photos on the phone, delete one backed-up photo from the phone. It stays in Photos (from the drive) with a normal thumbnail; tap it: it opens. Do the same with the video: it shows a thumbnail and plays.
+4. Settings > Storage lists your Private photos with their real names and sizes.
+5. Delete one from Storage (it goes to Recently deleted on the drive). On the PC the trash folder shows only random names. Restore it: it comes back. Delete forever: file and thumbnail disappear.
+6. Restore to a new phone (or wipe the app): join, Backup > Restore my key with the 24 words, then restore. Photos come back with the right bytes. Without the key, Backup says the phone doesn't have your private key.
+7. Family Album: choosing a Private photo says Private photos can't be shared yet.
+8. Large video (over 500 MB) backs up without the app running out of memory. Tell me how long it took.
+9. Someone with Normal still backs up as before, and the two people's folders do not mix.
