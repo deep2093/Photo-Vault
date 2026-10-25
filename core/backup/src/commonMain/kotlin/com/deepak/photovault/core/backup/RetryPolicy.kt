@@ -19,7 +19,7 @@ object RetryPolicy {
         run.failure == FailureReason.BUSY && run.trigger != BackupTrigger.MANUAL -> Action.TRY_AFTER_TURN
         // Waiting an hour changes nothing here: the person has to act, so they are told at once.
         run.failure == FailureReason.PRIVACY_NOT_CHOSEN && run.trigger == BackupTrigger.SCHEDULED -> Action.NOTIFY
-        run.failure == FailureReason.PRIVATE_NOT_READY && run.trigger == BackupTrigger.SCHEDULED -> Action.NOTIFY
+        run.failure == FailureReason.NO_PRIVATE_KEY && run.trigger == BackupTrigger.SCHEDULED -> Action.NOTIFY
         run.trigger == BackupTrigger.SCHEDULED -> Action.RETRY_IN_AN_HOUR
         run.trigger == BackupTrigger.RETRY -> Action.NOTIFY
         else -> Action.NOTHING

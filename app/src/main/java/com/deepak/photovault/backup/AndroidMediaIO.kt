@@ -59,6 +59,18 @@ class AndroidMediaReader(context: Context) : MediaReader {
         PreparedFile(StreamSource(input), item.displayName, item.mimeType.ifEmpty { "application/octet-stream" }, item.sizeBytes, compressed = false)
     }
 
+    /** A 512-pixel JPEG (photos and videos) for a Private backup's encrypted thumbnail. Null if the system can't make one. */
+    override suspend fun thumbnail(item: MediaItem): ByteArray? = withContext(Dispatchers.IO) {
+        runCatching {
+            val bitmap = resolver.loadThumbnail(Uri.parse(item.uri), android.util.Size(THUMB_PX, THUMB_PX), null)
+            java.io.ByteArrayOutputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                bitmap.recycle()
+                out.toByteArray()
+            }
+        }.getOrNull()
+    }
+
     private fun shrink(item: MediaItem, uri: Uri): PreparedFile? {
         val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
@@ -105,6 +117,7 @@ class AndroidMediaReader(context: Context) : MediaReader {
     private companion object {
         const val MAX_PIXELS = 16_000_000L
         const val QUALITY = 85
+        const val THUMB_PX = 512
         val COMPRESSIBLE = setOf("image/jpeg", "image/jpg", "image/heic", "image/heif")
         val EXIF_TAGS = listOf(
             ExifInterface.TAG_DATETIME, ExifInterface.TAG_DATETIME_ORIGINAL, ExifInterface.TAG_DATETIME_DIGITIZED,

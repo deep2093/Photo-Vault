@@ -262,6 +262,11 @@ class MainActivity : ComponentActivity(), MediaActions {
         remote.start()
         gallery = GalleryState(MediaStoreLibrary(this), PrefsFavouritesStore(this), AndroidMediaDetails(this), PrefsHiddenAlbumsStore(this), PrefsAlbumLayoutStore(this), FileDriveRecordCache(this, "drive-records.json"), FileDriveRecordCache(this, "family-album.json"))
         drive = DriveState(AndroidDrivePlatform(this))
+        // Private backup: the person's key, when they chose Private and have it on this phone.
+        val settingsForVault = com.deepak.photovault.backup.BackupSettingsStore(this)
+        drive.vaultProvider = { house, me ->
+            if (settingsForVault.load().privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) PrivateKeys.vault(this, house, me) else null
+        }
         // Photos that are only on the drive are fetched through the same connection the rest of the app uses.
         DriveMedia.install(this) { path, sink -> drive.readDriveFile(path, sink) }
         val backup = BackupGraph.get(this).state

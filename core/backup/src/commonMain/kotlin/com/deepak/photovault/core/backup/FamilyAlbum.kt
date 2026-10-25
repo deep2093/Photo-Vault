@@ -31,6 +31,7 @@ class FamilyAlbum(private val drive: DriveFileSystem, private val myUserId: Stri
     suspend fun add(records: List<BackupRecord>, now: Long) {
         val own = records.filter { it.drivePath.startsWith("${HouseholdStore.userFolder(myUserId)}/") && !it.drivePath.contains("..") }
         require(own.size == records.size) { "You can only add your own photos to the Family Album" }
+        require(own.none { it.encrypted }) { "Private photos can't go in the Family Album yet" }
         write(FamilyAlbumNote(now, added = own))
     }
 

@@ -128,12 +128,9 @@ class BackupRunner(
             BackupRun(trigger, started, System.currentTimeMillis(), 0, 0, 0, 0, 0, reason, detail)
 
         if (!hasPhotoAccess()) return failed(FailureReason.NO_PHOTO_ACCESS)
-        // Each person chooses Normal or Private before anything is uploaded; Private uploads wait for step 4B.
-        when (settingsStore.load().privacy) {
-            com.deepak.photovault.core.backup.BackupPrivacy.UNSET -> return failed(FailureReason.PRIVACY_NOT_CHOSEN)
-            com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE -> return failed(FailureReason.PRIVATE_NOT_READY)
-            com.deepak.photovault.core.backup.BackupPrivacy.NORMAL -> Unit
-        }
+        // Each person chooses Normal or Private before anything is uploaded (Phase 4A/4B).
+        val privacy = settingsStore.load().privacy
+        if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET) return failed(FailureReason.PRIVACY_NOT_CHOSEN)
         val connection = platform.loadConnection() ?: return failed(FailureReason.NO_DRIVE)
         if (connection.username.isNotBlank() && connection.password.isEmpty()) return failed(FailureReason.NO_PASSWORD)
         val drive = try {
@@ -153,6 +150,11 @@ class BackupRunner(
             }
             val joined = membership as? Membership.Joined ?: return failed(FailureReason.NOT_JOINED)
             val settings = settingsStore.load()
+            val vault = if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) {
+                com.deepak.photovault.PrivateKeys.vault(context, joined.household.householdId, joined.me.userId) ?: return failed(FailureReason.NO_PRIVATE_KEY)
+            } else {
+                null
+            }
             val all = MediaStoreLibrary(context).loadAll()
             val items = BackupSelection.eligible(all, settings, onMobileData = onMobileData())
             val engine = BackupEngine(
@@ -164,6 +166,7 @@ class BackupRunner(
                 now = System::currentTimeMillis,
                 zone = TimeZone.currentSystemDefault(),
                 classify = { classify(it) },
+                vault = vault,
             )
             // One phone in the family at a time (24 Oct): wait for another phone's backup to finish, up to a while.
             val everyone = joined.household.members.map { it.userId }
@@ -237,7 +240,7 @@ class BackupRunner(
         fs.use {
             val membership = runCatching { HouseholdStore(fs) { System.currentTimeMillis() }.membership(platform.deviceId, platform.rememberedUserId()) }.getOrNull()
             val joined = membership as? Membership.Joined ?: return FailureReason.NOT_JOINED.plain
-            val engine = RestoreEngine(fs, joined.me.userId) { classify(it) }
+            val engine = RestoreEngine(fs, joined.me.userId, { classify(it) }, com.deepak.photovault.PrivateKeys.vault(context, joined.household.householdId, joined.me.userId))
             val missing = try {
                 engine.missing(MediaStoreLibrary(context).loadAll()).filter { only == null || it.drivePath in only }
             } catch (e: CancellationException) {

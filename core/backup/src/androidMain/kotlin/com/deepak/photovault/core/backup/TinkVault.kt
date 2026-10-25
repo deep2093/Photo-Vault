@@ -36,6 +36,7 @@ class TinkVault(private val keys: MemberKeys, private val context: KeyContext) :
         val tag = tag(kind, objectId)
         val pipe = ChunkPipe()
         // The checking runs on its own thread, fed by the drive read here; a full pipe makes the drive read wait.
+        var callerFailure: Throwable? = null
         val consumer = async(Dispatchers.IO) {
             try {
                 ObjectCipher.decrypt(pipe, keys.objectKey(tag), MemberKeys.objectAad(context, tag)).use { stream ->
@@ -43,7 +44,12 @@ class TinkVault(private val keys: MemberKeys, private val context: KeyContext) :
                     while (true) {
                         val n = stream.read(buffer)
                         if (n < 0) break
-                        out(buffer, n)
+                        try {
+                            out(buffer, n)
+                        } catch (e: Throwable) {
+                            callerFailure = e
+                            throw e
+                        }
                     }
                 }
             } catch (e: CancellationException) {
@@ -51,7 +57,7 @@ class TinkVault(private val keys: MemberKeys, private val context: KeyContext) :
             } catch (e: Throwable) {
                 pipe.close()
                 // A drive error shows up in the pipe as the cause; anything else is a failed check.
-                throw (e.cause as? DriveReadFailure)?.original ?: ObjectAuthenticationFailed()
+                throw callerFailure ?: (e.cause as? DriveReadFailure)?.original ?: ObjectAuthenticationFailed()
             }
         }
         try {

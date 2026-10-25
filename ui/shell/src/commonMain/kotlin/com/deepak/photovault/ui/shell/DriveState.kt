@@ -362,6 +362,14 @@ class DriveState(private val platform: DrivePlatform) {
     class KeyFiles(val recovery: ByteArray, val identity: String)
 
     /** Household and member IDs the keys are bound to, or null when this phone isn't in a family. */
+    /** Gives the Private person's vault (their key on this phone), or null for Normal / no key. Set by the app. */
+    var vaultProvider: ((householdId: String, memberId: String) -> com.deepak.photovault.core.backup.PrivateVault?)? = null
+
+    fun myVault(): com.deepak.photovault.core.backup.PrivateVault? {
+        val (house, me) = keyContext() ?: return null
+        return vaultProvider?.invoke(house, me)
+    }
+
     fun keyContext(): Pair<String, String>? = joined?.let { it.household.householdId to it.me.userId }
 
     private fun keysFolder(userId: String) = "${com.deepak.photovault.core.household.HouseholdStore.userFolder(userId)}/keys"
@@ -489,7 +497,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun myBackupRecords(): List<com.deepak.photovault.core.backup.BackupRecord>? {
         val me = joined?.me ?: return null
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
-        return runCatching { BackupCatalog(fs, me.userId).records() }.getOrNull()
+        return runCatching { BackupCatalog(fs, me.userId, myVault()).records() }.getOrNull()
     }
 
     /**
@@ -499,7 +507,18 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun readDriveFile(path: String, sink: (ByteArray, Int) -> Unit): Boolean {
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return false
         return try {
-            fs.readStream(path, sink)
+            val kind = when {
+                path.endsWith(".pxo") -> com.deepak.photovault.core.backup.ObjectKind.MEDIA
+                path.endsWith(".pxt") -> com.deepak.photovault.core.backup.ObjectKind.THUMB
+                else -> null
+            }
+            if (kind == null) {
+                fs.readStream(path, sink)
+            } else {
+                // An encrypted file is checked and decrypted on the way; without this person's key it can't be shown.
+                val vault = myVault() ?: return false
+                vault.decrypt(kind, com.deepak.photovault.core.backup.PrivatePaths.idOf(path), { cipher -> fs.readStream(path, cipher) }, sink)
+            }
             true
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -557,6 +576,10 @@ class DriveState(private val platform: DrivePlatform) {
                 ?.takeIf { it.drivePath.startsWith(mine) }
         }.distinctBy { it.drivePath }
         if (found.isEmpty()) return FamilyAddResult(0, items.size)
+        if (found.any { it.encrypted }) {
+            // A Private photo is readable only with its owner's key, so the others in the family couldn't open it.
+            return FamilyAddResult(0, items.size, "Private photos can't be shared to the Family Album yet.")
+        }
         val error = guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
             com.deepak.photovault.core.backup.FamilyAlbum(fs, j.me.userId).add(found, platform.now())
@@ -585,7 +608,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun loadDriveTrash() {
         val me = joined?.me ?: return
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
-        runCatching { BackupCatalog(fs, me.userId).purgeExpired(platform.now()) }.getOrNull()?.let { driveTrash = it }
+        runCatching { BackupCatalog(fs, me.userId, myVault()).purgeExpired(platform.now()) }.getOrNull()?.let { driveTrash = it }
     }
 
     /** Moves backups (by drive path) into the drive's Recently deleted. Returns an error, or null. */
@@ -594,7 +617,7 @@ class DriveState(private val platform: DrivePlatform) {
         val records = (backupRecords ?: myBackupRecords() ?: return "Couldn't read the drive.").filter { it.drivePath in paths }
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            val catalog = BackupCatalog(fs, me.userId)
+            val catalog = BackupCatalog(fs, me.userId, myVault())
             catalog.trash(records, platform.deviceId, platform.now())
             backupRecords = backupRecords?.filterNot { it.drivePath in paths }
             driveTrash = catalog.trashed()
@@ -607,7 +630,7 @@ class DriveState(private val platform: DrivePlatform) {
         val items = driveTrash.orEmpty().filter { it.trashPath in trashPaths }
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            val catalog = BackupCatalog(fs, me.userId)
+            val catalog = BackupCatalog(fs, me.userId, myVault())
             catalog.restore(items, platform.deviceId, platform.now())
             driveTrash = catalog.trashed()
             backupRecords = catalog.records()
@@ -620,7 +643,7 @@ class DriveState(private val platform: DrivePlatform) {
         val items = driveTrash.orEmpty().filter { it.trashPath in trashPaths }
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            val catalog = BackupCatalog(fs, me.userId)
+            val catalog = BackupCatalog(fs, me.userId, myVault())
             catalog.deleteForever(items)
             driveTrash = catalog.trashed()
         }
@@ -635,7 +658,7 @@ class DriveState(private val platform: DrivePlatform) {
         val records = (backupRecords ?: myBackupRecords() ?: return "Couldn't read the drive.").filter { it.drivePath in paths }
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            BackupCatalog(fs, me.userId).remove(records, platform.deviceId, platform.now())
+            BackupCatalog(fs, me.userId, myVault()).remove(records, platform.deviceId, platform.now())
             backupRecords = backupRecords?.filterNot { it.drivePath in paths }
         }
     }
@@ -802,7 +825,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun missingOnPhone(onPhone: List<MediaItem>): Int? {
         val me = joined?.me ?: return null
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
-        return runCatching { RestoreEngine(fs, me.userId).missing(onPhone).size }.getOrNull()
+        return runCatching { RestoreEngine(fs, me.userId, vault = myVault()).missing(onPhone).size }.getOrNull()
     }
 
     suspend fun renameMe(name: String): String? = guarded {

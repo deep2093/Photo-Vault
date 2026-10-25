@@ -153,7 +153,7 @@ private class ThumbFetcher(private val thumb: Thumb, private val resolver: Conte
     override suspend fun fetch(): FetchResult = withContext(Dispatchers.IO) {
         DriveMedia.pathOf(thumb.uri)?.let { path ->
             // Only on the drive: videos show a placeholder until opened (a video is too big to fetch for a tile).
-            if (thumb.isVideo) error("Drive video thumbnail not cached")
+            if (thumb.isVideo && !path.endsWith(".pxo")) error("Drive video thumbnail not cached")
             val bitmap = DriveMedia.thumbnail(path, thumb.sizePx) ?: error("Drive photo not available")
             return@withContext ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)
         }

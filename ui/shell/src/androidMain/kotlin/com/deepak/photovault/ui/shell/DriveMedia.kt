@@ -102,6 +102,13 @@ object DriveMedia {
         val dir = thumbs ?: return@withContext null
         val kept = File(dir, "${name(path)}-$sizePx.jpg")
         if (kept.exists()) BitmapFactory.decodeFile(kept.path)?.let { return@withContext it }
+        if (path.endsWith(".pxo")) {
+            // Encrypted backup: the small picture stored beside it (also the only preview a video has).
+            privateThumbnail(path, dir)?.let { bitmap ->
+                runCatching { FileOutputStream(kept).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
+                return@withContext bitmap
+            }
+        }
         // Small tiles: the photo's own preview picture, fetched from the first part of the file (about a fifth of a
         // second instead of seconds). Larger sizes and photos without a preview use the full file.
         if (sizePx <= QUICK_MAX_PX && cached(path) == null) {
@@ -116,6 +123,24 @@ object DriveMedia {
         val bitmap = decodeSampled(original, sizePx) ?: return@withContext null
         runCatching { FileOutputStream(kept).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
         bitmap
+    }
+
+    private suspend fun privateThumbnail(path: String, dir: File): Bitmap? {
+        val thumbPath = com.deepak.photovault.core.backup.PrivatePaths.thumbFor(path) ?: return null
+        val read = reader ?: return null
+        val bytes = java.io.ByteArrayOutputStream()
+        val ok = gate.withPermit {
+            try {
+                read(thumbPath) { b, n -> bytes.write(b, 0, n) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+        }
+        if (!ok) return null
+        val data = bytes.toByteArray()
+        return BitmapFactory.decodeByteArray(data, 0, data.size)
     }
 
     private fun decodeSampled(file: File, sizePx: Int): Bitmap? {
