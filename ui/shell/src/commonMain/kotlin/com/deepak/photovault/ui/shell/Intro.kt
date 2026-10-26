@@ -124,7 +124,7 @@ object WhatsNew {
         Change(ChangeKind.FIXED, "Back from Years and Months", "Back steps up one level at a time before the app closes."),
         Change(ChangeKind.FIXED, "Places kept", "Albums keep their scroll place after you view a photo, and Storage stays on the Drive tab."),
         Change(ChangeKind.FIXED, "Blurry thumbnails", "iPhone JPEGs no longer look blurry. Their sharp thumbnails are saved once (up to 300 MB), on the phone and for the drive."),
-        Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down now glides up in one smooth motion, without stopping near the top."),
+        Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down now glides up smoothly: far away it first jumps close, then slows into the top, so it no longer stutters."),
         Change(ChangeKind.FIXED, "Phone clock in the viewer", "The time and notification icons show while the toolbar shows (white on the black viewer), and hide with it."),
         Change(ChangeKind.FIXED, "Private setup", "Restore my key appears when your key already exists, and the Switch to Normal pop-up buttons line up."),
     )
