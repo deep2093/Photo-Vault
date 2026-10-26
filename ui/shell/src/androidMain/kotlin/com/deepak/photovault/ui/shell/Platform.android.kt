@@ -115,8 +115,17 @@ actual fun SystemBarsHidden(hidden: Boolean) {
         val bars = window?.let { androidx.core.view.WindowCompat.getInsetsController(it, view) }
         val types = androidx.core.view.WindowInsetsCompat.Type.systemBars()
         bars?.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // The viewer is always black, so the clock and icons must be white (26 Oct); the earlier dark icons vanished on it.
+        val wasLight = bars?.isAppearanceLightStatusBars ?: false
+        val wasLightNav = bars?.isAppearanceLightNavigationBars ?: false
+        bars?.isAppearanceLightStatusBars = false
+        bars?.isAppearanceLightNavigationBars = false
         if (hidden) bars?.hide(types) else bars?.show(types)
-        onDispose { bars?.show(types) }
+        onDispose {
+            bars?.show(types)
+            bars?.isAppearanceLightStatusBars = wasLight
+            bars?.isAppearanceLightNavigationBars = wasLightNav
+        }
     }
 }
 

@@ -65,16 +65,9 @@ data class AppearanceSettings(
     val lensGlass: Boolean = false,
     /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
     val pinBottomBar: Boolean = false,
-    /** Photos shows everything in one timeline, only this phone's, or only the drive's (25 Oct). */
-    val photoSource: String = PhotoSource.ALL.name,
-    /** The Photos filter as three chips under the top bar instead of a button (25 Oct; one of the two goes in Phase 6). */
-    val filterChips: Boolean = false,
     /** Storage charts drawn as thick rings with depth and shading; off gives the flat rings (26 Oct). */
     val depthCharts: Boolean = true,
 )
-
-/** Which photos the Photos page shows. */
-enum class PhotoSource(val label: String) { ALL("Phone and drive"), PHONE("Only on this phone"), DRIVE("Only on the drive (cloud)") }
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
 interface AppearanceStore {

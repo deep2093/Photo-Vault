@@ -96,7 +96,7 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
 
 /** What's new for the current build. Change [ID] and [items] with EVERY build, covering all four kinds. */
 object WhatsNew {
-    const val ID = "2026-10-26-3"
+    const val ID = "2026-10-26-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.NEW, "Private backup", "Settings > Backup lets you choose Normal or Private. Private scrambles photos on your phone before they leave it, and you get 24 recovery words. Even the family owner can't open them."),
@@ -109,12 +109,15 @@ object WhatsNew {
         Change(ChangeKind.NEW, "App cache", "Tap App cache in Phone storage to see its size and clear it. Photos and backups are never deleted."),
         Change(ChangeKind.NEW, "Charts with depth", "Storage rings now look like thick 3D rings. Turn them off in Settings > Appearance for flat rings."),
         Change(ChangeKind.CHANGED, "Phone storage ring", "The ring shows Photos, Videos, App cache and Free."),
-        Change(ChangeKind.CHANGED, "Compact viewer menu", "The three dots match the search button in size, and the menu is smaller."),
+        Change(ChangeKind.CHANGED, "Viewer three dots", "The three dots are now the last button of the bottom toolbar, and the menu is much smaller."),
+        Change(ChangeKind.CHANGED, "Photos", "Photos always shows one timeline: your phone's photos and the ones only on the drive. A photo in both places shows once."),
+        Change(ChangeKind.CHANGED, "Storage ring", "The 3D ring has clean, solid sides and no smudgy shadow."),
         Change(ChangeKind.CHANGED, "Details button", "Details moved from the bottom bar of a photo to the three-dot menu."),
         Change(ChangeKind.CHANGED, "Storage groups", "Storage now counts Photos (JPEG and HEIC), Videos (every video type), PNG and GIF, and you can sort by Type too."),
         Change(ChangeKind.CHANGED, "Recently deleted", "Newest first, with a note that items go for good after 30 days."),
         Change(ChangeKind.CHANGED, "Settings order", "Open with Pixallery, Send feedback and About always come last; the rest are A to Z."),
         Change(ChangeKind.CHANGED, "App icon name", "The Four Seasons icon is now called Petals."),
+        Change(ChangeKind.REMOVED, "Photos filter", "The cloud button, the filter chips and their setting in Appearance are gone."),
         Change(ChangeKind.REMOVED, "Backup history", "The History card is gone from Backup."),
         Change(ChangeKind.REMOVED, "Old Petals icons", "Phones that used them now show the new Petals icon."),
         Change(ChangeKind.FIXED, "Holding a photo selected many", "A long-press now selects one photo; only swiping selects more."),
@@ -122,6 +125,7 @@ object WhatsNew {
         Change(ChangeKind.FIXED, "Places kept", "Albums keep their scroll place after you view a photo, and Storage stays on the Drive tab."),
         Change(ChangeKind.FIXED, "Blurry thumbnails", "iPhone JPEGs no longer look blurry. Their sharp thumbnails are saved once (up to 300 MB), on the phone and for the drive."),
         Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down now glides up in one smooth motion, without stopping near the top."),
+        Change(ChangeKind.FIXED, "Phone clock in the viewer", "The time and notification icons show while the toolbar shows (white on the black viewer), and hide with it."),
         Change(ChangeKind.FIXED, "Private setup", "Restore my key appears when your key already exists, and the Switch to Normal pop-up buttons line up."),
     )
 }

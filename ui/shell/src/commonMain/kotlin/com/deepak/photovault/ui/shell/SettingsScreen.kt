@@ -233,13 +233,6 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             description = "The bar stays put instead of tucking away while you scroll",
         )
         GlassSwitchRow(
-            "Photos filter as chips",
-            state.appearance.filterChips,
-            { on -> state.updateAppearance { it.copy(filterChips = on) } },
-            icon = Icons.Rounded.CloudQueue,
-            description = "Off: a cloud button in the Photos top bar. On: three chips above your photos",
-        )
-        GlassSwitchRow(
             "Charts with depth",
             state.appearance.depthCharts,
             { on -> state.updateAppearance { it.copy(depthCharts = on) } },

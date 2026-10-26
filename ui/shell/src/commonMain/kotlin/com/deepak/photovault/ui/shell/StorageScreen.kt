@@ -268,6 +268,12 @@ private fun shade(c: Color, factor: Float) = Color(c.red * factor, c.green * fac
 @Composable
 private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<Color> = CHART, onSlice: ((Int) -> Unit)? = null) {
     val depth = LocalDepthCharts.current
+    // Rings with depth are drawn from solid colours: see-through ones (the Free part) smudged when layered (26 Oct).
+    val onGlass = LocalGlassTheme.current.onGlass
+    val base = if (onGlass.red + onGlass.green + onGlass.blue > 1.5f) Color(0xFF2B2E36) else Color.White
+    val solid = remember(colors, base, depth) {
+        if (!depth) colors else colors.map { c -> if (c.alpha >= 0.99f) c else Color(c.red * c.alpha + base.red * (1 - c.alpha), c.green * c.alpha + base.green * (1 - c.alpha), c.blue * c.alpha + base.blue * (1 - c.alpha)) }
+    }
     val total = slices.sumOf { it.bytes }.coerceAtLeast(1L)
     val track = LocalGlassTheme.current.onGlass.copy(alpha = 0.08f)
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
@@ -299,24 +305,23 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
         val arcSize = Size(face - stroke, face - stroke)
         val limit = -90f + 360f * grow.value
         if (depth) {
-            // A soft shadow under the ring, then the ring's thickness as stacked darker copies, then the lit top face.
-            drawArc(Color.Black.copy(alpha = 0.16f), 0f, 360f, false, Offset(left + inset, inset + depthPx * 1.5f), arcSize, style = Stroke(stroke))
-            val layers = 14
+            // The ring's thickness: stacked darker copies of each part, hard-edged so nothing bleeds.
+            val layers = 12
             for (k in layers downTo 1) {
                 val dy = depthPx * k / layers
                 var st = -90f
                 slices.forEachIndexed { i, s ->
                     val sweep = 360f * s.bytes / total
                     val shown = minOf(sweep - 1.2f, limit - st)
-                    if (sweep > 0.5f && shown > 0.5f) drawArc(shade(colors[i % colors.size], 0.55f), st, shown.coerceAtLeast(0.5f), false, Offset(left + inset, inset + dy), arcSize, style = Stroke(stroke))
+                    if (sweep > 0.5f && shown > 0.5f) drawArc(shade(solid[i % solid.size], 0.62f), st, shown.coerceAtLeast(0.5f), false, Offset(left + inset, inset + dy), arcSize, style = Stroke(stroke))
                     st += sweep
                 }
             }
         }
-        drawArc(track, 0f, 360f, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
+        if (!depth) drawArc(track, 0f, 360f, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
         var start = -90f
         val light = androidx.compose.ui.graphics.Brush.linearGradient(
-            listOf(Color.White.copy(alpha = 0.38f), Color.Transparent, Color.Black.copy(alpha = 0.28f)),
+            listOf(Color.White.copy(alpha = 0.30f), Color.Transparent, Color.Black.copy(alpha = 0.16f)),
             start = Offset(left, 0f), end = Offset(left + face, face),
         )
         slices.forEachIndexed { i, s ->
@@ -324,7 +329,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
             val shown = minOf(sweep - 1.2f, limit - start)
             if (sweep > 0.5f && shown > 0.5f) {
                 val sw = shown.coerceAtLeast(0.5f)
-                drawArc(colors[i % colors.size], start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
+                drawArc(solid[i % solid.size], start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
                 if (depth) {
                     drawArc(light, start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
                     // Thin bright rim on the outer edge and a darker line on the inner edge give the rounded look.
