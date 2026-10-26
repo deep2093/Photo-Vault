@@ -95,6 +95,9 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     fun open(onDrive: Boolean) = { title: String, files: List<StoredFile> ->
         if (files.isNotEmpty()) state.open(Overlay.StorageFiles(title, onDrive, files.map { it.ref }))
     }
+    var cacheVersion by remember { mutableStateOf(0) }
+    var showCache by remember { mutableStateOf(false) }
+    androidx.compose.runtime.CompositionLocalProvider(LocalDepthCharts provides state.appearance.depthCharts) {
     Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StorageSource.entries.forEach { s -> GlassChip(s.label, selected = source == s, onClick = { state.storageOnDrive = s == StorageSource.DRIVE }) }
@@ -105,7 +108,7 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                 val media = phoneFiles.sumOf { it.bytes }
                 if (phone != null) {
                     val (total, free) = phone
-                    val other = (total - free - media).coerceAtLeast(0)
+                    val cacheBytes = remember(cacheVersion) { actions.appCacheBytes() }
                     val photoFiles = phoneFiles.filterNot { StorageStats.typeOf(it) == StorageStats.VIDEOS }
                     val videoFiles = phoneFiles.filter { StorageStats.typeOf(it) == StorageStats.VIDEOS }
                     SpaceCard(
@@ -113,7 +116,7 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                         listOf(
                             StorageSlice("Photos", photoFiles.sumOf { it.bytes }, photoFiles.size),
                             StorageSlice("Videos", videoFiles.sumOf { it.bytes }, videoFiles.size),
-                            StorageSlice("Everything else", other, 0),
+                            StorageSlice("App cache", cacheBytes, 0),
                             StorageSlice("Free", free, 0),
                         ),
                         "${DetailsFormat.size(free)} free of ${DetailsFormat.size(total)}",
@@ -122,7 +125,7 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                             when (i) {
                                 0 -> open(false)("Photos", photoFiles)
                                 1 -> open(false)("Videos", videoFiles)
-                                2 -> state.open(Overlay.OtherStorage(other))
+                                2 -> showCache = true
                             }
                         },
                     )
@@ -190,7 +193,32 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
             }
         }
     }
+    }
+    if (showCache) {
+        val bytes = remember(cacheVersion, showCache) { actions.appCacheBytes() }
+        com.deepak.photovault.designsystem.GlassDialog(
+            title = "App cache",
+            onDismiss = { showCache = false },
+            buttons = {
+                GlassButton("Close", onClick = { showCache = false })
+                GlassButton("Clear cache", primary = true, onClick = {
+                    actions.clearAppCache()
+                    cacheVersion++
+                    showCache = false
+                    actions.toast("Cache cleared.")
+                })
+            },
+        ) {
+            Text(
+                "${DetailsFormat.size(bytes)} of temporary files: previews and photos fetched from the drive. Clearing never deletes your photos or backups; anything needed again is made again.",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+    }
 }
+
 
 /** File types as a ring, photos per year as bars, and the biggest albums. */
 @Composable
@@ -232,9 +260,15 @@ private fun Breakdown(files: List<StoredFile>, zone: TimeZone, onOpen: (String, 
     }
 }
 
+/** Whether the storage rings are drawn with depth (Appearance > Charts with depth). */
+internal val LocalDepthCharts = androidx.compose.runtime.compositionLocalOf { true }
+
+private fun shade(c: Color, factor: Float) = Color(c.red * factor, c.green * factor, c.blue * factor, c.alpha)
+
 /** A ring split by size. */
 @Composable
 private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<Color> = CHART, onSlice: ((Int) -> Unit)? = null) {
+    val depth = LocalDepthCharts.current
     val total = slices.sumOf { it.bytes }.coerceAtLeast(1L)
     val track = LocalGlassTheme.current.onGlass.copy(alpha = 0.08f)
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
@@ -250,7 +284,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->
-            val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - size.height / 2f, slices.map { it.bytes })
+            val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - (if (depth) (size.height - size.height * 0.09f) / 2f else size.height / 2f), slices.map { it.bytes })
             if (index != null) {
                 haptics.tick()
                 onSlice(index)
@@ -258,16 +292,47 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
         }
     }
     Canvas(modifier.then(tap).semantics { contentDescription = slices.joinToString { "${it.label} ${DetailsFormat.size(it.bytes)}" } }) {
-        val stroke = size.minDimension * 0.22f
+        val depthPx = if (depth) size.minDimension * 0.09f else 0f
+        val face = size.minDimension - depthPx
+        val stroke = face * if (depth) 0.26f else 0.22f
         val inset = stroke / 2
-        val arcSize = Size(size.width - stroke, size.height - stroke)
-        drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
-        var start = -90f
+        val left = (size.width - face) / 2f
+        val arcSize = Size(face - stroke, face - stroke)
         val limit = -90f + 360f * grow.value
+        if (depth) {
+            // A soft shadow under the ring, then the ring's thickness as stacked darker copies, then the lit top face.
+            drawArc(Color.Black.copy(alpha = 0.16f), 0f, 360f, false, Offset(left + inset, inset + depthPx * 1.5f), arcSize, style = Stroke(stroke))
+            val layers = 14
+            for (k in layers downTo 1) {
+                val dy = depthPx * k / layers
+                var st = -90f
+                slices.forEachIndexed { i, s ->
+                    val sweep = 360f * s.bytes / total
+                    val shown = minOf(sweep - 1.2f, limit - st)
+                    if (sweep > 0.5f && shown > 0.5f) drawArc(shade(colors[i % colors.size], 0.55f), st, shown.coerceAtLeast(0.5f), false, Offset(left + inset, inset + dy), arcSize, style = Stroke(stroke))
+                    st += sweep
+                }
+            }
+        }
+        drawArc(track, 0f, 360f, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
+        var start = -90f
+        val light = androidx.compose.ui.graphics.Brush.linearGradient(
+            listOf(Color.White.copy(alpha = 0.38f), Color.Transparent, Color.Black.copy(alpha = 0.28f)),
+            start = Offset(left, 0f), end = Offset(left + face, face),
+        )
         slices.forEachIndexed { i, s ->
             val sweep = 360f * s.bytes / total
             val shown = minOf(sweep - 1.2f, limit - start)
-            if (sweep > 0.5f && shown > 0.5f) drawArc(colors[i % colors.size], start, shown.coerceAtLeast(0.5f), false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+            if (sweep > 0.5f && shown > 0.5f) {
+                val sw = shown.coerceAtLeast(0.5f)
+                drawArc(colors[i % colors.size], start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
+                if (depth) {
+                    drawArc(light, start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
+                    // Thin bright rim on the outer edge and a darker line on the inner edge give the rounded look.
+                    drawArc(Color.White.copy(alpha = 0.40f), start, sw, false, Offset(left + 1.5f, 1.5f), Size(face - 3f, face - 3f), style = Stroke(3f))
+                    drawArc(Color.Black.copy(alpha = 0.18f), start, sw, false, Offset(left + stroke - 1f, stroke - 1f), Size(face - 2 * stroke + 2f, face - 2 * stroke + 2f), style = Stroke(2f))
+                }
+            }
             start += sweep
         }
     }
@@ -390,30 +455,5 @@ object DonutMath {
             start += sweep
         }
         return sizes.lastIndex
-    }
-}
-
-/** What "Everything else" holds, and the way to see it: Android's own storage page (25 Oct). */
-@Composable
-internal fun OtherStorageScreen(state: ShellState, actions: MediaActions, bytes: Long) {
-    val theme = LocalGlassTheme.current
-    GlassListScreen(title = "Everything else", subtitle = DetailsFormat.size(bytes), onBack = { state.back() }) {
-        item {
-            GlassCard(Modifier.cardWidth()) {
-                SectionHeader("What is in here")
-                Text(
-                    "Apps and their data, music, documents, downloads, and Android itself. Pixallery only sees your photos and videos, so it can't list these files.",
-                    color = theme.onGlass,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    "Android's own storage page shows how much each app and type uses, and lets you clear space.",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
-                )
-                GlassButton("Open Android storage", primary = true, onClick = actions::openStorageSettings)
-            }
-        }
     }
 }

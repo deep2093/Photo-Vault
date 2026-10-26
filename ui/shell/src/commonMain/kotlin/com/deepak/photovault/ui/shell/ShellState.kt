@@ -69,6 +69,8 @@ data class AppearanceSettings(
     val photoSource: String = PhotoSource.ALL.name,
     /** The Photos filter as three chips under the top bar instead of a button (25 Oct; one of the two goes in Phase 6). */
     val filterChips: Boolean = false,
+    /** Storage charts drawn as thick rings with depth and shading; off gives the flat rings (26 Oct). */
+    val depthCharts: Boolean = true,
 )
 
 /** Which photos the Photos page shows. */
@@ -103,9 +105,6 @@ sealed interface Overlay {
 
     /** Settings > Storage: just the backups deleted from the drive (25 Oct). */
     data object DriveRecentlyDeleted : Overlay
-
-    /** Settings > Storage: what "Everything else" is ([bytes]) and where to see it. */
-    data class OtherStorage(val bytes: Long) : Overlay
 
     /** Connecting the family drive, creating the family or joining it. */
     data object DriveSetup : Overlay

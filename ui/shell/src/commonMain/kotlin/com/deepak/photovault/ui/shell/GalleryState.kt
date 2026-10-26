@@ -40,8 +40,11 @@ interface MediaActions {
      */
     fun moveToAlbum(items: List<MediaItem>, albumId: String?, newAlbumName: String?, onDone: (String?) -> Unit) = onDone("Not supported here.")
 
-    /** Opens Android's own storage page, which lists apps, music and the rest. */
-    fun openStorageSettings() = Unit
+    /** Size of Pixallery's temporary files (previews and downloads that can always be made again). */
+    fun appCacheBytes(): Long = 0L
+
+    /** Deletes those temporary files. Photos and backups are never touched. */
+    fun clearAppCache() = Unit
 
     fun requestAccess()
 

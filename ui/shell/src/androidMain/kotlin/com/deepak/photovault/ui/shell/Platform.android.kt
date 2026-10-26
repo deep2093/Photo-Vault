@@ -160,23 +160,40 @@ private class ThumbFetcher(private val thumb: Thumb, private val resolver: Conte
         val uri = Uri.parse(thumb.uri)
         // JPEGs are decoded from the photo itself (26 Oct). Android's thumbnail service may hand back the tiny preview
         // stored inside the file, which iPhone JPEGs make look blurry on a tile.
-        val sharp = if (!thumb.isVideo && runCatching { resolver.getType(uri) }.getOrNull() == "image/jpeg") {
-            runCatching {
-                android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
-                    decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
-                    val short = minOf(info.size.width, info.size.height).coerceAtLeast(1)
-                    if (short > thumb.sizePx) {
-                        val scale = thumb.sizePx.toFloat() / short
-                        decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
-                    }
-                }
-            }.getOrNull()
-        } else {
-            null
-        }
+        val sharp = if (!thumb.isVideo && runCatching { resolver.getType(uri) }.getOrNull() == "image/jpeg") sharpJpeg(uri, thumb.sizePx) else null
         val bitmap = sharp ?: resolver.loadThumbnail(uri, Size(thumb.sizePx, thumb.sizePx), null)
         ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)
     }
+
+    /**
+     * Only a JPEG whose embedded preview is too small for the tile gets its own thumbnail (made once, then kept, 26 Oct).
+     * Photos with a good preview keep using Android's, which is fast and needs no space. Null means "use Android's".
+     */
+    private fun sharpJpeg(uri: Uri, sizePx: Int): Bitmap? = runCatching {
+        val (modified, size) = resolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATE_MODIFIED, android.provider.MediaStore.MediaColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getLong(0) to c.getLong(1) else 0L to 0L
+        } ?: (0L to 0L)
+        val key = JpegThumbCache.key("phone", uri, modified, size, sizePx)
+        JpegThumbCache.get(key)?.let { return@runCatching it }
+        val previewSide = resolver.openInputStream(uri)?.use { stream ->
+            androidx.exifinterface.media.ExifInterface(stream).thumbnailBytes?.let { bytes ->
+                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+                maxOf(o.outWidth, o.outHeight)
+            }
+        } ?: 0
+        if (previewSide >= sizePx * 0.8f) return@runCatching null
+        val made = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
+            decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+            val short = minOf(info.size.width, info.size.height).coerceAtLeast(1)
+            if (short > sizePx) {
+                val scale = sizePx.toFloat() / short
+                decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
+            }
+        }
+        JpegThumbCache.put(key, made)
+        made
+    }.getOrNull()
 
     class Factory(private val resolver: ContentResolver) : Fetcher.Factory<Thumb> {
         override fun create(data: Thumb, options: Options, imageLoader: ImageLoader): Fetcher = ThumbFetcher(data, resolver)

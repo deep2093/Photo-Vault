@@ -399,7 +399,6 @@ private fun OverlayPage(
                     when (overlay) {
                         is Overlay.Album -> AlbumScreen(overlay.kind, state, gallery, actions, drive)
                         Overlay.RecentlyDeleted -> RecentlyDeletedScreen(state, gallery, actions)
-                        is Overlay.OtherStorage -> OtherStorageScreen(state, actions, overlay.bytes)
                         Overlay.DriveRecentlyDeleted -> RecentlyDeletedScreen(state, gallery, actions, driveOnly = true)
                         Overlay.Search -> SearchScreen(state, gallery, actions)
                         Overlay.DriveSetup -> DriveSetupScreen(state, drive)

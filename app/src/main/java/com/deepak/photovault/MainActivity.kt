@@ -652,9 +652,17 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
     }
 
-    override fun openStorageSettings() {
-        runCatching { startActivity(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }
-            .recoverCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+    private fun cacheFolders() = listOfNotNull(cacheDir, externalCacheDir)
+
+    override fun appCacheBytes(): Long = cacheFolders().sumOf { root -> root.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
+
+    /** Empties the cache folders but keeps the folders themselves, so the code that writes into them keeps working. */
+    override fun clearAppCache() {
+        cacheFolders().forEach { root ->
+            root.listFiles()?.forEach { child ->
+                if (child.isDirectory) child.listFiles()?.forEach { runCatching { it.deleteRecursively() } } else runCatching { child.delete() }
+            }
+        }
     }
 
     override fun moveToAlbum(items: List<MediaItem>, albumId: String?, newAlbumName: String?, onDone: (String?) -> Unit) {
@@ -843,6 +851,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
         photoSource = prefs.getString("photo_source", null) ?: AppearanceSettings().photoSource,
         filterChips = prefs.getBoolean("filter_chips", false),
+        depthCharts = prefs.getBoolean("depth_charts", true),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -856,6 +865,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
             .putString("photo_source", settings.photoSource)
             .putBoolean("filter_chips", settings.filterChips)
+            .putBoolean("depth_charts", settings.depthCharts)
             .apply()
     }
 }

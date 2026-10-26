@@ -276,8 +276,8 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 ) {
                     Box(Modifier.padding(top = system.calculateTopPadding() + 8.dp, end = 16.dp)) {
                         CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
-                            Row(Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp)) {
-                                GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { menuOpen = true })
+                            Row(Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(5.dp)) {
+                                SmallPillButton(Icons.Rounded.MoreVert, "More options") { menuOpen = true }
                             }
                         }
                         if (menuOpen) {
@@ -488,7 +488,7 @@ private fun ViewerMenu(
 ) {
     val theme = LocalGlassTheme.current
     val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
-    val topInset = with(LocalDensity.current) { 56.dp.roundToPx() }
+    val topInset = with(LocalDensity.current) { 44.dp.roundToPx() }
     androidx.compose.ui.window.Popup(
         alignment = Alignment.TopEnd,
         offset = androidx.compose.ui.unit.IntOffset(0, topInset),
@@ -501,9 +501,9 @@ private fun ViewerMenu(
         ) {
             Column(
                 Modifier
-                    .widthIn(min = 240.dp)
-                    .glassChrome(RoundedCornerShape(24.dp), elevation = 8.dp)
-                    .padding(vertical = 8.dp),
+                    .widthIn(min = 176.dp)
+                    .glassChrome(RoundedCornerShape(18.dp), elevation = 8.dp)
+                    .padding(vertical = 4.dp),
             ) {
                 if (showWallpaper) MenuRow(Icons.Rounded.Wallpaper, "Set as wallpaper", onWallpaper)
                 MenuRow(Icons.Rounded.Info, "Details", onDetails)
@@ -519,15 +519,15 @@ private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 38.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = theme.onGlass, modifier = Modifier.size(22.dp))
-        Text(label, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        if (hint != null) Text(hint, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium)
+        Icon(icon, contentDescription = null, tint = theme.onGlass, modifier = Modifier.size(18.dp))
+        Text(label, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        if (hint != null) Text(hint, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
     }
 }
 

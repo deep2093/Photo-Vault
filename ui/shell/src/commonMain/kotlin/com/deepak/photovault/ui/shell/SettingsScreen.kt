@@ -240,6 +240,13 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             description = "Off: a cloud button in the Photos top bar. On: three chips above your photos",
         )
         GlassSwitchRow(
+            "Charts with depth",
+            state.appearance.depthCharts,
+            { on -> state.updateAppearance { it.copy(depthCharts = on) } },
+            icon = Icons.Rounded.PieChart,
+            description = "The Storage rings look like thick 3D rings. Off: flat rings",
+        )
+        GlassSwitchRow(
             "Reduce motion",
             state.appearance.reduceMotion,
             { on -> state.updateAppearance { it.copy(reduceMotion = on) } },

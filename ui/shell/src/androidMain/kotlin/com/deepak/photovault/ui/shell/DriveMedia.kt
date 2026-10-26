@@ -29,6 +29,7 @@ object DriveMedia {
         reader = read
         originals = File(context.applicationContext.cacheDir, "drive-originals").apply { mkdirs() }
         thumbs = File(context.applicationContext.filesDir, "drive-thumbs").apply { mkdirs() }
+        JpegThumbCache.install(context)
         // Earlier versions kept small, blurry previews of iPhone JPEGs under this name: drop them.
         thumbs?.listFiles { f -> f.name.endsWith("-q.jpg") }?.forEach { it.delete() }
     }
@@ -105,8 +106,12 @@ object DriveMedia {
     /** A thumbnail of a drive photo, from the kept thumbnails or made from the downloaded file. */
     suspend fun thumbnail(path: String, sizePx: Int): Bitmap? = withContext(Dispatchers.IO) {
         val dir = thumbs ?: return@withContext null
+        val isJpeg = path.lowercase().let { it.endsWith(".jpg") || it.endsWith(".jpeg") }
+        val jpegKey = JpegThumbCache.key("drive", path, sizePx)
+        // A JPEG whose own preview was too small: made once from the photo, kept in the capped JPEG thumbnail folder.
+        if (isJpeg) JpegThumbCache.get(jpegKey)?.let { return@withContext it }
         val kept = File(dir, "${name(path)}-$sizePx.jpg")
-        if (kept.exists()) BitmapFactory.decodeFile(kept.path)?.let { return@withContext it }
+        if (!isJpeg && kept.exists()) BitmapFactory.decodeFile(kept.path)?.let { return@withContext it }
         if (path.endsWith(".pxo")) {
             // Encrypted backup: the small picture stored beside it (also the only preview a video has).
             privateThumbnail(path, dir)?.let { bitmap ->
@@ -126,7 +131,7 @@ object DriveMedia {
         }
         val original = file(path) ?: return@withContext null
         val bitmap = decodeSampled(original, sizePx) ?: return@withContext null
-        runCatching { FileOutputStream(kept).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
+        if (isJpeg) JpegThumbCache.put(jpegKey, bitmap) else runCatching { FileOutputStream(kept).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
         bitmap
     }
 

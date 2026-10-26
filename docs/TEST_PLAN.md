@@ -364,3 +364,9 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 4. Storage > Phone: the ring has Photos, Videos, Everything else, Free. Tapping Photos or Videos opens their files; Everything else explains and opens Android's storage page.
 5. iPhone JPEGs that are on the phone are sharp in the grid.
 6. Photos scrolled far down, tap Photos on the bottom bar: one smooth glide to the top without stopping.
+
+## Round 19 (26 Oct): app cache, 3D rings, compact menu, saved thumbnails
+1. Storage > Phone: ring shows Photos, Videos, App cache, Free. Tap App cache: dialog with size; Clear cache empties it; the ring updates; drive photos still open.
+2. Settings > Appearance > Charts with depth: on gives thick shaded 3D rings, off gives flat rings. Both sweep round when the page opens (not with Reduce motion). Tapping a part of the ring still opens it.
+3. Photo viewer: the three dots are the same size as the Search button; the menu is narrow and compact.
+4. iPhone JPEGs (phone and drive): sharp, and scrolling back is instant the second time (saved). App cache does not remove them being rebuilt later, only time.
