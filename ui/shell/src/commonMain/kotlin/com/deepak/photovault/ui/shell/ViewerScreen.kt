@@ -1,5 +1,8 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
@@ -261,6 +264,45 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                     .draggable(state = drag, orientation = Orientation.Vertical, onDragStopped = { settle(it) }),
             )
 
+            // The "more" menu at the top right (26 Oct): Details, Set as wallpaper, Move to Secured folder.
+            var menuOpen by remember { mutableStateOf(false) }
+            var wallpaperItem by remember { mutableStateOf<MediaItem?>(null) }
+            if (!viewer.trash) {
+                AnimatedVisibility(
+                    visible = barsVisible && !state.detailsOpen,
+                    enter = fadeIn(motionSpec()),
+                    exit = fadeOut(motionSpec()),
+                    modifier = Modifier.align(Alignment.TopEnd),
+                ) {
+                    Box(Modifier.padding(top = system.calculateTopPadding() + 8.dp, end = 16.dp)) {
+                        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
+                            Row(Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp)) {
+                                GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { menuOpen = true })
+                            }
+                        }
+                        if (menuOpen) {
+                            ViewerMenu(
+                                onDismiss = { menuOpen = false },
+                                showWallpaper = !current.isVideo,
+                                showSecure = !gallery.isExternal(current),
+                                onDetails = { menuOpen = false; state.detailsOpen = true },
+                                onWallpaper = { menuOpen = false; wallpaperItem = current },
+                                onSecure = { menuOpen = false; actions.toast("The Secured folder is coming in a later update.") },
+                            )
+                        }
+                    }
+                }
+            }
+            wallpaperItem?.let { photo ->
+                WallpaperDialog(
+                    onDismiss = { wallpaperItem = null },
+                    onPick = { target ->
+                        wallpaperItem = null
+                        actions.setWallpaper(photo, target) { error -> actions.toast(error ?: "Wallpaper set: ${target.label.lowercase()}.") }
+                    },
+                )
+            }
+
             // A tap on the photo fades the filmstrip and actions away and back, as in Samsung Gallery.
             AnimatedVisibility(
                 visible = barsVisible && !state.detailsOpen,
@@ -329,7 +371,6 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             },
                             // A file opened from another app is not ours to delete or favourite: Share and Save only.
                             onFavourite = if (gallery.isExternal(current)) null else ({ gallery.toggleFavourite(listOf(current)) }),
-                            onInfo = { state.detailsOpen = true },
                             onDelete = if (gallery.isExternal(current)) null else ({
                                 val flying = flyCurrent()
                                 prompt.trash(actions, listOf(current)) { agreed ->
@@ -435,12 +476,81 @@ private fun Filmstrip(ids: List<Long>, find: (Long) -> MediaItem?, pager: PagerS
     }
 }
 
+/** The viewer's "more" menu: a small glass sheet that opens from the three dots, like the toolbars. */
+@Composable
+private fun ViewerMenu(
+    onDismiss: () -> Unit,
+    showWallpaper: Boolean,
+    showSecure: Boolean,
+    onDetails: () -> Unit,
+    onWallpaper: () -> Unit,
+    onSecure: () -> Unit,
+) {
+    val theme = LocalGlassTheme.current
+    val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
+    val topInset = with(LocalDensity.current) { 56.dp.roundToPx() }
+    androidx.compose.ui.window.Popup(
+        alignment = Alignment.TopEnd,
+        offset = androidx.compose.ui.unit.IntOffset(0, topInset),
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+    ) {
+        AnimatedVisibility(
+            visibleState = shown,
+            enter = fadeIn(motionSpec()) + androidx.compose.animation.scaleIn(motionSpec(), initialScale = 0.9f, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)),
+        ) {
+            Column(
+                Modifier
+                    .widthIn(min = 240.dp)
+                    .glassChrome(RoundedCornerShape(24.dp), elevation = 8.dp)
+                    .padding(vertical = 8.dp),
+            ) {
+                if (showWallpaper) MenuRow(Icons.Rounded.Wallpaper, "Set as wallpaper", onWallpaper)
+                MenuRow(Icons.Rounded.Info, "Details", onDetails)
+                if (showSecure) MenuRow(Icons.Rounded.Lock, "Move to Secured folder", onSecure, hint = "Soon")
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, hint: String? = null) {
+    val theme = LocalGlassTheme.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = theme.onGlass, modifier = Modifier.size(22.dp))
+        Text(label, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (hint != null) Text(hint, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+/** Where should the wallpaper go? Home screen, lock screen or both. */
+@Composable
+private fun WallpaperDialog(onDismiss: () -> Unit, onPick: (WallpaperTarget) -> Unit) {
+    com.deepak.photovault.designsystem.GlassDialog(
+        title = "Set as wallpaper",
+        onDismiss = onDismiss,
+        buttons = { com.deepak.photovault.designsystem.GlassButton("Cancel", onClick = onDismiss) },
+    ) {
+        Text("Where do you want this photo?", color = LocalGlassTheme.current.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        WallpaperTarget.entries.forEach { target ->
+            com.deepak.photovault.designsystem.GlassButton(target.label, onClick = { onPick(target) }, modifier = Modifier.fillMaxWidth(), centered = true)
+        }
+    }
+}
+
 @Composable
 private fun ViewerActions(
     favourite: Boolean,
     onShare: () -> Unit,
     onFavourite: (() -> Unit)?,
-    onInfo: () -> Unit,
     onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier,
     binModifier: Modifier = Modifier,
@@ -455,7 +565,6 @@ private fun ViewerActions(
         if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
         if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
         if (onFavourite != null) GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
-        GlassIconButton(Icons.Rounded.Info, "Details", onClick = onInfo)
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
     }
 }

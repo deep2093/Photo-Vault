@@ -27,7 +27,22 @@ import kotlinx.coroutines.flow.collectLatest
  * Things only the platform can do with the phone's photos. Android shows its own consent prompt for
  * Recently deleted, restore and delete forever; the app never goes around it.
  */
+/** Where a wallpaper goes (25 Oct). */
+enum class WallpaperTarget(val label: String) { HOME("Home screen"), LOCK("Lock screen"), BOTH("Home and lock screens") }
+
 interface MediaActions {
+    /** Sets a photo as the phone's wallpaper. [onDone] gets null on success or a message to show. */
+    fun setWallpaper(item: MediaItem, target: WallpaperTarget, onDone: (String?) -> Unit) = onDone("Not supported here.")
+
+    /**
+     * Moves phone photos to another album (folder). Either [albumId] (an existing album) or [newAlbumName] is given.
+     * Android asks first. [onDone] gets null on success or a message to show.
+     */
+    fun moveToAlbum(items: List<MediaItem>, albumId: String?, newAlbumName: String?, onDone: (String?) -> Unit) = onDone("Not supported here.")
+
+    /** Opens Android's own storage page, which lists apps, music and the rest. */
+    fun openStorageSettings() = Unit
+
     fun requestAccess()
 
     /** Ask for "access photo location", so the details panel can show where a photo was taken. */

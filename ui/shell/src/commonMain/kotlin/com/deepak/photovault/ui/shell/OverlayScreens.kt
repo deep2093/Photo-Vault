@@ -1,5 +1,7 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,9 +67,13 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
     // No top bar inside an album (24 Oct): the name is a big heading at the top of the photos, a small round back
     // button floats at the top left, and the count sits in small text under the last photo. Rename, cover and
     // delete live in Albums (press and hold an album).
+    var moving by remember { mutableStateOf<List<MediaItem>?>(null) }
     SelectableScreen(
         null, null, state, gallery, actions, onBack = { state.back() },
         tileSpots = spots,
+        onMove = if (kind == AlbumKind.Family) null else ({ selected ->
+            if (selected.any { it.isDriveOnly }) actions.toast("Photos that are only on the drive can't be moved.") else moving = selected
+        }),
         floatingStartActions = { SmallPillButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back") { state.back() } },
         selectionActions = if (kind != AlbumKind.Family) null else ({ selected ->
             GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selected) })
@@ -77,6 +83,27 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
             })
         }),
     ) { padding ->
+        moving?.let { chosen ->
+            // Every other phone album (not the cloud-only ones), and not the album the photos already sit in.
+            val here = (kind as? AlbumKind.Phone)?.albumId
+            val targets = remember(gallery.allAlbums) {
+                gallery.allAlbums.filter { !it.id.startsWith(com.deepak.photovault.core.backup.DriveTimeline.ALBUM_PREFIX) && it.id != here }
+            }
+            fun finish(error: String?) {
+                if (error == null) {
+                    actions.toast(if (chosen.size == 1) "Moved 1 photo." else "Moved ${chosen.size} photos.")
+                    state.selected = emptySet()
+                } else {
+                    actions.toast(error)
+                }
+            }
+            MoveToAlbumDialog(
+                albums = targets,
+                onDismiss = { moving = null },
+                onExisting = { id -> moving = null; actions.moveToAlbum(chosen, id, null, ::finish) },
+                onNew = { newName -> moving = null; actions.moveToAlbum(chosen, null, newName, ::finish) },
+            )
+        }
         if (items.isEmpty()) {
             EmptyState(
                 title = "Nothing here yet",
@@ -115,6 +142,58 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
                 },
             )
         }
+    }
+}
+
+/** Pick the album the selected photos move to, or make a new one. */
+@Composable
+private fun MoveToAlbumDialog(
+    albums: List<com.deepak.photovault.core.media.PhoneAlbum>,
+    onDismiss: () -> Unit,
+    onExisting: (String) -> Unit,
+    onNew: (String) -> Unit,
+) {
+    val theme = LocalGlassTheme.current
+    var creating by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    val clean = AlbumRules.cleanName(name)
+    com.deepak.photovault.designsystem.GlassDialog(
+        title = if (creating) "New album" else "Move to album",
+        onDismiss = onDismiss,
+        buttons = {
+            com.deepak.photovault.designsystem.GlassButton(if (creating) "Back" else "Cancel", onClick = { if (creating) creating = false else onDismiss() })
+            if (creating) com.deepak.photovault.designsystem.GlassButton("Move", primary = true, onClick = { clean?.let(onNew) })
+        },
+    ) {
+        if (creating) {
+            com.deepak.photovault.designsystem.GlassTextField(name, { name = it }, "Album name")
+            if (name.isNotBlank() && clean == null) com.deepak.photovault.designsystem.WarningNote("Choose another name.")
+        } else {
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                item {
+                    AlbumPickRow("New album...", null, onClick = { creating = true })
+                }
+                items(albums, key = { it.id }) { album ->
+                    AlbumPickRow(album.name, "${album.count}", onClick = { onExisting(album.id) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlbumPickRow(title: String, count: String?, onClick: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    androidx.compose.foundation.layout.Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), maxLines = 1)
+        if (count != null) Text(count, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium)
     }
 }
 

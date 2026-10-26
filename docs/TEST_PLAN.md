@@ -356,3 +356,11 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 8. Appearance: Leaf and Petals only (Petals is the old Four Seasons).
 9. In Photos, scrolled far down, tap Photos on the bottom bar: one smooth glide, no pause.
 10. What's new shows New, Changed, Removed and Fixed.
+
+## Round 18 (26 Oct): wallpaper, move to album, storage, thumbnails, scroll
+1. Open any photo (on the phone, and one only on the drive): three dots at the top right. Menu: Set as wallpaper, Details, Move to Secured folder (Soon). Videos have no wallpaper row. Details is no longer on the bottom bar.
+2. Set as wallpaper: the pop-up asks Home screen, Lock screen or both; check the result on each. A portrait photo is upright.
+3. Open an album, select photos: an album button appears. Tap it: pick an album or New album; Android asks once; the photos move and the grid updates.
+4. Storage > Phone: the ring has Photos, Videos, Everything else, Free. Tapping Photos or Videos opens their files; Everything else explains and opens Android's storage page.
+5. iPhone JPEGs that are on the phone are sharp in the grid.
+6. Photos scrolled far down, tap Photos on the bottom bar: one smooth glide to the top without stopping.

@@ -33,7 +33,11 @@
         </intent>
     </queries>
 
+    <!-- Set as wallpaper (viewer menu, 26 Oct). A normal permission: granted at install, nothing is asked. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+
     <!-- Credential Manager is used only to offer saving the recovery words as a password; no sign-in or passkeys, so no asset links. -->
+
     <application
         tools:ignore="CredManMissingDal"
         android:name=".PixalleryApplication"

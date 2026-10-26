@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhotoAlbum
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudQueue
@@ -326,6 +327,8 @@ fun SelectableScreen(
     floatingActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
     floatingStartActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
     selectionActions: (@Composable androidx.compose.foundation.layout.RowScope.(List<MediaItem>) -> Unit)? = null,
+    /** Inside an album: a button to move the selected photos to another album (26 Oct). */
+    onMove: ((List<MediaItem>) -> Unit)? = null,
     /** Where the grid draws each photo, for the delete animation; the screen's [MediaGrid] fills it in. */
     tileSpots: TileSpots = remember { TileSpots() },
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
@@ -365,6 +368,7 @@ fun SelectableScreen(
                     actions.shareToFamilyAlbum(selectedItems)
                     state.selected = emptySet()
                 })
+                if (onMove != null) GlassIconButton(Icons.Rounded.PhotoAlbum, "Move to another album", onClick = { onMove(selectedItems) })
                 GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
                     gallery.toggleFavourite(selectedItems)
                     state.selected = emptySet()

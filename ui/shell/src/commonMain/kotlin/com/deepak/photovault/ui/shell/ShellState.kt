@@ -104,6 +104,9 @@ sealed interface Overlay {
     /** Settings > Storage: just the backups deleted from the drive (25 Oct). */
     data object DriveRecentlyDeleted : Overlay
 
+    /** Settings > Storage: what "Everything else" is ([bytes]) and where to see it. */
+    data class OtherStorage(val bytes: Long) : Overlay
+
     /** Connecting the family drive, creating the family or joining it. */
     data object DriveSetup : Overlay
 

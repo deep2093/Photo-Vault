@@ -72,7 +72,8 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     // Remembered across the pages opened from here, so Back returns to the tab you were on.
     val source = if (state.storageOnDrive ?: startOnDrive) StorageSource.DRIVE else StorageSource.PHONE
     val zone = remember { TimeZone.currentSystemDefault() }
-    val phoneFiles = remember(gallery.items) { StorageStats.fromPhone(gallery.items) }
+    // Only what is on this phone: photos that are only on the drive don't take phone space.
+    val phoneFiles = remember(gallery.items) { StorageStats.fromPhone(gallery.items.filterNot { it.isDriveOnly }) }
     LaunchedEffect(startOnDrive) { if (startOnDrive) state.storageOnDrive = true }
     // Read again each time the drive tab opens, so files deleted or backed up since are right.
     LaunchedEffect(source, drive.joined?.me?.userId) {
@@ -105,15 +106,25 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                 if (phone != null) {
                     val (total, free) = phone
                     val other = (total - free - media).coerceAtLeast(0)
+                    val photoFiles = phoneFiles.filterNot { StorageStats.typeOf(it) == StorageStats.VIDEOS }
+                    val videoFiles = phoneFiles.filter { StorageStats.typeOf(it) == StorageStats.VIDEOS }
                     SpaceCard(
                         "Phone storage",
                         listOf(
-                            StorageSlice("Photos and videos", media, phoneFiles.size),
+                            StorageSlice("Photos", photoFiles.sumOf { it.bytes }, photoFiles.size),
+                            StorageSlice("Videos", videoFiles.sumOf { it.bytes }, videoFiles.size),
                             StorageSlice("Everything else", other, 0),
                             StorageSlice("Free", free, 0),
                         ),
                         "${DetailsFormat.size(free)} free of ${DetailsFormat.size(total)}",
-                        onOpen = { i -> if (i == 0) open(false)("Photos and videos", phoneFiles) },
+                        canOpen = { i, s -> (i <= 1 && s.count > 0) || i == 2 },
+                        onOpen = { i ->
+                            when (i) {
+                                0 -> open(false)("Photos", photoFiles)
+                                1 -> open(false)("Videos", videoFiles)
+                                2 -> state.open(Overlay.OtherStorage(other))
+                            }
+                        },
                     )
                 } else {
                     GlassCard(Modifier.fillMaxWidth()) {
@@ -335,7 +346,13 @@ private fun Legend(color: Color, label: String, detail: String, onClick: (() -> 
 
 /** A card with a ring and its legend, for how full the phone or your drive space is. Tap a part to see it. */
 @Composable
-private fun SpaceCard(title: String, slices: List<StorageSlice>, summary: String, onOpen: (Int) -> Unit) {
+private fun SpaceCard(
+    title: String,
+    slices: List<StorageSlice>,
+    summary: String,
+    canOpen: (Int, StorageSlice) -> Boolean = { i, s -> i == 0 && s.count > 0 },
+    onOpen: (Int) -> Unit,
+) {
     val theme = LocalGlassTheme.current
     val colors = SPACE_COLORS.take(slices.size - 1) + theme.onGlass.copy(alpha = 0.10f)
     GlassCard(Modifier.fillMaxWidth()) {
@@ -345,7 +362,7 @@ private fun SpaceCard(title: String, slices: List<StorageSlice>, summary: String
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 slices.forEachIndexed { i, s ->
-                    val opens = i == 0 && s.count > 0
+                    val opens = canOpen(i, s)
                     Legend(colors[i], s.label, if (s.count > 0) "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}" else DetailsFormat.size(s.bytes), onClick = if (opens) ({ onOpen(i) }) else null)
                 }
             }
@@ -373,5 +390,30 @@ object DonutMath {
             start += sweep
         }
         return sizes.lastIndex
+    }
+}
+
+/** What "Everything else" holds, and the way to see it: Android's own storage page (25 Oct). */
+@Composable
+internal fun OtherStorageScreen(state: ShellState, actions: MediaActions, bytes: Long) {
+    val theme = LocalGlassTheme.current
+    GlassListScreen(title = "Everything else", subtitle = DetailsFormat.size(bytes), onBack = { state.back() }) {
+        item {
+            GlassCard(Modifier.cardWidth()) {
+                SectionHeader("What is in here")
+                Text(
+                    "Apps and their data, music, documents, downloads, and Android itself. Pixallery only sees your photos and videos, so it can't list these files.",
+                    color = theme.onGlass,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "Android's own storage page shows how much each app and type uses, and lets you clear space.",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+                )
+                GlassButton("Open Android storage", primary = true, onClick = actions::openStorageSettings)
+            }
+        }
     }
 }

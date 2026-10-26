@@ -157,7 +157,24 @@ private class ThumbFetcher(private val thumb: Thumb, private val resolver: Conte
             val bitmap = DriveMedia.thumbnail(path, thumb.sizePx) ?: error("Drive photo not available")
             return@withContext ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)
         }
-        val bitmap = resolver.loadThumbnail(Uri.parse(thumb.uri), Size(thumb.sizePx, thumb.sizePx), null)
+        val uri = Uri.parse(thumb.uri)
+        // JPEGs are decoded from the photo itself (26 Oct). Android's thumbnail service may hand back the tiny preview
+        // stored inside the file, which iPhone JPEGs make look blurry on a tile.
+        val sharp = if (!thumb.isVideo && runCatching { resolver.getType(uri) }.getOrNull() == "image/jpeg") {
+            runCatching {
+                android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
+                    decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                    val short = minOf(info.size.width, info.size.height).coerceAtLeast(1)
+                    if (short > thumb.sizePx) {
+                        val scale = thumb.sizePx.toFloat() / short
+                        decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
+                    }
+                }
+            }.getOrNull()
+        } else {
+            null
+        }
+        val bitmap = sharp ?: resolver.loadThumbnail(uri, Size(thumb.sizePx, thumb.sizePx), null)
         ImageFetchResult(image = bitmap.asImage(), isSampled = true, dataSource = DataSource.DISK)
     }
 

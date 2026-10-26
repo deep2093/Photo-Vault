@@ -162,6 +162,24 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
     }
 
+    /** Waiting for Android's "allow changes" answer before moving photos to another album. */
+    private class PendingMove(val items: List<MediaItem>, val destPath: String?, val newName: String?, val done: (String?) -> Unit)
+    private var pendingMove: PendingMove? = null
+
+    private val moveLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val move = pendingMove ?: return@registerForActivityResult
+        pendingMove = null
+        if (result.resultCode != RESULT_OK) {
+            move.done("Not moved.")
+            return@registerForActivityResult
+        }
+        lifecycleScope.launch {
+            val failed = withContext(Dispatchers.IO) { moveItems(move) }
+            gallery.refresh()
+            move.done(if (failed == 0) null else "$failed of ${move.items.size} couldn't be moved.")
+        }
+    }
+
     /** Send feedback: photos or videos to go with a note (23 Oct). */
     private var onFeedbackFiles: ((List<FeedbackFile>) -> Unit)? = null
     private val feedbackPicker = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(5)) { uris ->
@@ -598,6 +616,85 @@ class MainActivity : ComponentActivity(), MediaActions {
         val stat = android.os.StatFs(android.os.Environment.getDataDirectory().path)
         stat.totalBytes to stat.availableBytes
     }.getOrNull()
+
+    override fun setWallpaper(item: MediaItem, target: com.deepak.photovault.ui.shell.WallpaperTarget, onDone: (String?) -> Unit) {
+        lifecycleScope.launch {
+            val error = withContext(Dispatchers.IO) {
+                try {
+                    val wm = android.app.WallpaperManager.getInstance(this@MainActivity)
+                    if (!wm.isWallpaperSupported || !wm.isSetWallpaperAllowed) return@withContext "This phone doesn't allow changing the wallpaper."
+                    val source = DriveMedia.pathOf(item.uri)?.let { path ->
+                        android.graphics.ImageDecoder.createSource(DriveMedia.file(path) ?: return@withContext "Couldn't fetch the photo from the drive.")
+                    } ?: android.graphics.ImageDecoder.createSource(contentResolver, Uri.parse(item.uri))
+                    // Upright (the photo's own rotation is applied) and no bigger than the wallpaper needs.
+                    val bitmap = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                        val longSide = maxOf(info.size.width, info.size.height).coerceAtLeast(1)
+                        if (longSide > 4096) {
+                            val scale = 4096f / longSide
+                            decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
+                        }
+                    }
+                    val flags = when (target) {
+                        com.deepak.photovault.ui.shell.WallpaperTarget.HOME -> android.app.WallpaperManager.FLAG_SYSTEM
+                        com.deepak.photovault.ui.shell.WallpaperTarget.LOCK -> android.app.WallpaperManager.FLAG_LOCK
+                        com.deepak.photovault.ui.shell.WallpaperTarget.BOTH -> android.app.WallpaperManager.FLAG_SYSTEM or android.app.WallpaperManager.FLAG_LOCK
+                    }
+                    wm.setBitmap(bitmap, null, true, flags)
+                    null
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    "Couldn't set the wallpaper."
+                }
+            }
+            onDone(error)
+        }
+    }
+
+    override fun openStorageSettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)) }
+            .recoverCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+    }
+
+    override fun moveToAlbum(items: List<MediaItem>, albumId: String?, newAlbumName: String?, onDone: (String?) -> Unit) {
+        val phone = items.filter { DriveMedia.pathOf(it.uri) == null }
+        if (phone.isEmpty()) return onDone("Photos that are only on the drive can't be moved.")
+        val destination = albumId?.let { id -> gallery.items.firstOrNull { it.albumId == id && DriveMedia.pathOf(it.uri) == null } }
+        val destPath = destination?.let { d ->
+            contentResolver.query(Uri.parse(d.uri), arrayOf(MediaStore.MediaColumns.RELATIVE_PATH), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }
+        if (albumId != null && destPath == null) return onDone("Couldn't find that album's folder.")
+        val todo = phone.filter { albumId == null || it.albumId != albumId }
+        if (todo.isEmpty()) return onDone(null)
+        pendingMove = PendingMove(todo, destPath, newAlbumName, onDone)
+        val request = MediaStore.createWriteRequest(contentResolver, todo.map { Uri.parse(it.uri) })
+        moveLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+    }
+
+    /** Photos may live under DCIM or Pictures, videos under DCIM or Movies; a folder outside that moves to the right top folder. Returns how many failed. */
+    private fun moveItems(move: PendingMove): Int {
+        var failed = 0
+        for (item in move.items) {
+            val allowedRoot = if (item.isVideo) "Movies" else "Pictures"
+            val target = when {
+                move.newName != null -> "$allowedRoot/${move.newName}/"
+                else -> {
+                    val path = move.destPath!!.trimEnd('/')
+                    val root = path.substringBefore('/')
+                    val rest = path.substringAfter('/', "")
+                    if (root == "DCIM" || root == allowedRoot) "$path/" else "$allowedRoot/${rest.ifEmpty { root }}/"
+                }
+            }
+            val values = android.content.ContentValues().apply { put(MediaStore.MediaColumns.RELATIVE_PATH, target) }
+            try {
+                if (contentResolver.update(Uri.parse(item.uri), values, null, null) < 1) failed++
+            } catch (e: Exception) {
+                failed++
+            }
+        }
+        return failed
+    }
 
     override fun deleteAlbum(albumId: String, onDone: (Boolean) -> Unit) = moveToRecentlyDeleted(gallery.items.filter { it.albumId == albumId }, onDone)
 
