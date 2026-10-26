@@ -7,14 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.runtime.remember
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 
 /**
  * Counts taps on the section that is already open. Each new value asks that section to scroll to the top
@@ -23,17 +16,16 @@ import kotlinx.coroutines.launch
 val LocalScrollToTop = compositionLocalOf { 0 }
 
 /**
- * Scroll to top, fourth version (26 Oct). Measured on Deepak's video: the glide stuttered at the start because it moved
- * ~500 px a frame and the phone had to build whole rows of new photos that fast. Now it never moves faster than the
- * grid can keep up with:
- *  - Within [NEAR] screens of the top: one gentle glide all the way.
- *  - Further down: the list fades out quickly, moves to one screen below the top while faded (so the jump is never
- *    seen), then fades back in while gliding into the top. One quick, continuous movement.
- * [fade] is the list's opacity; the screen applies it. Position is re-measured every frame so it ends exactly at the top.
+ * Scroll to top, the Samsung Gallery way (26 Oct, measured frame by frame from Deepak's recording of Samsung Gallery):
+ *  1. If the top is far away, the list jumps in one frame to about [JUMP_SCREENS] screens below the top. No fade.
+ *  2. It then scrolls up at a steady, quick speed ([SPEED] screens a second), slow enough for the grid to keep up.
+ *  3. For the last stretch it slows down smoothly into the top over [EASE_MS] ms, with no change of speed where
+ *     the steady part ends.
+ * The position is re-measured every frame, so it ends exactly at the top. Same speed on 60 Hz and 120 Hz screens.
  */
-private const val NEAR = 3f
-private const val GLIDE_MS = 420f
-private const val FADE_MS = 110
+private const val JUMP_SCREENS = 3.5f
+private const val SPEED = 6f
+private const val EASE_MS = 500f
 
 private suspend fun glideToTop(
     distanceLeft: () -> Float,
@@ -41,39 +33,41 @@ private suspend fun glideToTop(
     jumpNear: suspend (Float) -> Unit,
     atTop: () -> Boolean,
     screenPx: Float,
-    fade: Animatable<Float, *>,
 ) {
     if (atTop()) return
-    var far = false
-    if (distanceLeft() > screenPx * NEAR) {
-        far = true
-        fade.animateTo(0f, tween(FADE_MS, easing = LinearEasing))
-        jumpNear(screenPx)
+    if (distanceLeft() > screenPx * JUMP_SCREENS) {
+        jumpNear(screenPx * JUMP_SCREENS)
         withFrameNanos { }
     }
-    val start = distanceLeft()
-    if (start <= 0.5f) { fade.snapTo(1f); return }
-    val glideMs = if (far) GLIDE_MS else GLIDE_MS + 140f
-    coroutineScope {
-        if (far) launch { fade.animateTo(1f, tween(FADE_MS * 2, easing = LinearEasing)) }
-        val begin = withFrameNanos { it }
-        while (!atTop()) {
-            val now = withFrameNanos { it }
-            val t = ((now - begin) / 1_000_000f / glideMs).coerceIn(0f, 1f)
-            if (t >= 1f) break
-            val rest = 1f - t
-            val wanted = start * rest * rest * rest
-            val step = distanceLeft() - wanted
-            if (step > 0.5f && scrollBy(-step) == 0f) break
-        }
+    val speed = screenPx * SPEED / 1000f // px per ms
+    // Where the steady part hands over: easing out from this speed over EASE_MS covers exactly this distance.
+    val handOver = speed * EASE_MS / 2f
+    var last = withFrameNanos { it }
+    while (!atTop() && distanceLeft() > handOver) {
+        val now = withFrameNanos { it }
+        val ms = ((now - last) / 1_000_000f).coerceIn(1f, 34f)
+        last = now
+        val step = (speed * ms).coerceAtMost(distanceLeft() - handOver + 1f)
+        if (scrollBy(-step) == 0f) return
     }
-    fade.snapTo(1f)
+    val start = distanceLeft()
+    if (start <= 0.5f) return
+    // A short trip eases out in less time, so it never starts faster than the steady speed.
+    val easeMs = minOf(EASE_MS, 2f * start / speed).coerceAtLeast(220f)
+    val begin = withFrameNanos { it }
+    while (!atTop()) {
+        val now = withFrameNanos { it }
+        val t = ((now - begin) / 1_000_000f / easeMs).coerceIn(0f, 1f)
+        if (t >= 1f) break
+        val rest = 1f - t
+        val step = distanceLeft() - start * rest * rest
+        if (step > 0.5f && scrollBy(-step) == 0f) break
+    }
 }
 
 @Composable
 fun ScrollToTopEffect(state: LazyGridState): Modifier {
     val signal = LocalScrollToTop.current
-    val fade = remember { Animatable(1f) }
     LaunchedEffect(signal) {
         if (signal == 0) return@LaunchedEffect
         val info = { state.layoutInfo }
@@ -99,18 +93,16 @@ fun ScrollToTopEffect(state: LazyGridState): Modifier {
             },
             { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0 },
             screen,
-            fade,
         )
         // Whatever the estimate left over (headers are not tile-sized) is a few pixels.
         if (state.firstVisibleItemIndex != 0 || state.firstVisibleItemScrollOffset != 0) state.scrollToItem(0)
     }
-    return Modifier.graphicsLayer { alpha = fade.value }
+    return Modifier
 }
 
 @Composable
 fun ScrollToTopEffect(state: LazyListState): Modifier {
     val signal = LocalScrollToTop.current
-    val fade = remember { Animatable(1f) }
     LaunchedEffect(signal) {
         if (signal == 0) return@LaunchedEffect
         fun distance(): Float {
@@ -128,9 +120,8 @@ fun ScrollToTopEffect(state: LazyListState): Modifier {
             },
             { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0 },
             screen,
-            fade,
         )
         if (state.firstVisibleItemIndex != 0 || state.firstVisibleItemScrollOffset != 0) state.scrollToItem(0)
     }
-    return Modifier.graphicsLayer { alpha = fade.value }
+    return Modifier
 }

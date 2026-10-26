@@ -381,4 +381,4 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 1. Photo viewer toolbar: Share, Favourite, Set as wallpaper, Delete (no wallpaper for videos). No three dots. Swipe up opens Details.
 2. Select photos: a lock button between Favourite and Delete; tapping does nothing.
 3. Storage File types ring: PNG and GIF are small but clear wedges; no white cracks; parts meet with a thin dark line. Flat style keeps small gaps. Tapping each wedge opens it.
-4. Photos: scroll far down, tap Photos: quick fade, then a smooth glide into the top. Within a few screens: one gentle glide, no fade.
+4. Photos: scroll far down, tap Photos: one jump closer, a steady quick scroll, then a smooth slow-down into the top (compare side by side with Samsung Gallery). From a few screens down: steady scroll then slow-down, no jump.

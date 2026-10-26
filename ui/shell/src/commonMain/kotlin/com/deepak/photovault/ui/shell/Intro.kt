@@ -96,7 +96,7 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
 
 /** What's new for the current build. Change [ID] and [items] with EVERY build, covering all four kinds. */
 object WhatsNew {
-    const val ID = "2026-10-26-5"
+    const val ID = "2026-10-26-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.NEW, "Private backup", "Settings > Backup lets you choose Normal or Private. Private scrambles photos on your phone before they leave it, and you get 24 recovery words. Even the family owner can't open them."),
@@ -126,7 +126,7 @@ object WhatsNew {
         Change(ChangeKind.FIXED, "Back from Years and Months", "Back steps up one level at a time before the app closes."),
         Change(ChangeKind.FIXED, "Places kept", "Albums keep their scroll place after you view a photo, and Storage stays on the Drive tab."),
         Change(ChangeKind.FIXED, "Blurry thumbnails", "iPhone JPEGs no longer look blurry. Their sharp thumbnails are saved once (up to 300 MB), on the phone and for the drive."),
-        Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down glides smoothly to the top. From far down the photos fade out briefly, then fade back in while gliding into the top, with no stutter."),
+        Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down now works like Samsung Gallery: from far down it jumps closer, scrolls up at a steady speed, then slows smoothly into the top."),
         Change(ChangeKind.FIXED, "Phone clock in the viewer", "The time and notification icons show while the toolbar shows (white on the black viewer), and hide with it."),
         Change(ChangeKind.FIXED, "Private setup", "Restore my key appears when your key already exists, and the Switch to Normal pop-up buttons line up."),
     )
