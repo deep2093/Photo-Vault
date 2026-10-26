@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import com.deepak.photovault.core.media.MediaItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.rounded.Edit
