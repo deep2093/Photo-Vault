@@ -216,7 +216,6 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
             )
         }
     }
-    }
 }
 
 
