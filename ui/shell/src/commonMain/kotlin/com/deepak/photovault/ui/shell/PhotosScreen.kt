@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.MoreVert
@@ -334,6 +335,8 @@ fun SelectableScreen(
                     gallery.toggleFavourite(selectedItems)
                     state.selected = emptySet()
                 })
+                // The Secured folder comes in a later phase; until then this button does nothing (26 Oct).
+                GlassIconButton(Icons.Rounded.Lock, "Move to Secured folder", onClick = {})
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
                     // Where the photos are now: by the time Android has asked, the grid may have changed.
                     val flying = tileSpots.flying(selectedItems)

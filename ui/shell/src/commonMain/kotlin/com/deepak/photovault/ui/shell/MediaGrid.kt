@@ -149,7 +149,7 @@ fun MediaGrid(
         DisposableEffect(gridState) {
             onDispose { state.savedScroll[scrollKey] = gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
         }
-        ScrollToTopEffect(gridState)
+        val topFade = ScrollToTopEffect(gridState)
         LaunchedEffect(jumpTo, sections) {
             val key = jumpTo ?: return@LaunchedEffect
             var index = headerItems
@@ -270,6 +270,7 @@ fun MediaGrid(
             verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
             modifier = Modifier
                 .fillMaxSize()
+                .then(topFade)
                 .onGloballyPositioned { val p = it.positionInRoot(); gridOrigin[0] = p.x; gridOrigin[1] = p.y }
                 .photoGridGestures(gridState, handler)
                 .pinchToZoom { zoomIn ->

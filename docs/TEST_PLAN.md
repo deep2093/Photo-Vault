@@ -376,3 +376,9 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 2. Photo viewer: three dots are the last button of the bottom toolbar; the menu opens upward and is small. Videos have no wallpaper row.
 3. Viewer: with the toolbar showing, the clock and icons are visible in white; tapping the photo hides both.
 4. Photos: no cloud button, no chips, no setting in Appearance. Drive-only photos still appear; a photo in both places appears once.
+
+## Round 21 (26 Oct): toolbar, Secured button, ring wedges, scroll to top
+1. Photo viewer toolbar: Share, Favourite, Set as wallpaper, Delete (no wallpaper for videos). No three dots. Swipe up opens Details.
+2. Select photos: a lock button between Favourite and Delete; tapping does nothing.
+3. Storage File types ring: PNG and GIF are small but clear wedges; no white cracks; parts meet with a thin dark line. Flat style keeps small gaps. Tapping each wedge opens it.
+4. Photos: scroll far down, tap Photos: quick fade, then a smooth glide into the top. Within a few screens: one gentle glide, no fade.

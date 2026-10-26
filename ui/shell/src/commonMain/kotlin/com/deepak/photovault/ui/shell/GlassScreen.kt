@@ -274,11 +274,11 @@ private fun GlassTopBar(
 fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = null, items: LazyListScope.() -> Unit) {
     GlassScreen(title, subtitle, onBack = onBack) { padding ->
         val listState = rememberLazyListState()
-        ScrollToTopEffect(listState)
+        val topFade = ScrollToTopEffect(listState)
         LazyColumn(
             state = listState,
             // Only pages that are lists pad for the keyboard, so a text field stays above it.
-            modifier = Modifier.fillMaxSize().imePadding(),
+            modifier = Modifier.fillMaxSize().imePadding().then(topFade),
             contentPadding = padding,
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

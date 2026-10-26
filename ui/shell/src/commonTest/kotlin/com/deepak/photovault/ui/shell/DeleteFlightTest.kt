@@ -53,6 +53,17 @@ class DeleteFlightTest {
         assertEquals(null, DonutMath.sliceAt(1f, 1f, listOf(0L)))
     }
 
+    @Test
+    fun tinyPartsStillGetAVisibleWedge() {
+        // Photos 9.5 GB, Videos 5.1 GB, PNG 109 MB, GIF 4 MB, as on Deepak's phone.
+        val shares = DonutMath.visibleShares(listOf(9_500L, 5_100L, 109L, 4L))
+        assertEquals(1.0, shares.sum(), 1e-9)
+        assertEquals(0.03, shares[2], 1e-9)
+        assertEquals(0.03, shares[3], 1e-9)
+        assertTrue(shares[0] > shares[1])
+        assertEquals(listOf(0.0, 1.0), DonutMath.visibleShares(listOf(0L, 5L)))
+    }
+
     private fun item(id: Long, video: Boolean = false) = com.deepak.photovault.core.media.MediaItem(
         id = id, uri = "content://$id", type = if (video) com.deepak.photovault.core.media.MediaType.VIDEO else com.deepak.photovault.core.media.MediaType.PHOTO,
         displayName = "f$id", takenAtMillis = 0, sizeBytes = 1, width = 1, height = 1, albumId = "a", albumName = "A",

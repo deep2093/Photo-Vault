@@ -7,6 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Counts taps on the section that is already open. Each new value asks that section to scroll to the top
@@ -15,14 +23,17 @@ import androidx.compose.runtime.withFrameNanos
 val LocalScrollToTop = compositionLocalOf { 0 }
 
 /**
- * One smooth glide to the top (26 Oct, third version). The earlier ones scrolled thousands of pixels a frame, so every
- * frame had to build and load whole screens of new rows, and that was the jank. Now: if the top is far away, the list
- * first jumps to about [NEAR] screens below the top in a single frame (it is moving too fast to read anyway), then
- * glides the rest over a fixed time, fastest at the start and slowing into the top. The position is re-measured each
- * frame, so it still ends exactly at the top.
+ * Scroll to top, fourth version (26 Oct). Measured on Deepak's video: the glide stuttered at the start because it moved
+ * ~500 px a frame and the phone had to build whole rows of new photos that fast. Now it never moves faster than the
+ * grid can keep up with:
+ *  - Within [NEAR] screens of the top: one gentle glide all the way.
+ *  - Further down: the list fades out quickly, moves to one screen below the top while faded (so the jump is never
+ *    seen), then fades back in while gliding into the top. One quick, continuous movement.
+ * [fade] is the list's opacity; the screen applies it. Position is re-measured every frame so it ends exactly at the top.
  */
-private const val NEAR = 4f
-private const val GLIDE_MS = 520f
+private const val NEAR = 3f
+private const val GLIDE_MS = 420f
+private const val FADE_MS = 110
 
 private suspend fun glideToTop(
     distanceLeft: () -> Float,
@@ -30,29 +41,39 @@ private suspend fun glideToTop(
     jumpNear: suspend (Float) -> Unit,
     atTop: () -> Boolean,
     screenPx: Float,
+    fade: Animatable<Float, *>,
 ) {
     if (atTop()) return
+    var far = false
     if (distanceLeft() > screenPx * NEAR) {
-        jumpNear(screenPx * NEAR)
+        far = true
+        fade.animateTo(0f, tween(FADE_MS, easing = LinearEasing))
+        jumpNear(screenPx)
         withFrameNanos { }
     }
     val start = distanceLeft()
-    if (start <= 0.5f) return
-    val begin = withFrameNanos { it }
-    while (!atTop()) {
-        val now = withFrameNanos { it }
-        val t = ((now - begin) / 1_000_000f / GLIDE_MS).coerceIn(0f, 1f)
-        if (t >= 1f) break
-        val rest = 1f - t
-        val wanted = start * rest * rest * rest
-        val step = distanceLeft() - wanted
-        if (step > 0.5f && scrollBy(-step) == 0f) break
+    if (start <= 0.5f) { fade.snapTo(1f); return }
+    val glideMs = if (far) GLIDE_MS else GLIDE_MS + 140f
+    coroutineScope {
+        if (far) launch { fade.animateTo(1f, tween(FADE_MS * 2, easing = LinearEasing)) }
+        val begin = withFrameNanos { it }
+        while (!atTop()) {
+            val now = withFrameNanos { it }
+            val t = ((now - begin) / 1_000_000f / glideMs).coerceIn(0f, 1f)
+            if (t >= 1f) break
+            val rest = 1f - t
+            val wanted = start * rest * rest * rest
+            val step = distanceLeft() - wanted
+            if (step > 0.5f && scrollBy(-step) == 0f) break
+        }
     }
+    fade.snapTo(1f)
 }
 
 @Composable
-fun ScrollToTopEffect(state: LazyGridState) {
+fun ScrollToTopEffect(state: LazyGridState): Modifier {
     val signal = LocalScrollToTop.current
+    val fade = remember { Animatable(1f) }
     LaunchedEffect(signal) {
         if (signal == 0) return@LaunchedEffect
         val info = { state.layoutInfo }
@@ -78,15 +99,18 @@ fun ScrollToTopEffect(state: LazyGridState) {
             },
             { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0 },
             screen,
+            fade,
         )
         // Whatever the estimate left over (headers are not tile-sized) is a few pixels.
         if (state.firstVisibleItemIndex != 0 || state.firstVisibleItemScrollOffset != 0) state.scrollToItem(0)
     }
+    return Modifier.graphicsLayer { alpha = fade.value }
 }
 
 @Composable
-fun ScrollToTopEffect(state: LazyListState) {
+fun ScrollToTopEffect(state: LazyListState): Modifier {
     val signal = LocalScrollToTop.current
+    val fade = remember { Animatable(1f) }
     LaunchedEffect(signal) {
         if (signal == 0) return@LaunchedEffect
         fun distance(): Float {
@@ -104,7 +128,9 @@ fun ScrollToTopEffect(state: LazyListState) {
             },
             { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0 },
             screen,
+            fade,
         )
         if (state.firstVisibleItemIndex != 0 || state.firstVisibleItemScrollOffset != 0) state.scrollToItem(0)
     }
+    return Modifier.graphicsLayer { alpha = fade.value }
 }

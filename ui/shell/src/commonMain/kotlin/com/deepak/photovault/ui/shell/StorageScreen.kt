@@ -274,7 +274,12 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     val solid = remember(colors, base, depth) {
         if (!depth) colors else colors.map { c -> if (c.alpha >= 0.99f) c else Color(c.red * c.alpha + base.red * (1 - c.alpha), c.green * c.alpha + base.green * (1 - c.alpha), c.blue * c.alpha + base.blue * (1 - c.alpha)) }
     }
-    val total = slices.sumOf { it.bytes }.coerceAtLeast(1L)
+    // What the ring draws: every part that has something gets at least a small, visible wedge (26 Oct: PNG and GIF were
+    // hair-thin cracks). The list beside the ring keeps the true sizes.
+    val weights = remember(slices) { DonutMath.visibleShares(slices.map { it.bytes }).map { (it * 1_000_000).toLong() } }
+    val total = weights.sum().coerceAtLeast(1L)
+    // With depth the parts touch, split by a thin dark line; flat rings keep a small gap.
+    val gap = if (depth) 0f else 1.2f
     val track = LocalGlassTheme.current.onGlass.copy(alpha = 0.08f)
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     // The ring sweeps round clockwise when the screen opens (25 Oct); instant with reduce motion.
@@ -289,7 +294,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->
-            val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - (if (depth) (size.height - size.height * 0.09f) / 2f else size.height / 2f), slices.map { it.bytes })
+            val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - (if (depth) (size.height - size.height * 0.09f) / 2f else size.height / 2f), weights)
             if (index != null) {
                 haptics.tick()
                 onSlice(index)
@@ -310,9 +315,9 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
             for (k in layers downTo 1) {
                 val dy = depthPx * k / layers
                 var st = -90f
-                slices.forEachIndexed { i, s ->
-                    val sweep = 360f * s.bytes / total
-                    val shown = minOf(sweep - 1.2f, limit - st)
+                weights.forEachIndexed { i, w ->
+                    val sweep = 360f * w / total
+                    val shown = minOf(sweep - gap, limit - st)
                     if (sweep > 0.5f && shown > 0.5f) drawArc(shade(solid[i % solid.size], 0.62f), st, shown.coerceAtLeast(0.5f), false, Offset(left + inset, inset + dy), arcSize, style = Stroke(stroke))
                     st += sweep
                 }
@@ -324,9 +329,9 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
             listOf(Color.White.copy(alpha = 0.30f), Color.Transparent, Color.Black.copy(alpha = 0.16f)),
             start = Offset(left, 0f), end = Offset(left + face, face),
         )
-        slices.forEachIndexed { i, s ->
-            val sweep = 360f * s.bytes / total
-            val shown = minOf(sweep - 1.2f, limit - start)
+        weights.forEachIndexed { i, w ->
+            val sweep = 360f * w / total
+            val shown = minOf(sweep - gap, limit - start)
             if (sweep > 0.5f && shown > 0.5f) {
                 val sw = shown.coerceAtLeast(0.5f)
                 drawArc(solid[i % solid.size], start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
@@ -338,6 +343,23 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
                 }
             }
             start += sweep
+        }
+        if (depth) {
+            // Thin dividers where parts meet, on the top face only, once the sweep has passed them.
+            val c = Offset(left + face / 2f, face / 2f)
+            val outer = face / 2f
+            val inner = outer - stroke
+            var at = -90f
+            val count = weights.count { it > 0 }
+            if (count > 1) weights.forEach { w ->
+                if (w > 0 && at <= limit) {
+                    val r = at * kotlin.math.PI / 180.0
+                    val dx = kotlin.math.cos(r).toFloat()
+                    val dy = kotlin.math.sin(r).toFloat()
+                    drawLine(Color.Black.copy(alpha = 0.30f), Offset(c.x + dx * inner, c.y + dy * inner), Offset(c.x + dx * outer, c.y + dy * outer), strokeWidth = 2f)
+                }
+                at += 360f * w / total
+            }
         }
     }
 }
@@ -446,6 +468,24 @@ private val SPACE_COLORS = listOf(Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0x
 /** Which slice of a ring a tap landed on, tested. */
 object DonutMath {
     /** [dx], [dy] from the centre. Slices start at the top and go clockwise; null when there is nothing to show. */
+    /**
+     * Each part's share of the ring as drawn: a part with anything in it gets at least [min] (3%), and the larger parts
+     * give up a little room for it. Empty parts stay empty. Shares add up to 1.
+     */
+    fun visibleShares(sizes: List<Long>, min: Double = 0.03): List<Double> {
+        val total = sizes.sum()
+        if (total <= 0L) return sizes.map { 0.0 }
+        val raw = sizes.map { it.toDouble() / total }
+        val small = raw.map { it > 0.0 && it < min }
+        val reserved = min * small.count { it }
+        val bigSum = raw.filterIndexed { i, _ -> !small[i] }.sum()
+        if (reserved >= 1.0 || bigSum <= 0.0) {
+            val n = raw.count { it > 0.0 }
+            return raw.map { if (it > 0.0) 1.0 / n else 0.0 }
+        }
+        return raw.mapIndexed { i, r -> if (small[i]) min else r / bigSum * (1.0 - reserved) }
+    }
+
     fun sliceAt(dx: Float, dy: Float, sizes: List<Long>): Int? {
         val total = sizes.sum()
         if (total <= 0L) return null
