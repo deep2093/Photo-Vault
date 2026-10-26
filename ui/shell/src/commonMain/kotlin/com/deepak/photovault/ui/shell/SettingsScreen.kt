@@ -89,9 +89,10 @@ enum class SettingsPage(val title: String) {
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
-    OPEN_WITH("Open with Pixallery"),
     REMOTE("Remote access"),
     STORAGE("Storage"),
+    // The last three stay at the end, in this order, in every build (25 Oct); the rest are alphabetical.
+    OPEN_WITH("Open with Pixallery"),
     FEEDBACK("Send feedback"),
     ABOUT("About"),
 }

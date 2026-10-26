@@ -8,9 +8,9 @@ import androidx.compose.ui.Modifier
  * removed on 24 Oct (its launcher entries remain, switched off, so a phone that used it moves to Four Seasons). [key] names the activity alias ("IconFourSeasonsLight") and the mipmap ("ic_four_seasons_light").
  */
 enum class IconGlyph(val label: String, val key: String) {
-    FOUR_SEASONS("Four Seasons", "FourSeasons"),
+    // Four Seasons is shown as "Petals" since 25 Oct; the old Petals icons were removed (retired below).
+    FOUR_SEASONS("Petals", "FourSeasons"),
     LEAF("Leaf", "Leaf"),
-    PETALS("Petals", "Petals"),
 }
 
 enum class IconBackground(val label: String) { LIGHT("Light"), DARK("Dark"), COLOURFUL("Colourful"), CLEAR("Clear") }
@@ -29,9 +29,10 @@ data class AppIconChoice(val glyph: IconGlyph = IconGlyph.LEAF, val background: 
         val all: List<AppIconChoice> = IconGlyph.entries.flatMap { g -> IconBackground.entries.map { AppIconChoice(g, it) } }
 
         /** Launcher entries of removed icons, and the icon that replaces each one. */
-        val retired: Map<String, AppIconChoice> = IconBackground.entries.associate { bg ->
-            "IconBloom" + bg.name.lowercase().replaceFirstChar { it.uppercase() } to AppIconChoice(IconGlyph.FOUR_SEASONS, bg)
-        }
+        val retired: Map<String, AppIconChoice> = IconBackground.entries.flatMap { bg ->
+            val name = bg.name.lowercase().replaceFirstChar { it.uppercase() }
+            listOf("IconBloom$name" to AppIconChoice(IconGlyph.FOUR_SEASONS, bg), "IconPetals$name" to AppIconChoice(IconGlyph.FOUR_SEASONS, bg))
+        }.toMap()
     }
 }
 

@@ -89,25 +89,33 @@ object IntroLogic {
     }
 }
 
-/** What's new for the current build. Change [ID] and [items] with each update worth announcing. */
+/** Every update says what is new, what changed, what was removed and what was fixed (rule from 25 Oct, docs/ROADMAP.md). */
+enum class ChangeKind(val heading: String) { NEW("New"), CHANGED("Changed"), REMOVED("Removed"), FIXED("Fixed") }
+
+class Change(val kind: ChangeKind, val title: String, val body: String)
+
+/** What's new for the current build. Change [ID] and [items] with EVERY build, covering all four kinds. */
 object WhatsNew {
-    const val ID = "2026-10-27"
+    const val ID = "2026-10-26-1"
     const val TITLE = "What's new"
-    val items: List<Pair<String, String>> = listOf(
-        "Invites" to "The owner can invite someone from Family: a file or QR, locked with a code, that works once and runs out. The new person chooses it under Connect your drive > I have an invite, types the code and their name, and joins straight away. It can carry the VPN setup too.",
-        "Open with Pixallery" to "Pixallery is offered when other apps open a photo or video. Settings > Open with Pixallery shows how to make it the one that always opens.",
-        "Remote access" to "Settings > Remote access connects Pixallery to your home router with WireGuard, so the family drive works away from home. It is on only while Pixallery is on screen and can be limited to this app. Away-from-home backup in the background is optional and off by default.",
-        "Family Album" to "A shared album the whole family sees. Select backed-up photos and tap the family button (also in the viewer). It holds links to each person's own backup, never copies, and you can only remove photos you added.",
-        "Cloud badge" to "Photos that are only on the family drive show a small cloud on their thumbnail, and their Details say so.",
-        "Recently deleted on the drive" to "Photos you delete that live only on the drive wait 30 days in Recently deleted before they are gone for good, and can be restored.",
-        "Share drive photos" to "Photos that are only on the drive can be shared: Pixallery fetches them first.",
-        "One timeline" to "Photos you backed up to the family drive now stay in Photos and Albums even after you delete them from the phone.",
-        "Pages slide like a door" to "Settings and other pages slide in from the left edge and follow your finger when you swipe back.",
-        "New theme sections" to "Themes are sorted into Light, Dark and Photo, and Photo Light is the new default. Aurora Frost and Transparent are gone.",
-        "Lens glass (experimental)" to "In the Clear themes the bars and pills bend the photos behind them like thick glass. Turn it on in Settings > Appearance (Android 13+).",
-        "Keep the bottom bar in place" to "A new switch in Settings > Appearance stops the bottom bar tucking away while you scroll.",
-        "Animated storage rings" to "Both rings in Settings > Storage sweep round when the page opens.",
-        "Smaller top pills" to "Years / Months / All and Search are more compact.",
+    val items: List<Change> = listOf(
+        Change(ChangeKind.NEW, "Private backup", "Settings > Backup lets you choose Normal or Private. Private scrambles photos on your phone before they leave it, and you get 24 recovery words. Even the family owner can't open them."),
+        Change(ChangeKind.NEW, "Photos filter", "A cloud button in Photos shows both, only this phone, or only the drive. Prefer chips? Settings > Appearance > Photos filter as chips."),
+        Change(ChangeKind.NEW, "Recently deleted on the drive", "Settings > Storage > Drive has its own Recently deleted at the bottom."),
+        Change(ChangeKind.NEW, "Invite files and no-code invites", "An invite can skip the code, and an invite file opens in Pixallery from WhatsApp or Files. Joining away from home turns the VPN on by itself."),
+        Change(ChangeKind.NEW, "Photos from other apps", "A photo opened from another app shows Share, Save and Details."),
+        Change(ChangeKind.CHANGED, "Storage groups", "Storage now counts Photos (JPEG and HEIC), Videos (every video type), PNG and GIF, and you can sort by Type too."),
+        Change(ChangeKind.CHANGED, "Recently deleted", "Newest first, with a note that items go for good after 30 days."),
+        Change(ChangeKind.CHANGED, "Settings order", "Open with Pixallery, Send feedback and About always come last; the rest are A to Z."),
+        Change(ChangeKind.CHANGED, "App icon name", "The Four Seasons icon is now called Petals."),
+        Change(ChangeKind.REMOVED, "Backup history", "The History card is gone from Backup."),
+        Change(ChangeKind.REMOVED, "Old Petals icons", "Phones that used them now show the new Petals icon."),
+        Change(ChangeKind.FIXED, "Holding a photo selected many", "A long-press now selects one photo; only swiping selects more."),
+        Change(ChangeKind.FIXED, "Back from Years and Months", "Back steps up one level at a time before the app closes."),
+        Change(ChangeKind.FIXED, "Places kept", "Albums keep their scroll place after you view a photo, and Storage stays on the Drive tab."),
+        Change(ChangeKind.FIXED, "Blurry thumbnails", "Drive photos from iPhone JPEGs no longer show blurry thumbnails."),
+        Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down now glides up in one smooth motion."),
+        Change(ChangeKind.FIXED, "Private setup", "Restore my key appears when your key already exists, and the Switch to Normal pop-up buttons line up."),
     )
 }
 
@@ -274,10 +282,16 @@ private fun WhatsNewDialog(onClose: () -> Unit) {
         buttons = { GlassButton("Got it", primary = true, onClick = onClose) },
     ) {
         LazyColumn(Modifier.heightInMax(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(WhatsNew.items) { (title, body) ->
-                Column {
-                    Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleSmall)
-                    Text(body, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+            ChangeKind.entries.forEach { kind ->
+                val list = WhatsNew.items.filter { it.kind == kind }
+                if (list.isNotEmpty()) {
+                    item { Text(kind.heading, color = theme.accent, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
+                    items(list) { c ->
+                        Column {
+                            Text(c.title, color = theme.onGlass, style = MaterialTheme.typography.titleSmall)
+                            Text(c.body, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                 }
             }
         }

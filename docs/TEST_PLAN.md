@@ -344,3 +344,15 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 7. Family Album: choosing a Private photo says Private photos can't be shared yet.
 8. Large video (over 500 MB) backs up without the app running out of memory. Tell me how long it took.
 9. Someone with Normal still backs up as before, and the two people's folders do not mix.
+
+## Round 17 (26 Oct): fixes and small changes
+1. Photos > scroll down, hold one photo: only that photo is selected; swiping then selects more.
+2. Open an album, scroll down, open a photo, go back: the album is where you left it.
+3. Years > a year > a month, then Back: month, Months, Years, day view, then the app closes.
+4. Storage > Drive, open Recently deleted on the drive and a photo, go back: still on Drive. The button is at the bottom of the Drive tab.
+5. iPhone JPEG photos that are only on the drive: the thumbnails are sharp (the first time may be a little slower).
+6. Backup has no History card. Settings ends with Open with Pixallery, Send feedback, About.
+7. Storage rings show Photos, Videos, PNG and GIF only; Sort bar has Type; every video format counts as Videos.
+8. Appearance: Leaf and Petals only (Petals is the old Four Seasons).
+9. In Photos, scrolled far down, tap Photos on the bottom bar: one smooth glide, no pause.
+10. What's new shows New, Changed, Removed and Fixed.

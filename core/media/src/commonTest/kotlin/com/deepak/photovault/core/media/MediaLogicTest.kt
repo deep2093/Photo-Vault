@@ -185,12 +185,14 @@ class StorageStatsTest {
     )
 
     @Test
-    fun typesMergeJpegAndFoldTheSmallOnes() {
-        val types = StorageStats.byType(files, top = 3)
-        assertEquals(listOf("MP4", "JPG", "HEIC", "Other"), types.map { it.label })
-        assertEquals(500L, types[1].bytes)
-        assertEquals(65L, types[3].bytes)
-        assertEquals(3, types[3].count)
+    fun fourKindsPhotosVideosPngGif() {
+        val types = StorageStats.byType(files)
+        assertEquals(listOf("Videos", "Photos", "PNG", "GIF"), types.map { it.label })
+        // JPEG, HEIC and the rare picture types all count as Photos.
+        assertEquals(300L + 200 + 400 + 5, types[1].bytes)
+        assertEquals(4, types[1].count)
+        assertEquals("Videos", StorageStats.typeOf("clip.MOV"))
+        assertEquals("Videos", StorageStats.typeOf("noext", isVideo = true))
     }
 
     @Test
@@ -202,10 +204,9 @@ class StorageStatsTest {
 
     @Test
     fun eachSliceOpensExactlyItsFiles() {
-        val types = StorageStats.byType(files, top = 3)
-        assertEquals(listOf("a.jpg", "b.JPEG"), StorageStats.ofType(files, types, "JPG").map { it.name })
-        // "Other" holds every type not shown on its own, and only those.
-        assertEquals(listOf("e.png", "f.gif", "g.webp"), StorageStats.ofType(files, types, "Other").map { it.name })
+        val types = StorageStats.byType(files)
+        assertEquals(listOf("a.jpg", "b.JPEG", "c.heic", "g.webp"), StorageStats.ofType(files, types, "Photos").map { it.name })
+        assertEquals(listOf("d.mp4"), StorageStats.ofType(files, types, "Videos").map { it.name })
         val albums = StorageStats.byAlbum(files, top = 2)
         assertEquals(listOf("e.png", "f.gif", "g.webp"), StorageStats.ofAlbum(files, albums, "Other").map { it.name })
         assertEquals(listOf("c.heic"), StorageStats.ofAlbum(files, albums, "WhatsApp Images").map { it.name })

@@ -255,8 +255,8 @@
             android:name=".IconPetalsLight"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_petals_light"
-            android:roundIcon="@mipmap/ic_petals_light"
+            android:icon="@mipmap/ic_four_seasons_light"
+            android:roundIcon="@mipmap/ic_four_seasons_light"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -267,8 +267,8 @@
             android:name=".IconPetalsDark"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_petals_dark"
-            android:roundIcon="@mipmap/ic_petals_dark"
+            android:icon="@mipmap/ic_four_seasons_dark"
+            android:roundIcon="@mipmap/ic_four_seasons_dark"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -279,8 +279,8 @@
             android:name=".IconPetalsColourful"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_petals_colourful"
-            android:roundIcon="@mipmap/ic_petals_colourful"
+            android:icon="@mipmap/ic_four_seasons_colourful"
+            android:roundIcon="@mipmap/ic_four_seasons_colourful"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -291,8 +291,8 @@
             android:name=".IconPetalsClear"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_petals_clear"
-            android:roundIcon="@mipmap/ic_petals_clear"
+            android:icon="@mipmap/ic_four_seasons_clear"
+            android:roundIcon="@mipmap/ic_four_seasons_clear"
             android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

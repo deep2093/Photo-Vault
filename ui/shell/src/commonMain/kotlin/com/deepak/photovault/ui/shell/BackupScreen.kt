@@ -139,7 +139,6 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
             }
         }
         // Your phones moved to your own page in Family (24 Oct).
-        if (backup.history.isNotEmpty()) item { HistoryCard(backup.history) }
         if (drive.joined != null) item { RestoreCard(drive, backup, gallery) }
     }
 

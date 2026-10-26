@@ -291,7 +291,14 @@ class ShellState(private val store: AppearanceStore) {
 
     val canGoBack: Boolean get() = canStepBack || overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty()
 
+    /** Where each page was scrolled to when a photo was opened from it, so coming back lands in the same place (25 Oct). */
+    val savedScroll = HashMap<String, Pair<Int, Int>>()
+
+    fun scrollKey(overlay: Overlay? = overlays.lastOrNull()) = "${destination.name}|$overlay"
+
     fun open(overlay: Overlay) {
+        // A page opened fresh starts at the top; only a page returned to from a photo keeps its place.
+        if (overlay !is Overlay.Viewer) savedScroll.remove(scrollKey(overlay))
         selected = emptySet()
         filesSelected = emptySet()
         albumsSelected = emptySet()

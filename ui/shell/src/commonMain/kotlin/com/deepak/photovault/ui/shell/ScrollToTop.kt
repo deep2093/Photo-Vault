@@ -12,15 +12,12 @@ import androidx.compose.runtime.compositionLocalOf
  */
 val LocalScrollToTop = compositionLocalOf { 0 }
 
-/** Rows within this distance glide to the top; further away, the list first jumps close, then glides. */
-private const val GLIDE_ITEMS = 30
-
 @Composable
 fun ScrollToTopEffect(state: LazyGridState) {
     val signal = LocalScrollToTop.current
     LaunchedEffect(signal) {
         if (signal == 0) return@LaunchedEffect
-        if (state.firstVisibleItemIndex > GLIDE_ITEMS) state.scrollToItem(GLIDE_ITEMS)
+        // One continuous glide: Compose itself skips the middle of a long distance without a pause (25 Oct).
         state.animateScrollToItem(0)
     }
 }
@@ -30,7 +27,6 @@ fun ScrollToTopEffect(state: LazyListState) {
     val signal = LocalScrollToTop.current
     LaunchedEffect(signal) {
         if (signal == 0) return@LaunchedEffect
-        if (state.firstVisibleItemIndex > GLIDE_ITEMS) state.scrollToItem(GLIDE_ITEMS)
         state.animateScrollToItem(0)
     }
 }

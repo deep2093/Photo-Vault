@@ -141,7 +141,14 @@ fun MediaGrid(
         val currentColumns by rememberUpdatedState(columns)
         val currentMax by rememberUpdatedState(maxColumns)
         val tileDp = maxWidth / columns
-        val gridState = rememberLazyGridState()
+        val scrollKey = remember { state.scrollKey() }
+        val gridState = rememberLazyGridState(
+            initialFirstVisibleItemIndex = remember { state.savedScroll[scrollKey]?.first ?: 0 },
+            initialFirstVisibleItemScrollOffset = remember { state.savedScroll[scrollKey]?.second ?: 0 },
+        )
+        DisposableEffect(gridState) {
+            onDispose { state.savedScroll[scrollKey] = gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+        }
         ScrollToTopEffect(gridState)
         LaunchedEffect(jumpTo, sections) {
             val key = jumpTo ?: return@LaunchedEffect

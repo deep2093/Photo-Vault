@@ -29,6 +29,8 @@ object DriveMedia {
         reader = read
         originals = File(context.applicationContext.cacheDir, "drive-originals").apply { mkdirs() }
         thumbs = File(context.applicationContext.filesDir, "drive-thumbs").apply { mkdirs() }
+        // Earlier versions kept small, blurry previews of iPhone JPEGs under this name: drop them.
+        thumbs?.listFiles { f -> f.name.endsWith("-q.jpg") }?.forEach { it.delete() }
     }
 
     private fun name(path: String): String {
@@ -72,7 +74,7 @@ object DriveMedia {
      * file from the drive (25 Oct: fetching the whole photo for every tile took 5 seconds or more each, because the
      * drive is read one file at a time). Null when the file has no preview.
      */
-    private suspend fun quickThumbnail(path: String): Bitmap? {
+    private suspend fun quickThumbnail(path: String, sizePx: Int): Bitmap? {
         val read = reader ?: return null
         val head = java.io.ByteArrayOutputStream()
         try {
@@ -87,6 +89,9 @@ object DriveMedia {
         return runCatching {
             val exif = androidx.exifinterface.media.ExifInterface(java.io.ByteArrayInputStream(data))
             val preview = exif.thumbnailBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } ?: return null
+            // iPhone JPEGs carry a tiny 160 px preview; stretched over a tile it looks blurry (feedback 26 Oct).
+            // Too small for this tile: use the real photo instead.
+            if (maxOf(preview.width, preview.height) < sizePx * 0.8f) return null
             val degrees = when (exif.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, 1)) {
                 androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
                 androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
@@ -112,9 +117,9 @@ object DriveMedia {
         // Small tiles: the photo's own preview picture, fetched from the first part of the file (about a fifth of a
         // second instead of seconds). Larger sizes and photos without a preview use the full file.
         if (sizePx <= QUICK_MAX_PX && cached(path) == null) {
-            val quick = File(dir, "${name(path)}-q.jpg")
+            val quick = File(dir, "${name(path)}-q2-$sizePx.jpg")
             if (quick.exists()) BitmapFactory.decodeFile(quick.path)?.let { return@withContext it }
-            quickThumbnail(path)?.let { bitmap ->
+            quickThumbnail(path, sizePx)?.let { bitmap ->
                 runCatching { FileOutputStream(quick).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
                 return@withContext bitmap
             }
