@@ -44,8 +44,8 @@ class DragSelectTest {
 class AppIconTest {
     @Test
     fun twelveIconsWithFourSeasonsOnLightAsDefault() {
-        // Bloom removed on 24 Oct: three designs on four backgrounds.
-        assertEquals(12, AppIconChoice.all.size)
+        // Bloom removed on 24 Oct: two designs on four backgrounds (Petals icons removed 26 Oct).
+        assertEquals(8, AppIconChoice.all.size)
         assertEquals("IconLeafLight", AppIconChoice().aliasName)
         assertEquals("ic_leaf_light", AppIconChoice().resourceName)
         assertEquals("ic_leaf_clear", AppIconChoice(IconGlyph.LEAF, IconBackground.CLEAR).resourceName)
