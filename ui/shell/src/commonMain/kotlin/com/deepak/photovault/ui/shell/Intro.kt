@@ -96,7 +96,7 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
 
 /** What's new for the current build. Change [ID] and [items] with EVERY build, covering all four kinds. */
 object WhatsNew {
-    const val ID = "2026-10-28-2"
+    const val ID = "2026-10-28-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.NEW, "Private backup", "Settings > Backup lets you choose Normal or Private. Private scrambles photos on your phone before they leave it, and you get 24 recovery words. Even the family owner can't open them."),
@@ -110,12 +110,14 @@ object WhatsNew {
         Change(ChangeKind.NEW, "Charts with depth", "Storage rings now look like thick 3D rings. Turn them off in Settings > Appearance for flat rings."),
         Change(ChangeKind.CHANGED, "Phone storage ring", "The ring shows Photos, Videos, App cache and Free."),
         Change(ChangeKind.NEW, "Back to top button in albums", "Inside an album or Recently deleted, a round button in the middle at the bottom appears when you are not at the top. It hides while you scroll down and glides you back up when tapped. It uses your theme's colour so it is easy to read."),
+        Change(ChangeKind.NEW, "Check the drive automatically", "Settings > Drive has a switch. On: the app checks the drive when it opens and once an hour while open. Off: only when you open Family, Backup or the drive, or pull down on Photos."),
         Change(ChangeKind.NEW, "Dark and Light only", "Settings > Appearance has just two groups. Photo Light is in Light; Glow Night, Photo Night and Vivid Night are in Dark."),
         Change(ChangeKind.NEW, "Select all", "While selecting in an album, Favourites, Family Album or Recently deleted, a Select all button sits beside the X. Tap it again to deselect all. Photos does not have it."),
         Change(ChangeKind.NEW, "Set as wallpaper button", "The photo toolbar has a wallpaper button between Favourite and Delete. Swipe up on a photo for Details."),
         Change(ChangeKind.NEW, "Move to Secured folder button", "When you select photos, a lock button sits between Favourite and Delete. It does nothing until the Secured folder arrives."),
         Change(ChangeKind.CHANGED, "Photos", "Photos always shows one timeline: your phone's photos and the ones only on the drive. A photo in both places shows once."),
         Change(ChangeKind.CHANGED, "Storage ring", "The 3D ring has clean, solid sides and no smudgy shadow. Parts touch with a thin line instead of a gap, and tiny parts like PNG and GIF always show as a small wedge (their real size is in the list)."),
+        Change(ChangeKind.CHANGED, "Fewer drive checks", "The drive is no longer checked every minute. Coming back to the app does not read the whole photo list again; it is read after a backup, every three hours, or when you pull down. This lets a hard disk in the router sleep."),
         Change(ChangeKind.CHANGED, "Back to top button", "Now blurry see-through glass in every theme, in the middle at the bottom."),
         Change(ChangeKind.CHANGED, "Theme names", "Photo Glow is now Glow Night and Photo Vivid is now Vivid Night. Your saved theme stays."),
         Change(ChangeKind.CHANGED, "Details button", "Details moved from the bottom bar of a photo to the three-dot menu."),

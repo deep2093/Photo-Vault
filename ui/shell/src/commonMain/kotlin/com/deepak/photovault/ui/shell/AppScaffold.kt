@@ -117,7 +117,14 @@ private const val PAGE_MS = 640
 private const val DRIFT_DIVISOR = 4f
 private const val PAGE_DIM = 0.28f
 private val PAGE_SHADOW_WIDTH = 28.dp
-private const val DRIVE_REFRESH_MS = 60_000L
+/** While the app is open the drive is checked once an hour (28 Oct; was every minute, which kept a hard disk awake). */
+private const val DRIVE_REFRESH_MS = 60 * 60_000L
+
+/** Coming back to the app checks again only if the last check was longer ago than this. */
+private const val DRIVE_RECHECK_MS = 15 * 60_000L
+
+/** The full list of photos on the drive is read again at most this often, unless a backup finished or you pull down. */
+private const val DRIVE_LIBRARY_MS = 3 * 60 * 60_000L
 
 /** Everything a section needs, passed around together. */
 private class Screens(
@@ -162,13 +169,22 @@ fun PhotoVaultApp(
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
     // Check the family drive when the app opens, then every minute while it is on screen, so Backup, Family and
     // Settings show real figures and the owner sees the dot on Family when a phone asks to join (24 Oct: no push).
-    LaunchedEffect(drive, signals.foreground) {
-        while (signals.foreground && drive.isSetUp) {
+    LaunchedEffect(drive, signals.foreground, state.appearance.autoDriveCheck) {
+        if (!signals.foreground || !drive.isSetUp) return@LaunchedEffect
+        suspend fun check() {
             drive.refresh()
             drive.refreshUsage()
             drive.flushFeedback(actions)
             drive.refreshFeedbackDot()
+        }
+        val auto = state.appearance.autoDriveCheck
+        // Opening the app: check if this phone doesn't know the family yet, or the last check is old. With the
+        // automatic check off, only the first (the family is unknown) happens; pages that need the drive check themselves.
+        val stale = platform_now(drive) - drive.checkedAtMillis > DRIVE_RECHECK_MS
+        if (drive.joined == null || (auto && stale)) check()
+        while (auto) {
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
+            check()
         }
     }
     // Joining a family moves this phone's backup time to its own slot, unless it was already moved (25 Oct).
@@ -183,11 +199,18 @@ fun PhotoVaultApp(
     }
     // One timeline (Phase 5): read what the drive holds when the app opens and after each backup, and let Photos
     // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
+    // 28 Oct: read in full at the start, after each backup, after three hours, or when you pull down; not on every return.
+    var seenHistory by remember { mutableStateOf(-1) }
     LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
         if (signals.foreground && drive.joined != null) {
-            drive.loadBackupRecords(force = true)
-            drive.loadDriveTrash()
-            drive.loadFamilyAlbum()
+            val backupDone = seenHistory != -1 && seenHistory != backup.history.size
+            seenHistory = backup.history.size
+            val old = platform_now(drive) - drive.libraryReadAtMillis > DRIVE_LIBRARY_MS
+            if (backupDone || old || drive.backupRecords == null) {
+                drive.loadBackupRecords(force = true)
+                drive.loadDriveTrash()
+                drive.loadFamilyAlbum()
+            }
         }
     }
     LaunchedEffect(gallery, drive.familyAlbumRecords) { drive.familyAlbumRecords?.let(gallery::updateFamilyAlbum) }
@@ -689,3 +712,5 @@ private fun NavItem(
 
 /** Shared size for top bars, so screens line up. */
 internal val TopBarHeight: Dp = MinTouchTarget + 8.dp
+
+private fun platform_now(@Suppress("UNUSED_PARAMETER") drive: DriveState): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()

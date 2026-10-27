@@ -313,6 +313,13 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
             Text("Connect the shared drive at home to back up and share with your family.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
             GlassButton("Connect drive", primary = true, onClick = { state.open(Overlay.DriveSetup) }, modifier = Modifier.padding(top = 8.dp))
         }
+        GlassSwitchRow(
+            "Check the drive automatically",
+            state.appearance.autoDriveCheck,
+            { on -> state.updateAppearance { it.copy(autoDriveCheck = on) } },
+            icon = Icons.Rounded.Dns,
+            description = "On: when the app opens and once an hour while it is open. Off: only when you open Family, Backup or the drive, or pull down on Photos. Fewer checks let the drive sleep.",
+        )
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "See Remote access")
     }
     if (confirmForget) {

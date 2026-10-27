@@ -65,6 +65,8 @@ data class AppearanceSettings(
     val lensGlass: Boolean = false,
     /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
     val pinBottomBar: Boolean = false,
+    /** Check the family drive by itself when the app opens and once an hour while it is on screen (28 Oct). */
+    val autoDriveCheck: Boolean = true,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */

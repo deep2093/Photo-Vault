@@ -178,7 +178,15 @@ class DriveState(private val platform: DrivePlatform) {
 
     // ---- Reading ----
 
-    suspend fun refresh(): String? = guarded { refreshLocked() }
+    suspend fun refresh(): String? = guarded { refreshLocked() }.also { checkedAtMillis = platform.now() }
+
+    /** When the drive was last checked (28 Oct); 0 until this run of the app has checked. Used to check less often. */
+    var checkedAtMillis = 0L
+        private set
+
+    /** When the list of photos on the drive was last read in full; 0 until read. */
+    var libraryReadAtMillis = 0L
+        private set
 
     private suspend fun refreshLocked() {
         val s = ensureStore() ?: return
@@ -539,6 +547,7 @@ class DriveState(private val platform: DrivePlatform) {
         backupRecordsLoading = true
         try {
             backupRecords = myBackupRecords()
+            if (backupRecords != null) libraryReadAtMillis = platform.now()
         } finally {
             backupRecordsLoading = false
         }

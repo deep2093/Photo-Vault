@@ -402,3 +402,9 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 1. Settings > Storage, scroll to the bottom, open File types / an album / Recently deleted on the drive, go back: Storage is at the bottom, not the top. Same for Settings > Backup, Albums tab (open an album and come back), a Settings page like Appearance, and the Years and Months views of Photos after opening Settings.
 2. Open the same page again from the menu (not by going back): it starts at the top.
 3. The theme section has no extra note line.
+
+## Round 26 (28 Oct): fewer drive checks
+1. Open the app, leave it open: no checks every minute (on a router with a hard disk, it can sleep after its usual idle time). Settings > Drive > Check the drive automatically is on by default.
+2. Minimise and reopen within 15 minutes: Photos and Albums still show the drive photos at once and nothing is re-read in full. Pull down on Photos: it re-reads. After a backup finishes: it re-reads.
+3. Turn the switch off, close and reopen the app: Family, Backup and Storage still know the family; no checks happen by themselves; opening Family or the Drive tab in Storage still reads the drive.
+4. Owner: a request to join appears when Family is opened, even with the switch off.
