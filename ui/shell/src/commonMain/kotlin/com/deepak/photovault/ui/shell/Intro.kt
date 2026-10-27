@@ -116,6 +116,8 @@ object WhatsNew {
         Change(ChangeKind.NEW, "Move to Secured folder button", "When you select photos, a lock button sits between Favourite and Delete. It does nothing until the Secured folder arrives."),
         Change(ChangeKind.CHANGED, "Photos", "Photos always shows one timeline: your phone's photos and the ones only on the drive. A photo in both places shows once."),
         Change(ChangeKind.CHANGED, "Storage ring", "The 3D ring has clean, solid sides and no smudgy shadow. Parts touch with a thin line instead of a gap, and tiny parts like PNG and GIF always show as a small wedge (their real size is in the list)."),
+        Change(ChangeKind.CHANGED, "Back to top button", "Now blurry see-through glass in every theme, in the middle at the bottom."),
+        Change(ChangeKind.CHANGED, "Theme names", "Photo Glow is now Glow Night and Photo Vivid is now Vivid Night. Your saved theme stays."),
         Change(ChangeKind.CHANGED, "Details button", "Details moved from the bottom bar of a photo to the three-dot menu."),
         Change(ChangeKind.CHANGED, "Storage groups", "Storage now counts Photos (JPEG and HEIC), Videos (every video type), PNG and GIF, and you can sort by Type too."),
         Change(ChangeKind.CHANGED, "Recently deleted", "Newest first, with a note that items go for good after 30 days."),
