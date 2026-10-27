@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.clickable
@@ -348,7 +350,7 @@ private fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier: 
                 .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            com.deepak.photovault.designsystem.DepthIcon(androidx.compose.material.icons.Icons.Rounded.ArrowUpward, "Back to top", LocalGlassTheme.current.onGlass, Modifier.size(24.dp))
+            com.deepak.photovault.designsystem.DepthIcon(Icons.Rounded.ArrowUpward, "Back to top", LocalGlassTheme.current.onGlass, Modifier.size(24.dp))
         }
     }
 }
