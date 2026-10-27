@@ -91,3 +91,10 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 4. Storage charts (27 Oct): remove "Charts with depth" from Appearance. Keep only the 3D ring style; delete the flat ring code and the saved setting.
 5. Themes (27 Oct): put Photo Glow, Photo Night and Photo Vivid in the Dark section and Photo Light in the Light section; the separate Photo section goes away. Rename them clearly (proposal, to confirm: Photo Light stays; Photo Glow becomes Glow Night; Photo Vivid becomes Vivid Night; Photo Night stays). Anyone with a saved theme keeps it.
 6. Select all (27 Oct): add it to Search results and the Storage file lists.
+
+## 6B decisions (28 Oct, Deepak's answers)
+- **Backup now queue: yes.** Pop-up shows your place in line; backups run one after another.
+- **Linking old backups after a reset: yes, automatically.** Photos that match the drive are marked backed up; nothing uploads twice.
+- **Real thumbnails on the drive: yes.** Backup saves a small preview beside each photo (about 1-2% extra space); a catch-up for old backups.
+- **Photos moved between albums: yes, recognise them.** Same photo in a new album only updates its album; no second upload.
+- Order inside 6B: (1) moved photos and linking old backups (both are about recognising a photo), (2) drive thumbnails, (3) Backup now queue, (4) Free up space, (5) Select all for Search and Storage lists.
