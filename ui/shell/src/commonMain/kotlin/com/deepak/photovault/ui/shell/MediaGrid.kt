@@ -348,7 +348,7 @@ private fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier: 
                 .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            com.deepak.photovault.designsystem.DepthIcon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowUp, "Back to top", LocalGlassTheme.current.onGlass, Modifier.size(24.dp))
+            com.deepak.photovault.designsystem.DepthIcon(androidx.compose.material.icons.Icons.Rounded.ArrowUpward, "Back to top", LocalGlassTheme.current.onGlass, Modifier.size(24.dp))
         }
     }
 }
