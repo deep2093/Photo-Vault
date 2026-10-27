@@ -391,3 +391,9 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 1. Album, Favourites, Family Album, Recently deleted (phone and drive): scroll down, the round button sits in the middle at the bottom, solid in the theme's colour with a clear arrow. Check a light theme, a dark theme and an adaptive theme.
 2. Long-press a photo in each of those screens: beside the X there is a Select all button the same size as X. Tap: every photo is selected and the count updates; the icon changes; tap again: all deselected. Photos tab has no such button.
 3. When the Secured folder is built it must get both the back-to-top button and Select all (noted in the roadmap).
+
+## Round 24 (28 Oct): Phase 6A clean-up
+1. Settings > Appearance: only Light and Dark themes. Light has Photo Light; Dark has Violet Night, Luminous Night, Clear Night, Glow Night, Photo Night, Vivid Night. No Charts with depth switch. Your saved theme stays selected (an old Photo Glow becomes Glow Night).
+2. Settings > About: no Header test row. Open several pages: the pale line under the top bar is gone in every theme.
+3. Storage rings always 3D, animate as before.
+4. Album, scroll down and stop: the back to top button is blurry glass, readable on light, dark and photo themes, with no square shadow while scrolling.

@@ -175,7 +175,7 @@ object GlassThemes {
 
     /** Aurora: two large bright blooms of your photos' colours over a dark base, peach accent. */
     val AdaptiveGlow = adaptive(
-        GlassThemeId.ADAPTIVE_GLOW, "Photo Glow", "Bright blooms of colour from your photos",
+        GlassThemeId.ADAPTIVE_GLOW, "Glow Night", "Bright blooms of colour from your photos",
         AdaptiveStyle(listOf(0.52f, 0.44f, 0.14f), 0.55f, 0.95f, glow = 0.85f, scrim = 0.30f,
             fallback = listOf(Color(0xFF7A4A8A), Color(0xFF2E6A7A), Color(0xFF1A1424)),
             layout = WallpaperLayout.AURORA),
@@ -197,7 +197,7 @@ object GlassThemes {
 
     /** Bold sweep: fully saturated colours from your photos corner to corner, pink accent. */
     val AdaptiveVivid = adaptive(
-        GlassThemeId.ADAPTIVE_VIVID, "Photo Vivid", "Bold, saturated colours from your photos",
+        GlassThemeId.ADAPTIVE_VIVID, "Vivid Night", "Bold, saturated colours from your photos",
         AdaptiveStyle(listOf(0.46f, 0.38f, 0.30f), 0.85f, 1.0f, glow = 0.5f, scrim = 0.30f,
             fallback = listOf(Color(0xFF7A2C6C), Color(0xFF1F5F86), Color(0xFF4A1E50)),
             layout = WallpaperLayout.DIAGONAL),
@@ -348,11 +348,12 @@ object GlassThemes {
      * and dark sections as "Luminous" and "Clear" (still marked experimental, never the default). Aurora Frost,
      * Transparent, Frosted and Crystal (the old one) were removed; anyone using one moves to the default.
      */
-    val lightThemes: List<GlassTheme> = listOf(PearlMist, OceanGlass, AuroraGlassLight, CrystalGlassLight)
-    val darkThemes: List<GlassTheme> = listOf(MidnightPrism, AuroraGlassDark, CrystalGlassDark)
-    val photoThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight)
-    val fixed: List<GlassTheme> = lightThemes + darkThemes
-    val adaptiveThemes: List<GlassTheme> = photoThemes
+    // 28 Oct: only two sections, Light and Dark. The four photo themes (colours taken from the photos on screen) sit in
+    // the section that matches their look: Photo Light in Light; Glow Night, Photo Night and Vivid Night in Dark.
+    val fixed: List<GlassTheme> = listOf(PearlMist, OceanGlass, AuroraGlassLight, CrystalGlassLight, MidnightPrism, AuroraGlassDark, CrystalGlassDark)
+    val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight)
+    val lightThemes: List<GlassTheme> = (fixed + adaptiveThemes).filter { !it.isDark }
+    val darkThemes: List<GlassTheme> = (fixed + adaptiveThemes).filter { it.isDark }
     val all: List<GlassTheme> = fixed + adaptiveThemes
 
     /** Photo Light for everyone who hasn't picked a theme (24 Oct; Transparent and Aurora Frost were removed). */

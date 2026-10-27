@@ -205,9 +205,7 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
         ThemeRow(GlassThemes.lightThemes, state)
         SectionHeader("Dark themes")
         ThemeRow(GlassThemes.darkThemes, state)
-        SectionHeader("Photo themes")
-        Text("The background takes its colours from the photos on screen.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-        ThemeRow(GlassThemes.photoThemes, state)
+        Text("Photo Light, Glow Night, Photo Night and Vivid Night take their colours from the photos on screen.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         GlassSwitchRow(
             "Glass blur",
@@ -231,13 +229,6 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             { on -> state.updateAppearance { it.copy(pinBottomBar = on) } },
             icon = Icons.Rounded.PushPin,
             description = "The bar stays put instead of tucking away while you scroll",
-        )
-        GlassSwitchRow(
-            "Charts with depth",
-            state.appearance.depthCharts,
-            { on -> state.updateAppearance { it.copy(depthCharts = on) } },
-            icon = Icons.Rounded.PieChart,
-            description = "The Storage rings look like thick 3D rings. Off: flat rings",
         )
         GlassSwitchRow(
             "Reduce motion",
@@ -351,12 +342,6 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")
         InfoRow(Icons.Rounded.Place, "Places and people", "Phase 7")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
-        // TEMPORARY: finds the pale line in page headers. Open any Settings page after each tap and look at its header.
-        SettingsRow(
-            Icons.Rounded.Info,
-            "Header test (temporary)",
-            "Mode ${com.deepak.photovault.designsystem.headerDebug}: " + listOf("normal", "no shadow", "no edge line", "no blur or lens", "none of these")[com.deepak.photovault.designsystem.headerDebug],
-        ) { com.deepak.photovault.designsystem.headerDebug = (com.deepak.photovault.designsystem.headerDebug + 1) % 5 }
     }
 }
 

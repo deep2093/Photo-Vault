@@ -65,8 +65,6 @@ data class AppearanceSettings(
     val lensGlass: Boolean = false,
     /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
     val pinBottomBar: Boolean = false,
-    /** Storage charts drawn as thick rings with depth and shading; off gives the flat rings (26 Oct). */
-    val depthCharts: Boolean = true,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */

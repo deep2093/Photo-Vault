@@ -86,20 +86,11 @@ fun Modifier.glassRim(shape: Shape): Modifier {
  * underneath when blur is on and the screen provides [LocalHazeState]; otherwise uses the solid fallback.
  * On Android 11 the blur library falls back to the same tint by itself.
  */
-/** TEMPORARY (25 Oct): finds the pale header line. 0 normal, 1 no shadow, 2 no rim, 3 no blur or lens, 4 none of them. */
-var headerDebug: Int by androidx.compose.runtime.mutableIntStateOf(0)
-
 @Composable
-fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp, debug: Boolean = false): Modifier {
-    val mode = if (debug) headerDebug else 0
-    val noShadow = mode == 1 || mode == 4
-    val noRim = mode == 2 || mode == 4
-    val noBlur = mode == 3 || mode == 4
-    return glassChromeInner(shape, elevation, noShadow, noRim, noBlur)
-}
-
-@Composable
-private fun Modifier.glassChromeInner(shape: Shape, elevation: Dp, noShadow: Boolean, noRim: Boolean, noBlur: Boolean): Modifier {
+fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
+    val noShadow = false
+    val noRim = false
+    val noBlur = false
     val theme = LocalGlassTheme.current
     val haze = LocalHazeState.current
     val settings = LocalGlassSettings.current

@@ -97,7 +97,6 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     }
     var cacheVersion by remember { mutableStateOf(0) }
     var showCache by remember { mutableStateOf(false) }
-    androidx.compose.runtime.CompositionLocalProvider(LocalDepthCharts provides state.appearance.depthCharts) {
     Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StorageSource.entries.forEach { s -> GlassChip(s.label, selected = source == s, onClick = { state.storageOnDrive = s == StorageSource.DRIVE }) }
@@ -193,7 +192,6 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
             }
         }
     }
-    }
     if (showCache) {
         val bytes = remember(cacheVersion, showCache) { actions.appCacheBytes() }
         com.deepak.photovault.designsystem.GlassDialog(
@@ -259,28 +257,23 @@ private fun Breakdown(files: List<StoredFile>, zone: TimeZone, onOpen: (String, 
     }
 }
 
-/** Whether the storage rings are drawn with depth (Appearance > Charts with depth). */
-internal val LocalDepthCharts = androidx.compose.runtime.compositionLocalOf { true }
-
 private fun shade(c: Color, factor: Float) = Color(c.red * factor, c.green * factor, c.blue * factor, c.alpha)
 
 /** A ring split by size. */
 @Composable
 private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<Color> = CHART, onSlice: ((Int) -> Unit)? = null) {
-    val depth = LocalDepthCharts.current
     // Rings with depth are drawn from solid colours: see-through ones (the Free part) smudged when layered (26 Oct).
     val onGlass = LocalGlassTheme.current.onGlass
     val base = if (onGlass.red + onGlass.green + onGlass.blue > 1.5f) Color(0xFF2B2E36) else Color.White
-    val solid = remember(colors, base, depth) {
-        if (!depth) colors else colors.map { c -> if (c.alpha >= 0.99f) c else Color(c.red * c.alpha + base.red * (1 - c.alpha), c.green * c.alpha + base.green * (1 - c.alpha), c.blue * c.alpha + base.blue * (1 - c.alpha)) }
+    val solid = remember(colors, base) {
+        colors.map { c -> if (c.alpha >= 0.99f) c else Color(c.red * c.alpha + base.red * (1 - c.alpha), c.green * c.alpha + base.green * (1 - c.alpha), c.blue * c.alpha + base.blue * (1 - c.alpha)) }
     }
     // What the ring draws: every part that has something gets at least a small, visible wedge (26 Oct: PNG and GIF were
     // hair-thin cracks). The list beside the ring keeps the true sizes.
     val weights = remember(slices) { DonutMath.visibleShares(slices.map { it.bytes }).map { (it * 1_000_000).toLong() } }
     val total = weights.sum().coerceAtLeast(1L)
-    // With depth the parts touch, split by a thin dark line; flat rings keep a small gap.
-    val gap = if (depth) 0f else 1.2f
-    val track = LocalGlassTheme.current.onGlass.copy(alpha = 0.08f)
+    // Parts touch, split by a thin dark line (28 Oct: the flat ring style was removed).
+    val gap = 0f
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     // The ring sweeps round clockwise when the screen opens (25 Oct); instant with reduce motion.
     val reduceMotion = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
@@ -294,7 +287,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->
-            val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - (if (depth) (size.height - size.height * 0.09f) / 2f else size.height / 2f), weights)
+            val index = DonutMath.sliceAt(p.x - size.width / 2f, p.y - (size.height - size.height * 0.09f) / 2f, weights)
             if (index != null) {
                 haptics.tick()
                 onSlice(index)
@@ -302,14 +295,14 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
         }
     }
     Canvas(modifier.then(tap).semantics { contentDescription = slices.joinToString { "${it.label} ${DetailsFormat.size(it.bytes)}" } }) {
-        val depthPx = if (depth) size.minDimension * 0.09f else 0f
+        val depthPx = size.minDimension * 0.09f
         val face = size.minDimension - depthPx
-        val stroke = face * if (depth) 0.26f else 0.22f
+        val stroke = face * 0.26f
         val inset = stroke / 2
         val left = (size.width - face) / 2f
         val arcSize = Size(face - stroke, face - stroke)
         val limit = -90f + 360f * grow.value
-        if (depth) {
+        run {
             // The ring's thickness: stacked darker copies of each part, hard-edged so nothing bleeds.
             val layers = 12
             for (k in layers downTo 1) {
@@ -323,7 +316,6 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
                 }
             }
         }
-        if (!depth) drawArc(track, 0f, 360f, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
         var start = -90f
         val light = androidx.compose.ui.graphics.Brush.linearGradient(
             listOf(Color.White.copy(alpha = 0.30f), Color.Transparent, Color.Black.copy(alpha = 0.16f)),
@@ -335,7 +327,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
             if (sweep > 0.5f && shown > 0.5f) {
                 val sw = shown.coerceAtLeast(0.5f)
                 drawArc(solid[i % solid.size], start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
-                if (depth) {
+                run {
                     drawArc(light, start, sw, false, Offset(left + inset, inset), arcSize, style = Stroke(stroke))
                     // Thin bright rim on the outer edge and a darker line on the inner edge give the rounded look.
                     drawArc(Color.White.copy(alpha = 0.40f), start, sw, false, Offset(left + 1.5f, 1.5f), Size(face - 3f, face - 3f), style = Stroke(3f))
@@ -344,7 +336,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
             }
             start += sweep
         }
-        if (depth) {
+        run {
             // Thin dividers where parts meet, on the top face only, once the sweep has passed them.
             val c = Offset(left + face / 2f, face / 2f)
             val outer = face / 2f

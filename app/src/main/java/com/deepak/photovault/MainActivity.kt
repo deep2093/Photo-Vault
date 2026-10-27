@@ -849,7 +849,6 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
-        depthCharts = prefs.getBoolean("depth_charts", true),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -861,7 +860,6 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
-            .putBoolean("depth_charts", settings.depthCharts)
             .apply()
     }
 }

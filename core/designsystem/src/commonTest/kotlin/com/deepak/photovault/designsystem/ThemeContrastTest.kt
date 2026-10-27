@@ -72,14 +72,13 @@ class ThemeContrastTest {
 
 class ThemeCatalogTest {
     @Test
-    fun themesAreSortedIntoLightDarkAndPhotoSectionsWithUniqueIds() {
-        assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night"), GlassThemes.darkThemes.map { it.displayName })
-        assertEquals(listOf("Photo Glow", "Photo Night", "Photo Vivid", "Photo Light"), GlassThemes.photoThemes.map { it.displayName })
+    fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
+        assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light", "Photo Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night", "Glow Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.lightThemes.none { it.isDark })
         assertTrue(GlassThemes.darkThemes.all { it.isDark })
-        assertTrue(GlassThemes.photoThemes.all { it.adaptive != null })
+        assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })
     }
 
