@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.clickable
+import com.deepak.photovault.designsystem.glassChrome
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -125,6 +128,8 @@ fun MediaGrid(
     onZoomOutPastMax: (() -> Unit)? = null,
     /** Items after the photos (an album's count, 24 Oct). */
     footer: (LazyGridScope.() -> Unit)? = null,
+    /** A round button that glides back to the top: shows when away from the top, hides while scrolling down (albums, 27 Oct). */
+    topButton: Boolean = false,
 ) {
     // Photos run edge to edge like Samsung Gallery (23 Oct): only the system's own side insets stay
     // (landscape cut-outs); headers and controls keep the screen margin themselves.
@@ -149,7 +154,8 @@ fun MediaGrid(
         DisposableEffect(gridState) {
             onDispose { state.savedScroll[scrollKey] = gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
         }
-        val topFade = ScrollToTopEffect(gridState)
+        var topTaps by remember { mutableStateOf(0) }
+        val topFade = ScrollToTopEffect(gridState, topTaps)
         LaunchedEffect(jumpTo, sections) {
             val key = jumpTo ?: return@LaunchedEffect
             var index = headerItems
@@ -301,6 +307,11 @@ fun MediaGrid(
             footer?.invoke(this)
         }
 
+        if (topButton) BackToTopButton(
+            grid = gridState,
+            onClick = { topTaps++ },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 56.dp, bottom = contentPadding.calculateBottomPadding() + 14.dp),
+        )
         FastScroller(
             grid = gridState,
             sections = sections,
@@ -309,6 +320,36 @@ fun MediaGrid(
             bottom = contentPadding.calculateBottomPadding(),
             modifier = Modifier.align(Alignment.TopEnd),
         )
+    }
+}
+
+/**
+ * The back-to-top button (27 Oct): visible whenever the grid is away from the top, and tucked away while the
+ * person is scrolling down; it comes back when they scroll up or stop.
+ */
+@Composable
+private fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val away by remember { derivedStateOf { grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 0 } }
+    var goingDown by remember { mutableStateOf(false) }
+    LaunchedEffect(grid) {
+        var previous = Long.MIN_VALUE
+        snapshotFlow { grid.firstVisibleItemIndex * 1_000_000L + grid.firstVisibleItemScrollOffset }.collect { now ->
+            if (previous != Long.MIN_VALUE && now != previous) goingDown = now > previous
+            previous = now
+        }
+    }
+    val show = away && !(goingDown && grid.isScrollInProgress)
+    AnimatedVisibility(visible = show, enter = fadeIn(motionSpec()) + scaleIn(motionSpec(), initialScale = 0.8f), exit = fadeOut(motionSpec()) + scaleOut(motionSpec(), targetScale = 0.8f), modifier = modifier) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .glassChrome(androidx.compose.foundation.shape.CircleShape, elevation = 6.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            com.deepak.photovault.designsystem.DepthIcon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowUp, "Back to top", LocalGlassTheme.current.onGlass, Modifier.size(24.dp))
+        }
     }
 }
 

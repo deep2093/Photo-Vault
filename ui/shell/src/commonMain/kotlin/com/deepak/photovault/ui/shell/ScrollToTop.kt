@@ -16,19 +16,20 @@ import androidx.compose.ui.Modifier
 val LocalScrollToTop = compositionLocalOf { 0 }
 
 /**
- * Scroll to top, the Samsung Gallery way (26 Oct, measured frame by frame from Deepak's recording of Samsung Gallery):
- *  1. If the top is far away, the list jumps in one frame to about [JUMP_SCREENS] screens below the top. No fade.
- *  2. It then scrolls up at a steady, quick speed ([SPEED] screens a second), slow enough for the grid to keep up.
- *  3. For the last stretch it slows down smoothly into the top over [EASE_MS] ms, with no change of speed where
- *     the steady part ends.
- * The position is re-measured every frame, so it ends exactly at the top. Same speed on 60 Hz and 120 Hz screens.
+ * Scroll to top, the Samsung Gallery way, fifth version (27 Oct):
+ *  1. From far down it jumps in one frame to about [JUMP_SCREENS] screens below the top.
+ *  2. It scrolls up at a steady speed ([SPEED] screens a second).
+ *  3. It slows down in a straight line to a stop over [EASE_MS] ms, starting at exactly the steady speed.
+ * The distance is a guess (rows are not all the same height) until the first item is on screen; from then on it is
+ * measured exactly, so the slow-down is corrected smoothly and ends exactly at the top, with no last-moment snap.
  */
 private const val JUMP_SCREENS = 3.5f
 private const val SPEED = 6f
-private const val EASE_MS = 500f
+private const val EASE_MS = 700f
 
 private suspend fun glideToTop(
     distanceLeft: () -> Float,
+    exactLeft: () -> Float?,
     scrollBy: suspend (Float) -> Float,
     jumpNear: suspend (Float) -> Unit,
     atTop: () -> Boolean,
@@ -40,36 +41,50 @@ private suspend fun glideToTop(
         withFrameNanos { }
     }
     val speed = screenPx * SPEED / 1000f // px per ms
-    // Where the steady part hands over: easing out from this speed over EASE_MS covers exactly this distance.
+    // Slowing from [speed] to nothing in EASE_MS covers speed * EASE_MS / 2.
     val handOver = speed * EASE_MS / 2f
     var last = withFrameNanos { it }
-    while (!atTop() && distanceLeft() > handOver) {
+    while (!atTop() && (exactLeft() ?: distanceLeft()) > handOver) {
         val now = withFrameNanos { it }
         val ms = ((now - last) / 1_000_000f).coerceIn(1f, 34f)
         last = now
-        val step = (speed * ms).coerceAtMost(distanceLeft() - handOver + 1f)
+        val step = (speed * ms).coerceAtMost((exactLeft() ?: distanceLeft()) - handOver + 1f)
         if (scrollBy(-step) == 0f) return
     }
-    val start = distanceLeft()
-    if (start <= 0.5f) return
-    // A short trip eases out in less time, so it never starts faster than the steady speed.
-    val easeMs = minOf(EASE_MS, 2f * start / speed).coerceAtLeast(220f)
-    val begin = withFrameNanos { it }
+    if (atTop()) return
+    // A short trip slows down in less time, but never starts faster than the steady speed.
+    val start = exactLeft() ?: distanceLeft()
+    val total = minOf(EASE_MS, 2f * start / speed).coerceAtLeast(200f)
+    var v = 2f * start / total // px per ms at the start of the slow-down
+    var begin = withFrameNanos { it }
+    last = begin
     while (!atTop()) {
         val now = withFrameNanos { it }
-        val t = ((now - begin) / 1_000_000f / easeMs).coerceIn(0f, 1f)
-        if (t >= 1f) break
-        val rest = 1f - t
-        val step = distanceLeft() - start * rest * rest
-        if (step > 0.5f && scrollBy(-step) == 0f) break
+        val ms = ((now - last) / 1_000_000f).coerceIn(1f, 34f)
+        last = now
+        val t = (now - begin) / 1_000_000f
+        val timeLeft = total - t
+        val step = run {
+            val exact = exactLeft()
+            if (exact != null) {
+                // Measured: finish exactly in the time left, speed changing smoothly.
+                if (timeLeft <= ms) exact else minOf(exact, 2f * exact / timeLeft * ms)
+            } else {
+                // Still a guess: follow the planned straight-line slow-down.
+                v * (1f - t / total).coerceAtLeast(0f) * ms
+            }
+        }
+        if (step <= 0.01f) { if (timeLeft <= 0f) break else continue }
+        if (scrollBy(-step) == 0f) break
+        if (timeLeft <= 0f && exactLeft() == null) break
     }
 }
 
 @Composable
-fun ScrollToTopEffect(state: LazyGridState): Modifier {
+fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0): Modifier {
     val signal = LocalScrollToTop.current
-    LaunchedEffect(signal) {
-        if (signal == 0) return@LaunchedEffect
+    LaunchedEffect(signal, extraTaps) {
+        if (signal == 0 && extraTaps == 0) return@LaunchedEffect
         val info = { state.layoutInfo }
         // Rows above, from the tiles on screen: the smallest width is a tile, so a row is one of its height.
         fun distance(): Float {
@@ -83,6 +98,7 @@ fun ScrollToTopEffect(state: LazyGridState): Modifier {
         val screen = info().viewportSize.height.toFloat().coerceAtLeast(1f)
         glideToTop(
             ::distance,
+            { info().visibleItemsInfo.firstOrNull { it.index == 0 }?.let { (-it.offset.y).toFloat().coerceAtLeast(0f) } },
             { state.scrollBy(it) },
             { target ->
                 val visible = info().visibleItemsInfo
@@ -113,6 +129,7 @@ fun ScrollToTopEffect(state: LazyListState): Modifier {
         val screen = state.layoutInfo.viewportSize.height.toFloat().coerceAtLeast(1f)
         glideToTop(
             ::distance,
+            { state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == 0 }?.let { (-it.offset).toFloat().coerceAtLeast(0f) } },
             { state.scrollBy(it) },
             { target ->
                 val visible = state.layoutInfo.visibleItemsInfo

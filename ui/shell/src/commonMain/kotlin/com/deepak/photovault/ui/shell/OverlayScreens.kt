@@ -118,6 +118,7 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
             MediaGrid(
                 sections, state, gallery, padding,
                 onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
+                topButton = true,
                 header = {
                     item(key = "title", span = { GridItemSpan(maxLineSpan) }) {
                         Text(
