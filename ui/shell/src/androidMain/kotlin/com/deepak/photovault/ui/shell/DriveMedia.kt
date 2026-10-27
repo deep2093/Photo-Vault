@@ -112,6 +112,13 @@ object DriveMedia {
         if (isJpeg) JpegThumbCache.get(jpegKey)?.let { return@withContext it }
         val kept = File(dir, "${name(path)}-$sizePx.jpg")
         if (!isJpeg && kept.exists()) BitmapFactory.decodeFile(kept.path)?.let { return@withContext it }
+        // A Normal backup keeps a small preview beside each photo (28 Oct): one small read instead of the whole photo.
+        if (sizePx <= PREVIEW_MAX_PX) {
+            driveThumbnail(path)?.let { bitmap ->
+                if (isJpeg) JpegThumbCache.put(jpegKey, bitmap) else runCatching { FileOutputStream(kept).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
+                return@withContext bitmap
+            }
+        }
         if (path.endsWith(".pxo")) {
             // Encrypted backup: the small picture stored beside it (also the only preview a video has).
             privateThumbnail(path, dir)?.let { bitmap ->
@@ -133,6 +140,29 @@ object DriveMedia {
         val bitmap = decodeSampled(original, sizePx) ?: return@withContext null
         if (isJpeg) JpegThumbCache.put(jpegKey, bitmap) else runCatching { FileOutputStream(kept).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
         bitmap
+    }
+
+    /** Photos with no preview on the drive (backed up before 28 Oct), so they are not asked for again this time. */
+    private val noPreview = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    private suspend fun driveThumbnail(path: String): Bitmap? {
+        val thumbPath = com.deepak.photovault.core.backup.NormalThumbs.pathFor(path) ?: return null
+        if (thumbPath in noPreview) return null
+        val read = reader ?: return null
+        val bytes = java.io.ByteArrayOutputStream()
+        val ok = gate.withPermit {
+            try {
+                read(thumbPath) { b, n -> bytes.write(b, 0, n) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+        }
+        val data = bytes.toByteArray()
+        val bitmap = if (ok && data.isNotEmpty()) BitmapFactory.decodeByteArray(data, 0, data.size) else null
+        if (bitmap == null) noPreview += thumbPath
+        return bitmap
     }
 
     private suspend fun privateThumbnail(path: String, dir: File): Bitmap? {
@@ -177,4 +207,5 @@ object DriveMedia {
     private const val KEEP_BYTES = 800L * 1024 * 1024
     private const val HEAD_BYTES = 256 * 1024
     private const val QUICK_MAX_PX = 256
+    private const val PREVIEW_MAX_PX = 512
 }

@@ -66,3 +66,17 @@ object PrivatePaths {
 suspend fun PrivateVault.decryptFile(drive: DriveFileSystem, path: String, kind: ObjectKind = ObjectKind.MEDIA, out: (ByteArray, Int) -> Unit) {
     decrypt(kind, PrivatePaths.idOf(path), { sink -> drive.readStream(path, sink) }, out)
 }
+
+/**
+ * Small previews for Normal (readable) backups, saved beside the photos (28 Oct): users/<id>/thumbs/<the photo's path below albums/>.jpg. Drive-only photos in the grid load this instead of the whole photo.
+ */
+object NormalThumbs {
+    const val FOLDER = "thumbs"
+
+    fun pathFor(drivePath: String): String? {
+        if (PrivatePaths.isObject(drivePath)) return null
+        val parts = drivePath.trim('/').split('/')
+        if (parts.size < 4 || parts[0] != "users" || parts[2] != BackupEngine.ALBUMS) return null
+        return DrivePaths.join(parts[0], parts[1], FOLDER, parts.drop(3).joinToString("/") + ".jpg")
+    }
+}

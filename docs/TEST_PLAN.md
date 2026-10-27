@@ -408,3 +408,9 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 2. Minimise and reopen within 15 minutes: Photos and Albums still show the drive photos at once and nothing is re-read in full. Pull down on Photos: it re-reads. After a backup finishes: it re-reads.
 3. Turn the switch off, close and reopen the app: Family, Backup and Storage still know the family; no checks happen by themselves; opening Family or the Drive tab in Storage still reads the drive.
 4. Owner: a request to join appears when Family is opened, even with the switch off.
+
+## Round 27 (28 Oct): previews on the drive
+1. Back up a few new photos and a video. On the drive, users/<you>/thumbs/<album>/<year>/<month>/ holds a small .jpg for each.
+2. Photos only on the drive (not on this phone) show their grid picture quickly, without the whole photo downloading first. Open one: the full photo still loads.
+3. Photos backed up before this build: run Backup now once while they are still on the phone; the thumbs folder fills (up to 150 per run) and a .previews-done file appears when finished. Photos already deleted from the phone get none and load as before.
+4. Private (encrypted) backups are unchanged.

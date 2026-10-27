@@ -117,6 +117,8 @@ class BackupEngine(
                 onProgress(BackupProgress(todo.size, processed, uploaded, failed, bytes))
             }
             if (failure == null && failed > 0) failure = BackupFailure(FailureReason.CHECK_FAILED)
+            // Previews for older backups (28 Oct). Best effort; never changes the result of the backup.
+            if (failure == null) runCatching { addMissingThumbnails(items) }.onFailure { if (it is CancellationException) throw it }
         } catch (e: CancellationException) {
             withContext(NonCancellable) { runCatching { flush(pending) } }
             throw e
@@ -262,6 +264,7 @@ class BackupEngine(
             val folder = folderFor(item)
             drive.mkdirs(folder)
             val path = publish(temp, folder, safeName(prepared.name), local, size)
+            writeNormalThumbnail(item, path)
             val record = BackupRecord(
                 key = BackupSelection.key(item),
                 drivePath = path,
@@ -281,6 +284,62 @@ class BackupEngine(
             withContext(NonCancellable) { runCatching { drive.delete(temp) } }
             throw e
         }
+    }
+
+    /** Best effort: a small preview beside the photo (28 Oct), so drive-only photos show quickly. Never fails a backup. */
+    private suspend fun writeNormalThumbnail(item: MediaItem, photoPath: String) {
+        val thumb = NormalThumbs.pathFor(photoPath) ?: return
+        try {
+            val bytes = reader.thumbnail(item) ?: return
+            drive.mkdirs(DrivePaths.parent(thumb))
+            drive.createNew(thumb, bytes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * Previews for photos backed up before 28 Oct: for each backup of this person that has none and whose photo is
+     * still on this phone, make and save one. Does up to [limit] per run; leaves a marker on the drive when there is
+     * nothing left to do, so later runs skip all of this. Photos only on the drive can't be done from here.
+     */
+    suspend fun addMissingThumbnails(items: List<MediaItem>, limit: Int = CATCH_UP_PER_RUN): Int {
+        if (vault != null) return 0
+        val marker = DrivePaths.join(userFolder, NormalThumbs.FOLDER, "$CAUGHT_UP-$deviceId")
+        if (drive.exists(marker)) return 0
+        val byKey = items.associateBy { BackupSelection.key(it) }
+        val records = BackupCatalog(drive, userId, null).records().filter { it.key in byKey && !it.encrypted }
+        var made = 0
+        var left = false
+        val existing = HashMap<String, Set<String>>()
+        for (record in records) {
+            currentCoroutineContext().ensureActive()
+            val thumb = NormalThumbs.pathFor(record.drivePath) ?: continue
+            val folder = DrivePaths.parent(thumb)
+            val names = existing.getOrPut(folder) { drive.list(folder).filter { !it.isFolder }.map { it.name }.toSet() }
+            if (thumb.substringAfterLast('/') in names) continue
+            if (made >= limit) {
+                left = true
+                break
+            }
+            val item = byKey[record.key] ?: continue
+            try {
+                val bytes = reader.thumbnail(item) ?: continue
+                drive.mkdirs(folder)
+                if (drive.createNew(thumb, bytes)) made++
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            }
+        }
+        if (!left) {
+            runCatching {
+                drive.mkdirs(DrivePaths.parent(marker))
+                drive.createNew(marker, ByteArray(1))
+            }
+        }
+        return made
     }
 
     /** Renames [temp] to [name] in [folder] without replacing; "name (2).jpg" and so on when taken. */
@@ -359,6 +418,8 @@ class BackupEngine(
             return clean.ifEmpty { "No album" }
         }
         const val TEMP_SUFFIX = ".part"
+        const val CAUGHT_UP = ".previews-done"
+        const val CATCH_UP_PER_RUN = 150
         /** Stop before the drive is completely full, so the router and other phones still work. */
         const val DRIVE_MARGIN_BYTES = 1_000_000_000L
         const val MANIFEST_BATCH = 25

@@ -25,6 +25,8 @@ class BackupEngineTest {
     private val files = mutableMapOf<Long, ByteArray>()
 
     private val reader = object : MediaReader {
+        override suspend fun thumbnail(item: MediaItem): ByteArray? = if (files.containsKey(item.id)) "thumb-${item.id}".encodeToByteArray() else null
+
         override suspend fun open(item: MediaItem, storageSaver: Boolean): PreparedFile {
             val bytes = files[item.id] ?: error("gone")
             return if (storageSaver) {
@@ -93,6 +95,33 @@ class BackupEngineTest {
         assertEquals(0, result.uploaded)
         assertEquals(2, result.alreadyBackedUp)
         assertEquals(2, fresh.records.size)
+    }
+
+    @Test
+    fun savesASmallPreviewBesideEachNormalBackup() = runTest {
+        val items = listOf(photo(1, "IMG_1.jpg"))
+        assertEquals(1, run(engine(), items).uploaded)
+        val all = drive.allFiles()
+        assertTrue("users/$USER/thumbs/Camera/2026/10/IMG_1.jpg.jpg" in all, all.toString())
+        assertEquals(
+            "users/$USER/thumbs/Camera/2026/10/IMG_1.jpg.jpg",
+            NormalThumbs.pathFor("users/$USER/albums/Camera/2026/10/IMG_1.jpg"),
+        )
+        assertNull(NormalThumbs.pathFor("users/$USER/objects/ab/abc.pxo"))
+    }
+
+    @Test
+    fun olderBackupsGetTheirPreviewOnceAndThenTheMarkerStopsTheWork() = runTest {
+        val items = listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg"))
+        assertEquals(2, run(engine(), items).uploaded)
+        // Pretend they were backed up before previews existed.
+        drive.allFiles().filter { it.contains("/thumbs/") }.forEach { drive.delete(it) }
+        val later = engine(MemoryBackupIndex(), device = "phone-0000002")
+        assertEquals(2, later.addMissingThumbnails(items))
+        assertTrue(drive.allFiles().count { it.contains("/thumbs/Camera/") } == 2)
+        // Done: a marker is left and nothing more is made.
+        assertEquals(0, later.addMissingThumbnails(items))
+        assertTrue(drive.allFiles().any { it.endsWith(BackupEngine.CAUGHT_UP + "-phone-0000002") })
     }
 
     @Test

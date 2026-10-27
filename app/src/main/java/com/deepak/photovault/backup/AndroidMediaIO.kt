@@ -62,7 +62,19 @@ class AndroidMediaReader(context: Context) : MediaReader {
     /** A 512-pixel JPEG (photos and videos) for a Private backup's encrypted thumbnail. Null if the system can't make one. */
     override suspend fun thumbnail(item: MediaItem): ByteArray? = withContext(Dispatchers.IO) {
         runCatching {
-            val bitmap = resolver.loadThumbnail(Uri.parse(item.uri), android.util.Size(THUMB_PX, THUMB_PX), null)
+            // Photos: decoded from the picture itself at 512 px (iPhone JPEGs carry a tiny 160 px preview that looks
+            // blurry when stretched). Videos, and anything that can't be decoded: Android's own thumbnail.
+            val sharp = if (!item.isVideo) runCatching {
+                ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, Uri.parse(item.uri))) { decoder, info, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    val short = minOf(info.size.width, info.size.height).coerceAtLeast(1)
+                    if (short > THUMB_PX) {
+                        val scale = THUMB_PX.toFloat() / short
+                        decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
+                    }
+                }
+            }.getOrNull() else null
+            val bitmap = sharp ?: resolver.loadThumbnail(Uri.parse(item.uri), android.util.Size(THUMB_PX, THUMB_PX), null)
             java.io.ByteArrayOutputStream().use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
                 bitmap.recycle()
