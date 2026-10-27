@@ -89,8 +89,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val months = remember(shown) { LibraryLevels.months(shown, zone) }
     val years = remember(shown, today) { LibraryLevels.years(shown, zone, today) }
     // Kept here, so going Years -> Months -> back to Years returns to the same place.
-    val yearsGrid = rememberLazyGridState()
-    val monthsGrid = rememberLazyGridState()
+    val yearsGrid = rememberSavedGridState("|years")
+    val monthsGrid = rememberSavedGridState("|months")
     val scope = rememberCoroutineScope()
     // Back climbs from a month to its months, then the years, then the day view; only then does the app close.
     val canStep = gallery.view != LibraryView.ALL || gallery.viewHistory.isNotEmpty()

@@ -205,7 +205,6 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
         ThemeRow(GlassThemes.lightThemes, state)
         SectionHeader("Dark themes")
         ThemeRow(GlassThemes.darkThemes, state)
-        Text("Photo Light, Glow Night, Photo Night and Vivid Night take their colours from the photos on screen.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         GlassSwitchRow(
             "Glass blur",

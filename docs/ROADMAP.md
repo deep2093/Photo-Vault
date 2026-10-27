@@ -79,7 +79,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - Secured folder (Phase 8): must include the back-to-top button (MediaGrid `topButton = true`) and Select all (SelectableScreen `selectAllItems`), like albums and Recently deleted (27 Oct).
 
 ## Phase 6 split (28 Oct)
-**6A (clean-up, built 28 Oct):** header line removed and Header test deleted; Back to top as blurry glass without the square shadow; flat charts removed; themes in Light and Dark only with new names; Select all for Search and Storage lists is NOT in 6A (moved to 6B). **6B (Free up space):** the main feature plus the questions about Backup now queue, linking old backups, drive thumbnails and moved photos; then Select all for Search and Storage lists.
+**6A (clean-up, built 28 Oct):** header line removed and Header test deleted; Back to top as blurry glass without the square shadow; flat charts removed; themes in Light and Dark only with new names; Select all for Search and Storage lists is NOT in 6A (moved to 6B). **6B (Free up space; started 28 Oct with pages keeping their scroll place everywhere):** the main feature plus the questions about Backup now queue, linking old backups, drive thumbnails and moved photos; then Select all for Search and Storage lists.
 
 ## Phase 6 checklist (set 27 Oct)
 **Main feature:** Free up space (opt-in auto-cleanup after verified backup; Off option; days setting; re-verify each file against the drive before deleting the phone copy; phone copy goes to the phone's Recently deleted first; includes favourites and all albums; photos stay as cloud photos; warns when there is no second copy).

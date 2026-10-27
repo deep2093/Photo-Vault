@@ -101,7 +101,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         family + gallery.orderedCards().filter { it !in gallery.hiddenAlbums }.mapNotNull { byId[it] }
     }
     val chosen = cards.filter { it.id in selected }
-    val gridState = rememberLazyGridState()
+    val gridState = rememberSavedGridState()
     val gridOrigin = remember { floatArrayOf(0f, 0f) }
     fun cardBounds(ids: Set<String>): Map<String, androidx.compose.ui.geometry.Rect> {
         val info = gridState.layoutInfo

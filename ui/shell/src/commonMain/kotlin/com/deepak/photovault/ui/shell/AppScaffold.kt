@@ -589,6 +589,7 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
     ) { page ->
         val destination = Destination.entries[page]
         CompositionLocalProvider(
+            LocalShell provides state,
             LocalScrollToTop provides (state.reselects[destination] ?: 0),
             LocalChrome provides if (destination in Destination.hidesChrome) state.chrome else null,
         ) {

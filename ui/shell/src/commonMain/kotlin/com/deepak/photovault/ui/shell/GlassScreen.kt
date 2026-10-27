@@ -273,7 +273,7 @@ private fun GlassTopBar(
 @Composable
 fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = null, items: LazyListScope.() -> Unit) {
     GlassScreen(title, subtitle, onBack = onBack) { padding ->
-        val listState = rememberLazyListState()
+        val listState = rememberSavedListState()
         val topFade = ScrollToTopEffect(listState)
         LazyColumn(
             state = listState,

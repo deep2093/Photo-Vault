@@ -397,3 +397,8 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 2. Settings > About: no Header test row. Open several pages: the pale line under the top bar is gone in every theme.
 3. Storage rings always 3D, animate as before.
 4. Album, scroll down and stop: the back to top button is blurry glass, readable on light, dark and photo themes, with no square shadow while scrolling.
+
+## Round 25 (28 Oct): pages keep their place (first part of 6B)
+1. Settings > Storage, scroll to the bottom, open File types / an album / Recently deleted on the drive, go back: Storage is at the bottom, not the top. Same for Settings > Backup, Albums tab (open an album and come back), a Settings page like Appearance, and the Years and Months views of Photos after opening Settings.
+2. Open the same page again from the menu (not by going back): it starts at the top.
+3. The theme section has no extra note line.

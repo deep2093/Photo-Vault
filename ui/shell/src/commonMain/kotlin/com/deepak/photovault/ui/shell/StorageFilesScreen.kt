@@ -180,7 +180,7 @@ fun StorageFilesScreen(
             }
         }),
     ) { padding ->
-        val list = rememberLazyListState()
+        val list = rememberSavedListState()
         ScrollToTopEffect(list)
         val density = LocalDensity.current
         val haptics = LocalHapticFeedback.current

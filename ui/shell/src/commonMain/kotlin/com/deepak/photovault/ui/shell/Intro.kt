@@ -96,7 +96,7 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
 
 /** What's new for the current build. Change [ID] and [items] with EVERY build, covering all four kinds. */
 object WhatsNew {
-    const val ID = "2026-10-28-1"
+    const val ID = "2026-10-28-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.NEW, "Private backup", "Settings > Backup lets you choose Normal or Private. Private scrambles photos on your phone before they leave it, and you get 24 recovery words. Even the family owner can't open them."),
@@ -134,6 +134,7 @@ object WhatsNew {
         Change(ChangeKind.FIXED, "Places kept", "Albums keep their scroll place after you view a photo, and Storage stays on the Drive tab."),
         Change(ChangeKind.FIXED, "Blurry thumbnails", "iPhone JPEGs no longer look blurry. Their sharp thumbnails are saved once (up to 300 MB), on the phone and for the drive."),
         Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down now works like Samsung Gallery: from far down it jumps closer, scrolls up at a steady speed, then eases off earlier and earlier as the top gets close, so it settles at the top instead of hitting it."),
+        Change(ChangeKind.FIXED, "Pages keep their place", "Open something from the bottom of Storage, Backup, Albums, Settings and other pages, come back, and the page is where you left it instead of jumping to the top."),
         Change(ChangeKind.FIXED, "Pale line under page titles", "The faint line under the top bar of pages is gone."),
         Change(ChangeKind.FIXED, "Square shadow on Back to top", "The odd square shadow behind the button while scrolling is gone."),
         Change(ChangeKind.FIXED, "Phone clock in the viewer", "The time and notification icons show while the toolbar shows (white on the black viewer), and hide with it."),
