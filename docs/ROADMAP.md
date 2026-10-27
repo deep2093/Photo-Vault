@@ -71,7 +71,8 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **What's new in every build:** every new build updates `WhatsNew` (Intro.kt) with four kinds: New, Changed, Removed, Fixed. Nothing ships without it, and each entry is one plain sentence. Change `WhatsNew.ID` so the list shows once.
 - **Settings order:** Albums, Appearance, Backup, Drive, Remote access, Storage (A to Z); then always last, in this order: Open with Pixallery, Send feedback, About.
 - **Storage kinds:** Photos (JPEG, HEIC and other pictures), Videos (every video format), PNG, GIF. Sort by Name, Date, Size or Type wherever files are sorted.
-- **Phase 6 to ask:** keep the Photos filter as a button or as chips (both exist, switch in Appearance).
+- **Photos filter (decided 26 Oct):** removed. Photos shows phone photos plus drive-only photos in one timeline; no button, chips or setting.
+- **Phase 6, Select all (27 Oct):** add the Select all button (beside the X, same size) to Search results and the Storage file lists too. Already in albums, Favourites, Family Album and Recently deleted; not in Photos by design.
 - **Secured folder (Phase 8) must include "Move to Secured folder" in the photo viewer's three-dot menu (26 Oct).** The row already exists and says "Soon"; it has to move the open photo into the Secured folder, and be offered in photo selection too. Set as wallpaper already works from that menu.
 - **Phone storage "Everything else"** only explains and opens Android's storage page, because Android doesn't let an app list other apps' files. Showing sizes per app would need the "usage access" permission: ask before adding it.
 
