@@ -14,6 +14,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.clickable
 import com.deepak.photovault.designsystem.glassChrome
 import androidx.compose.runtime.mutableStateOf
@@ -311,7 +313,7 @@ fun MediaGrid(
         if (topButton) BackToTopButton(
             grid = gridState,
             onClick = { topTaps++ },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 56.dp, bottom = contentPadding.calculateBottomPadding() + 14.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp),
         )
         FastScroller(
             grid = gridState,
@@ -341,15 +343,20 @@ private fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier: 
     }
     val show = away && !(goingDown && grid.isScrollInProgress)
     AnimatedVisibility(visible = show, enter = fadeIn(motionSpec()) + scaleIn(motionSpec(), initialScale = 0.8f), exit = fadeOut(motionSpec()) + scaleOut(motionSpec(), targetScale = 0.8f), modifier = modifier) {
+        // A solid disc in the theme's accent colour with its own "on accent" icon: always readable over photos, and
+        // it follows whichever theme is chosen (27 Oct; the see-through glass version was hard to read).
+        val theme = LocalGlassTheme.current
         Box(
             Modifier
-                .size(44.dp)
-                .glassChrome(androidx.compose.foundation.shape.CircleShape, elevation = 6.dp)
+                .size(46.dp)
+                .shadow(8.dp, androidx.compose.foundation.shape.CircleShape)
                 .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(theme.accent)
+                .border(1.5.dp, theme.onAccent.copy(alpha = 0.55f), androidx.compose.foundation.shape.CircleShape)
                 .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            com.deepak.photovault.designsystem.DepthIcon(Icons.Rounded.ArrowUpward, "Back to top", LocalGlassTheme.current.onGlass, Modifier.size(24.dp))
+            Icon(Icons.Rounded.ArrowUpward, contentDescription = "Back to top", tint = theme.onAccent, modifier = Modifier.size(26.dp))
         }
     }
 }

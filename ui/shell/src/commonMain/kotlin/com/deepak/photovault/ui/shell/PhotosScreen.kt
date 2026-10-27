@@ -14,6 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.Deselect
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.MoreVert
@@ -291,6 +293,8 @@ fun SelectableScreen(
     selectionActions: (@Composable androidx.compose.foundation.layout.RowScope.(List<MediaItem>) -> Unit)? = null,
     /** Inside an album: a button to move the selected photos to another album (26 Oct). */
     onMove: ((List<MediaItem>) -> Unit)? = null,
+    /** Every photo this screen can select: shows a Select all button beside Cancel while selecting (albums, 27 Oct). Not in Photos. */
+    selectAllItems: List<MediaItem>? = null,
     /** Where the grid draws each photo, for the delete animation; the screen's [MediaGrid] fills it in. */
     tileSpots: TileSpots = remember { TileSpots() },
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
@@ -314,6 +318,15 @@ fun SelectableScreen(
             if (!state.selecting) {
                 normalActions()
             } else {
+                if (selectAllItems != null) {
+                    val everyId = selectAllItems.map { it.id }.toSet()
+                    val all = everyId.isNotEmpty() && state.selected.containsAll(everyId)
+                    GlassIconButton(
+                        if (all) Icons.Rounded.Deselect else Icons.Rounded.SelectAll,
+                        if (all) "Deselect all" else "Select all",
+                        onClick = { state.selected = if (all) emptySet() else everyId },
+                    )
+                }
                 GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { state.selected = emptySet() })
             }
         },

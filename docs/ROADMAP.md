@@ -74,3 +74,5 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Phase 6 to ask:** keep the Photos filter as a button or as chips (both exist, switch in Appearance).
 - **Secured folder (Phase 8) must include "Move to Secured folder" in the photo viewer's three-dot menu (26 Oct).** The row already exists and says "Soon"; it has to move the open photo into the Secured folder, and be offered in photo selection too. Set as wallpaper already works from that menu.
 - **Phone storage "Everything else"** only explains and opens Android's storage page, because Android doesn't let an app list other apps' files. Showing sizes per app would need the "usage access" permission: ask before adding it.
+
+- Secured folder (Phase 8): must include the back-to-top button (MediaGrid `topButton = true`) and Select all (SelectableScreen `selectAllItems`), like albums and Recently deleted (27 Oct).

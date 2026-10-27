@@ -72,6 +72,7 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
     SelectableScreen(
         null, null, state, gallery, actions, onBack = { state.back() },
         tileSpots = spots,
+        selectAllItems = items,
         onMove = if (kind == AlbumKind.Family) null else ({ selected ->
             if (selected.any { it.isDriveOnly }) actions.toast("Photos that are only on the drive can't be moved.") else moving = selected
         }),
@@ -247,6 +248,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
     val bin = remember { ScreenSpot() }
     SelectableScreen(
         tileSpots = spots,
+        selectAllItems = trashed.map { it.item },
         title = if (driveOnly) "Deleted from the drive" else "Recently deleted",
         subtitle = if (trashed.isEmpty()) "Empty" else "${trashed.size} items",
         state = state,
@@ -276,6 +278,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
             // Opens in the viewer with Restore and Delete for good (23 Oct); long-press still selects.
             MediaGrid(
                 section, state, gallery, padding,
+                topButton = true,
                 header = {
                     item(key = "warning", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                         androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = SCREEN_MARGIN)) {

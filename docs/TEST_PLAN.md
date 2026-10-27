@@ -386,3 +386,8 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 ## Round 22 (27 Oct): scroll to top, back-to-top button in albums
 1. Photos far down, tap Photos: jump, steady scroll, then it eases off gradually well before the top and settles there (no wall at the end). Also try from a few screens down and from just below the top.
 2. Open an album with many photos: no button at the top. Scroll down a little: while scrolling down the button stays hidden; stop or scroll up and it appears (above the date slider). Tap it: same glide to the top, button fades out. Not shown in Photos, Search or Recently deleted.
+
+## Round 23 (27 Oct): back-to-top look, Select all
+1. Album, Favourites, Family Album, Recently deleted (phone and drive): scroll down, the round button sits in the middle at the bottom, solid in the theme's colour with a clear arrow. Check a light theme, a dark theme and an adaptive theme.
+2. Long-press a photo in each of those screens: beside the X there is a Select all button the same size as X. Tap: every photo is selected and the count updates; the icon changes; tap again: all deselected. Photos tab has no such button.
+3. When the Secured folder is built it must get both the back-to-top button and Select all (noted in the roadmap).
