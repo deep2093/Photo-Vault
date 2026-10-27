@@ -77,3 +77,14 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Phone storage "Everything else"** only explains and opens Android's storage page, because Android doesn't let an app list other apps' files. Showing sizes per app would need the "usage access" permission: ask before adding it.
 
 - Secured folder (Phase 8): must include the back-to-top button (MediaGrid `topButton = true`) and Select all (SelectableScreen `selectAllItems`), like albums and Recently deleted (27 Oct).
+
+## Phase 6 checklist (set 27 Oct)
+**Main feature:** Free up space (opt-in auto-cleanup after verified backup; Off option; days setting; re-verify each file against the drive before deleting the phone copy; phone copy goes to the phone's Recently deleted first; includes favourites and all albums; photos stay as cloud photos; warns when there is no second copy).
+
+**Start of Phase 6 (clean-up and questions, asked one at a time):**
+1. Remove the header's pale-line shadow and delete the temporary Header test switch and `headerDebug` (Glass.kt, About row).
+2. Ask about the optional Phase 5 items: manual Backup now queue, linking old backups after a reset, real thumbnails on the drive. Also ask whether backup should recognise photos moved between albums so they are not backed up again.
+3. Back to top button (added 27 Oct): fix the odd square shadow that shows while scrolling (the shadow is drawn around a clipped square; draw it round or drop it) and make the button blurry see-through glass like the other floating controls, still easy to see on every theme.
+4. Storage charts (27 Oct): remove "Charts with depth" from Appearance. Keep only the 3D ring style; delete the flat ring code and the saved setting.
+5. Themes (27 Oct): put Photo Glow, Photo Night and Photo Vivid in the Dark section and Photo Light in the Light section; the separate Photo section goes away. Rename them clearly (proposal, to confirm: Photo Light stays; Photo Glow becomes Glow Night; Photo Vivid becomes Vivid Night; Photo Night stays). Anyone with a saved theme keeps it.
+6. Select all (27 Oct): add it to Search results and the Storage file lists.
