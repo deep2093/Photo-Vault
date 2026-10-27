@@ -221,7 +221,8 @@ class BackupEngineTest {
         assertTrue(result.succeeded)
         assertEquals(0, result.uploaded)
         assertEquals(2, result.alreadyBackedUp)
-        assertEquals(before, drive.allFiles())
+        // Only the small "previews are done" note for the new phone ID is added.
+        assertEquals(before.filter { !it.contains(BackupEngine.CAUGHT_UP) }, drive.allFiles().filter { !it.contains(BackupEngine.CAUGHT_UP) })
     }
 
     @Test
