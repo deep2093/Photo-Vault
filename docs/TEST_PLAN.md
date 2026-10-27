@@ -384,5 +384,5 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 4. Photos: scroll far down, tap Photos: one jump closer, a steady quick scroll, then a smooth slow-down into the top (compare side by side with Samsung Gallery). From a few screens down: steady scroll then slow-down, no jump.
 
 ## Round 22 (27 Oct): scroll to top, back-to-top button in albums
-1. Photos far down, tap Photos: jump, steady scroll, slow-down over about 0.7 s, stops at the top without a last jolt. Also try from a few screens down and from just below the top.
+1. Photos far down, tap Photos: jump, steady scroll, then it eases off gradually well before the top and settles there (no wall at the end). Also try from a few screens down and from just below the top.
 2. Open an album with many photos: no button at the top. Scroll down a little: while scrolling down the button stays hidden; stop or scroll up and it appears (above the date slider). Tap it: same glide to the top, button fades out. Not shown in Photos, Search or Recently deleted.

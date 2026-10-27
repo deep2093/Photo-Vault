@@ -16,16 +16,21 @@ import androidx.compose.ui.Modifier
 val LocalScrollToTop = compositionLocalOf { 0 }
 
 /**
- * Scroll to top, the Samsung Gallery way, fifth version (27 Oct):
+ * Scroll to top, sixth version (27 Oct). Deepak: it felt like hitting a wall instead of stopping before it.
+ * The earlier slow-down was planned for a fixed distance, so when the real distance turned out longer it sped up
+ * to finish on time. Now the speed depends only on how far is LEFT: speed = distance left / [TAU_MS], never above
+ * the steady speed and never increasing. Far away it stays at the steady speed; as the top gets close it eases off
+ * more and more, however far the top really is, and it can never arrive fast.
  *  1. From far down it jumps in one frame to about [JUMP_SCREENS] screens below the top.
- *  2. It scrolls up at a steady speed ([SPEED] screens a second).
- *  3. It slows down in a straight line to a stop over [EASE_MS] ms, starting at exactly the steady speed.
- * The distance is a guess (rows are not all the same height) until the first item is on screen; from then on it is
- * measured exactly, so the slow-down is corrected smoothly and ends exactly at the top, with no last-moment snap.
+ *  2. It scrolls up at the steady speed ([SPEED] screens a second).
+ *  3. When the distance left is less than the steady speed times [TAU_MS], speed follows the distance left.
+ * The distance is a guess until the first item is on screen, then it is measured exactly.
  */
 private const val JUMP_SCREENS = 3.5f
 private const val SPEED = 6f
-private const val EASE_MS = 700f
+private const val TAU_MS = 380f
+/** Never slower than this (screens a second) until the last pixels, so it doesn't crawl at the end. */
+private const val CRAWL = 0.35f
 
 private suspend fun glideToTop(
     distanceLeft: () -> Float,
@@ -40,43 +45,20 @@ private suspend fun glideToTop(
         jumpNear(screenPx * JUMP_SCREENS)
         withFrameNanos { }
     }
-    val speed = screenPx * SPEED / 1000f // px per ms
-    // Slowing from [speed] to nothing in EASE_MS covers speed * EASE_MS / 2.
-    val handOver = speed * EASE_MS / 2f
+    val cruise = screenPx * SPEED / 1000f // px per ms
+    val crawl = screenPx * CRAWL / 1000f
+    var speed = cruise
     var last = withFrameNanos { it }
-    while (!atTop() && (exactLeft() ?: distanceLeft()) > handOver) {
-        val now = withFrameNanos { it }
-        val ms = ((now - last) / 1_000_000f).coerceIn(1f, 34f)
-        last = now
-        val step = (speed * ms).coerceAtMost((exactLeft() ?: distanceLeft()) - handOver + 1f)
-        if (scrollBy(-step) == 0f) return
-    }
-    if (atTop()) return
-    // A short trip slows down in less time, but never starts faster than the steady speed.
-    val start = exactLeft() ?: distanceLeft()
-    val total = minOf(EASE_MS, 2f * start / speed).coerceAtLeast(200f)
-    var v = 2f * start / total // px per ms at the start of the slow-down
-    var begin = withFrameNanos { it }
-    last = begin
     while (!atTop()) {
         val now = withFrameNanos { it }
         val ms = ((now - last) / 1_000_000f).coerceIn(1f, 34f)
         last = now
-        val t = (now - begin) / 1_000_000f
-        val timeLeft = total - t
-        val step = run {
-            val exact = exactLeft()
-            if (exact != null) {
-                // Measured: finish exactly in the time left, speed changing smoothly.
-                if (timeLeft <= ms) exact else minOf(exact, 2f * exact / timeLeft * ms)
-            } else {
-                // Still a guess: follow the planned straight-line slow-down.
-                v * (1f - t / total).coerceAtLeast(0f) * ms
-            }
-        }
-        if (step <= 0.01f) { if (timeLeft <= 0f) break else continue }
+        val left = exactLeft() ?: distanceLeft()
+        if (left <= 0.5f) break
+        // Speed follows the distance left, and only ever goes down.
+        speed = minOf(speed, maxOf(left / TAU_MS, crawl), cruise)
+        val step = minOf(speed * ms, left)
         if (scrollBy(-step) == 0f) break
-        if (timeLeft <= 0f && exactLeft() == null) break
     }
 }
 
