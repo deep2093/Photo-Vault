@@ -98,3 +98,4 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Real thumbnails on the drive: yes.** Backup saves a small preview beside each photo (about 1-2% extra space); a catch-up for old backups.
 - **Photos moved between albums: yes, recognise them.** Same photo in a new album only updates its album; no second upload.
 - Order inside 6B: (1) moved photos and linking old backups (both are about recognising a photo), (2) drive thumbnails, (3) Backup now queue, (4) Free up space, (5) Select all for Search and Storage lists.
+- **Found 28 Oct:** moved photos and linking old backups already work by design (a photo's identity is name + size + capture time, not its album; a fresh phone reads the manifests on the drive). Tests added (BackupEngineTest). The drive keeps the photo under its old album folder; moving it on the drive is not planned.

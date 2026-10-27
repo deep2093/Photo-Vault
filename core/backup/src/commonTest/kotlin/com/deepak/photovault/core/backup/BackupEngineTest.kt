@@ -71,6 +71,31 @@ class BackupEngineTest {
     }
 
     @Test
+    fun aPhotoMovedToAnotherAlbumIsNotBackedUpAgain() = runTest {
+        val index = MemoryBackupIndex()
+        val first = photo(1, "IMG_1.jpg", album = "Camera")
+        assertEquals(1, run(engine(index), listOf(first)).uploaded)
+        // Moved on the phone: same name, size and date, a different album.
+        val moved = first.copy(albumId = "holiday", albumName = "Holiday")
+        val again = run(engine(index), listOf(moved))
+        assertEquals(0, again.uploaded)
+        assertEquals(1, again.alreadyBackedUp)
+        assertTrue(drive.allFiles().none { it.contains("/albums/Holiday/") })
+    }
+
+    @Test
+    fun aFreshPhoneLinksTheOldBackupInsteadOfUploadingAgain() = runTest {
+        val items = listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg"))
+        assertEquals(2, run(engine(MemoryBackupIndex()), items).uploaded)
+        // A new phone (or a reset app) starts with an empty index and finds the manifests on the drive.
+        val fresh = MemoryBackupIndex()
+        val result = run(engine(fresh, device = "phone-0000002"), items)
+        assertEquals(0, result.uploaded)
+        assertEquals(2, result.alreadyBackedUp)
+        assertEquals(2, fresh.records.size)
+    }
+
+    @Test
     fun albumFoldersAreSafeNames() {
         assertEquals("Camera", BackupEngine.albumFolder("Camera"))
         assertEquals("WhatsApp_Images", BackupEngine.albumFolder("WhatsApp/Images"))
