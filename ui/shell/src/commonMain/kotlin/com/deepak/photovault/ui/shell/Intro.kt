@@ -94,53 +94,17 @@ enum class ChangeKind(val heading: String) { NEW("New"), CHANGED("Changed"), REM
 
 class Change(val kind: ChangeKind, val title: String, val body: String)
 
-/** What's new for the current build. Change [ID] and [items] with EVERY build, covering all four kinds. */
+/**
+ * What's new for the current build ONLY (rule from 28 Oct): list just what changed in this build, including fixes, under
+ * New, Changed, Removed and Fixed; leave a kind out when nothing fits it. Replace [items] and change [ID] with EVERY build;
+ * never carry old entries forward.
+ */
 object WhatsNew {
     const val ID = "2026-10-28-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Private backup", "Settings > Backup lets you choose Normal or Private. Private scrambles photos on your phone before they leave it, and you get 24 recovery words. Even the family owner can't open them."),
-        Change(ChangeKind.NEW, "Photos filter", "A cloud button in Photos shows both, only this phone, or only the drive. Prefer chips? Settings > Appearance > Photos filter as chips."),
-        Change(ChangeKind.NEW, "Recently deleted on the drive", "Settings > Storage > Drive has its own Recently deleted at the bottom."),
-        Change(ChangeKind.NEW, "Invite files and no-code invites", "An invite can skip the code, and an invite file opens in Pixallery from WhatsApp or Files. Joining away from home turns the VPN on by itself."),
-        Change(ChangeKind.NEW, "Photos from other apps", "A photo opened from another app shows Share, Save and Details."),
-        Change(ChangeKind.NEW, "More menu in the viewer", "The three dots at the top right of a photo hold Set as wallpaper (home screen, lock screen or both), Details and Move to Secured folder (not working yet)."),
-        Change(ChangeKind.NEW, "Move to another album", "Select photos inside an album and tap the album button to move them to another album, or to a new one."),
-        Change(ChangeKind.NEW, "App cache", "Tap App cache in Phone storage to see its size and clear it. Photos and backups are never deleted."),
-        Change(ChangeKind.NEW, "Charts with depth", "Storage rings now look like thick 3D rings. Turn them off in Settings > Appearance for flat rings."),
-        Change(ChangeKind.CHANGED, "Phone storage ring", "The ring shows Photos, Videos, App cache and Free."),
-        Change(ChangeKind.NEW, "Back to top button in albums", "Inside an album or Recently deleted, a round button in the middle at the bottom appears when you are not at the top. It hides while you scroll down and glides you back up when tapped. It uses your theme's colour so it is easy to read."),
         Change(ChangeKind.NEW, "Check the drive automatically", "Settings > Drive has a switch. On: the app checks the drive when it opens and once an hour while open. Off: only when you open Family, Backup or the drive, or pull down on Photos."),
-        Change(ChangeKind.NEW, "Dark and Light only", "Settings > Appearance has just two groups. Photo Light is in Light; Glow Night, Photo Night and Vivid Night are in Dark."),
-        Change(ChangeKind.NEW, "Select all", "While selecting in an album, Favourites, Family Album or Recently deleted, a Select all button sits beside the X. Tap it again to deselect all. Photos does not have it."),
-        Change(ChangeKind.NEW, "Set as wallpaper button", "The photo toolbar has a wallpaper button between Favourite and Delete. Swipe up on a photo for Details."),
-        Change(ChangeKind.NEW, "Move to Secured folder button", "When you select photos, a lock button sits between Favourite and Delete. It does nothing until the Secured folder arrives."),
-        Change(ChangeKind.CHANGED, "Photos", "Photos always shows one timeline: your phone's photos and the ones only on the drive. A photo in both places shows once."),
-        Change(ChangeKind.CHANGED, "Storage ring", "The 3D ring has clean, solid sides and no smudgy shadow. Parts touch with a thin line instead of a gap, and tiny parts like PNG and GIF always show as a small wedge (their real size is in the list)."),
         Change(ChangeKind.CHANGED, "Fewer drive checks", "The drive is no longer checked every minute. Coming back to the app does not read the whole photo list again; it is read after a backup, every three hours, or when you pull down. This lets a hard disk in the router sleep."),
-        Change(ChangeKind.CHANGED, "Back to top button", "Now blurry see-through glass in every theme, in the middle at the bottom."),
-        Change(ChangeKind.CHANGED, "Theme names", "Photo Glow is now Glow Night and Photo Vivid is now Vivid Night. Your saved theme stays."),
-        Change(ChangeKind.CHANGED, "Details button", "Details moved from the bottom bar of a photo to the three-dot menu."),
-        Change(ChangeKind.CHANGED, "Storage groups", "Storage now counts Photos (JPEG and HEIC), Videos (every video type), PNG and GIF, and you can sort by Type too."),
-        Change(ChangeKind.CHANGED, "Recently deleted", "Newest first, with a note that items go for good after 30 days."),
-        Change(ChangeKind.CHANGED, "Settings order", "Open with Pixallery, Send feedback and About always come last; the rest are A to Z."),
-        Change(ChangeKind.CHANGED, "App icon name", "The Four Seasons icon is now called Petals."),
-        Change(ChangeKind.REMOVED, "Flat charts", "The Charts with depth setting is gone; Storage rings always have depth."),
-        Change(ChangeKind.REMOVED, "Header test", "The temporary Header test row in About is gone."),
-        Change(ChangeKind.REMOVED, "Three-dot menu in the viewer", "Gone: wallpaper has its own button, Details opens by swiping up, and Secured folder moved to the selection bar."),
-        Change(ChangeKind.REMOVED, "Photos filter", "The cloud button, the filter chips and their setting in Appearance are gone."),
-        Change(ChangeKind.REMOVED, "Backup history", "The History card is gone from Backup."),
-        Change(ChangeKind.REMOVED, "Old Petals icons", "Phones that used them now show the new Petals icon."),
-        Change(ChangeKind.FIXED, "Holding a photo selected many", "A long-press now selects one photo; only swiping selects more."),
-        Change(ChangeKind.FIXED, "Back from Years and Months", "Back steps up one level at a time before the app closes."),
-        Change(ChangeKind.FIXED, "Places kept", "Albums keep their scroll place after you view a photo, and Storage stays on the Drive tab."),
-        Change(ChangeKind.FIXED, "Blurry thumbnails", "iPhone JPEGs no longer look blurry. Their sharp thumbnails are saved once (up to 300 MB), on the phone and for the drive."),
-        Change(ChangeKind.FIXED, "Scroll to top", "Tapping Photos while scrolled down now works like Samsung Gallery: from far down it jumps closer, scrolls up at a steady speed, then eases off earlier and earlier as the top gets close, so it settles at the top instead of hitting it."),
-        Change(ChangeKind.FIXED, "Pages keep their place", "Open something from the bottom of Storage, Backup, Albums, Settings and other pages, come back, and the page is where you left it instead of jumping to the top."),
-        Change(ChangeKind.FIXED, "Pale line under page titles", "The faint line under the top bar of pages is gone."),
-        Change(ChangeKind.FIXED, "Square shadow on Back to top", "The odd square shadow behind the button while scrolling is gone."),
-        Change(ChangeKind.FIXED, "Phone clock in the viewer", "The time and notification icons show while the toolbar shows (white on the black viewer), and hide with it."),
-        Change(ChangeKind.FIXED, "Private setup", "Restore my key appears when your key already exists, and the Switch to Normal pop-up buttons line up."),
     )
 }
 

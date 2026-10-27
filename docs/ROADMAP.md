@@ -68,7 +68,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **4A started and built (25 Oct, CI green, not device-tested):** core:crypto (Tink), choice screen, Private setup with 24 words, recovery file and public identity on the drive, restore on a new phone, optional recovery helper (key sealed to the helper, hand-back screen not built yet), Keystore storage, backup waits for a choice and does not upload for Private people until 4B. Also built: Share/Save only for photos opened from other apps; invites turn the VPN on when joining away from home.
 
 ## Rules for every build (set 26 Oct)
-- **What's new in every build:** every new build updates `WhatsNew` (Intro.kt) with four kinds: New, Changed, Removed, Fixed. Nothing ships without it, and each entry is one plain sentence. Change `WhatsNew.ID` so the list shows once.
+- **What's new in every build (updated 28 Oct):** every new build replaces `WhatsNew.items` (Intro.kt) with ONLY what changed in that build, including fixes, under New, Changed, Removed and Fixed (leave out a kind with nothing in it). Never carry entries from older builds. Nothing ships without it, and each entry is one plain sentence. Change `WhatsNew.ID` so the list shows once.
 - **Settings order:** Albums, Appearance, Backup, Drive, Remote access, Storage (A to Z); then always last, in this order: Open with Pixallery, Send feedback, About.
 - **Storage kinds:** Photos (JPEG, HEIC and other pictures), Videos (every video format), PNG, GIF. Sort by Name, Date, Size or Type wherever files are sorted.
 - **Photos filter (decided 26 Oct):** removed. Photos shows phone photos plus drive-only photos in one timeline; no button, chips or setting.
