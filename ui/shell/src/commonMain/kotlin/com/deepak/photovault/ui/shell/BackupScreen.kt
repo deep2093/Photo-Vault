@@ -288,6 +288,26 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
             }
         }
     }
+    // Your place in line (28 Oct): shown once when this phone has to wait behind another family phone.
+    var hideLine by remember { mutableStateOf(false) }
+    LaunchedEffect(backup.queuePlace) { if (backup.queuePlace == 0) hideLine = false }
+    if (backup.queuePlace >= 2 && !hideLine) {
+        GlassDialog(
+            title = "You're number ${backup.queuePlace} in line",
+            onDismiss = { hideLine = true },
+            buttons = {
+                GlassButton("Leave the line", onClick = { backup.stop(); hideLine = true })
+                GlassButton("Keep my place", primary = true, onClick = { hideLine = true })
+            },
+        ) {
+            Text(
+                (backup.waitingFor?.let { "$it is backing up now. " } ?: "") +
+                    "Only one phone backs up at a time so the drive and your internet stay quick. Yours starts by itself when it's your turn; you can close the app.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
     GlassCard(Modifier.cardWidth()) {
         val p = backup.progress
         when {
@@ -296,7 +316,7 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
                     Column(Modifier.weight(1f)) {
                         Text("Backing up", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
-                            backup.waitingFor?.let { "Waiting for $it to finish its backup" }
+                            backup.waitingFor?.let { "Number ${backup.queuePlace.coerceAtLeast(1)} in line · waiting for $it" }
                                 ?: if (p == null || p.total == 0) "Getting ready..." else "${p.done} of ${p.total}" + (p.current?.let { " · $it" } ?: ""),
                             color = theme.onGlassSecondary,
                             style = MaterialTheme.typography.bodySmall,

@@ -70,4 +70,52 @@ class CoordinationTest {
         assertEquals(1, seen.size)
         assertEquals(4, seen.single().schedule.hour)
     }
+
+    @Test
+    fun phonesWaitInTheOrderTheyAskedAndEachKnowsItsPlace() = runTest {
+        val drive = MemoryDrive()
+        var clock = NOW
+        val a = BackupCoordinator(drive, "deepak", "s26", "Galaxy S26", { clock })
+        val b = BackupCoordinator(drive, "sam", "pixel", "Pixel 9", { clock })
+        val c = BackupCoordinator(drive, "mum", "iphone", "Mum's phone", { clock })
+        val everyone = listOf("deepak", "sam", "mum")
+        a.joinQueue()
+        assertTrue(a.tryStart(everyone))
+        a.leaveQueue()
+        clock += 1000
+        b.joinQueue()
+        clock += 1000
+        c.joinQueue()
+        // A is backing up: B is number 2, C is number 3.
+        assertFalse(b.tryStart(everyone))
+        assertFalse(c.tryStart(everyone))
+        assertEquals(2, b.place(everyone))
+        assertEquals(3, c.place(everyone))
+        a.finish()
+        // C can't jump the line even though the drive is free.
+        assertFalse(c.tryStart(everyone))
+        assertEquals(2, c.place(everyone))
+        assertTrue(b.tryStart(everyone))
+        b.leaveQueue()
+        b.finish()
+        assertEquals(1, c.place(everyone))
+        assertTrue(c.tryStart(everyone))
+    }
+
+    @Test
+    fun aPhoneThatGaveUpWaitingNoLongerHoldsUpTheLine() = runTest {
+        val drive = MemoryDrive()
+        var clock = NOW
+        val b = BackupCoordinator(drive, "sam", "pixel", "Pixel 9", { clock })
+        val c = BackupCoordinator(drive, "mum", "iphone", "Mum's phone", { clock })
+        val everyone = listOf("sam", "mum")
+        b.joinQueue()
+        clock += 1000
+        c.joinQueue()
+        assertFalse(c.tryStart(everyone))
+        // Sam's phone goes quiet (switched off): after a few minutes it is out of the line.
+        clock += BackupCoordinator.STALE_MS + 1
+        c.refreshTicket()
+        assertTrue(c.tryStart(everyone))
+    }
 }

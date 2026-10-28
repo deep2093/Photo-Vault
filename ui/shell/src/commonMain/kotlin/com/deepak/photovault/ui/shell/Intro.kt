@@ -100,12 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-28-4"
+    const val ID = "2026-10-28-5"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Previews on the drive", "Each new backup saves a small preview beside the photo, so photos that are only on the drive show up in the grid much faster."),
-        Change(ChangeKind.NEW, "Previews for older backups", "Photos you backed up earlier get their preview the next time a backup runs, if they are still on this phone."),
-        Change(ChangeKind.FIXED, "Sharper previews", "Photo previews are made from the picture itself, so iPhone photos no longer look blurry in the backup."),
+        Change(ChangeKind.NEW, "Glass Light and Glass Night", "Two new glassmorphism themes in Settings > Appearance: colour glowing through frosted glass, with a bright edge."),
+        Change(ChangeKind.NEW, "Your place in line", "If another family phone is backing up, a pop-up says \"You're number N in line\". Phones go in the order they asked, and yours starts by itself."),
+        Change(ChangeKind.NEW, "Select all in Search", "Search results now have a Select all button beside the X while you are selecting."),
     )
 }
 

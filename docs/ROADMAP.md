@@ -92,6 +92,12 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 5. Themes (27 Oct): put Photo Glow, Photo Night and Photo Vivid in the Dark section and Photo Light in the Light section; the separate Photo section goes away. Rename them clearly (proposal, to confirm: Photo Light stays; Photo Glow becomes Glow Night; Photo Vivid becomes Vivid Night; Photo Night stays). Anyone with a saved theme keeps it.
 6. Select all (27 Oct): add it to Search results and the Storage file lists.
 
+## 6B split in two (28 Oct)
+**6B-1 (built 28 Oct):** pages keep their scroll place; moved and linked photos (already worked, tests added); fewer drive checks; drive previews; **Glassmorphism themes (Glass Light, Glass Night)**; **Backup now queue ("you're number N", family phones take turns in the order they asked)**; **Select all in Search** (Storage file lists already had it).
+**6B-2 (next):** Free up space (setting page, Off, days, per-file re-verify, phone Recently deleted first, consent by Media management permission or Android's pop-up, warnings, link to Android's permission screen).
+
+**Glassmorphism recipe used (28 Oct research):** colour for the glass to blur (big bright glows); strong blur (about 28 dp; 10-20 px on the web, more for big panels); fine grain; a coloured tint that stays at 0.70 for readable text over any photo; a bright 1-1.5 dp edge; soft diffuse shadow; glass only on bars and panels, never over long lists of text. Not done: a "saturation boost" behind the glass (Haze 1.6.1 has no setting for it); revisit if a newer blur library is adopted.
+
 ## 6B decisions (28 Oct, Deepak's answers)
 - **Backup now queue: yes.** Pop-up shows your place in line; backups run one after another.
 - **Linking old backups after a reset: yes, automatically.** Photos that match the drive are marked backed up; nothing uploads twice.

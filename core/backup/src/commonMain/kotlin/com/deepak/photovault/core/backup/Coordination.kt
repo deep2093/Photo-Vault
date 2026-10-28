@@ -23,6 +23,33 @@ data class BackupLease(
     val heartbeatAtMillis: Long,
 )
 
+/**
+ * "I'm waiting for my turn" (28 Oct, Backup now queue): a phone that wants to back up while another is busy writes
+ * this in users/<id>/queue/ and refreshes it while it waits. Phones go in the order they asked, so the line is fair
+ * and each phone can show "you're number N". Older than [BackupCoordinator.STALE_MS] means that phone gave up.
+ */
+@Serializable
+data class QueueTicket(
+    val deviceId: String,
+    val deviceName: String,
+    val userId: String,
+    val requestedAtMillis: Long,
+    val heartbeatAtMillis: Long,
+)
+
+/** The line for the drive. Pure maths, tested. */
+object QueueOrder {
+    /** Waiting phones that asked before [me] (same moment: the smaller device ID goes first). Ignores [me] and stale tickets. */
+    fun waitingAhead(me: QueueTicket, all: List<QueueTicket>, now: Long): List<QueueTicket> =
+        all.filter {
+            it.deviceId != me.deviceId && now - it.heartbeatAtMillis < BackupCoordinator.STALE_MS &&
+                (it.requestedAtMillis < me.requestedAtMillis || (it.requestedAtMillis == me.requestedAtMillis && it.deviceId < me.deviceId))
+        }
+
+    /** 1 means "you're next" (nobody running, nobody ahead); 2 means one phone is ahead, and so on. */
+    fun place(running: Int, waitingAhead: Int): Int = 1 + running + waitingAhead
+}
+
 /** A phone's backup time, published so the others can pick a different hour (users/<id>/schedules/). */
 @Serializable
 data class PublishedSchedule(
@@ -96,6 +123,8 @@ class BackupCoordinator(
 ) {
     private val leasePath = DrivePaths.join(HouseholdStore.userFolder(userId), ACTIVE, "$deviceId.json")
     private var startedAt = 0L
+    private val ticketPath = DrivePaths.join(HouseholdStore.userFolder(userId), QUEUE, "$deviceId.json")
+    private var ticket: QueueTicket? = null
 
     /** Someone else's backup running now, if any. */
     suspend fun othersRunning(userIds: List<String>): List<BackupLease> =
@@ -107,6 +136,8 @@ class BackupCoordinator(
      */
     suspend fun tryStart(userIds: List<String>): Boolean {
         if (othersRunning(userIds).isNotEmpty()) return false
+        // A phone that joined the line waits for the phones that asked before it.
+        if (ticket != null && waitingAhead(userIds).isNotEmpty()) return false
         startedAt = now()
         write(startedAt)
         val rivals = othersRunning(userIds)
@@ -116,6 +147,40 @@ class BackupCoordinator(
         }
         return true
     }
+
+    /** Gets in line (and keeps the place while it waits: call [refreshTicket] on every wait step). */
+    suspend fun joinQueue() {
+        val t = QueueTicket(deviceId, deviceName, userId, now(), now())
+        ticket = t
+        runCatching { writeTicket(t) }
+    }
+
+    suspend fun refreshTicket() {
+        val t = ticket ?: return
+        val fresh = t.copy(heartbeatAtMillis = now())
+        ticket = fresh
+        runCatching { writeTicket(fresh) }
+    }
+
+    suspend fun leaveQueue() {
+        ticket = null
+        try {
+            drive.delete(ticketPath)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Waiting phones in front of this one. */
+    suspend fun waitingAhead(userIds: List<String>): List<QueueTicket> {
+        val me = ticket ?: return emptyList()
+        return QueueOrder.waitingAhead(me, tickets(userIds), now())
+    }
+
+    /** This phone's place in line: 1 = next. */
+    suspend fun place(userIds: List<String>): Int =
+        QueueOrder.place(othersRunning(userIds).size, waitingAhead(userIds).size)
 
     /** "Still working" (call about once a minute while backing up). */
     suspend fun heartbeat() {
@@ -157,6 +222,15 @@ class BackupCoordinator(
         readAll(DrivePaths.join(HouseholdStore.userFolder(id), ACTIVE)) { BackupEngine.json.decodeFromString(BackupLease.serializer(), it) }
     }
 
+    private suspend fun tickets(userIds: List<String>): List<QueueTicket> = userIds.flatMap { id ->
+        readAll(DrivePaths.join(HouseholdStore.userFolder(id), QUEUE)) { BackupEngine.json.decodeFromString(QueueTicket.serializer(), it) }
+    }
+
+    private suspend fun writeTicket(t: QueueTicket) {
+        drive.mkdirs(DrivePaths.join(HouseholdStore.userFolder(userId), QUEUE))
+        replace(ticketPath, BackupEngine.json.encodeToString(QueueTicket.serializer(), t).encodeToByteArray())
+    }
+
     private suspend fun write(started: Long) {
         drive.mkdirs(DrivePaths.join(HouseholdStore.userFolder(userId), ACTIVE))
         val bytes = BackupEngine.json.encodeToString(
@@ -189,6 +263,7 @@ class BackupCoordinator(
     companion object {
         const val ACTIVE = "active"
         const val SCHEDULES = "schedules"
+        const val QUEUE = "queue"
 
         /** A turn not refreshed for this long is treated as over. */
         const val STALE_MS = 3 * 60_000L

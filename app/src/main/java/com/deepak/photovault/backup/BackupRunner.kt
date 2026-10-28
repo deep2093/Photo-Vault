@@ -172,15 +172,23 @@ class BackupRunner(
             val everyone = joined.household.members.map { it.userId }
             val turn = BackupCoordinator(fs, joined.me.userId, platform.deviceId, platform.deviceName, System::currentTimeMillis)
             val giveUpAt = System.currentTimeMillis() + MAX_WAIT_MS
-            while (!runCatching { turn.tryStart(everyone) }.getOrDefault(true)) {
-                state.waitingFor = runCatching { turn.othersRunning(everyone).firstOrNull()?.deviceName }.getOrNull() ?: "another phone"
-                if (System.currentTimeMillis() > giveUpAt) {
-                    state.waitingFor = null
-                    return failed(FailureReason.BUSY)
+            // The line (28 Oct): phones go in the order they asked, and each one shows its place.
+            runCatching { turn.joinQueue() }
+            try {
+                while (!runCatching { turn.tryStart(everyone) }.getOrDefault(true)) {
+                    runCatching { turn.refreshTicket() }
+                    state.waitingFor = runCatching { turn.othersRunning(everyone).firstOrNull()?.deviceName }.getOrNull() ?: "another phone"
+                    state.queuePlace = runCatching { turn.place(everyone) }.getOrDefault(0)
+                    if (System.currentTimeMillis() > giveUpAt) {
+                        return failed(FailureReason.BUSY)
+                    }
+                    delay(WAIT_STEP_MS)
                 }
-                delay(WAIT_STEP_MS)
+            } finally {
+                state.waitingFor = null
+                state.queuePlace = 0
+                withContext(NonCancellable) { turn.leaveQueue() }
             }
-            state.waitingFor = null
             return try {
                 coroutineScope {
                     val beat = launch {

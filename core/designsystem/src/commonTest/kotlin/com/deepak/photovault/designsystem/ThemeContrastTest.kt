@@ -73,8 +73,8 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light", "Photo Light"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night", "Glow Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light", "Glass Light", "Photo Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night", "Glass Night", "Glow Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.lightThemes.none { it.isDark })
         assertTrue(GlassThemes.darkThemes.all { it.isDark })
@@ -88,7 +88,7 @@ class ThemeCatalogTest {
         assertEquals(
             listOf(
                 GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.AURORA_GLASS_DARK, GlassThemeId.CRYSTAL_GLASS_DARK,
-                GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
+                GlassThemeId.GLASS_NIGHT, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
             ),
             GlassThemes.all.filter { it.isDark }.map { it.id },
         )
@@ -214,5 +214,15 @@ class AdaptivePaletteTest {
                 assertTrue(ratio >= Contrast.TEXT, "${theme.displayName}: text on wallpaper $ratio")
             }
         }
+    }
+
+    @Test
+    fun glassmorphismThemesAreAPairWithABrightFullEdgeAndStrongBlur() {
+        val pair = listOf(GlassThemes.GlassLight, GlassThemes.GlassNight)
+        assertEquals(listOf(false, true), pair.map { it.isDark })
+        assertTrue(pair.none { it == GlassThemes.default })
+        assertTrue(pair.all { it.blurRadius.value >= 28f && it.rimWidth.value > 1f && it.rimStrength > 1f })
+        assertTrue(pair.all { it.glows.size >= 4 })
+        assertEquals(GlassThemes.GlassNight, GlassThemes.byId("GLASS_NIGHT"))
     }
 }

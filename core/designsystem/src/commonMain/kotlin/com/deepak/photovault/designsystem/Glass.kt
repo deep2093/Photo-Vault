@@ -73,10 +73,12 @@ internal fun DrawScope.drawWallpaper(theme: GlassTheme) {
 /** A fine specular rim: bright at the top-left, fading, with a softer glint at the bottom-right. */
 @Composable
 fun Modifier.glassRim(shape: Shape): Modifier {
-    val rim = LocalGlassTheme.current.glassRim
+    val theme = LocalGlassTheme.current
+    val rim = theme.glassRim
+    val k = theme.rimStrength
     return border(
-        1.dp,
-        Brush.linearGradient(listOf(rim.copy(alpha = 0.7f), rim.copy(alpha = 0.12f), rim.copy(alpha = 0.4f))),
+        theme.rimWidth,
+        Brush.linearGradient(listOf(rim.copy(alpha = (0.7f * k).coerceAtMost(1f)), rim.copy(alpha = 0.12f * k), rim.copy(alpha = (0.4f * k).coerceAtMost(1f)))),
         shape,
     )
 }

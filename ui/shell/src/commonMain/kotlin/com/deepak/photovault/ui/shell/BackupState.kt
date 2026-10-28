@@ -92,6 +92,9 @@ class BackupState(private val platform: BackupPlatform) {
     /** Waiting for another family phone's backup to finish (24 Oct): that phone's name. */
     var waitingFor by mutableStateOf<String?>(null)
 
+    /** Place in line behind other family phones (28 Oct): 0 = not waiting, 2 = one phone ahead, and so on. */
+    var queuePlace by mutableStateOf(0)
+
     /** A short line about the last restore, shown on the Backup screen. */
     var restoreMessage by mutableStateOf<String?>(null)
 

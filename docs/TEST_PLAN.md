@@ -414,3 +414,9 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 2. Photos only on the drive (not on this phone) show their grid picture quickly, without the whole photo downloading first. Open one: the full photo still loads.
 3. Photos backed up before this build: run Backup now once while they are still on the phone; the thumbs folder fills (up to 150 per run) and a .previews-done file appears when finished. Photos already deleted from the phone get none and load as before.
 4. Private (encrypted) backups are unchanged.
+
+## Round 28 (28 Oct): Glass themes, your place in line, Select all in Search
+1. Settings > Appearance: Glass Light (Light section) and Glass Night (Dark section). Pick each: colourful glows behind the screens, bars and buttons are frosted with a bright 1.5 dp edge. Text is readable on bright and dark photos under the bars. Turn blur off: glass becomes solid and still readable.
+2. Two phones (or a phone and a family member's phone): start a backup on phone A, then tap Back up now on phone B. B shows "You're number 2 in line" with Leave the line / Keep my place. Add phone C: it shows number 3. When A finishes, B starts, then C. Leave the line on one: it drops out and the others move up.
+3. Close the app on a waiting phone: it still starts by itself when its turn comes (up to about 20 minutes of waiting; after that it tries again 30 minutes later).
+4. Search: type something, long-press a photo, Select all and Deselect all work next to the X. (Storage file lists already had Select all.)
