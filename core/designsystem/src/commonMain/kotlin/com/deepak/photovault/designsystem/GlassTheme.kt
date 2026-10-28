@@ -349,7 +349,7 @@ object GlassThemes {
 
     /**
      * Glassmorphism (28 Oct), from the usual recipe: colour for the glass to blur (big bright glows on the wallpaper),
-     * strong blur, fine grain, a coloured (not grey) tint and a bright 1.5 dp edge. The tint stays at 0.70 so text
+     * strong blur (24 dp: past about 20 it gets heavy for the GPU), fine grain, a coloured (not grey) tint and a bright 1.5 dp edge (a soft violet one in the dark theme, not pure white). The tint stays at 0.70 so text
      * passes the contrast tests over any photo.
      */
     val GlassLight = GlassTheme(
@@ -376,7 +376,7 @@ object GlassThemes {
         badgeOnDrive = Color(0xFF4A1FC4),
         onBadge = Color(0xFFFFFFFF),
         sampleHues = listOf(Color(0xFFFF9CC8), Color(0xFF8FE3FF), Color(0xFFB69CFF), Color(0xFFFFD98A), Color(0xFF9CF0D0)),
-        blurRadius = 28.dp,
+        blurRadius = 24.dp,
         grain = 0.05f,
         rimWidth = 1.5.dp,
         rimStrength = 1.2f,
@@ -396,7 +396,7 @@ object GlassThemes {
         ),
         glassTint = Color(0xB31B124A),
         glassFallback = Color(0xF21A1240),
-        glassRim = Color(0xFFFFFFFF),
+        glassRim = Color(0xFFC3B5FF),
         onGlass = Color(0xFFFFFFFF),
         onGlassSecondary = Color(0xFFE2DCFF),
         accent = Color(0xFF7CF2FF),
@@ -406,7 +406,7 @@ object GlassThemes {
         badgeOnDrive = Color(0xFF4B3AA8),
         onBadge = Color(0xFFFFFFFF),
         sampleHues = listOf(Color(0xFFB0247A), Color(0xFF0A7FA6), Color(0xFF5A3FD0), Color(0xFFB07A10), Color(0xFF138A6A)),
-        blurRadius = 28.dp,
+        blurRadius = 24.dp,
         grain = 0.05f,
         rimWidth = 1.5.dp,
         rimStrength = 1.2f,

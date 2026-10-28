@@ -221,7 +221,7 @@ class AdaptivePaletteTest {
         val pair = listOf(GlassThemes.GlassLight, GlassThemes.GlassNight)
         assertEquals(listOf(false, true), pair.map { it.isDark })
         assertTrue(pair.none { it == GlassThemes.default })
-        assertTrue(pair.all { it.blurRadius.value >= 28f && it.rimWidth.value > 1f && it.rimStrength > 1f })
+        assertTrue(pair.all { it.blurRadius.value >= 24f && it.rimWidth.value > 1f && it.rimStrength > 1f })
         assertTrue(pair.all { it.glows.size >= 4 })
         assertEquals(GlassThemes.GlassNight, GlassThemes.byId("GLASS_NIGHT"))
     }
