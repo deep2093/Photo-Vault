@@ -313,7 +313,6 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     SelectableScreen(
         title = "Search",
         selectAllItems = results,
-        selectAllItems = results,
         subtitle = if (query.isBlank()) "Try \"videos\", \"october\", \"2025\" or an album" else "${results.size} found",
         state = state,
         gallery = gallery,
