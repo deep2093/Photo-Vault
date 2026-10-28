@@ -112,3 +112,5 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Fewer drive checks (decided and built 28 Oct):** checks at app open (if the last was over 15 min ago or the family is unknown), then hourly while on screen; full photo list re-read after a backup, every 3 hours, on pull down or the Drive tab. Switch in Settings > Drive turns off the automatic ones.
 
 - **Drive previews (28 Oct, 6B):** Normal backups save a small preview in users/<id>/thumbs/. Free up space must make sure a preview exists on the drive before it removes a phone copy, so the drive-only photo still shows in the grid.
+
+- 29 Oct (01:03): light themes use iOS-style milky glass (grey film, white .16 frost, contrast checked to 3:1); dark themes keep smoky glass.

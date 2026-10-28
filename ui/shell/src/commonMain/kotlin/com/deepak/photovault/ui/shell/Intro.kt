@@ -100,12 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-29-2"
+    const val ID = "2026-10-29-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Clear glass, no colour tint", "Bars, cards, album folders and buttons are now see-through smoky glass in every theme, not a solid navy or colour. Only the background differs between themes."),
-        Change(ChangeKind.CHANGED, "Pale backgrounds are harder to read", "With the pale-background experiment on, white text on its smoky glass is not as sharp as on the deep backgrounds. Tell us which look to keep."),
-        Change(ChangeKind.FIXED, "Deeper backgrounds", "Warm, Luminous, Liquid Day and Vivid backgrounds are a little deeper so white text reads everywhere."),
+        Change(ChangeKind.CHANGED, "iPhone-style milky glass on light themes", "Bars, cards, album folders and the selected tab on the six light themes are now lighter, greyer frosted glass like iOS Photos. Dark themes keep the deeper smoky glass."),
+        Change(ChangeKind.CHANGED, "White text is a little softer on light themes", "The lighter glass lets more of the photo through, so white text is less sharp over very bright pictures."),
     )
 }
 

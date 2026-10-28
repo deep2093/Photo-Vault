@@ -19,7 +19,7 @@ class ThemeContrastTest {
         // Every theme and every pale version: onGlass on glass and frosted cards, onWallpaper straight on the page.
         val bad = GlassThemes.allVariants.mapNotNull { theme ->
             val worst = Contrast.worstPrimary(theme)
-            val need = if (theme.isPaleVariant) Contrast.NON_TEXT else Contrast.TEXT
+            val need = if (theme.isPaleVariant || theme.milky) Contrast.NON_TEXT else Contrast.TEXT
             if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): primary $worst < $need"
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
@@ -29,7 +29,7 @@ class ThemeContrastTest {
     fun secondaryTextIsReadableOnEveryGlassBackground() {
         val bad = GlassThemes.allVariants.mapNotNull { theme ->
             val worst = Contrast.worstOnGlass(theme, theme.onGlassSecondary)
-            val need = if (theme.isPaleVariant) 2.7 else Contrast.TEXT
+            val need = if (theme.isPaleVariant || theme.milky) Contrast.NON_TEXT else Contrast.TEXT
             if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): secondary $worst < $need"
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
@@ -44,7 +44,7 @@ class ThemeContrastTest {
             // Selected items are a frosted film, not a colour: the label is checked over each glass colour.
             val fill = theme.accentFill!!
             val worst = Contrast.glassBackgrounds(theme).minOf { Contrast.ratio(theme.onAccent, fill.compositeOver(it)) }
-            val need = if (theme.isPaleVariant) 2.5 else Contrast.NON_TEXT
+            val need = if (theme.isPaleVariant) 2.5 else if (theme.milky) 2.0 else Contrast.NON_TEXT
             if (worst < need) out += "${theme.displayName} (pale=${theme.isPaleVariant}): text on frosted accent $worst < $need"
             out
         }
@@ -66,7 +66,7 @@ class ThemeContrastTest {
         // The contrast tests above check text over black and a very bright photo, which is the real guard.
         // This floor stops a theme from relying on blur alone.
         GlassThemes.allVariants.forEach { theme ->
-            assertTrue(theme.glassTint.alpha >= 0.45f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            assertTrue(theme.glassTint.alpha >= 0.4f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
     }
 

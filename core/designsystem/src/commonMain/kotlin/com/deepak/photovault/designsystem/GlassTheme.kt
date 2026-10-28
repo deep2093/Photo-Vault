@@ -74,6 +74,8 @@ data class GlassTheme(
     val onWallpaper: Color = onGlass,
     /** The pale-background version of a light theme (experiment, 29 Oct): same id, pale wallpaper, dark text on it, white text on glass. */
     val pale: GlassTheme? = null,
+    /** iOS-style milky glass (light themes): a lighter, greyer film over a stronger blur. White text is only checked to 3:1 here. */
+    val milky: Boolean = false,
 ) {
     /** The pale-background version: white text on a pale page can only reach 3:1 on its glass cards, so tests allow that for it. */
     val isPaleVariant: Boolean get() = onWallpaper != onGlass
@@ -84,6 +86,7 @@ val GlassTheme.accentSurface: Color get() = accentFill ?: accent
 
 object GlassThemes {
     private val White = Color(0xFFFFFFFF)
+    private val lightIds = setOf(GlassThemeId.PEARL_MIST, GlassThemeId.OCEAN_GLASS, GlassThemeId.AURORA_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.LIQUID_DAY, GlassThemeId.ADAPTIVE_LIGHT)
 
     /**
      * The one glass look (29 Oct), shared by every theme: clear see-through bars with a little frost and depth, frosted
@@ -103,6 +106,7 @@ object GlassThemes {
         secondary: Long = 0xFFFFFFFF,
         adaptive: AdaptiveStyle? = null,
         blur: Dp = 12.dp,
+        milky: Boolean = id in lightIds,
     ) = GlassTheme(
         id = id,
         displayName = name,
@@ -110,15 +114,15 @@ object GlassThemes {
         isDark = true,
         wallpaper = wallpaper.map { Color(it) },
         glows = glows,
-        glassTint = Color(0x730C0D10),
-        glassFallback = Color(0xE61A1C22),
+        glassTint = if (milky) Color(0x7A5E6570) else Color(0x730C0D10),
+        glassFallback = if (milky) Color(0xE6505660) else Color(0xE61A1C22),
         glassRim = Color(rim),
         onGlass = White,
         onGlassSecondary = Color(secondary),
         accent = White,
         onAccent = White,
-        accentFill = Color(0x33FFFFFF),
-        panelFill = Color(0x1AFFFFFF),
+        accentFill = Color(if (milky) 0x3DFFFFFF else 0x33FFFFFF),
+        panelFill = Color(if (milky) 0x29FFFFFF else 0x1AFFFFFF),
         badgeBackedUp = Color(0xFF1B6E45),
         badgePhoneOnly = Color(0xFF8A4B00),
         badgeOnDrive = Color(onDrive),
@@ -126,6 +130,7 @@ object GlassThemes {
         sampleHues = hues.map { Color(it) },
         adaptive = adaptive,
         blurRadius = blur,
+        milky = milky,
         grain = 0f,
         rimStrength = 1.1f,
     )
@@ -140,9 +145,11 @@ object GlassThemes {
             wallpaper = wallpaper.map { Color(it) },
             glows = glows,
             onWallpaper = Color(ink),
-            glassTint = deep.glassTint.copy(alpha = 0.55f),
-            glassFallback = deep.glassFallback.copy(alpha = 0.92f),
+            glassTint = Color(0x8C0C0D10),
+            glassFallback = Color(0xEB1A1C22),
             panelFill = Color(0x99101216),
+            accentFill = Color(0x33FFFFFF),
+            milky = false,
             adaptive = adaptive,
             pale = null,
         )
