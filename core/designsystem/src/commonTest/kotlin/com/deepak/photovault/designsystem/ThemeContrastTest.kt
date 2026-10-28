@@ -17,32 +17,38 @@ class ThemeContrastTest {
     @Test
     fun primaryTextIsReadableOnEveryGlassBackground() {
         // Every theme and every pale version: onGlass on glass and frosted cards, onWallpaper straight on the page.
-        GlassThemes.allVariants.forEach { theme ->
+        val bad = GlassThemes.allVariants.mapNotNull { theme ->
             val worst = Contrast.worstPrimary(theme)
             val need = if (theme.isPaleVariant) Contrast.NON_TEXT else Contrast.TEXT
-            assertTrue(worst >= need, "${theme.displayName} (pale=${theme.isPaleVariant}): primary text contrast $worst")
+            if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): primary $worst < $need"
         }
+        assertTrue(bad.isEmpty(), bad.joinToString("; "))
     }
 
     @Test
     fun secondaryTextIsReadableOnEveryGlassBackground() {
-        GlassThemes.allVariants.forEach { theme ->
+        val bad = GlassThemes.allVariants.mapNotNull { theme ->
             val worst = Contrast.worstOnGlass(theme, theme.onGlassSecondary)
             val need = if (theme.isPaleVariant) 2.7 else Contrast.TEXT
-            assertTrue(worst >= need, "${theme.displayName}: secondary text contrast $worst")
+            if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): secondary $worst < $need"
         }
+        assertTrue(bad.isEmpty(), bad.joinToString("; "))
     }
 
     @Test
     fun accentIsVisibleOnGlassAndItsTextIsReadable() {
-        GlassThemes.allVariants.forEach { theme ->
+        val bad = GlassThemes.allVariants.flatMap { theme ->
+            val out = mutableListOf<String>()
             val onGlass = Contrast.worstOnGlass(theme, theme.accent)
-            assertTrue(onGlass >= Contrast.NON_TEXT, "${theme.displayName}: accent on glass $onGlass")
+            if (onGlass < Contrast.NON_TEXT) out += "${theme.displayName} (pale=${theme.isPaleVariant}): accent on glass $onGlass"
             // Selected items are a frosted film, not a colour: the label is checked over each glass colour.
             val fill = theme.accentFill!!
             val worst = Contrast.glassBackgrounds(theme).minOf { Contrast.ratio(theme.onAccent, fill.compositeOver(it)) }
-            assertTrue(worst >= if (theme.isPaleVariant) 2.5 else Contrast.NON_TEXT, "${theme.displayName}: text on frosted accent $worst")
+            val need = if (theme.isPaleVariant) 2.5 else Contrast.NON_TEXT
+            if (worst < need) out += "${theme.displayName} (pale=${theme.isPaleVariant}): text on frosted accent $worst < $need"
+            out
         }
+        assertTrue(bad.isEmpty(), bad.joinToString("; "))
     }
 
     @Test

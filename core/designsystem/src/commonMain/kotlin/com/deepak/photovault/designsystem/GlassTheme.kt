@@ -142,7 +142,7 @@ object GlassThemes {
             onWallpaper = Color(ink),
             glassTint = deep.glassTint.copy(alpha = 0.55f),
             glassFallback = deep.glassFallback.copy(alpha = 0.92f),
-            panelFill = Color(0x1AFFFFFF),
+            panelFill = Color(0x99101216),
             adaptive = adaptive,
             pale = null,
         )
@@ -249,7 +249,6 @@ object GlassThemes {
         glows = listOf(Glow(0.5f, 0.15f, 0.8f, Color(0x2640608F)), Glow(0.15f, 0.9f, 0.7f, Color(0x1F8F5A40))),
         rim = 0xFFFFFFFF, onDrive = 0xFF3F5A8A,
         hues = listOf(0xFF3A3F45, 0xFF4F565D, 0xFF2A2E33, 0xFF62696F, 0xFF454B52),
-        secondary = 0xFFE6E8EE,
     )
 
     /** Night sky: nearly black, with one soft light of your photos' colour at the top. */
