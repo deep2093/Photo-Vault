@@ -100,7 +100,7 @@ object GlassThemes {
         rim: Long,
         onDrive: Long,
         hues: List<Long>,
-        secondary: Long = 0xFFFAFBFF,
+        secondary: Long = 0xFFFFFFFF,
         adaptive: AdaptiveStyle? = null,
         blur: Dp = 12.dp,
     ) = GlassTheme(
