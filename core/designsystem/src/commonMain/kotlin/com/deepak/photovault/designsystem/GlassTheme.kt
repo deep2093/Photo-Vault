@@ -200,7 +200,7 @@ object GlassThemes {
 
     val LiquidDay: GlassTheme = glass(
         GlassThemeId.LIQUID_DAY, "Liquid Day", "Clear glass over a bright blue sky, white text",
-        wallpaper = listOf(0xFF173A66, 0xFF215088, 0xFF2A5F9C),
+        wallpaper = listOf(0xFF102F58, 0xFF1A4476, 0xFF225384),
         glows = listOf(Glow(0.85f, 0.08f, 0.8f, Color(0x80FFD9A0)), Glow(0.1f, 0.6f, 0.8f, Color(0x6659C8FF)), Glow(0.7f, 0.95f, 0.7f, Color(0x55A98CFF))),
         rim = 0xFFFFFFFF, onDrive = 0xFF3F5A8A,
         hues = listOf(0xFF4F83BF, 0xFF6FA3D9, 0xFF3A6EA5, 0xFF8CB4E0, 0xFF5A8FCF),
@@ -274,7 +274,7 @@ object GlassThemes {
         rim = 0xFFB08AA6, onDrive = 0xFF8A2A6E,
         hues = listOf(0xFFE07A5F, 0xFF3D9970, 0xFF6A4C93, 0xFFF2B134, 0xFF1982C4),
         adaptive = AdaptiveStyle(
-            listOf(0.46f, 0.38f, 0.30f), 0.85f, 1.0f, glow = 0.5f, scrim = 0.40f,
+            listOf(0.46f, 0.38f, 0.30f), 0.85f, 1.0f, glow = 0.5f, scrim = 0.48f,
             fallback = listOf(Color(0xFF7A2C6C), Color(0xFF1F5F86), Color(0xFF4A1E50)),
             layout = WallpaperLayout.DIAGONAL,
         ),

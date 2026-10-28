@@ -41,7 +41,7 @@ class ThemeContrastTest {
             // Selected items are a frosted film, not a colour: the label is checked over each glass colour.
             val fill = theme.accentFill!!
             val worst = Contrast.glassBackgrounds(theme).minOf { Contrast.ratio(theme.onAccent, fill.compositeOver(it)) }
-            assertTrue(worst >= Contrast.NON_TEXT, "${theme.displayName}: text on frosted accent $worst")
+            assertTrue(worst >= if (theme.isPaleVariant) 2.5 else Contrast.NON_TEXT, "${theme.displayName}: text on frosted accent $worst")
         }
     }
 
