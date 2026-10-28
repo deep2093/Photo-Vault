@@ -78,7 +78,7 @@ data class GlassTheme(
     val milky: Boolean = false,
 ) {
     /** The pale-background version: white text on a pale page can only reach 3:1 on its glass cards, so tests allow that for it. */
-    val isPaleVariant: Boolean get() = onWallpaper != onGlass
+    val isPaleVariant: Boolean get() = !isDark
 }
 
 /** What a selected pill, button or tick is filled with: the frosted film where the theme has one, else the accent. */
@@ -137,7 +137,7 @@ object GlassThemes {
 
     /**
      * The pale-background version of a light theme (experiment, 29 Oct, shown with a switch in About): the old pale
-     * wallpaper, dark text where text sits straight on it, and the same white text on smoky glass.
+     * wallpaper with dark text, and clear glass with no colour behind it.
      */
     private fun pale(deep: GlassTheme, wallpaper: List<Long>, glows: List<Glow>, ink: Long, adaptive: AdaptiveStyle? = null): GlassTheme =
         deep.copy(
@@ -145,10 +145,15 @@ object GlassThemes {
             wallpaper = wallpaper.map { Color(it) },
             glows = glows,
             onWallpaper = Color(ink),
-            glassTint = Color(0x8C0C0D10),
-            glassFallback = Color(0xEB1A1C22),
-            panelFill = Color(0x99101216),
-            accentFill = Color(0x33FFFFFF),
+            // Pale look: clear, almost colourless glass over the light page, with dark text and icons, like iOS on a light wallpaper.
+            onGlass = Color(ink),
+            onGlassSecondary = Color(ink),
+            accent = Color(ink),
+            onAccent = Color(ink),
+            glassTint = Color(0x24FFFFFF),
+            glassFallback = Color(0xDBF4F6FA),
+            panelFill = Color(0x61FFFFFF),
+            accentFill = Color(0x80FFFFFF),
             milky = false,
             adaptive = adaptive,
             pale = null,

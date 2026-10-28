@@ -114,3 +114,4 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Drive previews (28 Oct, 6B):** Normal backups save a small preview in users/<id>/thumbs/. Free up space must make sure a preview exists on the drive before it removes a phone copy, so the drive-only photo still shows in the grid.
 
 - 29 Oct (01:03): light themes use iOS-style milky glass (almost no tint, blur + light edge; contrast checked on wallpaper only); dark themes keep smoky glass.
+- 29 Oct (01:20): pale look is clear glass with dark text (no dark panels); contrast checked on pale wallpapers and bright photos only.

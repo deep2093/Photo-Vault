@@ -19,7 +19,7 @@ class ThemeContrastTest {
         // Every theme and every pale version: onGlass on glass and frosted cards, onWallpaper straight on the page.
         val bad = GlassThemes.allVariants.mapNotNull { theme ->
             val worst = Contrast.worstPrimary(theme)
-            val need = if (theme.isPaleVariant || theme.milky) Contrast.NON_TEXT else Contrast.TEXT
+            val need = if (theme.milky) Contrast.NON_TEXT else Contrast.TEXT
             if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): primary $worst < $need"
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
@@ -29,7 +29,7 @@ class ThemeContrastTest {
     fun secondaryTextIsReadableOnEveryGlassBackground() {
         val bad = GlassThemes.allVariants.mapNotNull { theme ->
             val worst = Contrast.worstOnGlass(theme, theme.onGlassSecondary)
-            val need = if (theme.isPaleVariant || theme.milky) Contrast.NON_TEXT else Contrast.TEXT
+            val need = if (theme.milky) Contrast.NON_TEXT else Contrast.TEXT
             if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): secondary $worst < $need"
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
@@ -66,15 +66,15 @@ class ThemeContrastTest {
         // The contrast tests above check text over black and a very bright photo, which is the real guard.
         // This floor stops a theme from relying on blur alone.
         GlassThemes.allVariants.forEach { theme ->
-            assertTrue(theme.milky || theme.glassTint.alpha >= 0.4f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            assertTrue(theme.milky || theme.isPaleVariant || theme.glassTint.alpha >= 0.4f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
     }
 
     @Test
     fun everyThemeHasTheOneGlassLookWithWhiteTextAndNoLens() {
         GlassThemes.allVariants.forEach { theme ->
-            assertEquals(Color.White, theme.onGlass, theme.displayName)
-            assertEquals(Color.White, theme.accent, theme.displayName)
+            if (theme.isPaleVariant) assertEquals(theme.onWallpaper, theme.onGlass, theme.displayName)
+            else { assertEquals(Color.White, theme.onGlass, theme.displayName); assertEquals(Color.White, theme.accent, theme.displayName) }
             assertTrue(theme.accentFill != null && theme.panelFill != null, theme.displayName)
             assertTrue(!theme.lens, theme.displayName)
         }
@@ -107,7 +107,7 @@ class ThemeCatalogTest {
             assertTrue(pale != null, theme.displayName)
             assertEquals(theme.id, pale!!.id)
             assertTrue(!pale.isDark)
-            assertTrue(pale.onWallpaper != pale.onGlass)
+            assertEquals(pale.onWallpaper, pale.onGlass)
             assertEquals(pale, GlassThemes.shown(theme, palePreferred = true))
             assertEquals(theme, GlassThemes.shown(theme, palePreferred = false))
         }

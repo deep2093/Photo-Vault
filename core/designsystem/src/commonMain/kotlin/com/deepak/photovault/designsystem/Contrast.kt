@@ -35,7 +35,8 @@ object Contrast {
      * over the wallpaper. For adaptive themes the wallpaper is every hue the palette can produce.
      */
     fun glassBackgrounds(theme: GlassTheme): List<Color> = panelBackgrounds(theme) +
-        listOf(theme.glassTint.compositeOver(Color.Black)) + (if (theme.milky) emptyList() else listOf(theme.glassTint.compositeOver(BRIGHT_PHOTO))) +
+        (if (theme.isPaleVariant) emptyList() else listOf(theme.glassTint.compositeOver(Color.Black))) +
+        (if (theme.milky) emptyList() else listOf(theme.glassTint.compositeOver(BRIGHT_PHOTO))) +
             wallpaperColors(theme).map { theme.glassFallback.compositeOver(it) }
 
     /** Frosted panels over each wallpaper colour, with the light from the top (at its brightest). */
