@@ -79,13 +79,26 @@ class ShellStateTest {
     }
 
     @Test
-    fun lensGlassIsOffByDefaultAndFollowsBlurAndBatterySaver() {
+    fun lensGlassIsGoneAndTheOneGlassSwitchFollowsBlurAndBatterySaver() {
         val signals = PlatformSignals()
-        assertFalse(ShellState(MemoryAppearanceStore()).glassSettings(signals).lensEnabled)
-        val on = ShellState(MemoryAppearanceStore(AppearanceSettings(lensGlass = true)))
-        assertTrue(on.glassSettings(signals).lensEnabled)
-        assertFalse(on.glassSettings(PlatformSignals(powerSaveMode = true)).lensEnabled)
-        val blurOff = ShellState(MemoryAppearanceStore(AppearanceSettings(lensGlass = true, blurOn = false)))
-        assertFalse(blurOff.glassSettings(signals).lensEnabled)
+        // Even a saved "lens glass on" from an older version does nothing now (29 Oct).
+        val old = ShellState(MemoryAppearanceStore(AppearanceSettings(lensGlass = true)))
+        assertFalse(old.glassSettings(signals).lensEnabled)
+        assertTrue(old.glassSettings(signals).blurEnabled)
+        assertFalse(old.glassSettings(PlatformSignals(powerSaveMode = true)).blurEnabled)
+        val off = ShellState(MemoryAppearanceStore(AppearanceSettings(blurOn = false)))
+        assertFalse(off.glassSettings(signals).blurEnabled)
+    }
+
+    @Test
+    fun theLightThemePaleExperimentIsOffByDefaultAndSwitchesTheShownTheme() {
+        val state = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = GlassThemeId.LIQUID_DAY.name, themeChosen = true)))
+        assertFalse(state.appearance.paleLight)
+        assertEquals(GlassThemes.LiquidDay, state.theme)
+        state.updateAppearance { it.copy(paleLight = true) }
+        assertEquals(GlassThemes.LiquidDay.pale, state.theme)
+        // Dark themes have no pale version.
+        state.updateAppearance { it.copy(themeId = GlassThemeId.LIQUID_NIGHT.name) }
+        assertEquals(GlassThemes.LiquidNight, state.theme)
     }
 }
