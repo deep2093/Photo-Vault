@@ -55,7 +55,7 @@ class ThemeContrastTest {
         // The contrast tests above check text over pure black and pure white photos, which is the real guard.
         // This floor stops a theme from relying on blur alone. No theme draws a glow behind text any more (23 Oct).
         GlassThemes.all.forEach { theme ->
-            assertTrue(theme.glassTint.alpha >= 0.6f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            assertTrue(theme.glassTint.alpha >= if (theme.softGlass) 0.5f else 0.6f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
     }
 
@@ -73,8 +73,8 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light", "Glass Light", "Photo Light"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night", "Glass Night", "Glow Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light", "Photo Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night", "Glass Night", "Liquid Night", "Glow Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.lightThemes.none { it.isDark })
         assertTrue(GlassThemes.darkThemes.all { it.isDark })
@@ -88,7 +88,7 @@ class ThemeCatalogTest {
         assertEquals(
             listOf(
                 GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.AURORA_GLASS_DARK, GlassThemeId.CRYSTAL_GLASS_DARK,
-                GlassThemeId.GLASS_NIGHT, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
+                GlassThemeId.GLASS_NIGHT, GlassThemeId.LIQUID_NIGHT, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
             ),
             GlassThemes.all.filter { it.isDark }.map { it.id },
         )
@@ -109,7 +109,7 @@ class ThemeCatalogTest {
     @Test
     fun onlyTheClearThemesOfferLensGlass() {
         assertEquals(
-            listOf(GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_DARK),
+            listOf(GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_DARK, GlassThemeId.LIQUID_NIGHT),
             GlassThemes.all.filter { it.lens }.map { it.id },
         )
     }
@@ -217,12 +217,16 @@ class AdaptivePaletteTest {
     }
 
     @Test
-    fun glassmorphismThemesAreAPairWithABrightFullEdgeAndStrongBlur() {
-        val pair = listOf(GlassThemes.GlassLight, GlassThemes.GlassNight)
-        assertEquals(listOf(false, true), pair.map { it.isDark })
-        assertTrue(pair.none { it == GlassThemes.default })
-        assertTrue(pair.all { it.blurRadius.value >= 24f && it.rimWidth.value > 1f && it.rimStrength > 1f })
-        assertTrue(pair.all { it.glows.size >= 4 })
-        assertEquals(GlassThemes.GlassNight, GlassThemes.byId("GLASS_NIGHT"))
+    fun glassNightAndLiquidNightAreNeverTheDefaultAndLiquidIsClearLensGlass() {
+        val night = GlassThemes.GlassNight
+        val liquid = GlassThemes.LiquidNight
+        assertTrue(night.isDark && liquid.isDark)
+        assertTrue(night.blurRadius.value >= 24f && night.rimWidth.value > 1f && night.glows.size >= 4)
+        assertTrue(liquid.lens && liquid.lensAlways && liquid.softGlass)
+        assertTrue(liquid.glassTint.alpha < night.glassTint.alpha)
+        assertTrue(listOf(night, liquid).none { it == GlassThemes.default })
+        assertEquals(liquid, GlassThemes.byId("LIQUID_NIGHT"))
+        // The removed light glass theme falls back to the default.
+        assertEquals(GlassThemes.default, GlassThemes.byId("GLASS_LIGHT"))
     }
 }

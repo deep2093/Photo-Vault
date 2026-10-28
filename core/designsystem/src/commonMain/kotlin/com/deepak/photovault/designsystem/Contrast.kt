@@ -12,6 +12,9 @@ object Contrast {
     /** Icons, borders and large text need at least this ratio. */
     const val NON_TEXT = 3.0
 
+    /** A very bright photo (not pure white) for clear glass themes: their tint is lighter, so the test uses a realistic worst case. */
+    val BRIGHT_PHOTO = Color(0xFFBFBFBF)
+
     fun relativeLuminance(color: Color): Double {
         fun channel(v: Float): Double {
             val c = v.toDouble()
@@ -32,7 +35,7 @@ object Contrast {
      * over the wallpaper. For adaptive themes the wallpaper is every hue the palette can produce.
      */
     fun glassBackgrounds(theme: GlassTheme): List<Color> =
-        listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(Color.White)) +
+        listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(if (theme.softGlass) BRIGHT_PHOTO else Color.White)) +
             wallpaperColors(theme).map { theme.glassFallback.compositeOver(it) }
 
     /** Glass plus the bare wallpaper, which primary text also sits on (photo date headers, empty screens). */

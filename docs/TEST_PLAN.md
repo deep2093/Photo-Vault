@@ -420,3 +420,8 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 2. Two phones (or a phone and a family member's phone): start a backup on phone A, then tap Back up now on phone B. B shows "You're number 2 in line" with Leave the line / Keep my place. Add phone C: it shows number 3. When A finishes, B starts, then C. Leave the line on one: it drops out and the others move up.
 3. Close the app on a waiting phone: it still starts by itself when its turn comes (up to about 20 minutes of waiting; after that it tries again 30 minutes later).
 4. Search: type something, long-press a photo, Select all and Deselect all work next to the X. (Storage file lists already had Select all.)
+
+## Round 29 (28 Oct): Liquid Night, Glass Light removed
+1. Settings > Appearance > Dark: Liquid Night. Bottom bar, top pills and the viewer toolbar are nearly clear; photos bend and magnify at their rounded edges (Android 13 and newer); a thin bright rim; yellow highlights. There is no Lens glass switch for it. On Android 12 and older: plain frosted blur.
+2. Text on the bars is readable over bright and dark photos. Blur off or battery saver: bars become solid and readable.
+3. Glass Light is gone from the Light section. A phone that had it selected opens in Photo Light.

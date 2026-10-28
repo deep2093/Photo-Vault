@@ -11,8 +11,8 @@ enum class GlassThemeId {
     ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
     /** Experimental (24 Oct), from the Aurora / Crystal design package. */
     AURORA_GLASS_LIGHT, AURORA_GLASS_DARK, CRYSTAL_GLASS_LIGHT, CRYSTAL_GLASS_DARK,
-    /** Glassmorphism (28 Oct): vivid colour behind frosted glass with a bright edge. */
-    GLASS_LIGHT, GLASS_NIGHT,
+    /** Glassmorphism (28 Oct): Glass Night, vivid colour behind frosted glass; Liquid Night, the clear lens-glass look of iOS 26. */
+    GLASS_NIGHT, LIQUID_NIGHT,
 }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
@@ -64,6 +64,10 @@ data class GlassTheme(
     /** The bright edge of glass: thickness and strength (1 = the usual). Glassmorphism themes use a fuller one. */
     val rimWidth: Dp = 1.dp,
     val rimStrength: Float = 1f,
+    /** Clear, see-through glass (iOS style): a lighter tint, so contrast is tested against a bright photo, not pure white. */
+    val softGlass: Boolean = false,
+    /** Lens glass is part of this theme's look: always on where the phone can do it, with no switch in Settings. */
+    val lensAlways: Boolean = false,
 )
 
 object GlassThemes {
@@ -352,36 +356,6 @@ object GlassThemes {
      * strong blur (24 dp: past about 20 it gets heavy for the GPU), fine grain, a coloured (not grey) tint and a bright 1.5 dp edge (a soft violet one in the dark theme, not pure white). The tint stays at 0.70 so text
      * passes the contrast tests over any photo.
      */
-    val GlassLight = GlassTheme(
-        id = GlassThemeId.GLASS_LIGHT,
-        displayName = "Glass Light",
-        bestFor = "Glassmorphism: pastel colour glowing through frosted glass",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFF3EEFF), Color(0xFFE6F0FF), Color(0xFFFFEAF4)),
-        glows = listOf(
-            Glow(0.88f, 0.08f, 0.75f, Color(0x80FF6FB5)),
-            Glow(0.08f, 0.55f, 0.8f, Color(0x6638D6FF)),
-            Glow(0.7f, 0.95f, 0.8f, Color(0x668B5CFF)),
-            Glow(0.2f, 0.05f, 0.5f, Color(0x55FFC857)),
-        ),
-        glassTint = Color(0xB3F4F0FF),
-        glassFallback = Color(0xF0F6F3FF),
-        glassRim = Color(0xFFFFFFFF),
-        onGlass = Color(0xFF1A1033),
-        onGlassSecondary = Color(0xFF2E2552),
-        accent = Color(0xFF4A1FC4),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF4A1FC4),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFFFF9CC8), Color(0xFF8FE3FF), Color(0xFFB69CFF), Color(0xFFFFD98A), Color(0xFF9CF0D0)),
-        blurRadius = 24.dp,
-        grain = 0.05f,
-        rimWidth = 1.5.dp,
-        rimStrength = 1.2f,
-    )
-
     val GlassNight = GlassTheme(
         id = GlassThemeId.GLASS_NIGHT,
         displayName = "Glass Night",
@@ -413,6 +387,39 @@ object GlassThemes {
     )
 
     /**
+     * Liquid Night (28 Oct, from a screen recording of the iOS 26 Photos app): nearly clear glass, the picture bent at the
+     * bar's edge (lens glass, always on from Android 13), a thin bright rim and warm yellow highlights. The tint is
+     * 0.5, lighter than the 0.6 of the other themes, so contrast is tested over a bright photo instead of pure white;
+     * labels also keep their soft shadow.
+     */
+    val LiquidNight = GlassTheme(
+        id = GlassThemeId.LIQUID_NIGHT,
+        displayName = "Liquid Night",
+        bestFor = "Clear iOS-style glass that bends the photos behind it",
+        isDark = true,
+        wallpaper = listOf(Color(0xFF0B0C10), Color(0xFF14161C), Color(0xFF1A1C24)),
+        glows = listOf(Glow(0.5f, 0.15f, 0.8f, Color(0x2640608F)), Glow(0.15f, 0.9f, 0.7f, Color(0x1F8F5A40))),
+        glassTint = Color(0x800A0B10),
+        glassFallback = Color(0xE61A1C22),
+        glassRim = Color(0xFFFFFFFF),
+        onGlass = Color(0xFFFFFFFF),
+        onGlassSecondary = Color(0xFFE6E8EE),
+        accent = Color(0xFFFFD27A),
+        onAccent = Color(0xFF1A1405),
+        badgeBackedUp = Color(0xFF1B6E45),
+        badgePhoneOnly = Color(0xFF8A4B00),
+        badgeOnDrive = Color(0xFF3F5A8A),
+        onBadge = Color(0xFFFFFFFF),
+        sampleHues = listOf(Color(0xFF3A3F45), Color(0xFF4F565D), Color(0xFF2A2E33), Color(0xFF62696F), Color(0xFF454B52)),
+        blurRadius = 18.dp,
+        grain = 0f,
+        lens = true,
+        rimStrength = 1.1f,
+        softGlass = true,
+        lensAlways = true,
+    )
+
+    /**
      * Sections in Settings (24 Oct), named by how they behave. Light and dark themes keep their own colours;
      * Photo themes take their colours from the photos on screen. Aurora Glass and Crystal Glass joined the light
      * and dark sections as "Luminous" and "Clear" (still marked experimental, never the default). Aurora Frost,
@@ -420,7 +427,7 @@ object GlassThemes {
      */
     // 28 Oct: only two sections, Light and Dark. The four photo themes (colours taken from the photos on screen) sit in
     // the section that matches their look: Photo Light in Light; Glow Night, Photo Night and Vivid Night in Dark.
-    val fixed: List<GlassTheme> = listOf(PearlMist, OceanGlass, AuroraGlassLight, CrystalGlassLight, GlassLight, MidnightPrism, AuroraGlassDark, CrystalGlassDark, GlassNight)
+    val fixed: List<GlassTheme> = listOf(PearlMist, OceanGlass, AuroraGlassLight, CrystalGlassLight, MidnightPrism, AuroraGlassDark, CrystalGlassDark, GlassNight, LiquidNight)
     val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight)
     val lightThemes: List<GlassTheme> = (fixed + adaptiveThemes).filter { !it.isDark }
     val darkThemes: List<GlassTheme> = (fixed + adaptiveThemes).filter { it.isDark }
