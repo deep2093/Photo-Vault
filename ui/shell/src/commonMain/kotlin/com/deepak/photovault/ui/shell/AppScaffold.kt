@@ -234,6 +234,13 @@ fun PhotoVaultApp(
                     CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL)) {
                         BottomBarLayout(screens, system)
                     }
+                    // Photos and dates fade out under the status bar instead of showing through its clock and icons.
+                    val top = system.calculateTopPadding()
+                    val wall = LocalGlassTheme.current.wallpaper.first()
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.align(androidx.compose.ui.Alignment.TopStart).fillMaxWidth().height(top + 8.dp)
+                            .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to wall.copy(alpha = 0.9f), 0.7f to wall.copy(alpha = 0.6f), 1f to androidx.compose.ui.graphics.Color.Transparent)),
+                    )
                     OverlayHost(state, gallery, actions, drive, backup, iconSwitcher, system)
                     // Deleted photos flying into the bin, above every page (23 Oct).
                     DeleteFlightLayer(LocalDeleteFlight.current)

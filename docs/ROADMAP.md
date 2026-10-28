@@ -115,3 +115,4 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 
 - 29 Oct (01:03): light themes use iOS-style milky glass (almost no tint, blur + light edge; contrast checked on wallpaper only); dark themes keep smoky glass.
 - 29 Oct (01:20): pale look is clear glass with dark text (no dark panels); contrast checked on pale wallpapers and bright photos only.
+- 29 Oct (01:35): About experiment switches Light blur (quarter radius) and No blur (clear film, tint at least .30); remove losers in 6B-2. Status bar now has a fade so dates don't show through.

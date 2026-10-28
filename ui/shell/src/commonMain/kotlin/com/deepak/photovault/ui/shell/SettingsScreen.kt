@@ -339,6 +339,19 @@ private fun AboutSection(state: ShellState) {
             icon = Icons.Rounded.Science,
             description = "Off: deep backgrounds with white text everywhere. On: the old pale backgrounds, with white text on the glass and dark text on the page",
         )
+        // Experiment (29 Oct): three ways to blur the glass. Only one can be on; all off = normal blur. One stays after we compare.
+        listOf(
+            Triple(1, "Light blur (experiment)", "Glass blurs the photos behind it only a little, closer to iOS"),
+            Triple(2, "No blur (experiment)", "Photos stay sharp behind the glass, which is a clear film with a light edge"),
+        ).forEach { (level, title, text) ->
+            GlassSwitchRow(
+                title,
+                state.appearance.blurLevel == level,
+                { on -> state.updateAppearance { it.copy(blurLevel = if (on) level else 0) } },
+                icon = Icons.Rounded.Science,
+                description = text,
+            )
+        }
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

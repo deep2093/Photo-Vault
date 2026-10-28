@@ -849,6 +849,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
         paleLight = prefs.getBoolean("pale_light", false),
+        blurLevel = prefs.getInt("blur_level", 0),
         autoDriveCheck = prefs.getBoolean("auto_drive_check", true),
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
     )
@@ -862,6 +863,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putBoolean("pale_light", settings.paleLight)
+            .putInt("blur_level", settings.blurLevel)
             .putBoolean("auto_drive_check", settings.autoDriveCheck)
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
             .apply()

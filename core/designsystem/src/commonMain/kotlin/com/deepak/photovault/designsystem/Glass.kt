@@ -111,6 +111,9 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
         .then(
             if (lensActive) {
                 Modifier
+            } else if (blur && haze != null && settings.blurScale <= 0f) {
+                // No blur (experiment): a clear film only, a little stronger so text still reads over sharp photos.
+                Modifier.background(theme.glassTint.copy(alpha = maxOf(theme.glassTint.alpha, 0.30f)))
             } else if (blur && haze != null) {
                 Modifier.hazeEffect(
                     state = haze,
@@ -120,7 +123,7 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
                         // bar looks like the same glass everywhere instead of turning white (feedback 24 Oct).
                         backgroundColor = Color.Transparent,
                         tints = listOf(HazeTint(theme.glassTint)),
-                        blurRadius = theme.blurRadius,
+                        blurRadius = theme.blurRadius * settings.blurScale,
                         noiseFactor = theme.grain,
                         fallbackTint = HazeTint(theme.glassFallback),
                     ),

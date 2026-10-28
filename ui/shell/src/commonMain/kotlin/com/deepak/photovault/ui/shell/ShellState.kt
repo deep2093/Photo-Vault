@@ -65,6 +65,8 @@ data class AppearanceSettings(
     val lensGlass: Boolean = false,
     /** Experiment (29 Oct): light themes with pale backgrounds (white text on glass, dark text on the page) instead of deep ones. */
     val paleLight: Boolean = false,
+    /** Experiment (29 Oct): 0 = normal blur, 1 = light blur, 2 = no blur. */
+    val blurLevel: Int = 0,
     /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
     val pinBottomBar: Boolean = false,
     /** Check the family drive by itself when the app opens and once an hour while it is on screen (28 Oct). */
@@ -379,6 +381,7 @@ class ShellState(private val store: AppearanceStore) {
         reduceMotion = appearance.reduceMotion || signals.systemReduceMotion,
         // Lens glass was removed from Settings on 29 Oct: every theme has the one glass look.
         lensEnabled = false,
+        blurScale = when (appearance.blurLevel) { 1 -> 0.25f; 2 -> 0f; else -> 1f },
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */

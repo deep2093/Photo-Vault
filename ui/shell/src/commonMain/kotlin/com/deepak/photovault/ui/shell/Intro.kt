@@ -100,11 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-29-4"
+    const val ID = "2026-10-29-5"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Clear glass in the pale-background experiment", "With pale backgrounds on (Settings > About), bars, cards and album folders are now clear see-through glass with dark text, like iOS on a light wallpaper, not dark panels."),
-        Change(ChangeKind.CHANGED, "Dark text can be hard to read over dark photos", "On the pale look, the clearer glass lets dark photos show through, so dark text is less sharp there."),
+        Change(ChangeKind.NEW, "Blur experiments", "Settings > About has two new switches to compare: Light blur (photos behind the glass blur only a little) and No blur (photos stay sharp behind a clear film). Both off is the normal blur."),
+        Change(ChangeKind.FIXED, "Dates under the clock", "Photos and date headers now fade out under the status bar instead of showing through the clock and icons."),
     )
 }
 
