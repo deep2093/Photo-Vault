@@ -243,6 +243,8 @@ fun PhotoVaultApp(
                             .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to wall.copy(alpha = 0.6f), 0.7f to wall.copy(alpha = 0.3f), 1f to androidx.compose.ui.graphics.Color.Transparent)),
                     )
                     OverlayHost(state, gallery, actions, drive, backup, iconSwitcher, system)
+                    // Free up space by itself, only when Android's "Media management" is allowed (29 Oct).
+                    FreeUpAuto(backup, actions)
                     // Deleted photos flying into the bin, above every page (23 Oct).
                     DeleteFlightLayer(LocalDeleteFlight.current)
                     DeletePromptHost(LocalDeletePrompt.current)

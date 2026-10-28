@@ -51,6 +51,8 @@ class BackupGraph private constructor(context: Context) {
 
         override suspend fun forgetBackedUp(keys: Set<String>) = index.remove(keys)
 
+        override suspend fun checkFreeUp(days: Int, onProgress: (Int, Int) -> Unit) = runner.freeUpCheck(days, onProgress)
+
         override fun onMobileData(): Boolean = runner.onMobileData()
 
         override fun notificationsAllowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

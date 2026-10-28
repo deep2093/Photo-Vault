@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import com.deepak.photovault.core.backup.BackupProgress
 import com.deepak.photovault.core.backup.BackupRun
 import com.deepak.photovault.core.backup.BackupSettings
+import com.deepak.photovault.core.backup.FreeUpResult
 import kotlinx.datetime.TimeZone
 
 /** What only the phone can do for backup: saving choices, running and scheduling the work, notifications. */
@@ -34,6 +35,9 @@ interface BackupPlatform {
 
     /** Forgets photos whose backup was deleted from the drive, so copies still on the phone back up again. */
     suspend fun forgetBackedUp(keys: Set<String>) = Unit
+
+    /** Free up space (29 Oct): checks which phone photos may go. Never deletes; the screen moves them to Recently deleted. */
+    suspend fun checkFreeUp(days: Int, onProgress: (Int, Int) -> Unit): FreeUpResult = FreeUpResult(message = "Not available here.")
 
     /** On mobile data right now (backup then waits for Wi-Fi unless mobile data is allowed). */
     fun onMobileData(): Boolean
@@ -108,6 +112,36 @@ class BackupState(private val platform: BackupPlatform) {
     fun update(change: (BackupSettings) -> BackupSettings) {
         settings = change(settings)
         platform.saveSettings(settings)
+    }
+
+    /** The latest Free up space check, for its page. */
+    var freeUp by mutableStateOf<FreeUpResult?>(null)
+
+    var freeUpChecking by mutableStateOf(false)
+        private set
+
+    /** Checked so far, of all, while a check runs. */
+    var freeUpProgress by mutableStateOf<Pair<Int, Int>?>(null)
+        private set
+
+    /** Runs the check (one at a time) and keeps the answer in [freeUp]. */
+    suspend fun checkFreeUp(): FreeUpResult? {
+        if (freeUpChecking) return null
+        freeUpChecking = true
+        freeUpProgress = null
+        try {
+            val result = platform.checkFreeUp(settings.freeUpDays) { done, total -> freeUpProgress = done to total }
+            freeUp = result
+            return result
+        } finally {
+            freeUpChecking = false
+            freeUpProgress = null
+        }
+    }
+
+    /** After the phone copies were moved: the old answer no longer applies. */
+    fun clearFreeUp() {
+        freeUp = null
     }
 
     fun backUpNow() = platform.backUpNow()

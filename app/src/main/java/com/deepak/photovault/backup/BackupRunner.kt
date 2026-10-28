@@ -7,8 +7,11 @@ import android.net.ConnectivityManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.deepak.photovault.AndroidDrivePlatform
+import com.deepak.photovault.core.backup.BackupCatalog
 import com.deepak.photovault.core.backup.BackupCoordinator
 import com.deepak.photovault.core.backup.BackupEngine
+import com.deepak.photovault.core.backup.FreeUpResult
+import com.deepak.photovault.core.backup.FreeUpSpace
 import com.deepak.photovault.core.backup.BackupFailure
 import com.deepak.photovault.core.backup.BackupProgress
 import com.deepak.photovault.core.backup.BackupRun
@@ -209,6 +212,53 @@ class BackupRunner(
             } finally {
                 withContext(NonCancellable) { turn.finish() }
             }
+        }
+    }
+
+    /**
+     * Free up space (29 Oct): which phone photos may go. Looks at the drive's records, keeps the ones whose backup is at
+     * least [days] old, reads each back from the drive again and checks it has a preview. Never deletes anything: the
+     * answer goes to the screen, which moves the phone copies to Recently deleted.
+     */
+    suspend fun freeUpCheck(days: Int, onProgress: (Int, Int) -> Unit = { _, _ -> }): FreeUpResult {
+        if (days <= 0) return FreeUpResult(message = "Free up space is off.")
+        if (!lock.tryLock()) return FreeUpResult(message = "A backup or restore is running. Check again when it finishes.")
+        try {
+            if (!hasPhotoAccess()) return FreeUpResult(message = FailureReason.NO_PHOTO_ACCESS.plain)
+            val privacy = settingsStore.load().privacy
+            if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET) return FreeUpResult(message = FailureReason.PRIVACY_NOT_CHOSEN.plain)
+            if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) {
+                return FreeUpResult(message = "Free up space doesn't work with Private backup yet, so nothing is removed.")
+            }
+            val connection = platform.loadConnection() ?: return FreeUpResult(message = FailureReason.NO_DRIVE.plain)
+            if (connection.username.isNotBlank() && connection.password.isEmpty()) return FreeUpResult(message = FailureReason.NO_PASSWORD.plain)
+            val drive = try {
+                platform.openDetached(connection)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                return FreeUpResult(message = classify(e).message)
+            }
+            drive.use { fs ->
+                try {
+                    val membership = HouseholdStore(fs) { System.currentTimeMillis() }.membership(platform.deviceId, platform.rememberedUserId())
+                    val joined = membership as? Membership.Joined ?: return FreeUpResult(message = FailureReason.NOT_JOINED.plain)
+                    val records = BackupCatalog(fs, joined.me.userId, null).records().associateBy { it.key }
+                    val split = FreeUpSpace.split(MediaStoreLibrary(context).loadAll(), records, days, System.currentTimeMillis())
+                    val engine = BackupEngine(
+                        drive = fs, userId = joined.me.userId, deviceId = platform.deviceId, reader = AndroidMediaReader(context), index = index,
+                        now = System::currentTimeMillis, zone = TimeZone.currentSystemDefault(), classify = { classify(it) }, vault = null,
+                    )
+                    val (passed, failed) = engine.verifyForRemoval(split.ready, onProgress)
+                    return FreeUpSpace.result(passed, split.waiting, failed)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    return FreeUpResult(message = classify(e).message)
+                }
+            }
+        } finally {
+            lock.unlock()
         }
     }
 

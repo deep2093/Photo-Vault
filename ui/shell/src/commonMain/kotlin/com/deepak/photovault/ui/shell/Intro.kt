@@ -100,13 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-29-8"
+    const val ID = "2026-10-29-9"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Real-glass look at Blur 0", "With the Blur slider at 0 (Android 13 and newer), bars bend the picture behind them a little near their edges, like real thick glass. Older phones get a clear film."),
-        Change(ChangeKind.CHANGED, "Black text on Warm Light and Luminous Light", "Text and icons on these two themes are now black."),
-        Change(ChangeKind.CHANGED, "Buttons look like glass", "Buttons such as Move to bin and Unlock now have the same glass depth and edge as Cancel."),
-        Change(ChangeKind.REMOVED, "Photo Light and Stronger switches", "If you used Photo Light, the app now shows Liquid Day. The Stronger switches experiment is gone; switches keep the clearer look."),
+        Change(ChangeKind.NEW, "Free up space", "Settings > Free up space, off by default. Choose 7, 30 or 90 days: once a photo has been on the family drive that long, its phone copy can move to Recently deleted. Each photo is read back from the drive and checked first, and the drive must have a preview of it. Works with Normal backup; Private backup isn't included yet."),
+        Change(ChangeKind.NEW, "Cleanup by itself or with a question", "With Android's Media management allowed, Pixallery cleans up when you open it and after each backup. Without it, you press Check now and Android asks before anything moves. The page has a button to Android's permission screen."),
+        Change(ChangeKind.CHANGED, "Glass switch wording", "The glass switch now says Turn off glass effect while it is on and Turn on glass effect while it is off, with no text underneath. Keep the bottom bar in place and Reduce motion also lost their extra text."),
+        Change(ChangeKind.REMOVED, "Away from home line in Drive", "It repeated Remote access, which has its own page."),
     )
 }
 

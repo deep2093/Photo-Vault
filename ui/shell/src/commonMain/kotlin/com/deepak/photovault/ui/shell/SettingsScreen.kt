@@ -55,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.ui.graphics.Color
 import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
@@ -97,6 +98,7 @@ enum class SettingsPage(val title: String) {
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
+    FREE_UP("Free up space"),
     REMOTE("Remote access"),
     STORAGE("Storage"),
     // The last three stay at the end, in this order, in every build (25 Oct); the rest are alphabetical.
@@ -124,6 +126,7 @@ fun SettingsScreen(
                         SettingsPage.ALBUMS -> Icons.Rounded.Collections to (gallery?.hiddenAlbums?.size?.takeIf { it > 0 }?.let { "$it hidden" } ?: "Show or hide albums")
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
+                        SettingsPage.FREE_UP -> Icons.Rounded.CleaningServices to (backup?.settings?.freeUpDays?.takeIf { it > 0 }?.let { "After $it days" } ?: "Off")
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
                         SettingsPage.OPEN_WITH -> Icons.AutoMirrored.Rounded.OpenInNew to "Photos and videos from other apps"
                         SettingsPage.REMOTE -> Icons.Rounded.VpnKey to state.remote.summary()
@@ -187,6 +190,7 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }
+            SettingsPage.FREE_UP -> item { FreeUpContent(backup, actions) }
             SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
             SettingsPage.OPEN_WITH -> item { OpenWithContent(actions) }
             SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
@@ -211,11 +215,10 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
     PageCard("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = theme.displayName) {
         ThemeGrid(state)
         GlassSwitchRow(
-            "Turn on glass effect",
+            if (state.appearance.blurOn) "Turn off glass effect" else "Turn on glass effect",
             state.appearance.blurOn,
             { on -> state.updateAppearance { it.copy(blurOn = on) } },
             icon = Icons.Rounded.BlurOn,
-            description = "Bars, cards and switches are see-through glass. Off makes them plain solid colour. It also turns off by itself on battery saver",
         )
         if (state.appearance.blurOn) BlurSlider(state)
         GlassSwitchRow(
@@ -223,14 +226,12 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             state.appearance.pinBottomBar,
             { on -> state.updateAppearance { it.copy(pinBottomBar = on) } },
             icon = Icons.Rounded.PushPin,
-            description = "The bar stays put instead of tucking away while you scroll",
         )
         GlassSwitchRow(
             "Reduce motion",
             state.appearance.reduceMotion,
             { on -> state.updateAppearance { it.copy(reduceMotion = on) } },
             icon = Icons.Rounded.Animation,
-            description = "Also follows the system setting",
         )
         AppIconPicker(iconSwitcher)
     }
@@ -352,7 +353,6 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
             icon = Icons.Rounded.Dns,
             description = "On: when the app opens and once an hour while it is open. Off: only when you open Family, Backup or the drive, or pull down on Photos. Fewer checks let the drive sleep.",
         )
-        InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "See Remote access")
     }
     if (confirmForget) {
         ConfirmDialog(
@@ -377,7 +377,7 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")
         InfoRow(Icons.Rounded.PersonAdd, "Invites", "Done")
         InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Open with Pixallery", "Done")
-        InfoRow(Icons.Rounded.Schedule, "Free up space", "Phase 6")
+        InfoRow(Icons.Rounded.Schedule, "Free up space", "Done")
         InfoRow(Icons.Rounded.Place, "Places and people", "Phase 7")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
     }

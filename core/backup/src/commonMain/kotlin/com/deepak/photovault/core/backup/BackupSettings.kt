@@ -112,6 +112,8 @@ data class BackupSettings(
     val staggered: Boolean = false,
     /** Normal or Private (encrypted) backup. UNSET until the person picks; backup does not run before that. */
     val privacy: BackupPrivacy = BackupPrivacy.UNSET,
+    /** Free up space (29 Oct): 0 = Off (default); otherwise a phone copy may go to Recently deleted this many days after its backup, once checked again. */
+    val freeUpDays: Int = 0,
 )
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */

@@ -218,6 +218,8 @@ class MainActivity : ComponentActivity(), MediaActions {
     override fun canDeleteWithoutAsking(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && runCatching { MediaStore.canManageMedia(this) }.getOrDefault(false)
 
+    override fun automaticCleanupAvailable(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
     override fun askDeletePermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         runCatching { startActivity(Intent(android.provider.Settings.ACTION_REQUEST_MANAGE_MEDIA, Uri.parse("package:$packageName"))) }

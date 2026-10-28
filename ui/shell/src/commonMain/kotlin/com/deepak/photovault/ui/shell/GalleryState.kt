@@ -78,6 +78,9 @@ interface MediaActions {
     /** Android 12+: Pixallery may delete without Android's own pop-up ("manage media" allowed), so it asks itself. */
     fun canDeleteWithoutAsking(): Boolean = false
 
+    /** Android 12+ has the "manage media" setting; older versions always ask. */
+    fun automaticCleanupAvailable(): Boolean = false
+
     /** Opens Android's setting to allow "manage media". */
     fun askDeletePermission() = Unit
 
