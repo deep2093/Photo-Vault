@@ -103,8 +103,8 @@ object WhatsNew {
     const val ID = "2026-10-29-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "iPhone-style milky glass on light themes", "Bars, cards, album folders and the selected tab on the six light themes are now lighter, greyer frosted glass like iOS Photos. Dark themes keep the deeper smoky glass."),
-        Change(ChangeKind.CHANGED, "White text is a little softer on light themes", "The lighter glass lets more of the photo through, so white text is less sharp over very bright pictures."),
+        Change(ChangeKind.CHANGED, "iPhone-style clear glass on light themes", "Bars, cards, album folders and the selected tab on the six light themes are now almost fully see-through, with no colour behind them, just the blurred picture like iOS Photos. Dark themes keep the deeper smoky glass."),
+        Change(ChangeKind.CHANGED, "White text can be harder to read on light themes", "Because the glass is clearer, white text is less sharp over very bright photos."),
     )
 }
 

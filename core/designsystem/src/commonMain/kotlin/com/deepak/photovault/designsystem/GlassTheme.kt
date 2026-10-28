@@ -74,7 +74,7 @@ data class GlassTheme(
     val onWallpaper: Color = onGlass,
     /** The pale-background version of a light theme (experiment, 29 Oct): same id, pale wallpaper, dark text on it, white text on glass. */
     val pale: GlassTheme? = null,
-    /** iOS-style milky glass (light themes): a lighter, greyer film over a stronger blur. White text is only checked to 3:1 here. */
+    /** iOS-style milky glass (light themes): almost no tint, just the blurred picture behind with a light edge, like iOS. Over very bright photos white text can be hard to read, so contrast is checked on the wallpaper only. */
     val milky: Boolean = false,
 ) {
     /** The pale-background version: white text on a pale page can only reach 3:1 on its glass cards, so tests allow that for it. */
@@ -114,15 +114,15 @@ object GlassThemes {
         isDark = true,
         wallpaper = wallpaper.map { Color(it) },
         glows = glows,
-        glassTint = if (milky) Color(0x7A5E6570) else Color(0x730C0D10),
+        glassTint = if (milky) Color(0x1F8A9098) else Color(0x730C0D10),
         glassFallback = if (milky) Color(0xE6505660) else Color(0xE61A1C22),
         glassRim = Color(rim),
         onGlass = White,
         onGlassSecondary = Color(secondary),
         accent = White,
         onAccent = White,
-        accentFill = Color(if (milky) 0x3DFFFFFF else 0x33FFFFFF),
-        panelFill = Color(if (milky) 0x29FFFFFF else 0x1AFFFFFF),
+        accentFill = Color(if (milky) 0x38FFFFFF else 0x33FFFFFF),
+        panelFill = Color(if (milky) 0x1FFFFFFF else 0x1AFFFFFF),
         badgeBackedUp = Color(0xFF1B6E45),
         badgePhoneOnly = Color(0xFF8A4B00),
         badgeOnDrive = Color(onDrive),

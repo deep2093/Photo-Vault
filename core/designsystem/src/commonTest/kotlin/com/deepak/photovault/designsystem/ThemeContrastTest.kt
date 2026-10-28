@@ -66,7 +66,7 @@ class ThemeContrastTest {
         // The contrast tests above check text over black and a very bright photo, which is the real guard.
         // This floor stops a theme from relying on blur alone.
         GlassThemes.allVariants.forEach { theme ->
-            assertTrue(theme.glassTint.alpha >= 0.4f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            assertTrue(theme.milky || theme.glassTint.alpha >= 0.4f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
     }
 
