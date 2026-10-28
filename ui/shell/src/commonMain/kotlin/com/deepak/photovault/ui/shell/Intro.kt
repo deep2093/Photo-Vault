@@ -100,15 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-29-1"
+    const val ID = "2026-10-29-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Glass in every theme", "Every theme now has the same glass: clear bars with depth, frosted cards and album folders, frosted selected items, glass switches, and white text and icons."),
-        Change(ChangeKind.NEW, "Pale backgrounds (experiment)", "Settings > About has a switch to try pale backgrounds on the light themes, with white text on the glass and dark text on the page. One of the two looks will be removed."),
-        Change(ChangeKind.CHANGED, "One glass switch", "Settings > Appearance has a single \"Turn off glass effect\" switch. It replaces Glass blur."),
-        Change(ChangeKind.CHANGED, "Deeper light themes", "The light themes have deeper backgrounds so white text can be read everywhere."),
-        Change(ChangeKind.REMOVED, "Lens glass", "The experimental Lens glass switch is gone."),
-        Change(ChangeKind.REMOVED, "Four themes", "Violet Night, Glass Night, Clear Night and Glow Night are gone. If you used one, the app switches to Photo Light."),
+        Change(ChangeKind.CHANGED, "Clear glass, no colour tint", "Bars, cards, album folders and buttons are now see-through smoky glass in every theme, not a solid navy or colour. Only the background differs between themes."),
+        Change(ChangeKind.CHANGED, "Pale backgrounds are harder to read", "With the pale-background experiment on, white text on its smoky glass is not as sharp as on the deep backgrounds. Tell us which look to keep."),
+        Change(ChangeKind.FIXED, "Deeper backgrounds", "Warm, Luminous, Liquid Day and Vivid backgrounds are a little deeper so white text reads everywhere."),
     )
 }
 

@@ -443,3 +443,8 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 3. "Turn off glass effect" (off by default) is the only glass switch. Turn it on: bars, cards and switches become plain solid colour. There is no Lens glass switch and no Glass blur switch.
 4. Settings > About > "Pale backgrounds on light themes (experiment)". Off: deep backgrounds, white text everywhere. On: pale backgrounds; white text on glass and cards, dark text on the page (photo date headings, empty screens). Some headings that sit straight on the page may still be white on pale; note which ones. Tell Deepak which look is better; one is removed in 6B-2.
 5. Photo Light, Photo Night, Vivid Night: wallpaper still follows the photos on screen; text readable over very bright and very dark photos under the bars.
+
+## Round 33 (29 Oct): see-through glass, no colour fill
+1. Every theme (deep backgrounds): the Settings box, album folders, Family cards and the bottom bar are see-through smoky glass; you can see the background (and photos under the bar) through them; no solid navy or colour block. Buttons and selected tab are a frosted film.
+2. Pale-background experiment ON: the cards are grey smoky glass over the pale page and white text is readable but softer (this is the known trade-off). Tell Deepak whether it is acceptable.
+3. Turn off glass effect: bars and cards become solid.
