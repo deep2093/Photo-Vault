@@ -81,9 +81,10 @@ class ShellStateTest {
     @Test
     fun lensGlassIsGoneAndTheOneGlassSwitchFollowsBlurAndBatterySaver() {
         val signals = PlatformSignals()
-        // Even a saved "lens glass on" from an older version does nothing now (29 Oct).
-        val old = ShellState(MemoryAppearanceStore(AppearanceSettings(lensGlass = true)))
+        // The thick-glass look follows the Blur slider: on only at 0 (29 Oct).
+        val old = ShellState(MemoryAppearanceStore(AppearanceSettings(blurStep = 3)))
         assertFalse(old.glassSettings(signals).lensEnabled)
+        assertTrue(ShellState(MemoryAppearanceStore(AppearanceSettings(blurStep = 0))).glassSettings(signals).lensEnabled)
         assertTrue(old.glassSettings(signals).blurEnabled)
         assertFalse(old.glassSettings(PlatformSignals(powerSaveMode = true)).blurEnabled)
         val off = ShellState(MemoryAppearanceStore(AppearanceSettings(blurOn = false)))
@@ -102,13 +103,5 @@ class ShellStateTest {
         // Liquid Night was removed on 29 Oct: anyone who had it gets the default.
         state.updateAppearance { it.copy(themeId = "LIQUID_NIGHT", themeChosen = true) }
         assertEquals(GlassThemes.default, state.theme)
-    }
-
-    @Test
-    fun strongSwitchesAreAnOffByDefaultExperiment() {
-        val state = ShellState(MemoryAppearanceStore())
-        assertFalse(state.glassSettings(PlatformSignals()).strongToggles)
-        state.updateAppearance { it.copy(strongToggles = true) }
-        assertTrue(state.glassSettings(PlatformSignals()).strongToggles)
     }
 }

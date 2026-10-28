@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 /** Stable IDs: saved in settings, so never rename them. */
 enum class GlassThemeId {
     PEARL_MIST,
-    ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
+    ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID,
     AURORA_GLASS_LIGHT, CRYSTAL_GLASS_LIGHT,
     LIQUID_DAY,
 }
@@ -57,8 +57,8 @@ data class GlassTheme(
     val blurRadius: Dp = 24.dp,
     /** Fine grain in the glass; higher looks more frosted. */
     val grain: Float = 0.03f,
-    /** Lens glass: no theme uses it since 29 Oct (every theme has the one glass look). The code stays for now. */
-    val lens: Boolean = false,
+    /** Lens glass (looks like thick real glass, Android 13+): used with the Blur slider at 0 (29 Oct). */
+    val lens: Boolean = true,
     /** The bright edge of glass: thickness and strength (1 = the usual). Glassmorphism themes use a fuller one. */
     val rimWidth: Dp = 1.dp,
     val rimStrength: Float = 1f,
@@ -85,7 +85,7 @@ val GlassTheme.accentSurface: Color get() = accentFill ?: accent
 
 object GlassThemes {
     private val White = Color(0xFFFFFFFF)
-    private val lightIds = setOf(GlassThemeId.PEARL_MIST, GlassThemeId.AURORA_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.LIQUID_DAY, GlassThemeId.ADAPTIVE_LIGHT)
+    private val lightIds = setOf(GlassThemeId.PEARL_MIST, GlassThemeId.AURORA_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.LIQUID_DAY)
 
     /**
      * The one glass look (29 Oct), shared by every theme: clear see-through bars with a little frost and depth, frosted
@@ -169,7 +169,7 @@ object GlassThemes {
     ).let { deep ->
         deep.copy(pale = pale(deep, listOf(0xFFFFF8F1, 0xFFFBEDE6, 0xFFF4E0D6),
             listOf(Glow(0.9f, 0.05f, 0.7f, Color(0x40F4B9C1)), Glow(0.05f, 0.6f, 0.7f, Color(0x33E8B48A)), Glow(0.6f, 1.0f, 0.8f, Color(0x33F6C9C9))),
-            ink = 0xFF3A2320))
+            ink = 0xFF000000))
     }
 
     val AuroraGlassLight: GlassTheme = glass(
@@ -182,7 +182,7 @@ object GlassThemes {
     ).let { deep ->
         deep.copy(pale = pale(deep, listOf(0xFFE3F1FF, 0xFFF2F7FF, 0xFFE4E0FF),
             listOf(Glow(0.9f, 0.05f, 0.7f, Color(0x4D5AC8FA)), Glow(0.05f, 0.7f, 0.75f, Color(0x407C78FF)), Glow(0.5f, 0.35f, 0.4f, Color(0x80FFFFFF))),
-            ink = 0xFF061F40))
+            ink = 0xFF000000))
     }
 
     val CrystalGlassLight: GlassTheme = glass(
@@ -207,28 +207,6 @@ object GlassThemes {
         deep.copy(pale = pale(deep, listOf(0xFFF7F8FB, 0xFFEEF1F7, 0xFFE6EBF4),
             listOf(Glow(0.85f, 0.08f, 0.8f, Color(0x33FFD9A0)), Glow(0.1f, 0.6f, 0.8f, Color(0x2659C8FF))),
             ink = 0xFF14171C))
-    }
-
-    val AdaptiveLight: GlassTheme = glass(
-        GlassThemeId.ADAPTIVE_LIGHT, "Photo Light", "Soft bands of colour from your photos, white text",
-        wallpaper = listOf(0xFF3B4A6E, 0xFF2E5A74, 0xFF4A3E6A),
-        glows = emptyList(),
-        rim = 0xFFD8D0F0, onDrive = 0xFF4E33A3,
-        hues = listOf(0xFFE07A5F, 0xFF3D9970, 0xFF6A4C93, 0xFFF2B134, 0xFF1982C4),
-        adaptive = AdaptiveStyle(
-            listOf(0.40f, 0.34f, 0.28f), 0.30f, 0.70f, glow = 0.5f, scrim = 0.25f,
-            fallback = listOf(Color(0xFF3B4A6E), Color(0xFF2E5A74), Color(0xFF4A3E6A)),
-            layout = WallpaperLayout.HORIZON,
-        ),
-    ).let { deep ->
-        deep.copy(pale = pale(deep, listOf(0xFFF6F1FA, 0xFFEFF5FA, 0xFFF7F3EC), emptyList(),
-            ink = 0xFF1C1A28,
-            adaptive = AdaptiveStyle(
-                listOf(0.98f, 0.95f, 0.91f), 0.10f, 0.28f, glow = 0.35f, scrim = 0.25f,
-                fallback = listOf(Color(0xFFF6F1FA), Color(0xFFEFF5FA), Color(0xFFF7F3EC)),
-                light = true,
-                layout = WallpaperLayout.HORIZON,
-            )))
     }
 
     // ---- Dark themes ----
@@ -265,14 +243,14 @@ object GlassThemes {
      * Settings sections (29 Oct, 02:22). Clear Light is the only light theme with a deep background and white text; the other
      * light themes are the pale ones (light page, clear glass, dark text). Dark themes are deep with white text.
      */
-    val lightThemes: List<GlassTheme> = listOf(PearlMist.pale!!, AuroraGlassLight.pale!!, LiquidDay.pale!!, AdaptiveLight.pale!!, CrystalGlassLight)
+    val lightThemes: List<GlassTheme> = listOf(PearlMist.pale!!, AuroraGlassLight.pale!!, LiquidDay.pale!!, CrystalGlassLight)
     val darkThemes: List<GlassTheme> = listOf(AdaptiveMidnight, AdaptiveVivid)
     val fixed: List<GlassTheme> = lightThemes.filter { it.adaptive == null } + darkThemes.filter { it.adaptive == null }
     val adaptiveThemes: List<GlassTheme> = lightThemes.filter { it.adaptive != null } + darkThemes.filter { it.adaptive != null }
     val all: List<GlassTheme> = lightThemes + darkThemes
 
-    /** Photo Light for everyone who hasn't picked a theme. */
-    val default: GlassTheme = AdaptiveLight.pale!!
+    /** Liquid Day (light page) for everyone who hasn't picked a theme. */
+    val default: GlassTheme = LiquidDay.pale!!
 
     /** Unknown or missing IDs (an older or newer saved setting, or a removed theme) fall back to the default. */
     fun byId(id: String?): GlassTheme = all.firstOrNull { it.id.name == id } ?: default

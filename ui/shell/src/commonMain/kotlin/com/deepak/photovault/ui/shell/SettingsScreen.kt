@@ -372,14 +372,6 @@ private fun AboutSection(state: ShellState) {
     PageCard("About", Icons.Rounded.Info, Modifier.cardWidth()) {
         SettingsRow(Icons.Rounded.AutoAwesome, "What's new", "See what changed in this update") { state.intro.open(IntroKind.WHATS_NEW) }
         SettingsRow(Icons.Rounded.Explore, "Welcome tour", "A quick look around the app") { state.intro.open(IntroKind.TOUR) }
-        // Experiment (29 Oct): check whether the switches are easier to see this way. One look stays.
-        GlassSwitchRow(
-            "Stronger switches (experiment)",
-            state.appearance.strongToggles,
-            { on -> state.updateAppearance { it.copy(strongToggles = on) } },
-            icon = Icons.Rounded.Science,
-            description = "Switches are green when on and darker when off, so they are easier to see",
-        )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

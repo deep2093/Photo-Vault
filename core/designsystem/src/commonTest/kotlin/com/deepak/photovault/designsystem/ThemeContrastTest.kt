@@ -71,12 +71,11 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun everyThemeHasTheOneGlassLookWithWhiteTextAndNoLens() {
+    fun everyThemeHasTheOneGlassLook() {
         GlassThemes.all.forEach { theme ->
             if (theme.isPaleVariant) assertEquals(theme.onWallpaper, theme.onGlass, theme.displayName)
             else { assertEquals(Color.White, theme.onGlass, theme.displayName); assertEquals(Color.White, theme.accent, theme.displayName) }
             assertTrue(theme.accentFill != null && theme.panelFill != null, theme.displayName)
-            assertTrue(!theme.lens, theme.displayName)
         }
     }
 
@@ -85,15 +84,14 @@ class ThemeContrastTest {
         // Feedback 22 and 23 Oct: they looked alike. Each needs its own wallpaper shape.
         val adaptive = GlassThemes.adaptiveThemes
         assertEquals(adaptive.size, adaptive.map { it.adaptive!!.layout }.toSet().size)
-        assertTrue(GlassThemes.AdaptiveLight.adaptive!!.values.first() > GlassThemes.AdaptiveMidnight.adaptive!!.values.first() + 0.05f)
-        assertTrue(GlassThemes.AdaptiveVivid.adaptive!!.minSaturation > GlassThemes.AdaptiveLight.adaptive!!.minSaturation)
+        assertTrue(GlassThemes.AdaptiveVivid.adaptive!!.minSaturation > GlassThemes.AdaptiveMidnight.adaptive!!.minSaturation)
     }
 }
 
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Warm Light", "Luminous Light", "Liquid Day", "Photo Light", "Clear Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Warm Light", "Luminous Light", "Liquid Day", "Clear Light"), GlassThemes.lightThemes.map { it.displayName })
         assertEquals(listOf("Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
@@ -108,8 +106,8 @@ class ThemeCatalogTest {
     }
 
     @Test
-    fun photoLightIsTheDefault() {
-        assertEquals(GlassThemes.AdaptiveLight.pale, GlassThemes.default)
+    fun liquidDayIsTheDefault() {
+        assertEquals(GlassThemes.LiquidDay.pale, GlassThemes.default)
     }
 
     @Test
@@ -119,7 +117,7 @@ class ThemeCatalogTest {
             // Removed 29 Oct: Violet Night, Glass Night, Clear Night, Glow Night (and Glass Light earlier).
             "MIDNIGHT_PRISM", "GLASS_NIGHT", "CRYSTAL_GLASS_DARK", "ADAPTIVE_GLOW", "GLASS_LIGHT",
             // Removed 29 Oct (later): Teal Light, Luminous Night, Liquid Night.
-            "OCEAN_GLASS", "AURORA_GLASS_DARK", "LIQUID_NIGHT",
+            "OCEAN_GLASS", "AURORA_GLASS_DARK", "LIQUID_NIGHT", "ADAPTIVE_LIGHT",
         ).forEach { assertEquals(GlassThemes.default, GlassThemes.byId(it), it) }
     }
 
@@ -172,16 +170,6 @@ class AdaptivePaletteTest {
             assertEquals(c.green, back.green, 0.01f)
             assertEquals(c.blue, back.blue, 0.01f)
         }
-    }
-
-    @Test
-    fun photoLightHasADeepVersionAndAPaleOneWithAWhiteVeilAndDarkTextOnThePage() {
-        val deep = GlassThemes.AdaptiveLight.adaptive!!
-        assertTrue(!deep.light)
-        val pale = GlassThemes.AdaptiveLight.pale!!
-        assertTrue(pale.adaptive!!.light)
-        assertEquals(Color.White, pale.adaptive!!.veil)
-        assertTrue(Contrast.relativeLuminance(pale.onWallpaper) < 0.05)
     }
 
     @Test

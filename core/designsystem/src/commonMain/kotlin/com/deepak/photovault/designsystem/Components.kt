@@ -80,7 +80,7 @@ fun GlassButton(
     Row(
         modifier
             .heightIn(min = MinTouchTarget)
-            .then(if (primary) Modifier.clip(shape).background(theme.accentSurface).frostedEdge(shape) else Modifier.glassPanel(shape))
+            .then(if (primary) Modifier.clip(shape).background(theme.accentSurface).glassDepth().glassRim(shape) else Modifier.glassPanel(shape))
             .clickable(role = Role.Button, onClick = {
                 haptics.tap()
                 onClick()
@@ -197,17 +197,15 @@ fun GlassSwitchRow(
 @Composable
 private fun GlassToggle(checked: Boolean) {
     val theme = LocalGlassTheme.current
-    val strong = LocalGlassSettings.current.strongToggles
     val shape = RoundedCornerShape(percent = 50)
     val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, label = "knob")
-    // Easier to see (29 Oct): off is a darker track with a clear white edge, on is a bright track. The stronger
-    // experiment makes on a green track like iOS. The knob is solid: a see-through knob let its shadow show through.
+    // Easier to see (29 Oct): off is a darker track with a clear edge, on is a bright track. The knob is solid: a
+    // see-through knob let its shadow show through.
     val dark = theme.isDark
     val ink = theme.onGlass
     val track = when {
-        strong && checked -> Color(0xFF34C759)
         checked -> if (dark) Color.White.copy(alpha = 0.55f) else ink.copy(alpha = 0.75f)
-        else -> if (dark) Color.Black.copy(alpha = if (strong) 0.45f else 0.30f) else ink.copy(alpha = if (strong) 0.22f else 0.14f)
+        else -> if (dark) Color.Black.copy(alpha = 0.30f) else ink.copy(alpha = 0.14f)
     }
     val edge = if (dark) Color.White else ink
     Box(

@@ -59,14 +59,12 @@ data class AppearanceSettings(
     val reduceMotion: Boolean = false,
     /** Tablets only: the floating bottom bar instead of the side menu (24 Oct). Saved per device. */
     val tabletBottomBar: Boolean = false,
-    /** The person picked a theme themselves. Until then they follow the default (Photo Light since 24 Oct). */
+    /** The person picked a theme themselves. Until then they follow the default (Liquid Day since 29 Oct). */
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
     val lensGlass: Boolean = false,
     /** How strong the glass blur is, 0 (none) to 4 (most); 3 is the usual (29 Oct). Only used while the glass effect is on. */
     val blurStep: Int = 3,
-    /** Experiment (29 Oct): easier-to-see switches (green when on, darker when off). */
-    val strongToggles: Boolean = false,
     /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
     val pinBottomBar: Boolean = false,
     /** Check the family drive by itself when the app opens and once an hour while it is on screen (28 Oct). */
@@ -379,10 +377,9 @@ class ShellState(private val store: AppearanceStore) {
     fun glassSettings(signals: PlatformSignals): GlassSettings = GlassSettings(
         blurEnabled = appearance.blurOn && !signals.powerSaveMode,
         reduceMotion = appearance.reduceMotion || signals.systemReduceMotion,
-        // Lens glass was removed from Settings on 29 Oct: every theme has the one glass look.
-        lensEnabled = false,
+        // Lens glass (thick-glass look, Android 13+) is what the Blur slider's 0 setting means (29 Oct).
+        lensEnabled = appearance.blurStep == 0,
         blurScale = BLUR_SCALES[appearance.blurStep.coerceIn(0, 4)],
-        strongToggles = appearance.strongToggles,
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */

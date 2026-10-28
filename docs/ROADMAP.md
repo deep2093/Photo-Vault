@@ -118,3 +118,4 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - 29 Oct (01:35): About experiment switches Light blur (quarter radius) and No blur (clear film, tint at least .30); remove losers in 6B-2. Status bar now has a fade so dates don't show through.
 - 29 Oct (02:05): removed Teal Light, Clear Light, Luminous Night, Liquid Night, the pale look and the two blur experiment switches; Blur slider 0-4 (only with glass on); 'Turn on glass effect'; round theme swatches; toggle visibility experiment (About). Light themes are deep + near-clear glass + white text only.
 - 29 Oct (02:22): Clear Light is the only deep light theme; Warm, Luminous, Liquid Day, Photo Light use the pale (light page, clear glass, dark text) look. Teal Light stays removed.
+- 29 Oct (02:50): removed Photo Light and Stronger switches; default Liquid Day; Warm/Luminous ink black; primary buttons get glass depth+rim; Blur 0 turns on lens (thick glass) glass.
