@@ -5,6 +5,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
+import com.deepak.photovault.designsystem.accentSurface
+import com.deepak.photovault.designsystem.frostedEdge
 import com.deepak.photovault.designsystem.PageEasing
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.drawBehind
@@ -645,7 +647,8 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
                 .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
                 .size(itemWidth, NAV_ITEM_HEIGHT)
                 .clip(RoundedCornerShape(24.dp))
-                .background(theme.accent),
+                .background(theme.accentSurface)
+                .frostedEdge(RoundedCornerShape(24.dp)),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->

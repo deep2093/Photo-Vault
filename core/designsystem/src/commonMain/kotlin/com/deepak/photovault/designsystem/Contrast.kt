@@ -34,9 +34,15 @@ object Contrast {
      * Opaque backgrounds that glass can end up as: glass over the busiest photos (black and white) and glass
      * over the wallpaper. For adaptive themes the wallpaper is every hue the palette can produce.
      */
-    fun glassBackgrounds(theme: GlassTheme): List<Color> =
+    fun glassBackgrounds(theme: GlassTheme): List<Color> = panelBackgrounds(theme) +
         listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(if (theme.softGlass) BRIGHT_PHOTO else Color.White)) +
             wallpaperColors(theme).map { theme.glassFallback.compositeOver(it) }
+
+    /** Frosted panels over each wallpaper colour, with the light from the top (at its brightest). */
+    fun panelBackgrounds(theme: GlassTheme): List<Color> {
+        val film = theme.panelFill ?: return emptyList()
+        return wallpaperColors(theme).map { Color.White.copy(alpha = 0.08f).compositeOver(film.compositeOver(it)) }
+    }
 
     /** Glass plus the bare wallpaper, which primary text also sits on (photo date headers, empty screens). */
     fun allTextBackgrounds(theme: GlassTheme): List<Color> = glassBackgrounds(theme) + wallpaperColors(theme)

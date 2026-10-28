@@ -78,7 +78,7 @@ fun GlassButton(
     Row(
         modifier
             .heightIn(min = MinTouchTarget)
-            .then(if (primary) Modifier.clip(shape).background(theme.accent) else Modifier.glassPanel(shape))
+            .then(if (primary) Modifier.clip(shape).background(theme.accentSurface).frostedEdge(shape) else Modifier.glassPanel(shape))
             .clickable(role = Role.Button, onClick = {
                 haptics.tap()
                 onClick()
@@ -118,7 +118,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
 fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
-    val background by animateColorAsState(if (selected) theme.accent else Color.Transparent, motionSpec())
+    val background by animateColorAsState(if (selected) theme.accentSurface else Color.Transparent, motionSpec())
     Box(
         modifier
             .heightIn(min = MinTouchTarget)
@@ -187,7 +187,7 @@ fun GlassSwitchRow(
                 onCheckedChange = null,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = theme.onAccent,
-                    checkedTrackColor = theme.accent,
+                    checkedTrackColor = theme.accentFill?.copy(alpha = 0.5f) ?: theme.accent,
                     uncheckedThumbColor = theme.onGlassSecondary,
                     uncheckedTrackColor = theme.glassFallback,
                     uncheckedBorderColor = theme.onGlassSecondary,

@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
+import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
@@ -236,7 +237,7 @@ private fun ViewButtons(gallery: GalleryState) {
         LibraryView.entries.forEach { option ->
             val selected = gallery.view == option
             val background by androidx.compose.animation.animateColorAsState(
-                if (selected) theme.accent else androidx.compose.ui.graphics.Color.Transparent,
+                if (selected) theme.accentSurface else androidx.compose.ui.graphics.Color.Transparent,
                 motionSpec(),
                 label = "view",
             )

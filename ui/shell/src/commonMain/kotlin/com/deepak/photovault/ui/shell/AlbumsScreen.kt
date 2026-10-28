@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.semantics.selected
+import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.GlassIconButton
 import com.deepak.photovault.designsystem.motionSpec
 import coil3.compose.AsyncImage
@@ -308,7 +309,7 @@ private fun AlbumCard(
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             ) {
                 Box(
-                    Modifier.size(24.dp).clip(CircleShape).background(if (selected) theme.accent else Color.Black.copy(alpha = 0.35f)),
+                    Modifier.size(24.dp).clip(CircleShape).background(if (selected) theme.accentSurface else Color.Black.copy(alpha = 0.35f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(24.dp))

@@ -81,6 +81,7 @@ import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.core.backup.BackupSelection
 import com.deepak.photovault.core.backup.DriveTimeline
 import com.deepak.photovault.core.media.Timeline
+import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.GlassIconButton
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.WarningNote
@@ -348,7 +349,7 @@ private fun SortBar(order: FileOrder, onTap: (FileSort) -> Unit) {
                 Modifier
                     .heightIn(min = 40.dp)
                     .glassPanel(RoundedCornerShape(percent = 50))
-                    .background(if (active) theme.accent else androidx.compose.ui.graphics.Color.Transparent)
+                    .background(if (active) theme.accentSurface else androidx.compose.ui.graphics.Color.Transparent)
                     .selectable(selected = active, role = Role.Button, onClick = {
                         haptics.tick()
                         onTap(key)
@@ -416,7 +417,7 @@ private fun FileRow(
                     .padding(start = 8.dp)
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(if (selected) theme.accent else theme.onGlass.copy(alpha = 0.12f)),
+                    .background(if (selected) theme.accentSurface else theme.onGlass.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(24.dp))

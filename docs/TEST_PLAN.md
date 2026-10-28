@@ -425,3 +425,9 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 1. Settings > Appearance > Dark: Liquid Night. Bottom bar, top pills and the viewer toolbar are nearly clear; photos bend and magnify at their rounded edges (Android 13 and newer); a thin bright rim; yellow highlights. There is no Lens glass switch for it. On Android 12 and older: plain frosted blur.
 2. Text on the bars is readable over bright and dark photos. Blur off or battery saver: bars become solid and readable.
 3. Glass Light is gone from the Light section. A phone that had it selected opens in Photo Light.
+
+## Round 30 (28 Oct): Liquid Night frosted, Liquid Day
+1. Liquid Night: the selected bottom tab, Select-style buttons, tick circles and chips are a frosted see-through white film with a fine edge, not yellow. Icons and text are white everywhere (Settings icons too).
+2. Settings, Albums, Storage and Backup boxes (and album folders) are clear frosted glass over the wallpaper, not dark grey.
+3. Liquid Day (Settings > Appearance > Light): deep blue sky with warm glows, same glass and white text; the status bar icons are light. Text on the bars stays readable over a very bright photo.
+4. Both: the viewer toolbar and top pills bend photos at their edges (Android 13+). Switches look frosted when on.

@@ -135,7 +135,26 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
 @Composable
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
-    return this.clip(shape).background(theme.glassFallback).glassRim(shape)
+    val film = theme.panelFill
+    // Frosted themes (28 Oct): a see-through film with a soft light from the top, not a near-solid grey box.
+    return if (film != null) {
+        this.clip(shape).background(film)
+            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.02f))))
+            .glassRim(shape)
+    } else {
+        this.clip(shape).background(theme.glassFallback).glassRim(shape)
+    }
+}
+
+/** On a pill filled with [accentSurface]: in frosted themes a fine bright edge so the film reads as glass. */
+@Composable
+fun Modifier.frostedEdge(shape: Shape): Modifier {
+    val theme = LocalGlassTheme.current
+    return if (theme.accentFill == null) this else this.border(
+        1.dp,
+        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.3f))),
+        shape,
+    )
 }
 
 val GlassCardShape = RoundedCornerShape(24.dp)

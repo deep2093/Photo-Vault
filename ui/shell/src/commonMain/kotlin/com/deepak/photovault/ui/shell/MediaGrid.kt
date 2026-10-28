@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.clickable
+import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.glassChrome
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -586,7 +587,7 @@ private fun PhotoTile(
                 Modifier
                     .size(22.dp)
                     .clip(CircleShape)
-                    .background(if (selected) theme.accent else Color.Black.copy(alpha = 0.35f)),
+                    .background(if (selected) theme.accentSurface else Color.Black.copy(alpha = 0.35f)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(22.dp))

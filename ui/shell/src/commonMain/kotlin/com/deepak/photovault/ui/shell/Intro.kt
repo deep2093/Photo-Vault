@@ -100,11 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-28-6"
+    const val ID = "2026-10-28-7"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Liquid Night", "A new dark theme with clear iOS-style glass: the bars bend the photos behind them like thick glass (Android 13 and newer) and glow with a thin bright edge."),
-        Change(ChangeKind.REMOVED, "Glass Light", "The light glassmorphism theme is gone. If you used it, the app switches to Photo Light."),
+        Change(ChangeKind.NEW, "Liquid Day", "A new theme in the Light section: the same clear iOS-style glass over a bright blue sky."),
+        Change(ChangeKind.CHANGED, "Liquid Night", "Selected tabs, buttons and ticks are frosted glass instead of yellow, and icons and text are white, like iOS."),
+        Change(ChangeKind.CHANGED, "Frosted panels", "In Liquid Night and Liquid Day, Settings boxes and album folders are clear frosted glass instead of grey."),
     )
 }
 
