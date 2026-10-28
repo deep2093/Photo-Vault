@@ -100,12 +100,15 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-28-8"
+    const val ID = "2026-10-29-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Liquid Night and Liquid Day glass", "The bars no longer bend the photos behind them: just clear glass with a little frost, like iOS."),
-        Change(ChangeKind.CHANGED, "Liquid Day is white", "Liquid Day now has a white background with dark text and icons (white text can't be read on white)."),
-        Change(ChangeKind.FIXED, "Matching rounded corners", "The selected tab at the bottom is now fully round, like the pills at the top."),
+        Change(ChangeKind.NEW, "Glass in every theme", "Every theme now has the same glass: clear bars with depth, frosted cards and album folders, frosted selected items, glass switches, and white text and icons."),
+        Change(ChangeKind.NEW, "Pale backgrounds (experiment)", "Settings > About has a switch to try pale backgrounds on the light themes, with white text on the glass and dark text on the page. One of the two looks will be removed."),
+        Change(ChangeKind.CHANGED, "One glass switch", "Settings > Appearance has a single \"Turn off glass effect\" switch. It replaces Glass blur."),
+        Change(ChangeKind.CHANGED, "Deeper light themes", "The light themes have deeper backgrounds so white text can be read everywhere."),
+        Change(ChangeKind.REMOVED, "Lens glass", "The experimental Lens glass switch is gone."),
+        Change(ChangeKind.REMOVED, "Four themes", "Violet Night, Glass Night, Clear Night and Glow Night are gone. If you used one, the app switches to Photo Light."),
     )
 }
 

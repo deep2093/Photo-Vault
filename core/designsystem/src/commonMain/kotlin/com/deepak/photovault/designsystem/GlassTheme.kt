@@ -7,12 +7,11 @@ import androidx.compose.ui.unit.dp
 
 /** Stable IDs: saved in settings, so never rename them. */
 enum class GlassThemeId {
-    MIDNIGHT_PRISM, PEARL_MIST, OCEAN_GLASS,
-    ADAPTIVE_GLOW, ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
-    /** Experimental (24 Oct), from the Aurora / Crystal design package. */
-    AURORA_GLASS_LIGHT, AURORA_GLASS_DARK, CRYSTAL_GLASS_LIGHT, CRYSTAL_GLASS_DARK,
-    /** Glassmorphism (28 Oct): Glass Night, vivid colour behind frosted glass; Liquid Night and Liquid Day, the clear iOS 26 look. */
-    GLASS_NIGHT, LIQUID_NIGHT, LIQUID_DAY,
+    PEARL_MIST, OCEAN_GLASS,
+    ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID, ADAPTIVE_LIGHT,
+    AURORA_GLASS_LIGHT, AURORA_GLASS_DARK, CRYSTAL_GLASS_LIGHT,
+    /** Liquid Night and Liquid Day: the clear iOS 26 look (28 Oct). */
+    LIQUID_NIGHT, LIQUID_DAY,
 }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
@@ -59,13 +58,11 @@ data class GlassTheme(
     val blurRadius: Dp = 24.dp,
     /** Fine grain in the glass; higher looks more frosted. */
     val grain: Float = 0.03f,
-    /** Offers the "Lens glass" setting (24 Oct): the Clear themes. */
+    /** Lens glass: no theme uses it since 29 Oct (every theme has the one glass look). The code stays for now. */
     val lens: Boolean = false,
     /** The bright edge of glass: thickness and strength (1 = the usual). Glassmorphism themes use a fuller one. */
     val rimWidth: Dp = 1.dp,
     val rimStrength: Float = 1f,
-    /** Clear, see-through glass (iOS style): a lighter tint, so contrast is tested against a bright photo, not pure white. */
-    val softGlass: Boolean = false,
     /**
      * Frosted accent (iOS style): where other themes fill a selected pill, button or tick with the solid accent colour,
      * this theme lays a see-through white film instead (and [accent] itself is white for icons and highlights).
@@ -73,412 +70,233 @@ data class GlassTheme(
     val accentFill: Color? = null,
     /** Frosted panels, cards and album folders: a see-through film instead of the near-solid [glassFallback]. */
     val panelFill: Color? = null,
+    /** Text and icons that sit straight on the wallpaper, not on glass. White, except in the pale versions of the light themes. */
+    val onWallpaper: Color = onGlass,
+    /** The pale-background version of a light theme (experiment, 29 Oct): same id, pale wallpaper, dark text on it, white text on glass. */
+    val pale: GlassTheme? = null,
 )
 
 /** What a selected pill, button or tick is filled with: the frosted film where the theme has one, else the accent. */
 val GlassTheme.accentSurface: Color get() = accentFill ?: accent
 
 object GlassThemes {
-    val MidnightPrism = GlassTheme(
-        id = GlassThemeId.MIDNIGHT_PRISM,
-        displayName = "Violet Night",
-        bestFor = "Dark violet glass, fixed colours (best on OLED)",
-        isDark = true,
-        wallpaper = listOf(Color(0xFF05060F), Color(0xFF14113D), Color(0xFF22104A)),
-        glows = listOf(
-            Glow(0.85f, 0.1f, 0.7f, Color(0x407C4DFF)),
-            Glow(0.1f, 0.85f, 0.8f, Color(0x333D5AFE)),
-        ),
-        glassTint = Color(0xCC0D0B24),
-        glassFallback = Color(0xF214122E),
-        glassRim = Color(0xFF8E80D9),
-        onGlass = Color(0xFFF4F2FF),
-        onGlassSecondary = Color(0xFFBCB6E6),
-        accent = Color(0xFFB39BFF),
-        onAccent = Color(0xFF160033),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF4B3AA8),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF3B2F7A), Color(0xFF5E3FA3), Color(0xFF1F2A6B), Color(0xFF7A4FB5), Color(0xFF2C1F5E)),
-    )
+    private val White = Color(0xFFFFFFFF)
 
-    val PearlMist = GlassTheme(
-        id = GlassThemeId.PEARL_MIST,
-        displayName = "Warm Light",
-        bestFor = "Soft peach glass, fixed colours",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFFFF8F1), Color(0xFFFBEDE6), Color(0xFFF4E0D6)),
-        glows = listOf(
-            Glow(0.9f, 0.05f, 0.7f, Color(0x40F4B9C1)),
-            Glow(0.05f, 0.6f, 0.7f, Color(0x33E8B48A)),
-            Glow(0.6f, 1.0f, 0.8f, Color(0x33F6C9C9)),
-        ),
-        glassTint = Color(0xCCFFF7F0),
-        glassFallback = Color(0xF2FFF8F3),
-        glassRim = Color(0xFFC79A86),
-        onGlass = Color(0xFF3A2320),
-        onGlassSecondary = Color(0xFF664640),
-        accent = Color(0xFF9E4F4A),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF9E4F4A),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFFE8B4A0), Color(0xFFD99A8E), Color(0xFFF2D0C2), Color(0xFFC47F72), Color(0xFFE9C3B0)),
-    )
-
-    val OceanGlass = GlassTheme(
-        id = GlassThemeId.OCEAN_GLASS,
-        displayName = "Teal Light",
-        bestFor = "Cool teal glass, fixed colours",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFE6FBF6), Color(0xFFC9F1EC), Color(0xFFB3E8F0)),
-        glows = listOf(
-            Glow(0.85f, 0.1f, 0.7f, Color(0x404FD1C5)),
-            Glow(0.1f, 0.8f, 0.8f, Color(0x330F9AA8)),
-        ),
-        glassTint = Color(0xCCEEFFFB),
-        glassFallback = Color(0xF2F1FFFC),
-        glassRim = Color(0xFF5FB3B0),
-        onGlass = Color(0xFF05393A),
-        onGlassSecondary = Color(0xFF285858),
-        accent = Color(0xFF0A6E72),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF0A6E72),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF4FB7B3), Color(0xFF7FD3CF), Color(0xFF2A8C9A), Color(0xFFA5E4E0), Color(0xFF3F9E8F)),
-    )
     /**
-     * Dark adaptive themes: the wallpaper is made from the photos on screen (first ported from Veyra). After the
-     * Phase 3 review (23 Oct) each one also has its own wallpaper shape, not just different numbers, so they
-     * look clearly different: Glow is an aurora of bright blooms, Midnight a dark sky with one soft light, Vivid
-     * a bold diagonal sweep. [ThemeContrastTest] checks every hue each can produce.
+     * The one glass look (29 Oct), shared by every theme: clear see-through bars with a little frost and depth, frosted
+     * panels, frosted selection (the accent is white, so selected items are a frosted film, not a colour), white text
+     * and icons. Only the colours differ. [tint] is the see-through colour over blurred photos (0.5 strong), [fallback]
+     * what glass becomes with "Turn off glass effect" on, and [film] the frosted layer on cards and album folders.
+     * ThemeContrastTest checks white text on all of it, over black and over a very bright photo.
      */
-    private fun adaptive(
+    private fun glass(
         id: GlassThemeId,
         name: String,
         bestFor: String,
-        style: AdaptiveStyle,
-        accent: Color,
-        onAccent: Color,
-        glassTint: Color,
-        glassFallback: Color,
-        rim: Color,
-        badgeOnDrive: Color,
+        wallpaper: List<Long>,
+        glows: List<Glow>,
+        tint: Long,
+        fallback: Long,
+        rim: Long,
+        film: Long,
+        onDrive: Long,
+        hues: List<Long>,
+        secondary: Long = 0xFFF2F4FA,
+        adaptive: AdaptiveStyle? = null,
+        blur: Dp = 12.dp,
     ) = GlassTheme(
         id = id,
         displayName = name,
         bestFor = bestFor,
         isDark = true,
-        wallpaper = style.fallback,
-        glows = emptyList(),
-        glassTint = glassTint,
-        glassFallback = glassFallback,
-        glassRim = rim,
-        onGlass = Color(0xFFF5F5FA),
-        onGlassSecondary = Color(0xFFD4D2E0),
-        accent = accent,
-        onAccent = onAccent,
+        wallpaper = wallpaper.map { Color(it) },
+        glows = glows,
+        glassTint = Color(tint),
+        glassFallback = Color(fallback),
+        glassRim = Color(rim),
+        onGlass = White,
+        onGlassSecondary = Color(secondary),
+        accent = White,
+        onAccent = White,
+        accentFill = Color(0x33FFFFFF),
+        panelFill = Color(film),
         badgeBackedUp = Color(0xFF1B6E45),
         badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = badgeOnDrive,
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFFE07A5F), Color(0xFF3D9970), Color(0xFF6A4C93), Color(0xFFF2B134), Color(0xFF1982C4)),
-        adaptive = style,
+        badgeOnDrive = Color(onDrive),
+        onBadge = White,
+        sampleHues = hues.map { Color(it) },
+        adaptive = adaptive,
+        blurRadius = blur,
+        grain = 0f,
+        rimStrength = 1.1f,
     )
 
-    /** Aurora: two large bright blooms of your photos' colours over a dark base, peach accent. */
-    val AdaptiveGlow = adaptive(
-        GlassThemeId.ADAPTIVE_GLOW, "Glow Night", "Bright blooms of colour from your photos",
-        AdaptiveStyle(listOf(0.52f, 0.44f, 0.14f), 0.55f, 0.95f, glow = 0.85f, scrim = 0.30f,
-            fallback = listOf(Color(0xFF7A4A8A), Color(0xFF2E6A7A), Color(0xFF1A1424)),
-            layout = WallpaperLayout.AURORA),
-        accent = Color(0xFFFFB38A), onAccent = Color(0xFF3A1400),
-        glassTint = Color(0xCC14141C), glassFallback = Color(0xF21D1D28), rim = Color(0xFFB09A8E),
-        badgeOnDrive = Color(0xFF9A4A2A),
-    )
+    /**
+     * The pale-background version of a light theme (experiment, 29 Oct, shown with a switch in About): the old pale
+     * wallpaper, dark text where text sits straight on it, and the same white text on smoky glass.
+     */
+    private fun pale(deep: GlassTheme, wallpaper: List<Long>, glows: List<Glow>, ink: Long, film: Long, adaptive: AdaptiveStyle? = null): GlassTheme =
+        deep.copy(
+            isDark = false,
+            wallpaper = wallpaper.map { Color(it) },
+            glows = glows,
+            onWallpaper = Color(ink),
+            glassTint = deep.glassTint.copy(alpha = 0.55f),
+            glassFallback = deep.glassFallback.copy(alpha = 0.92f),
+            panelFill = Color(film),
+            adaptive = adaptive,
+            pale = null,
+        )
 
-    /** Night sky: nearly black, with one soft light of your photos' colour at the top. Icy cyan accent. */
-    val AdaptiveMidnight = adaptive(
-        GlassThemeId.ADAPTIVE_MIDNIGHT, "Photo Night", "Nearly black, one soft light from your photos",
-        AdaptiveStyle(listOf(0.30f, 0.12f, 0.04f), 0.25f, 0.55f, glow = 0.7f, scrim = 0.30f,
-            fallback = listOf(Color(0xFF2A3550), Color(0xFF141A26), Color(0xFF0A0A10)),
-            layout = WallpaperLayout.NIGHT),
-        accent = Color(0xFF7DD3FC), onAccent = Color(0xFF002233),
-        glassTint = Color(0xCC0A0C14), glassFallback = Color(0xF2141722), rim = Color(0xFF6E8AA0),
-        badgeOnDrive = Color(0xFF1F5F86),
-    )
+    // ---- Light themes (deep backgrounds by default; pale ones with the experiment switch) ----
 
-    /** Bold sweep: fully saturated colours from your photos corner to corner, pink accent. */
-    val AdaptiveVivid = adaptive(
-        GlassThemeId.ADAPTIVE_VIVID, "Vivid Night", "Bold, saturated colours from your photos",
-        AdaptiveStyle(listOf(0.46f, 0.38f, 0.30f), 0.85f, 1.0f, glow = 0.5f, scrim = 0.30f,
-            fallback = listOf(Color(0xFF7A2C6C), Color(0xFF1F5F86), Color(0xFF4A1E50)),
-            layout = WallpaperLayout.DIAGONAL),
-        accent = Color(0xFFFF8AD0), onAccent = Color(0xFF3A0028),
-        glassTint = Color(0xCC16101C), glassFallback = Color(0xF2201726), rim = Color(0xFFB08AA6),
-        badgeOnDrive = Color(0xFF8A2A6E),
-    )
+    val PearlMist: GlassTheme = glass(
+        GlassThemeId.PEARL_MIST, "Warm Light", "Warm peach glass, white text",
+        wallpaper = listOf(0xFF5A2E2A, 0xFF7A4036, 0xFF8E5444),
+        glows = listOf(Glow(0.9f, 0.05f, 0.7f, Color(0x59FF9A7A)), Glow(0.05f, 0.6f, 0.7f, Color(0x40FFC48A)), Glow(0.6f, 1.0f, 0.8f, Color(0x40F4B9C1))),
+        tint = 0x802E1512, fallback = 0xE63A1C18, rim = 0xFFFFD9C8, film = 0x592E1512, onDrive = 0xFF9E4F4A,
+        hues = listOf(0xFFE8B4A0, 0xFFD99A8E, 0xFFF2D0C2, 0xFFC47F72, 0xFFE9C3B0),
+    ).let { deep ->
+        deep.copy(pale = pale(deep, listOf(0xFFFFF8F1, 0xFFFBEDE6, 0xFFF4E0D6),
+            listOf(Glow(0.9f, 0.05f, 0.7f, Color(0x40F4B9C1)), Glow(0.05f, 0.6f, 0.7f, Color(0x33E8B48A)), Glow(0.6f, 1.0f, 0.8f, Color(0x33F6C9C9))),
+            ink = 0xFF3A2320, film = 0xB02E1512))
+    }
 
-    /** Light adaptive: soft pastel bands from your photos, top to bottom, under a white veil, with dark text. */
-    val AdaptiveLight = GlassTheme(
-        id = GlassThemeId.ADAPTIVE_LIGHT,
-        displayName = "Photo Light",
-        bestFor = "Soft pastel bands from your photos",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFF6F1FA), Color(0xFFEFF5FA), Color(0xFFF7F3EC)),
+    val OceanGlass: GlassTheme = glass(
+        GlassThemeId.OCEAN_GLASS, "Teal Light", "Cool teal glass, white text",
+        wallpaper = listOf(0xFF083338, 0xFF0E4C53, 0xFF126068),
+        glows = listOf(Glow(0.85f, 0.1f, 0.7f, Color(0x594FD1C5)), Glow(0.1f, 0.8f, 0.8f, Color(0x4D0F9AA8))),
+        tint = 0x8004191C, fallback = 0xE60A2A2E, rim = 0xFF9AE8E4, film = 0x5904191C, onDrive = 0xFF0A6E72,
+        hues = listOf(0xFF4FB7B3, 0xFF7FD3CF, 0xFF2A8C9A, 0xFFA5E4E0, 0xFF3F9E8F),
+    ).let { deep ->
+        deep.copy(pale = pale(deep, listOf(0xFFE6FBF6, 0xFFC9F1EC, 0xFFB3E8F0),
+            listOf(Glow(0.85f, 0.1f, 0.7f, Color(0x404FD1C5)), Glow(0.1f, 0.8f, 0.8f, Color(0x330F9AA8))),
+            ink = 0xFF05393A, film = 0xB004191C))
+    }
+
+    val AuroraGlassLight: GlassTheme = glass(
+        GlassThemeId.AURORA_GLASS_LIGHT, "Luminous Light", "Bright blue, cyan and violet glow",
+        wallpaper = listOf(0xFF1E3A78, 0xFF2C4C92, 0xFF3A5AA6),
+        glows = listOf(Glow(0.9f, 0.05f, 0.7f, Color(0x805AC8FA)), Glow(0.05f, 0.7f, 0.75f, Color(0x667C78FF)), Glow(0.5f, 0.35f, 0.4f, Color(0x33FFFFFF))),
+        tint = 0x800B1A40, fallback = 0xE612275A, rim = 0xFFA8CCFF, film = 0x590B1A40, onDrive = 0xFF0A4FA8,
+        hues = listOf(0xFF79B7D8, 0xFF9675B6, 0xFF5AA0E0, 0xFFB4C8F5, 0xFF7C78FF),
+        blur = 14.dp,
+    ).let { deep ->
+        deep.copy(pale = pale(deep, listOf(0xFFE3F1FF, 0xFFF2F7FF, 0xFFE4E0FF),
+            listOf(Glow(0.9f, 0.05f, 0.7f, Color(0x4D5AC8FA)), Glow(0.05f, 0.7f, 0.75f, Color(0x407C78FF)), Glow(0.5f, 0.35f, 0.4f, Color(0x80FFFFFF))),
+            ink = 0xFF061F40, film = 0xB00B1A40))
+    }
+
+    val CrystalGlassLight: GlassTheme = glass(
+        GlassThemeId.CRYSTAL_GLASS_LIGHT, "Clear Light", "Neutral grey-blue glass, white text",
+        wallpaper = listOf(0xFF2B3642, 0xFF394655, 0xFF465566),
+        glows = listOf(Glow(0.5f, 0.2f, 0.7f, Color(0x33FFFFFF))),
+        tint = 0x8010161C, fallback = 0xE61B242E, rim = 0xFFD5DEE8, film = 0x5910161C, onDrive = 0xFF4A5568,
+        hues = listOf(0xFFB8C2CC, 0xFF9AA5B1, 0xFFD0D6DC, 0xFF7D8894, 0xFFC4CCD4),
+    ).let { deep ->
+        deep.copy(pale = pale(deep, listOf(0xFFF2F4F6, 0xFFE9EDF1, 0xFFF8F9FB),
+            listOf(Glow(0.5f, 0.2f, 0.7f, Color(0x80FFFFFF))),
+            ink = 0xFF1C2733, film = 0xB010161C))
+    }
+
+    val LiquidDay: GlassTheme = glass(
+        GlassThemeId.LIQUID_DAY, "Liquid Day", "Clear glass over a bright blue sky, white text",
+        wallpaper = listOf(0xFF1B3F6E, 0xFF275992, 0xFF3570AD),
+        glows = listOf(Glow(0.85f, 0.08f, 0.8f, Color(0x80FFD9A0)), Glow(0.1f, 0.6f, 0.8f, Color(0x6659C8FF)), Glow(0.7f, 0.95f, 0.7f, Color(0x55A98CFF))),
+        tint = 0x800A1A33, fallback = 0xE615325A, rim = 0xFFFFFFFF, film = 0x590A1A33, onDrive = 0xFF3F5A8A,
+        hues = listOf(0xFF4F83BF, 0xFF6FA3D9, 0xFF3A6EA5, 0xFF8CB4E0, 0xFF5A8FCF),
+    ).let { deep ->
+        deep.copy(pale = pale(deep, listOf(0xFFF7F8FB, 0xFFEEF1F7, 0xFFE6EBF4),
+            listOf(Glow(0.85f, 0.08f, 0.8f, Color(0x33FFD9A0)), Glow(0.1f, 0.6f, 0.8f, Color(0x2659C8FF))),
+            ink = 0xFF14171C, film = 0xB00A1A33))
+    }
+
+    val AdaptiveLight: GlassTheme = glass(
+        GlassThemeId.ADAPTIVE_LIGHT, "Photo Light", "Soft bands of colour from your photos, white text",
+        wallpaper = listOf(0xFF3B4A6E, 0xFF2E5A74, 0xFF4A3E6A),
         glows = emptyList(),
-        glassTint = Color(0xCCFAF9FF),
-        // See-through enough that the colours of the photos come through cards and tiles (24 Oct).
-        glassFallback = Color(0x99FBFAFF),
-        glassRim = Color(0xFFB0A8C8),
-        onGlass = Color(0xFF1C1A28),
-        onGlassSecondary = Color(0xFF36314A),
-        accent = Color(0xFF4E33A3),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF4E33A3),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFFE07A5F), Color(0xFF3D9970), Color(0xFF6A4C93), Color(0xFFF2B134), Color(0xFF1982C4)),
+        tint = 0x8010141C, fallback = 0xE61A2030, rim = 0xFFD8D0F0, film = 0x40000000, onDrive = 0xFF4E33A3,
+        hues = listOf(0xFFE07A5F, 0xFF3D9970, 0xFF6A4C93, 0xFFF2B134, 0xFF1982C4),
         adaptive = AdaptiveStyle(
-            listOf(0.98f, 0.95f, 0.91f), 0.10f, 0.28f, glow = 0.35f, scrim = 0.25f,
-            fallback = listOf(Color(0xFFF6F1FA), Color(0xFFEFF5FA), Color(0xFFF7F3EC)),
-            light = true,
+            listOf(0.40f, 0.34f, 0.28f), 0.30f, 0.70f, glow = 0.5f, scrim = 0.25f,
+            fallback = listOf(Color(0xFF3B4A6E), Color(0xFF2E5A74), Color(0xFF4A3E6A)),
             layout = WallpaperLayout.HORIZON,
         ),
+    ).let { deep ->
+        deep.copy(pale = pale(deep, listOf(0xFFF6F1FA, 0xFFEFF5FA, 0xFFF7F3EC), emptyList(),
+            ink = 0xFF1C1A28, film = 0xB010141C,
+            adaptive = AdaptiveStyle(
+                listOf(0.98f, 0.95f, 0.91f), 0.10f, 0.28f, glow = 0.35f, scrim = 0.25f,
+                fallback = listOf(Color(0xFFF6F1FA), Color(0xFFEFF5FA), Color(0xFFF7F3EC)),
+                light = true,
+                layout = WallpaperLayout.HORIZON,
+            )))
+    }
+
+    // ---- Dark themes ----
+
+    val AuroraGlassDark: GlassTheme = glass(
+        GlassThemeId.AURORA_GLASS_DARK, "Luminous Night", "Glowing glass on a deep blue night",
+        wallpaper = listOf(0xFF060C24, 0xFF0C1D4A, 0xFF1B1250),
+        glows = listOf(Glow(0.9f, 0.05f, 0.75f, Color(0x5970E7FF)), Glow(0.05f, 0.8f, 0.8f, Color(0x597C78FF))),
+        tint = 0x800B1F4A, fallback = 0xE610264F, rim = 0xFF70E7FF, film = 0x4D060C24, onDrive = 0xFF3A4FC4,
+        hues = listOf(0xFF193A7B, 0xFF3B2F9A, 0xFF1268D9, 0xFF2A6FB5, 0xFF5A4FD0),
+        blur = 14.dp,
     )
 
-    /**
-     * Experimental (24 Oct), from the Aurora / Crystal design package. The package's numbers are the starting
-     * point (blur 26 dp / 18 dp, corner looks, colours); the glass tint is made more solid than the package's
-     * 0.38-0.62 so the contrast tests still pass over any photo. Aurora is colourful and luminous; Crystal is
-     * neutral, with no grain and a thin quiet rim. Never the default.
-     */
-    val AuroraGlassLight = GlassTheme(
-        id = GlassThemeId.AURORA_GLASS_LIGHT,
-        displayName = "Luminous Light",
-        bestFor = "Experimental: bright blue, cyan and violet glow, strong blur",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFE3F1FF), Color(0xFFF2F7FF), Color(0xFFE4E0FF)),
-        glows = listOf(
-            Glow(0.9f, 0.05f, 0.7f, Color(0x4D5AC8FA)),
-            Glow(0.05f, 0.7f, 0.75f, Color(0x407C78FF)),
-            Glow(0.5f, 0.35f, 0.4f, Color(0x80FFFFFF)),
-        ),
-        glassTint = Color(0xCCC4E0FF),
-        glassFallback = Color(0xF2EAF4FF),
-        glassRim = Color(0xFF6FA8E8),
-        onGlass = Color(0xFF061F40),
-        onGlassSecondary = Color(0xFF1F3A5F),
-        accent = Color(0xFF0A4FA8),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF0A4FA8),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF79B7D8), Color(0xFF9675B6), Color(0xFF5AA0E0), Color(0xFFB4C8F5), Color(0xFF7C78FF)),
-        blurRadius = 26.dp,
-        grain = 0.03f,
-    )
-
-    val AuroraGlassDark = GlassTheme(
-        id = GlassThemeId.AURORA_GLASS_DARK,
-        displayName = "Luminous Night",
-        bestFor = "Experimental: glowing glass on a deep blue night",
-        isDark = true,
-        wallpaper = listOf(Color(0xFF060C24), Color(0xFF0C1D4A), Color(0xFF1B1250)),
-        glows = listOf(
-            Glow(0.9f, 0.05f, 0.75f, Color(0x4D70E7FF)),
-            Glow(0.05f, 0.8f, 0.8f, Color(0x4D7C78FF)),
-        ),
-        glassTint = Color(0xC70F2A5E),
-        glassFallback = Color(0xF210264F),
-        glassRim = Color(0xFF70E7FF),
-        onGlass = Color(0xFFFFFFFF),
-        onGlassSecondary = Color(0xFFC9D9F5),
-        accent = Color(0xFF70E7FF),
-        onAccent = Color(0xFF00232E),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF3A4FC4),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF193A7B), Color(0xFF3B2F9A), Color(0xFF1268D9), Color(0xFF2A6FB5), Color(0xFF5A4FD0)),
-        blurRadius = 26.dp,
-        grain = 0.03f,
-    )
-
-    val CrystalGlassLight = GlassTheme(
-        id = GlassThemeId.CRYSTAL_GLASS_LIGHT,
-        displayName = "Clear Light",
-        bestFor = "Experimental: neutral, nearly colourless glass",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFF2F4F6), Color(0xFFE9EDF1), Color(0xFFF8F9FB)),
-        glows = listOf(Glow(0.5f, 0.2f, 0.7f, Color(0x80FFFFFF))),
-        glassTint = Color(0xC7F5F7F9),
-        glassFallback = Color(0x99F7F9FB),
-        glassRim = Color(0xFFB3BDC8),
-        onGlass = Color(0xFF1C2733),
-        onGlassSecondary = Color(0xFF2F3C4A),
-        accent = Color(0xFF1748A0),
-        onAccent = Color(0xFFFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF4A5568),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFFB8C2CC), Color(0xFF9AA5B1), Color(0xFFD0D6DC), Color(0xFF7D8894), Color(0xFFC4CCD4)),
-        blurRadius = 18.dp,
-        grain = 0f,
-        lens = true,
-    )
-
-    val CrystalGlassDark = GlassTheme(
-        id = GlassThemeId.CRYSTAL_GLASS_DARK,
-        displayName = "Clear Night",
-        bestFor = "Experimental: neutral dark glass over your photos",
-        isDark = true,
-        wallpaper = listOf(Color(0xFF0B0C0E), Color(0xFF16181B), Color(0xFF1F2226)),
-        glows = listOf(Glow(0.5f, 0.2f, 0.7f, Color(0x1AFFFFFF))),
-        glassTint = Color(0xC224272B),
-        glassFallback = Color(0x991E2125),
-        glassRim = Color(0xFF8A94A0),
-        onGlass = Color(0xFFFFFFFF),
-        onGlassSecondary = Color(0xFFDCE3EA),
-        accent = Color(0xFFDCE8F3),
-        onAccent = Color(0xFF101820),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF4A5568),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF3A3F45), Color(0xFF4F565D), Color(0xFF2A2E33), Color(0xFF62696F), Color(0xFF454B52)),
-        blurRadius = 18.dp,
-        grain = 0f,
-        lens = true,
-    )
-
-    /**
-     * Glassmorphism (28 Oct), from the usual recipe: colour for the glass to blur (big bright glows on the wallpaper),
-     * strong blur (24 dp: past about 20 it gets heavy for the GPU), fine grain, a coloured (not grey) tint and a bright 1.5 dp edge (a soft violet one in the dark theme, not pure white). The tint stays at 0.70 so text
-     * passes the contrast tests over any photo.
-     */
-    val GlassNight = GlassTheme(
-        id = GlassThemeId.GLASS_NIGHT,
-        displayName = "Glass Night",
-        bestFor = "Glassmorphism: neon colour glowing through dark frosted glass",
-        isDark = true,
-        wallpaper = listOf(Color(0xFF0A0820), Color(0xFF120B3A), Color(0xFF1B0B3F)),
-        glows = listOf(
-            Glow(0.88f, 0.08f, 0.75f, Color(0x99FF3D9A)),
-            Glow(0.08f, 0.55f, 0.8f, Color(0x8000D4FF)),
-            Glow(0.7f, 0.95f, 0.8f, Color(0x99774DFF)),
-            Glow(0.2f, 0.05f, 0.5f, Color(0x55FFB020)),
-        ),
-        glassTint = Color(0xB31B124A),
-        glassFallback = Color(0xF21A1240),
-        glassRim = Color(0xFFC3B5FF),
-        onGlass = Color(0xFFFFFFFF),
-        onGlassSecondary = Color(0xFFE2DCFF),
-        accent = Color(0xFF7CF2FF),
-        onAccent = Color(0xFF0B1030),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF4B3AA8),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFFB0247A), Color(0xFF0A7FA6), Color(0xFF5A3FD0), Color(0xFFB07A10), Color(0xFF138A6A)),
-        blurRadius = 24.dp,
-        grain = 0.05f,
-        rimWidth = 1.5.dp,
-        rimStrength = 1.2f,
-    )
-
-    /**
-     * Liquid Night (28 Oct, from a screen recording of the iOS 26 Photos app): clear glass with only a little frost
-     * (12 dp blur, no lens bending, as asked on 28 Oct), a thin bright rim, frosted instead of yellow highlights and white
-     * text. The tint is
-     * 0.5, lighter than the 0.6 of the other themes, so contrast is tested over a bright photo instead of pure white;
-     * labels also keep their soft shadow.
-     */
-    val LiquidNight = GlassTheme(
-        id = GlassThemeId.LIQUID_NIGHT,
-        displayName = "Liquid Night",
-        bestFor = "Clear iOS-style glass that bends the photos behind it",
-        isDark = true,
-        wallpaper = listOf(Color(0xFF0B0C10), Color(0xFF14161C), Color(0xFF1A1C24)),
+    val LiquidNight: GlassTheme = glass(
+        GlassThemeId.LIQUID_NIGHT, "Liquid Night", "Clear glass with a little frost, like iOS",
+        wallpaper = listOf(0xFF0B0C10, 0xFF14161C, 0xFF1A1C24),
         glows = listOf(Glow(0.5f, 0.15f, 0.8f, Color(0x2640608F)), Glow(0.15f, 0.9f, 0.7f, Color(0x1F8F5A40))),
-        glassTint = Color(0x800A0B10),
-        glassFallback = Color(0xE61A1C22),
-        glassRim = Color(0xFFFFFFFF),
-        onGlass = Color(0xFFFFFFFF),
-        onGlassSecondary = Color(0xFFE6E8EE),
-        accent = Color(0xFFFFFFFF),
-        onAccent = Color(0xFFFFFFFF),
-        accentFill = Color(0x33FFFFFF),
-        panelFill = Color(0x1FFFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF3F5A8A),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFF3A3F45), Color(0xFF4F565D), Color(0xFF2A2E33), Color(0xFF62696F), Color(0xFF454B52)),
-        blurRadius = 12.dp,
-        grain = 0f,
-        rimStrength = 1.1f,
-        softGlass = true,
+        tint = 0x800A0B10, fallback = 0xE61A1C22, rim = 0xFFFFFFFF, film = 0x1FFFFFFF, onDrive = 0xFF3F5A8A,
+        hues = listOf(0xFF3A3F45, 0xFF4F565D, 0xFF2A2E33, 0xFF62696F, 0xFF454B52),
+        secondary = 0xFFE6E8EE,
     )
 
-    /**
-     * Liquid Day (28 Oct): the same clear iOS-style glass over a white background, with dark text and icons (white text
-     * cannot be read on white). No lens bending: just regular glass with a little frost, so it stands out from the page.
-     */
-    val LiquidDay = GlassTheme(
-        id = GlassThemeId.LIQUID_DAY,
-        displayName = "Liquid Day",
-        bestFor = "Clear iOS-style glass on white",
-        isDark = false,
-        wallpaper = listOf(Color(0xFFF7F8FB), Color(0xFFEEF1F7), Color(0xFFE6EBF4)),
-        glows = listOf(
-            Glow(0.85f, 0.08f, 0.8f, Color(0x33FFD9A0)),
-            Glow(0.1f, 0.6f, 0.8f, Color(0x2659C8FF)),
+    /** Night sky: nearly black, with one soft light of your photos' colour at the top. */
+    val AdaptiveMidnight: GlassTheme = glass(
+        GlassThemeId.ADAPTIVE_MIDNIGHT, "Photo Night", "Nearly black, one soft light from your photos",
+        wallpaper = listOf(0xFF2A3550, 0xFF141A26, 0xFF0A0A10),
+        glows = emptyList(),
+        tint = 0x800A0C14, fallback = 0xE6141722, rim = 0xFF6E8AA0, film = 0x33000000, onDrive = 0xFF1F5F86,
+        hues = listOf(0xFFE07A5F, 0xFF3D9970, 0xFF6A4C93, 0xFFF2B134, 0xFF1982C4),
+        adaptive = AdaptiveStyle(
+            listOf(0.30f, 0.12f, 0.04f), 0.25f, 0.55f, glow = 0.7f, scrim = 0.30f,
+            fallback = listOf(Color(0xFF2A3550), Color(0xFF141A26), Color(0xFF0A0A10)),
+            layout = WallpaperLayout.NIGHT,
         ),
-        glassTint = Color(0x9EF4F6FA),
-        glassFallback = Color(0xF2F6F8FC),
-        glassRim = Color(0xFF9AA6B8),
-        onGlass = Color(0xFF14171C),
-        onGlassSecondary = Color(0xFF1F2733),
-        accent = Color(0xFF14171C),
-        onAccent = Color(0xFF14171C),
-        accentFill = Color(0x1F0A1A33),
-        panelFill = Color(0x80FFFFFF),
-        badgeBackedUp = Color(0xFF1B6E45),
-        badgePhoneOnly = Color(0xFF8A4B00),
-        badgeOnDrive = Color(0xFF3F5A8A),
-        onBadge = Color(0xFFFFFFFF),
-        sampleHues = listOf(Color(0xFFB8C8E0), Color(0xFFD0DAEA), Color(0xFF9AB0D0), Color(0xFFE0E8F4), Color(0xFFA8BCD8)),
-        blurRadius = 12.dp,
-        grain = 0f,
-        rimStrength = 1.1f,
-        softGlass = true,
     )
 
-    /**
-     * Sections in Settings (24 Oct), named by how they behave. Light and dark themes keep their own colours;
-     * Photo themes take their colours from the photos on screen. Aurora Glass and Crystal Glass joined the light
-     * and dark sections as "Luminous" and "Clear" (still marked experimental, never the default). Aurora Frost,
-     * Transparent, Frosted and Crystal (the old one) were removed; anyone using one moves to the default.
-     */
-    // 28 Oct: only two sections, Light and Dark. The four photo themes (colours taken from the photos on screen) sit in
-    // the section that matches their look: Photo Light in Light; Glow Night, Photo Night and Vivid Night in Dark.
-    val fixed: List<GlassTheme> = listOf(PearlMist, OceanGlass, AuroraGlassLight, CrystalGlassLight, MidnightPrism, AuroraGlassDark, CrystalGlassDark, GlassNight, LiquidNight, LiquidDay)
-    val adaptiveThemes: List<GlassTheme> = listOf(AdaptiveGlow, AdaptiveMidnight, AdaptiveVivid, AdaptiveLight)
-    val lightThemes: List<GlassTheme> = (fixed + adaptiveThemes).filter { !it.isDark }
-    val darkThemes: List<GlassTheme> = (fixed + adaptiveThemes).filter { it.isDark }
-    val all: List<GlassTheme> = fixed + adaptiveThemes
+    /** Bold sweep: fully saturated colours from your photos corner to corner. */
+    val AdaptiveVivid: GlassTheme = glass(
+        GlassThemeId.ADAPTIVE_VIVID, "Vivid Night", "Bold, saturated colours from your photos",
+        wallpaper = listOf(0xFF7A2C6C, 0xFF1F5F86, 0xFF4A1E50),
+        glows = emptyList(),
+        tint = 0x8016101C, fallback = 0xE6201726, rim = 0xFFB08AA6, film = 0x4D000000, onDrive = 0xFF8A2A6E,
+        hues = listOf(0xFFE07A5F, 0xFF3D9970, 0xFF6A4C93, 0xFFF2B134, 0xFF1982C4),
+        adaptive = AdaptiveStyle(
+            listOf(0.46f, 0.38f, 0.30f), 0.85f, 1.0f, glow = 0.5f, scrim = 0.30f,
+            fallback = listOf(Color(0xFF7A2C6C), Color(0xFF1F5F86), Color(0xFF4A1E50)),
+            layout = WallpaperLayout.DIAGONAL,
+        ),
+    )
 
-    /** Photo Light for everyone who hasn't picked a theme (24 Oct; Transparent and Aurora Frost were removed). */
+    /** Settings sections. Light themes have deep backgrounds by default (white text), pale ones with the About experiment. */
+    val lightThemes: List<GlassTheme> = listOf(PearlMist, OceanGlass, AuroraGlassLight, CrystalGlassLight, LiquidDay, AdaptiveLight)
+    val darkThemes: List<GlassTheme> = listOf(AuroraGlassDark, LiquidNight, AdaptiveMidnight, AdaptiveVivid)
+    val fixed: List<GlassTheme> = lightThemes.filter { it.adaptive == null } + darkThemes.filter { it.adaptive == null }
+    val adaptiveThemes: List<GlassTheme> = lightThemes.filter { it.adaptive != null } + darkThemes.filter { it.adaptive != null }
+    val all: List<GlassTheme> = lightThemes + darkThemes
+
+    /** Every theme and every pale version, for tests. */
+    val allVariants: List<GlassTheme> = all + all.mapNotNull { it.pale }
+
+    /** Photo Light for everyone who hasn't picked a theme. */
     val default: GlassTheme = AdaptiveLight
 
-    /** Unknown or missing IDs (an older or newer saved setting) fall back to the default. */
+    /** Unknown or missing IDs (an older or newer saved setting, or a removed theme) fall back to the default. */
     fun byId(id: String?): GlassTheme = all.firstOrNull { it.id.name == id } ?: default
+
+    /** The theme as shown: its pale version when the experiment switch is on and the theme has one. */
+    fun shown(theme: GlassTheme, palePreferred: Boolean): GlassTheme = if (palePreferred) theme.pale ?: theme else theme
 }

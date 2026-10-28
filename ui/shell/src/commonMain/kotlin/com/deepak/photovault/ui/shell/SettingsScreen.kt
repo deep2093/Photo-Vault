@@ -20,7 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
-import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.BlurOff
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Feedback
 import androidx.compose.material.icons.rounded.Collections
@@ -42,9 +42,9 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.PushPin
-import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.MaterialTheme
@@ -207,21 +207,12 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
         ThemeRow(GlassThemes.darkThemes, state)
         Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
         GlassSwitchRow(
-            "Glass blur",
-            state.appearance.blurOn,
-            { on -> state.updateAppearance { it.copy(blurOn = on) } },
-            icon = Icons.Rounded.BlurOn,
-            description = "Turns off by itself on battery saver",
+            "Turn off glass effect",
+            !state.appearance.blurOn,
+            { off -> state.updateAppearance { it.copy(blurOn = !off) } },
+            icon = Icons.Rounded.BlurOff,
+            description = "Bars, cards and switches become plain solid colour. Also off by itself on battery saver",
         )
-        if (theme.lens && lensGlassSupported()) {
-            GlassSwitchRow(
-                "Lens glass (experimental)",
-                state.appearance.lensGlass,
-                { on -> state.updateAppearance { it.copy(lensGlass = on) } },
-                icon = Icons.Rounded.ZoomIn,
-                description = "The bars and pills bend and magnify the photos behind them, like thick glass",
-            )
-        }
         GlassSwitchRow(
             "Keep the bottom bar in place",
             state.appearance.pinBottomBar,
@@ -244,7 +235,7 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
 private fun ThemeRow(themes: List<GlassTheme>, state: ShellState) {
     Row(Modifier.horizontalScroll(rememberScrollState()).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         themes.forEach { option ->
-            ThemeSwatch(option, selected = option.id == state.theme.id, onClick = { state.updateAppearance { it.copy(themeId = option.id.name, themeChosen = true) } })
+            ThemeSwatch(GlassThemes.shown(option, state.appearance.paleLight), selected = option.id == state.theme.id, onClick = { state.updateAppearance { it.copy(themeId = option.id.name, themeChosen = true) } })
         }
     }
 }
@@ -340,6 +331,14 @@ private fun AboutSection(state: ShellState) {
     PageCard("About", Icons.Rounded.Info, Modifier.cardWidth()) {
         SettingsRow(Icons.Rounded.AutoAwesome, "What's new", "See what changed in this update") { state.intro.open(IntroKind.WHATS_NEW) }
         SettingsRow(Icons.Rounded.Explore, "Welcome tour", "A quick look around the app") { state.intro.open(IntroKind.TOUR) }
+        // Experiment (29 Oct): compare the two ways of making white text work on the light themes. One will be removed in 6B-2.
+        GlassSwitchRow(
+            "Pale backgrounds on light themes (experiment)",
+            state.appearance.paleLight,
+            { on -> state.updateAppearance { it.copy(paleLight = on) } },
+            icon = Icons.Rounded.Science,
+            description = "Off: deep backgrounds with white text everywhere. On: the old pale backgrounds, with white text on the glass and dark text on the page",
+        )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -128,6 +129,7 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
                 Modifier.background(theme.glassFallback)
             },
         )
+        .then(if (blur) Modifier.glassDepth() else Modifier)
         .then(if (noRim) Modifier else Modifier.glassRim(shape))
 }
 
@@ -136,13 +138,30 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val film = theme.panelFill
-    // Frosted themes (28 Oct): a see-through film with a soft light from the top, not a near-solid grey box.
-    return if (film != null) {
-        this.clip(shape).background(film)
-            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.02f))))
-            .glassRim(shape)
+    // A see-through frosted film with depth (29 Oct) while the glass effect is on; solid when "Turn off glass effect" is on.
+    return if (film != null && LocalGlassSettings.current.blurEnabled) {
+        this.clip(shape).background(film).glassDepth().glassRim(shape)
     } else {
         this.clip(shape).background(theme.glassFallback).glassRim(shape)
+    }
+}
+
+/**
+ * Depth for glass (29 Oct): a soft light along the top and a little shade along the bottom, so a bar or card reads as
+ * a thick pane above the page. Off with "Turn off glass effect".
+ */
+@Composable
+fun Modifier.glassDepth(): Modifier {
+    if (!LocalGlassSettings.current.blurEnabled) return this
+    return this.drawWithContent {
+        drawContent()
+        drawRect(
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.16f),
+                0.4f to Color.Transparent,
+                1f to Color.Black.copy(alpha = 0.14f),
+            ),
+        )
     }
 }
 

@@ -35,7 +35,7 @@ object Contrast {
      * over the wallpaper. For adaptive themes the wallpaper is every hue the palette can produce.
      */
     fun glassBackgrounds(theme: GlassTheme): List<Color> = panelBackgrounds(theme) +
-        listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(if (theme.softGlass) BRIGHT_PHOTO else Color.White)) +
+        listOf(theme.glassTint.compositeOver(Color.Black), theme.glassTint.compositeOver(BRIGHT_PHOTO)) +
             wallpaperColors(theme).map { theme.glassFallback.compositeOver(it) }
 
     /** Frosted panels over each wallpaper colour, with the light from the top (at its brightest). */
@@ -46,6 +46,12 @@ object Contrast {
 
     /** Glass plus the bare wallpaper, which primary text also sits on (photo date headers, empty screens). */
     fun allTextBackgrounds(theme: GlassTheme): List<Color> = glassBackgrounds(theme) + wallpaperColors(theme)
+
+    /** Primary text: [GlassTheme.onGlass] on every glass colour and [GlassTheme.onWallpaper] straight on the wallpaper. */
+    fun worstPrimary(theme: GlassTheme): Double = minOf(
+        glassBackgrounds(theme).minOf { ratio(theme.onGlass, it) },
+        wallpaperColors(theme).minOf { ratio(theme.onWallpaper, it) },
+    )
 
     /** Wallpaper colours to test against. Adaptive: all hues at both saturation limits, under the lightest veil. */
     fun wallpaperColors(theme: GlassTheme): List<Color> {

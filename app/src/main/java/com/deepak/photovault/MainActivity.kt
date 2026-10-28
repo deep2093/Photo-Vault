@@ -848,6 +848,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
+        paleLight = prefs.getBoolean("pale_light", false),
         autoDriveCheck = prefs.getBoolean("auto_drive_check", true),
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
     )
@@ -860,6 +861,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("tablet_bottom_bar", settings.tabletBottomBar)
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
+            .putBoolean("pale_light", settings.paleLight)
             .putBoolean("auto_drive_check", settings.autoDriveCheck)
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
             .apply()

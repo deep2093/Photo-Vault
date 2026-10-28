@@ -29,8 +29,8 @@ class ShellStateTest {
     fun appearanceChangesAreSaved() {
         val store = MemoryAppearanceStore()
         val state = ShellState(store)
-        state.updateAppearance { it.copy(themeId = GlassThemeId.MIDNIGHT_PRISM.name, themeChosen = true, blurOn = false) }
-        assertEquals(GlassThemeId.MIDNIGHT_PRISM, ShellState(store).theme.id)
+        state.updateAppearance { it.copy(themeId = GlassThemeId.LIQUID_NIGHT.name, themeChosen = true, blurOn = false) }
+        assertEquals(GlassThemeId.LIQUID_NIGHT, ShellState(store).theme.id)
         assertFalse(store.load().blurOn)
     }
 

@@ -2,6 +2,9 @@ package com.deepak.photovault.designsystem
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,8 +30,6 @@ import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,14 +52,14 @@ val MinTouchTarget = 48.dp
 private val Capsule = RoundedCornerShape(percent = 50)
 
 @Composable
-fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+fun SectionHeader(text: String, modifier: Modifier = Modifier, onWallpaper: Boolean = false) {
     Text(
         text,
         modifier = modifier.padding(top = 8.dp, bottom = 4.dp).semantics { heading() },
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
         // Primary colour: headers also sit straight on the wallpaper (photo dates), including adaptive wallpapers.
-        color = LocalGlassTheme.current.onGlass,
+        color = if (onWallpaper) LocalGlassTheme.current.onWallpaper else LocalGlassTheme.current.onGlass,
     )
 }
 
@@ -182,19 +183,38 @@ fun GlassSwitchRow(
             }
             Spacer(Modifier.width(12.dp))
             // The row handles the click, so the switch itself is not separately focusable.
-            Switch(
-                checked = checked,
-                onCheckedChange = null,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = theme.onAccent,
-                    checkedTrackColor = theme.accentFill?.copy(alpha = 0.5f) ?: theme.accent,
-                    uncheckedThumbColor = theme.onGlassSecondary,
-                    uncheckedTrackColor = theme.glassFallback,
-                    uncheckedBorderColor = theme.onGlassSecondary,
-                ),
-            )
+            GlassToggle(checked)
         }
         if (warning != null && checked) WarningNote(warning)
+    }
+}
+
+/**
+ * A switch made of glass (29 Oct): a frosted track with a fine edge, brighter when on, and a glass knob. No accent
+ * colour. The row around it handles the touch.
+ */
+@Composable
+private fun GlassToggle(checked: Boolean) {
+    val theme = LocalGlassTheme.current
+    val shape = RoundedCornerShape(percent = 50)
+    val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, label = "knob")
+    Box(
+        Modifier
+            .size(width = 52.dp, height = 30.dp)
+            .clip(shape)
+            .background(Color.White.copy(alpha = if (checked) 0.38f else 0.12f))
+            .glassDepth()
+            .border(1.dp, theme.glassRim.copy(alpha = if (checked) 0.75f else 0.35f), shape)
+            .padding(3.dp),
+    ) {
+        Box(
+            Modifier
+                .offset(x = knobX)
+                .size(24.dp)
+                .shadow(3.dp, CircleShape)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = if (checked) 0.95f else 0.7f)),
+        )
     }
 }
 

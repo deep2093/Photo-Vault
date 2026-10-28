@@ -436,3 +436,10 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 1. Liquid Night and Liquid Day: bottom bar and top pills are clear glass with a light frost; photos behind them are blurred a little but not bent or magnified. There is no Lens glass switch for them.
 2. Liquid Day: white background, dark text and icons, grey-blue glass edge; Settings boxes and album folders are frosted white.
 3. All themes: the selected bottom tab is fully round (capsule) like the Years / Months / All pill and the search circle.
+
+## Round 32 (29 Oct): one glass look in every theme
+1. Settings > Appearance: Light (Warm, Teal, Luminous, Clear, Liquid Day, Photo Light) and Dark (Luminous Night, Liquid Night, Photo Night, Vivid Night). Violet, Glass, Clear and Glow Night are gone; a phone that used one opens in Photo Light.
+2. Every theme: text and icons are white; bars are clear glass with a light top and a little shade at the bottom (depth); Settings cards and album folders are frosted film; selected tab, chips and tick circles are frosted (no colour); the switches are glass (frosted track, glass knob), no accent colour.
+3. "Turn off glass effect" (off by default) is the only glass switch. Turn it on: bars, cards and switches become plain solid colour. There is no Lens glass switch and no Glass blur switch.
+4. Settings > About > "Pale backgrounds on light themes (experiment)". Off: deep backgrounds, white text everywhere. On: pale backgrounds; white text on glass and cards, dark text on the page (photo date headings, empty screens). Some headings that sit straight on the page may still be white on pale; note which ones. Tell Deepak which look is better; one is removed in 6B-2.
+5. Photo Light, Photo Night, Vivid Night: wallpaper still follows the photos on screen; text readable over very bright and very dark photos under the bars.

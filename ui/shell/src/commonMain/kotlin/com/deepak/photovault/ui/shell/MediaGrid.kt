@@ -289,7 +289,7 @@ fun MediaGrid(
             header?.invoke(this)
             sections.forEach { section ->
                 item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                    SectionHeader(section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp))
+                    SectionHeader(section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
                 }
                 items(section.items, key = { it.id }, contentType = { "tile" }) { item ->
                     PhotoTile(
@@ -640,11 +640,11 @@ fun EmptyState(title: String, body: String, modifier: Modifier = Modifier, actio
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleLarge)
+        Text(title, color = theme.onWallpaper, style = MaterialTheme.typography.titleLarge)
         Text(
             body,
-            // Primary colour: this text sits straight on the wallpaper, not on glass.
-            color = theme.onGlass,
+            // This text sits straight on the wallpaper, not on glass.
+            color = theme.onWallpaper,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),

@@ -98,6 +98,8 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 
 **Glassmorphism recipe used (28 Oct research):** colour for the glass to blur (big bright glows); blur 10-30 (we use 24 dp; past about 20 it is heavy for the GPU); fine grain; a coloured tint that stays at 0.70 for readable text over any photo; a thin bright edge (white in light themes, soft violet in dark); soft diffuse shadow; glass only on bars and panels, never over long lists of text. Not done: a "saturation boost" behind the glass (Haze 1.6.1 has no setting for it); revisit if a newer blur library is adopted.
 
+**29 Oct (Deepak's change):** one glass look in every theme (clear bars with depth, frosted cards, album folders and selected items, glass switches, white text); one switch "Turn off glass effect" (default off); Lens glass switch and Glass blur switch removed; Violet, Glass, Clear and Glow Night removed (Glass Light, Liquid-lens ideas gone earlier). Light themes ship two ways for comparison: deep backgrounds (default) or pale backgrounds with dark text on the page (About > experiment). **In 6B-2 remove the one Deepak does not prefer**, and delete the unused lens code if lens glass stays gone.
+
 ## 6B decisions (28 Oct, Deepak's answers)
 - **Backup now queue: yes.** Pop-up shows your place in line; backups run one after another.
 - **Linking old backups after a reset: yes, automatically.** Photos that match the drive are marked backed up; nothing uploads twice.
