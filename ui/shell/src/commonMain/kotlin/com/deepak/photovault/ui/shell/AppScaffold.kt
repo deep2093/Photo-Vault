@@ -646,9 +646,9 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
             Modifier
                 .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
                 .size(itemWidth, NAV_ITEM_HEIGHT)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(percent = 50))
                 .background(theme.accentSurface)
-                .frostedEdge(RoundedCornerShape(24.dp)),
+                .frostedEdge(RoundedCornerShape(percent = 50)),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->

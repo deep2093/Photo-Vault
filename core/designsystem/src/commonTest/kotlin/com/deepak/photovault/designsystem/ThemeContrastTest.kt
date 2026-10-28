@@ -83,7 +83,7 @@ class ThemeCatalogTest {
         assertEquals(listOf("Warm Light", "Teal Light", "Luminous Light", "Clear Light", "Liquid Day", "Photo Light"), GlassThemes.lightThemes.map { it.displayName })
         assertEquals(listOf("Violet Night", "Luminous Night", "Clear Night", "Glass Night", "Liquid Night", "Glow Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
-        assertTrue(GlassThemes.lightThemes.all { it.listedAsLight })
+        assertTrue(GlassThemes.lightThemes.none { it.isDark })
         assertTrue(GlassThemes.darkThemes.all { it.isDark })
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })
@@ -95,7 +95,7 @@ class ThemeCatalogTest {
         assertEquals(
             listOf(
                 GlassThemeId.MIDNIGHT_PRISM, GlassThemeId.AURORA_GLASS_DARK, GlassThemeId.CRYSTAL_GLASS_DARK,
-                GlassThemeId.GLASS_NIGHT, GlassThemeId.LIQUID_NIGHT, GlassThemeId.LIQUID_DAY, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
+                GlassThemeId.GLASS_NIGHT, GlassThemeId.LIQUID_NIGHT, GlassThemeId.ADAPTIVE_GLOW, GlassThemeId.ADAPTIVE_MIDNIGHT, GlassThemeId.ADAPTIVE_VIVID,
             ),
             GlassThemes.all.filter { it.isDark }.map { it.id },
         )
@@ -116,7 +116,7 @@ class ThemeCatalogTest {
     @Test
     fun onlyTheClearThemesOfferLensGlass() {
         assertEquals(
-            listOf(GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_DARK, GlassThemeId.LIQUID_NIGHT, GlassThemeId.LIQUID_DAY),
+            listOf(GlassThemeId.CRYSTAL_GLASS_LIGHT, GlassThemeId.CRYSTAL_GLASS_DARK),
             GlassThemes.all.filter { it.lens }.map { it.id },
         )
     }
@@ -229,7 +229,7 @@ class AdaptivePaletteTest {
         val liquid = GlassThemes.LiquidNight
         assertTrue(night.isDark && liquid.isDark)
         assertTrue(night.blurRadius.value >= 24f && night.rimWidth.value > 1f && night.glows.size >= 4)
-        assertTrue(liquid.lens && liquid.lensAlways && liquid.softGlass)
+        assertTrue(!liquid.lens && liquid.softGlass)
         assertTrue(liquid.glassTint.alpha < night.glassTint.alpha)
         assertTrue(listOf(night, liquid).none { it == GlassThemes.default })
         assertEquals(liquid, GlassThemes.byId("LIQUID_NIGHT"))
@@ -238,15 +238,17 @@ class AdaptivePaletteTest {
     }
 
     @Test
-    fun liquidDayIsListedAsLightButHasWhiteTextLikeLiquidNight() {
+    fun liquidNightAndDayAreFrostedGlassWithoutLensBendingAndMatchingBlur() {
         val day = GlassThemes.LiquidDay
         val night = GlassThemes.LiquidNight
-        assertTrue(day.listedAsLight && !night.listedAsLight)
-        assertEquals(androidx.compose.ui.graphics.Color.White, day.onGlass)
+        assertTrue(!day.isDark && night.isDark)
+        assertTrue(!day.lens && !night.lens)
+        assertEquals(day.blurRadius, night.blurRadius)
         assertEquals(androidx.compose.ui.graphics.Color.White, night.onGlass)
-        assertEquals(androidx.compose.ui.graphics.Color.White, day.accent)
+        // White text can't be read on a white page, so Liquid Day uses dark text.
+        assertTrue(Contrast.ratio(day.onGlass, day.wallpaper.first()) >= Contrast.TEXT)
         assertEquals(androidx.compose.ui.graphics.Color.White, night.accent)
         assertTrue(day.accentFill != null && night.accentFill != null && day.panelFill != null && night.panelFill != null)
-        assertTrue(day.lensAlways && night.lensAlways)
+        assertTrue(GlassThemes.lightThemes.contains(day))
     }
 }

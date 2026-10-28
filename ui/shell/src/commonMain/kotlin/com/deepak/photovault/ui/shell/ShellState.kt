@@ -375,7 +375,7 @@ class ShellState(private val store: AppearanceStore) {
     fun glassSettings(signals: PlatformSignals): GlassSettings = GlassSettings(
         blurEnabled = appearance.blurOn && !signals.powerSaveMode,
         reduceMotion = appearance.reduceMotion || signals.systemReduceMotion,
-        lensEnabled = (appearance.lensGlass || theme.lensAlways) && appearance.blurOn && !signals.powerSaveMode,
+        lensEnabled = appearance.lensGlass && appearance.blurOn && !signals.powerSaveMode,
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */

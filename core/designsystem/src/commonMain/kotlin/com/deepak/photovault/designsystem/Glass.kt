@@ -150,9 +150,10 @@ fun Modifier.glassPanel(shape: Shape): Modifier {
 @Composable
 fun Modifier.frostedEdge(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
+    val edge = theme.glassRim
     return if (theme.accentFill == null) this else this.border(
         1.dp,
-        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.3f))),
+        Brush.linearGradient(listOf(edge.copy(alpha = 0.55f), edge.copy(alpha = 0.12f), edge.copy(alpha = 0.3f))),
         shape,
     )
 }

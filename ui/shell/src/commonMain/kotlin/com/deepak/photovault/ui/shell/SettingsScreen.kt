@@ -213,7 +213,7 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             icon = Icons.Rounded.BlurOn,
             description = "Turns off by itself on battery saver",
         )
-        if (theme.lens && !theme.lensAlways && lensGlassSupported()) {
+        if (theme.lens && lensGlassSupported()) {
             GlassSwitchRow(
                 "Lens glass (experimental)",
                 state.appearance.lensGlass,

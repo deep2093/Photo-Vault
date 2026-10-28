@@ -431,3 +431,8 @@ Not testable here: the real router, the phone's Keystore, the speed of encryptin
 2. Settings, Albums, Storage and Backup boxes (and album folders) are clear frosted glass over the wallpaper, not dark grey.
 3. Liquid Day (Settings > Appearance > Light): deep blue sky with warm glows, same glass and white text; the status bar icons are light. Text on the bars stays readable over a very bright photo.
 4. Both: the viewer toolbar and top pills bend photos at their edges (Android 13+). Switches look frosted when on.
+
+## Round 31 (28 Oct): regular glass for Liquid themes
+1. Liquid Night and Liquid Day: bottom bar and top pills are clear glass with a light frost; photos behind them are blurred a little but not bent or magnified. There is no Lens glass switch for them.
+2. Liquid Day: white background, dark text and icons, grey-blue glass edge; Settings boxes and album folders are frosted white.
+3. All themes: the selected bottom tab is fully round (capsule) like the Years / Months / All pill and the search circle.
