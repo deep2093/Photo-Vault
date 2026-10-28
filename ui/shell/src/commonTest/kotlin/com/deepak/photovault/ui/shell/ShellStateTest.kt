@@ -29,8 +29,8 @@ class ShellStateTest {
     fun appearanceChangesAreSaved() {
         val store = MemoryAppearanceStore()
         val state = ShellState(store)
-        state.updateAppearance { it.copy(themeId = GlassThemeId.LIQUID_NIGHT.name, themeChosen = true, blurOn = false) }
-        assertEquals(GlassThemeId.LIQUID_NIGHT, ShellState(store).theme.id)
+        state.updateAppearance { it.copy(themeId = GlassThemeId.ADAPTIVE_VIVID.name, themeChosen = true, blurOn = false) }
+        assertEquals(GlassThemeId.ADAPTIVE_VIVID, ShellState(store).theme.id)
         assertFalse(store.load().blurOn)
     }
 
@@ -91,14 +91,24 @@ class ShellStateTest {
     }
 
     @Test
-    fun theLightThemePaleExperimentIsOffByDefaultAndSwitchesTheShownTheme() {
-        val state = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = GlassThemeId.LIQUID_DAY.name, themeChosen = true)))
-        assertFalse(state.appearance.paleLight)
-        assertEquals(GlassThemes.LiquidDay, state.theme)
-        state.updateAppearance { it.copy(paleLight = true) }
-        assertEquals(GlassThemes.LiquidDay.pale, state.theme)
-        // Dark themes have no pale version.
-        state.updateAppearance { it.copy(themeId = GlassThemeId.LIQUID_NIGHT.name) }
-        assertEquals(GlassThemes.LiquidNight, state.theme)
+    fun blurSliderGoesFromNoBlurToStrongAndRemovedThemesFallBack() {
+        val state = ShellState(MemoryAppearanceStore())
+        // The usual blur is step 3.
+        assertEquals(1f, state.glassSettings(PlatformSignals()).blurScale)
+        state.updateAppearance { it.copy(blurStep = 0) }
+        assertEquals(0f, state.glassSettings(PlatformSignals()).blurScale)
+        state.updateAppearance { it.copy(blurStep = 4) }
+        assertTrue(state.glassSettings(PlatformSignals()).blurScale > 1f)
+        // Liquid Night was removed on 29 Oct: anyone who had it gets the default.
+        state.updateAppearance { it.copy(themeId = "LIQUID_NIGHT", themeChosen = true) }
+        assertEquals(GlassThemes.default, state.theme)
+    }
+
+    @Test
+    fun strongSwitchesAreAnOffByDefaultExperiment() {
+        val state = ShellState(MemoryAppearanceStore())
+        assertFalse(state.glassSettings(PlatformSignals()).strongToggles)
+        state.updateAppearance { it.copy(strongToggles = true) }
+        assertTrue(state.glassSettings(PlatformSignals()).strongToggles)
     }
 }

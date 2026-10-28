@@ -48,7 +48,15 @@ import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.ui.graphics.Color
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -201,18 +209,15 @@ private fun PageCard(
 private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) {
     val theme = LocalGlassTheme.current
     PageCard("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = theme.displayName) {
-        SectionHeader("Light themes")
-        ThemeRow(GlassThemes.lightThemes, state)
-        SectionHeader("Dark themes")
-        ThemeRow(GlassThemes.darkThemes, state)
-        Text(theme.bestFor, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+        ThemeGrid(state)
         GlassSwitchRow(
-            "Turn off glass effect",
-            !state.appearance.blurOn,
-            { off -> state.updateAppearance { it.copy(blurOn = !off) } },
-            icon = Icons.Rounded.BlurOff,
-            description = "Bars, cards and switches become plain solid colour. Also off by itself on battery saver",
+            "Turn on glass effect",
+            state.appearance.blurOn,
+            { on -> state.updateAppearance { it.copy(blurOn = on) } },
+            icon = Icons.Rounded.BlurOn,
+            description = "Bars, cards and switches are see-through glass. Off makes them plain solid colour. It also turns off by itself on battery saver",
         )
+        if (state.appearance.blurOn) BlurSlider(state)
         GlassSwitchRow(
             "Keep the bottom bar in place",
             state.appearance.pinBottomBar,
@@ -231,13 +236,49 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
     }
 }
 
+/** Every theme as a round swatch, light to dark, three to a row. No names: the chosen one has a ring and a tick. */
 @Composable
-private fun ThemeRow(themes: List<GlassTheme>, state: ShellState) {
-    Row(Modifier.horizontalScroll(rememberScrollState()).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        themes.forEach { option ->
-            ThemeSwatch(GlassThemes.shown(option, state.appearance.paleLight), selected = option.id == state.theme.id, onClick = { state.updateAppearance { it.copy(themeId = option.id.name, themeChosen = true) } })
+private fun ThemeGrid(state: ShellState) {
+    val themes = GlassThemes.lightThemes + GlassThemes.darkThemes
+    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        themes.chunked(3).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                row.forEach { option ->
+                    ThemeSwatch(option, selected = option.id == state.theme.id, onClick = { state.updateAppearance { it.copy(themeId = option.id.name, themeChosen = true) } })
+                }
+            }
         }
     }
+}
+
+/** How much the glass blurs what is behind it: 0 is none (a clear film), 4 is the most. */
+@Composable
+private fun BlurSlider(state: ShellState) {
+    val theme = LocalGlassTheme.current
+    val step = state.appearance.blurStep.coerceIn(0, 4)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.BlurOn, contentDescription = null, tint = theme.onGlassSecondary)
+        Spacer(Modifier.width(16.dp))
+        Text("Blur", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(if (step == 0) "None" else "$step of 4", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+    }
+    Slider(
+        value = step.toFloat(),
+        onValueChange = { v ->
+            val next = v.roundToInt().coerceIn(0, 4)
+            if (next != step) state.updateAppearance { it.copy(blurStep = next) }
+        },
+        valueRange = 0f..4f,
+        steps = 3,
+        colors = SliderDefaults.colors(
+            thumbColor = Color.White,
+            activeTrackColor = Color.White,
+            inactiveTrackColor = Color.White.copy(alpha = 0.28f),
+            activeTickColor = Color.Black.copy(alpha = 0.4f),
+            inactiveTickColor = Color.White.copy(alpha = 0.6f),
+        ),
+        modifier = Modifier.semantics { contentDescription = "Blur strength, 0 to 4" },
+    )
 }
 
 /** Four Seasons (default), Leaf or Petals, on Light, Dark, Colourful or Clear. Android 13+ can also theme them. */
@@ -331,27 +372,14 @@ private fun AboutSection(state: ShellState) {
     PageCard("About", Icons.Rounded.Info, Modifier.cardWidth()) {
         SettingsRow(Icons.Rounded.AutoAwesome, "What's new", "See what changed in this update") { state.intro.open(IntroKind.WHATS_NEW) }
         SettingsRow(Icons.Rounded.Explore, "Welcome tour", "A quick look around the app") { state.intro.open(IntroKind.TOUR) }
-        // Experiment (29 Oct): compare the two ways of making white text work on the light themes. One will be removed in 6B-2.
+        // Experiment (29 Oct): check whether the switches are easier to see this way. One look stays.
         GlassSwitchRow(
-            "Pale backgrounds on light themes (experiment)",
-            state.appearance.paleLight,
-            { on -> state.updateAppearance { it.copy(paleLight = on) } },
+            "Stronger switches (experiment)",
+            state.appearance.strongToggles,
+            { on -> state.updateAppearance { it.copy(strongToggles = on) } },
             icon = Icons.Rounded.Science,
-            description = "Off: deep backgrounds with white text everywhere. On: the old pale backgrounds, with white text on the glass and dark text on the page",
+            description = "Switches are green when on and darker when off, so they are easier to see",
         )
-        // Experiment (29 Oct): three ways to blur the glass. Only one can be on; all off = normal blur. One stays after we compare.
-        listOf(
-            Triple(1, "Light blur (experiment)", "Glass blurs the photos behind it only a little, closer to iOS"),
-            Triple(2, "No blur (experiment)", "Photos stay sharp behind the glass, which is a clear film with a light edge"),
-        ).forEach { (level, title, text) ->
-            GlassSwitchRow(
-                title,
-                state.appearance.blurLevel == level,
-                { on -> state.updateAppearance { it.copy(blurLevel = if (on) level else 0) } },
-                icon = Icons.Rounded.Science,
-                description = text,
-            )
-        }
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

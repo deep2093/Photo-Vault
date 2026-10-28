@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -196,24 +197,30 @@ fun GlassSwitchRow(
 @Composable
 private fun GlassToggle(checked: Boolean) {
     val theme = LocalGlassTheme.current
+    val strong = LocalGlassSettings.current.strongToggles
     val shape = RoundedCornerShape(percent = 50)
     val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, label = "knob")
+    // Easier to see (29 Oct): off is a darker track with a clear white edge, on is a bright track. The stronger
+    // experiment makes on a green track like iOS. The knob is solid: a see-through knob let its shadow show through.
+    val track = when {
+        strong && checked -> Color(0xFF34C759)
+        checked -> Color.White.copy(alpha = 0.55f)
+        else -> Color.Black.copy(alpha = if (strong) 0.45f else 0.30f)
+    }
     Box(
         Modifier
             .size(width = 52.dp, height = 30.dp)
             .clip(shape)
-            .background(Color.White.copy(alpha = if (checked) 0.38f else 0.12f))
-            .glassDepth()
-            .border(1.dp, theme.glassRim.copy(alpha = if (checked) 0.75f else 0.35f), shape)
+            .background(track)
+            .border(1.5.dp, Color.White.copy(alpha = if (checked) 0.9f else 0.6f), shape)
             .padding(3.dp),
     ) {
         Box(
             Modifier
                 .offset(x = knobX)
                 .size(24.dp)
-                .shadow(3.dp, CircleShape)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (checked) 0.95f else 0.7f)),
+                .background(if (checked) Color.White else Color(0xFFE6E8EE)),
         )
     }
 }
@@ -275,36 +282,27 @@ fun GlassProgressBar(fraction: Float, modifier: Modifier = Modifier, label: Stri
     }
 }
 
-/** Small round swatch used in the theme picker. */
+/** Round swatch for the theme picker: just the colours, with a white ring and a tick when chosen. [theme] is spoken to screen readers. */
 @Composable
 fun ThemeSwatch(theme: GlassTheme, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val current = LocalGlassTheme.current
-    Column(
+    Box(
         modifier
-            .sizeIn(minWidth = 88.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .size(72.dp)
+            .clip(CircleShape)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .semantics { contentDescription = theme.displayName },
+        contentAlignment = Alignment.Center,
     ) {
+        if (selected) Box(Modifier.size(72.dp).border(3.dp, Color.White, CircleShape))
         Box(
             Modifier
-                .size(56.dp)
+                .size(if (selected) 58.dp else 64.dp)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(theme.wallpaper + theme.accent))
-                .then(if (selected) Modifier.glassRim(CircleShape) else Modifier),
+                .background(Brush.linearGradient(theme.wallpaper + theme.glassRim))
+                .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) {
-                Box(Modifier.size(18.dp).clip(CircleShape).background(theme.accent))
-            }
+            if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
         }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            theme.displayName,
-            color = if (selected) current.onGlass else current.onGlassSecondary,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        )
     }
 }

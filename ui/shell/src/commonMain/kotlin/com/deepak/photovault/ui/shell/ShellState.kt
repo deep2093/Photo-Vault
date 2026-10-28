@@ -63,10 +63,10 @@ data class AppearanceSettings(
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
     val lensGlass: Boolean = false,
-    /** Experiment (29 Oct): light themes with pale backgrounds (white text on glass, dark text on the page) instead of deep ones. */
-    val paleLight: Boolean = false,
-    /** Experiment (29 Oct): 0 = normal blur, 1 = light blur, 2 = no blur. */
-    val blurLevel: Int = 0,
+    /** How strong the glass blur is, 0 (none) to 4 (most); 3 is the usual (29 Oct). Only used while the glass effect is on. */
+    val blurStep: Int = 3,
+    /** Experiment (29 Oct): easier-to-see switches (green when on, darker when off). */
+    val strongToggles: Boolean = false,
     /** Keep the floating bottom bar in place instead of tucking it away while scrolling (24 Oct). */
     val pinBottomBar: Boolean = false,
     /** Check the family drive by itself when the app opens and once an hour while it is on screen (28 Oct). */
@@ -353,7 +353,7 @@ class ShellState(private val store: AppearanceStore) {
     /** Photo grid columns chosen by pinching; null means "fit the screen". */
     var gridColumns by mutableStateOf<Int?>(null)
 
-    val theme: GlassTheme get() = GlassThemes.shown(if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default, appearance.paleLight)
+    val theme: GlassTheme get() = if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default
 
     /** The Welcome tour and What's new (Phase 5, 25 Oct). The platform swaps in one that remembers. */
     var intro: IntroState = IntroState()
@@ -381,7 +381,8 @@ class ShellState(private val store: AppearanceStore) {
         reduceMotion = appearance.reduceMotion || signals.systemReduceMotion,
         // Lens glass was removed from Settings on 29 Oct: every theme has the one glass look.
         lensEnabled = false,
-        blurScale = when (appearance.blurLevel) { 1 -> 0.25f; 2 -> 0f; else -> 1f },
+        blurScale = BLUR_SCALES[appearance.blurStep.coerceIn(0, 4)],
+        strongToggles = appearance.strongToggles,
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */
@@ -389,6 +390,9 @@ class ShellState(private val store: AppearanceStore) {
         gridColumns = (currentColumns - step).coerceIn(AdaptiveLayout.MIN_COLUMNS, maxColumns)
     }
 }
+
+/** Blur strength for each step of the Blur slider (0 to 4): none, light, medium, usual, strong. */
+private val BLUR_SCALES = floatArrayOf(0f, 0.3f, 0.6f, 1f, 1.5f)
 
 /** In-memory store for previews and tests. */
 class MemoryAppearanceStore(private var value: AppearanceSettings = AppearanceSettings()) : AppearanceStore {
