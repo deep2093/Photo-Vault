@@ -16,11 +16,11 @@ class ThemeContrastTest {
 
     @Test
     fun primaryTextIsReadableOnEveryGlassBackground() {
-        // Every theme: onGlass on glass and frosted cards, onWallpaper straight on the page.
+        // Every theme and every pale version: onGlass on glass and frosted cards, onWallpaper straight on the page.
         val bad = GlassThemes.all.mapNotNull { theme ->
             val worst = Contrast.worstPrimary(theme)
             val need = if (theme.milky) Contrast.NON_TEXT else Contrast.TEXT
-            if (worst >= need) null else "${theme.displayName}: primary $worst < $need"
+            if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): primary $worst < $need"
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
     }
@@ -30,7 +30,7 @@ class ThemeContrastTest {
         val bad = GlassThemes.all.mapNotNull { theme ->
             val worst = Contrast.worstOnGlass(theme, theme.onGlassSecondary)
             val need = if (theme.milky) Contrast.NON_TEXT else Contrast.TEXT
-            if (worst >= need) null else "${theme.displayName}: secondary $worst < $need"
+            if (worst >= need) null else "${theme.displayName} (pale=${theme.isPaleVariant}): secondary $worst < $need"
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
     }
@@ -40,12 +40,12 @@ class ThemeContrastTest {
         val bad = GlassThemes.all.flatMap { theme ->
             val out = mutableListOf<String>()
             val onGlass = Contrast.worstOnGlass(theme, theme.accent)
-            if (onGlass < Contrast.NON_TEXT) out += "${theme.displayName}: accent on glass $onGlass"
+            if (onGlass < Contrast.NON_TEXT) out += "${theme.displayName} (pale=${theme.isPaleVariant}): accent on glass $onGlass"
             // Selected items are a frosted film, not a colour: the label is checked over each glass colour.
             val fill = theme.accentFill!!
             val worst = Contrast.glassBackgrounds(theme).minOf { Contrast.ratio(theme.onAccent, fill.compositeOver(it)) }
-            val need = if (theme.milky) 2.0 else Contrast.NON_TEXT
-            if (worst < need) out += "${theme.displayName}: text on frosted accent $worst < $need"
+            val need = if (theme.isPaleVariant) 2.5 else if (theme.milky) 2.0 else Contrast.NON_TEXT
+            if (worst < need) out += "${theme.displayName} (pale=${theme.isPaleVariant}): text on frosted accent $worst < $need"
             out
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
@@ -66,15 +66,15 @@ class ThemeContrastTest {
         // The contrast tests above check text over black and a very bright photo, which is the real guard.
         // This floor stops a theme from relying on blur alone.
         GlassThemes.all.forEach { theme ->
-            assertTrue(theme.milky || theme.glassTint.alpha >= 0.4f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
+            assertTrue(theme.milky || theme.isPaleVariant || theme.glassTint.alpha >= 0.4f, "${theme.displayName}: glass tint alpha ${theme.glassTint.alpha}")
         }
     }
 
     @Test
     fun everyThemeHasTheOneGlassLookWithWhiteTextAndNoLens() {
         GlassThemes.all.forEach { theme ->
-            assertEquals(Color.White, theme.onGlass, theme.displayName)
-            assertEquals(Color.White, theme.accent, theme.displayName)
+            if (theme.isPaleVariant) assertEquals(theme.onWallpaper, theme.onGlass, theme.displayName)
+            else { assertEquals(Color.White, theme.onGlass, theme.displayName); assertEquals(Color.White, theme.accent, theme.displayName) }
             assertTrue(theme.accentFill != null && theme.panelFill != null, theme.displayName)
             assertTrue(!theme.lens, theme.displayName)
         }
@@ -93,7 +93,7 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Warm Light", "Luminous Light", "Liquid Day", "Photo Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Warm Light", "Luminous Light", "Liquid Day", "Photo Light", "Clear Light"), GlassThemes.lightThemes.map { it.displayName })
         assertEquals(listOf("Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
@@ -101,8 +101,15 @@ class ThemeCatalogTest {
     }
 
     @Test
+    fun clearLightIsTheOnlyDeepLightThemeAndTheRestHaveLightPages() {
+        val deep = GlassThemes.lightThemes.filter { it.isDark }
+        assertEquals(listOf("Clear Light"), deep.map { it.displayName })
+        GlassThemes.lightThemes.filter { !it.isDark }.forEach { assertEquals(it.onWallpaper, it.onGlass, it.displayName) }
+    }
+
+    @Test
     fun photoLightIsTheDefault() {
-        assertEquals(GlassThemes.AdaptiveLight, GlassThemes.default)
+        assertEquals(GlassThemes.AdaptiveLight.pale, GlassThemes.default)
     }
 
     @Test
@@ -111,8 +118,8 @@ class ThemeCatalogTest {
             "AURORA_FROST", "TRANSLUCENT", "FROSTED", "CRYSTAL",
             // Removed 29 Oct: Violet Night, Glass Night, Clear Night, Glow Night (and Glass Light earlier).
             "MIDNIGHT_PRISM", "GLASS_NIGHT", "CRYSTAL_GLASS_DARK", "ADAPTIVE_GLOW", "GLASS_LIGHT",
-            // Removed 29 Oct (later): Teal Light, Clear Light, Luminous Night, Liquid Night.
-            "OCEAN_GLASS", "CRYSTAL_GLASS_LIGHT", "AURORA_GLASS_DARK", "LIQUID_NIGHT",
+            // Removed 29 Oct (later): Teal Light, Luminous Night, Liquid Night.
+            "OCEAN_GLASS", "AURORA_GLASS_DARK", "LIQUID_NIGHT",
         ).forEach { assertEquals(GlassThemes.default, GlassThemes.byId(it), it) }
     }
 
@@ -120,8 +127,8 @@ class ThemeCatalogTest {
     fun unknownSavedIdFallsBackToDefault() {
         assertEquals(GlassThemes.default, GlassThemes.byId("SOMETHING_FROM_A_NEWER_VERSION"))
         assertEquals(GlassThemes.default, GlassThemes.byId(null))
-        assertEquals(GlassThemes.PearlMist, GlassThemes.byId("PEARL_MIST"))
-        assertEquals(GlassThemes.LiquidDay, GlassThemes.byId("LIQUID_DAY"))
+        assertEquals(GlassThemes.PearlMist.pale, GlassThemes.byId("PEARL_MIST"))
+        assertEquals(GlassThemes.default, GlassThemes.byId("LIQUID_NIGHT"))
     }
 }
 
@@ -165,6 +172,16 @@ class AdaptivePaletteTest {
             assertEquals(c.green, back.green, 0.01f)
             assertEquals(c.blue, back.blue, 0.01f)
         }
+    }
+
+    @Test
+    fun photoLightHasADeepVersionAndAPaleOneWithAWhiteVeilAndDarkTextOnThePage() {
+        val deep = GlassThemes.AdaptiveLight.adaptive!!
+        assertTrue(!deep.light)
+        val pale = GlassThemes.AdaptiveLight.pale!!
+        assertTrue(pale.adaptive!!.light)
+        assertEquals(Color.White, pale.adaptive!!.veil)
+        assertTrue(Contrast.relativeLuminance(pale.onWallpaper) < 0.05)
     }
 
     @Test

@@ -202,17 +202,20 @@ private fun GlassToggle(checked: Boolean) {
     val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, label = "knob")
     // Easier to see (29 Oct): off is a darker track with a clear white edge, on is a bright track. The stronger
     // experiment makes on a green track like iOS. The knob is solid: a see-through knob let its shadow show through.
+    val dark = theme.isDark
+    val ink = theme.onGlass
     val track = when {
         strong && checked -> Color(0xFF34C759)
-        checked -> Color.White.copy(alpha = 0.55f)
-        else -> Color.Black.copy(alpha = if (strong) 0.45f else 0.30f)
+        checked -> if (dark) Color.White.copy(alpha = 0.55f) else ink.copy(alpha = 0.75f)
+        else -> if (dark) Color.Black.copy(alpha = if (strong) 0.45f else 0.30f) else ink.copy(alpha = if (strong) 0.22f else 0.14f)
     }
+    val edge = if (dark) Color.White else ink
     Box(
         Modifier
             .size(width = 52.dp, height = 30.dp)
             .clip(shape)
             .background(track)
-            .border(1.5.dp, Color.White.copy(alpha = if (checked) 0.9f else 0.6f), shape)
+            .border(1.5.dp, edge.copy(alpha = if (checked) 0.9f else 0.6f), shape)
             .padding(3.dp),
     ) {
         Box(
@@ -220,7 +223,8 @@ private fun GlassToggle(checked: Boolean) {
                 .offset(x = knobX)
                 .size(24.dp)
                 .clip(CircleShape)
-                .background(if (checked) Color.White else Color(0xFFE6E8EE)),
+                .background(if (checked || !dark) Color.White else Color(0xFFE6E8EE))
+                .then(if (dark) Modifier else Modifier.border(1.dp, ink.copy(alpha = 0.25f), CircleShape)),
         )
     }
 }
@@ -293,16 +297,16 @@ fun ThemeSwatch(theme: GlassTheme, selected: Boolean, onClick: () -> Unit, modif
             .semantics { contentDescription = theme.displayName },
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) Box(Modifier.size(72.dp).border(3.dp, Color.White, CircleShape))
+        if (selected) Box(Modifier.size(72.dp).border(3.dp, LocalGlassTheme.current.onGlass, CircleShape))
         Box(
             Modifier
                 .size(if (selected) 58.dp else 64.dp)
                 .clip(CircleShape)
                 .background(Brush.linearGradient(theme.wallpaper + theme.glassRim))
-                .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
+                .border(1.dp, LocalGlassTheme.current.onGlass.copy(alpha = 0.25f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+            if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = theme.onGlass, modifier = Modifier.size(26.dp))
         }
     }
 }

@@ -271,11 +271,11 @@ private fun BlurSlider(state: ShellState) {
         valueRange = 0f..4f,
         steps = 3,
         colors = SliderDefaults.colors(
-            thumbColor = Color.White,
-            activeTrackColor = Color.White,
-            inactiveTrackColor = Color.White.copy(alpha = 0.28f),
-            activeTickColor = Color.Black.copy(alpha = 0.4f),
-            inactiveTickColor = Color.White.copy(alpha = 0.6f),
+            thumbColor = theme.onGlass,
+            activeTrackColor = theme.onGlass,
+            inactiveTrackColor = theme.onGlass.copy(alpha = 0.25f),
+            activeTickColor = theme.glassFallback,
+            inactiveTickColor = theme.onGlass.copy(alpha = 0.5f),
         ),
         modifier = Modifier.semantics { contentDescription = "Blur strength, 0 to 4" },
     )

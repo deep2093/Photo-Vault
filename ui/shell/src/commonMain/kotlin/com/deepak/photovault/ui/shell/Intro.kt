@@ -100,16 +100,17 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-29-6"
+    const val ID = "2026-10-29-7"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.NEW, "Blur slider", "In Appearance, a Blur slider from 0 (no blur, a clear film) to 4 (the most). It shows only while the glass effect is on."),
         Change(ChangeKind.NEW, "Stronger switches (experiment)", "Settings > About has a switch that makes switches green when on and darker when off, so they are easier to see."),
+        Change(ChangeKind.CHANGED, "Light themes have light pages", "Clear Light is the only light theme with a deep background and white text. Warm Light, Luminous Light, Liquid Day and Photo Light have light pages with clear glass and dark text."),
         Change(ChangeKind.CHANGED, "Themes are round swatches", "All themes are one grid of round colour swatches from light to dark, with no names. The chosen one has a ring and a tick."),
         Change(ChangeKind.CHANGED, "Turn on glass effect", "The glass switch now says Turn on glass effect and is on by default. Off makes bars, cards and switches plain solid colour."),
         Change(ChangeKind.CHANGED, "Switches are easier to see", "The off state has a darker track and a clear white edge, and the knob is solid."),
         Change(ChangeKind.CHANGED, "New Vivid Night colours", "Vivid Night starts from teal, blue and indigo instead of pink and purple."),
-        Change(ChangeKind.REMOVED, "Teal Light, Clear Light, Luminous Night and Liquid Night", "If you used one, the app now shows Photo Light. Light themes keep the deep background with white text, so the pale-background switch and the two blur experiment switches are gone."),
+        Change(ChangeKind.REMOVED, "Teal Light, Luminous Night and Liquid Night", "If you used one, the app now shows Photo Light. The pale-background switch and the two blur experiment switches are gone."),
         Change(ChangeKind.FIXED, "Odd shadow on switches", "A shadow no longer shows through the knob when a switch is off."),
         Change(ChangeKind.FIXED, "Pink band at the top of Vivid Night", "The fade under the status bar is now neutral dark, not pink."),
     )

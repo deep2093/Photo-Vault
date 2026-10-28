@@ -237,10 +237,10 @@ fun PhotoVaultApp(
                     // Photos and dates fade out under the status bar instead of showing through its clock and icons.
                     val top = system.calculateTopPadding()
                     // Neutral dark, not the wallpaper's first colour: that showed as a pink band on Vivid Night (29 Oct).
-                    val wall = androidx.compose.ui.graphics.Color.Black
+                    val wall = if (LocalGlassTheme.current.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
                     androidx.compose.foundation.layout.Box(
                         Modifier.align(androidx.compose.ui.Alignment.TopStart).fillMaxWidth().height(top + 8.dp)
-                            .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to wall.copy(alpha = 0.55f), 0.7f to wall.copy(alpha = 0.3f), 1f to androidx.compose.ui.graphics.Color.Transparent)),
+                            .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to wall.copy(alpha = 0.6f), 0.7f to wall.copy(alpha = 0.3f), 1f to androidx.compose.ui.graphics.Color.Transparent)),
                     )
                     OverlayHost(state, gallery, actions, drive, backup, iconSwitcher, system)
                     // Deleted photos flying into the bin, above every page (23 Oct).
