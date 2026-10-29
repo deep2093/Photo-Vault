@@ -101,6 +101,11 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
     val joined = drive.joined
     GlassListScreen(title = null, subtitle = null) {
         if (joined == null) {
+            // The drive is still being asked for the first time: don't offer setup yet (30 Oct).
+            if (drive.isSetUp && drive.membership == null && drive.checkedAtMillis == 0L) {
+                item { Text("Looking for your family...", color = LocalGlassTheme.current.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.cardWidth().padding(8.dp)) }
+                return@GlassListScreen
+            }
             item { NotConnectedCard(state, drive) }
             item { PrivacyCard() }
             return@GlassListScreen

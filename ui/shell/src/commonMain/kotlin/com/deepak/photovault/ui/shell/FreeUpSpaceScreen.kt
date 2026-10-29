@@ -21,7 +21,7 @@ import com.deepak.photovault.core.media.DetailsFormat
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassCard
-import com.deepak.photovault.designsystem.GlassChip
+import com.deepak.photovault.designsystem.GlassSegmented
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.SectionHeader
 import kotlinx.coroutines.delay
@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun FreeUpContent(backup: BackupState, actions: MediaActions) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) { FreeUpCards(backup, actions) }
+    Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) { FreeUpCards(backup, actions) }
 }
 
 @Composable
@@ -47,15 +47,15 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
     var confirmSmaller by remember { mutableStateOf(false) }
     val automatic = actions.canDeleteWithoutAsking()
 
-    GlassCard(Modifier.cardWidth()) {
+    GlassCard(Modifier.fillMaxWidth()) {
         SectionHeader("Remove phone copies after")
-        // One row of equal chips: Off and the day counts (the header says they are days).
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlassChip("Off", selected = days == 0, onClick = { backup.update { it.copy(freeUpDays = 0) }; backup.clearFreeUp() }, modifier = Modifier.weight(1f))
-            FreeUpSpace.DAY_CHOICES.forEach { d ->
-                GlassChip("$d days", selected = days == d, onClick = { backup.update { it.copy(freeUpDays = d) }; backup.clearFreeUp() }, modifier = Modifier.weight(1f))
-            }
-        }
+        // One glass pill with a sliding highlight: the chosen day shows in every theme (30 Oct).
+        val choices = listOf(0) + FreeUpSpace.DAY_CHOICES
+        GlassSegmented(
+            options = choices.map { if (it == 0) "Off" else "$it days" },
+            selectedIndex = choices.indexOf(days).coerceAtLeast(0),
+            onSelect = { i -> backup.update { it.copy(freeUpDays = choices[i]) }; backup.clearFreeUp() },
+        )
         Text(
             if (days == 0) "Turn this on and photos that are already backed up to the drive are taken off this phone after that many days. Right now nothing is removed."
             else "Photos that are already backed up are taken off this phone $days days after their backup. They stay on the drive and in Photos, and sit in Recently deleted for 30 days first.",
@@ -69,7 +69,7 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
     }
 
     if (days > 0) {
-        GlassCard(Modifier.cardWidth()) {
+        GlassCard(Modifier.fillMaxWidth()) {
             SectionHeader("Check now")
             val progress = backup.freeUpProgress
             if (backup.freeUpChecking) {

@@ -21,9 +21,12 @@ internal fun PullToRefresh(padding: androidx.compose.foundation.layout.PaddingVa
     var refreshing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val pull = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val theme = LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = refreshing,
         onRefresh = {
+            // A medium tap when the pull is accepted (30 Oct).
+            haptics.tap()
             refreshing = true
             scope.launch {
                 try {

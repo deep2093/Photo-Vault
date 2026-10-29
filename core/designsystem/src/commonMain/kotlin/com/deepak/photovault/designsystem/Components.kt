@@ -39,6 +39,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -120,7 +125,10 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
 fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
-    val background by animateColorAsState(if (selected) theme.accentSurface else Color.Transparent, motionSpec())
+    val strong = LocalGlassSettings.current.strongChips
+    val fill = if (strong) theme.accent else theme.accentSurface
+    val background by animateColorAsState(if (selected) fill else Color.Transparent, motionSpec())
+    val chosenText = if (strong) readableOn(theme.accent) else theme.onAccent
     Box(
         modifier
             .heightIn(min = MinTouchTarget)
@@ -134,7 +142,82 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) theme.onAccent else theme.onGlass, style = MaterialTheme.typography.labelLarge)
+        Text(
+            label,
+            color = if (selected) chosenText else theme.onGlass,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (strong && selected) FontWeight.Bold else null,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+/** Dark ink or white, whichever reads better on [background]. */
+internal fun readableOn(background: Color): Color =
+    if (background.luminance() > 0.45f) Color(0xFF10141A) else Color.White
+
+/**
+ * A row of choices in one glass pill with a coloured thumb that slides to the chosen one (30 Oct). The thumb is the
+ * theme's accent, so the choice shows in every theme; with Reduce motion it jumps.
+ */
+@Composable
+fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val theme = LocalGlassTheme.current
+    val haptics = rememberHaptics()
+    var widthPx by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+    val count = options.size.coerceAtLeast(1)
+    val segment = widthPx / count
+    val offset by androidx.compose.animation.core.animateIntAsState(
+        segment * selectedIndex.coerceIn(0, count - 1),
+        motionSpec(),
+        label = "segment",
+    )
+    val thumbText = readableOn(theme.accent)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = MinTouchTarget)
+            .glassPanel(Capsule)
+            .padding(3.dp)
+            .onSizeChanged { widthPx = it.width }
+            .drawBehind {
+                if (segment > 0) {
+                    drawRoundRect(
+                        color = theme.accent,
+                        topLeft = androidx.compose.ui.geometry.Offset(offset.toFloat(), 0f),
+                        size = androidx.compose.ui.geometry.Size(segment.toFloat(), size.height),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
+                    )
+                }
+            },
+    ) {
+        Row(Modifier.fillMaxWidth().selectableGroup()) {
+            options.forEachIndexed { index, label ->
+                val chosen = index == selectedIndex
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = MinTouchTarget - 6.dp)
+                        .selectable(selected = chosen, role = Role.RadioButton, onClick = {
+                            if (!chosen) {
+                                haptics.tick()
+                                onSelect(index)
+                            }
+                        }),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = if (chosen) thumbText else theme.onGlass,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (chosen) FontWeight.Bold else null,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
+        }
     }
 }
 

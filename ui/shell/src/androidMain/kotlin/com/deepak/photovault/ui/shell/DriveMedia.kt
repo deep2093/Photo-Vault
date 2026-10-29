@@ -32,6 +32,8 @@ object DriveMedia {
         JpegThumbCache.install(context)
         // Earlier versions kept small, blurry previews of iPhone JPEGs under this name: drop them.
         thumbs?.listFiles { f -> f.name.endsWith("-q.jpg") }?.forEach { it.delete() }
+        // Thumbnails kept before 30 Oct could be sideways (the photo's turn tag was ignored): make them again.
+        thumbs?.listFiles { f -> f.name.endsWith(".jpg") && "-t2-" !in f.name && "-q3-" !in f.name }?.forEach { it.delete() }
     }
 
     private fun name(path: String): String {
@@ -109,14 +111,14 @@ object DriveMedia {
         val isJpeg = path.lowercase().let { it.endsWith(".jpg") || it.endsWith(".jpeg") }
         // One kept picture serves every small tile size, so a list row and a grid tile never read the drive twice (30 Oct).
         val keepPx = if (sizePx <= PREVIEW_MAX_PX) PREVIEW_MAX_PX else sizePx
-        val jpegKey = JpegThumbCache.key("drive", path, keepPx)
+        val jpegKey = JpegThumbCache.key("drive2", path, keepPx)
         // A JPEG whose own preview was too small: made once from the photo, kept in the capped JPEG thumbnail folder.
         if (isJpeg) JpegThumbCache.get(jpegKey)?.let { return@withContext it }
-        val kept = File(dir, "${name(path)}-$keepPx.jpg")
+        val kept = File(dir, "${name(path)}-t2-$keepPx.jpg")
         if (!isJpeg && kept.exists()) BitmapFactory.decodeFile(kept.path)?.let { return@withContext it }
         // Nothing kept yet, so the drive must be read. Wait a moment first: a tile scrolled past quickly is cancelled
         // here and never wakes the drive (30 Oct).
-        if (sizePx <= QUICK_MAX_PX) File(dir, "${name(path)}-q2-$sizePx.jpg").takeIf { it.exists() }?.let { f -> BitmapFactory.decodeFile(f.path)?.let { return@withContext it } }
+        if (sizePx <= QUICK_MAX_PX) File(dir, "${name(path)}-q3-$sizePx.jpg").takeIf { it.exists() }?.let { f -> BitmapFactory.decodeFile(f.path)?.let { return@withContext it } }
         kotlinx.coroutines.delay(DRIVE_WAIT_MS)
         // A Normal backup keeps a small preview beside each photo (28 Oct): one small read instead of the whole photo.
         if (sizePx <= PREVIEW_MAX_PX) {
@@ -135,7 +137,7 @@ object DriveMedia {
         // Small tiles: the photo's own preview picture, fetched from the first part of the file (about a fifth of a
         // second instead of seconds). Larger sizes and photos without a preview use the full file.
         if (sizePx <= QUICK_MAX_PX && cached(path) == null) {
-            val quick = File(dir, "${name(path)}-q2-$sizePx.jpg")
+            val quick = File(dir, "${name(path)}-q3-$sizePx.jpg")
             if (quick.exists()) BitmapFactory.decodeFile(quick.path)?.let { return@withContext it }
             quickThumbnail(path, sizePx)?.let { bitmap ->
                 runCatching { FileOutputStream(quick).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
@@ -195,7 +197,24 @@ object DriveMedia {
         BitmapFactory.decodeFile(file.path, bounds)
         var sample = 1
         while (bounds.outWidth / (sample * 2) >= sizePx && bounds.outHeight / (sample * 2) >= sizePx) sample *= 2
-        return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+        val bitmap = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+        // Phone photos are often stored sideways with a tag saying how to turn them; the viewer obeys it, so must we (30 Oct).
+        val matrix = runCatching {
+            val exif = androidx.exifinterface.media.ExifInterface(file.path)
+            val m = android.graphics.Matrix()
+            when (exif.getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, 1)) {
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_90 -> m.postRotate(90f)
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_180 -> m.postRotate(180f)
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_ROTATE_270 -> m.postRotate(270f)
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> m.postScale(-1f, 1f)
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> m.postScale(1f, -1f)
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSPOSE -> { m.postRotate(90f); m.postScale(-1f, 1f) }
+                androidx.exifinterface.media.ExifInterface.ORIENTATION_TRANSVERSE -> { m.postRotate(270f); m.postScale(-1f, 1f) }
+                else -> return bitmap
+            }
+            m
+        }.getOrNull() ?: return bitmap
+        return runCatching { Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true) }.getOrDefault(bitmap)
     }
 
     /** Deletes the least recently used downloads once the cache is over [limit] bytes. */

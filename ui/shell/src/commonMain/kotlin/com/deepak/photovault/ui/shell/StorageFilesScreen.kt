@@ -263,6 +263,7 @@ fun StorageFilesScreen(
             }
         }
         val refreshList: @Composable () -> Unit = {
+            Box(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = list,
                 contentPadding = padding,
@@ -300,6 +301,14 @@ fun StorageFilesScreen(
                         modifier = Modifier.cardWidth().animateItem(),
                     )
                 }
+            }
+            ListFastScroller(
+                list = list,
+                top = padding.calculateTopPadding(),
+                bottom = padding.calculateBottomPadding(),
+                labelAt = { index -> fileLabel(sorted.getOrNull((index - 1).coerceAtLeast(0)), order, zone) },
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
             }
         }
         if (page.onDrive) PullToRefresh(padding, onRefresh = {
@@ -434,5 +443,19 @@ private fun FileRow(
                 if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(24.dp))
             }
         }
+    }
+}
+
+/** What the side slider says for a file: the first letter, the month, the size or the type, following the sort. */
+private fun fileLabel(file: StoredFile?, order: FileOrder, zone: TimeZone): String {
+    file ?: return ""
+    return when (order.by) {
+        FileSort.NAME -> file.name.trim().firstOrNull()?.uppercaseChar()?.toString().orEmpty()
+        FileSort.DATE -> {
+            val t = Instant.fromEpochMilliseconds(file.takenAtMillis).toLocalDateTime(zone)
+            "${t.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)} ${t.year}"
+        }
+        FileSort.SIZE -> DetailsFormat.size(file.bytes)
+        FileSort.TYPE -> StorageStats.typeOf(file)
     }
 }

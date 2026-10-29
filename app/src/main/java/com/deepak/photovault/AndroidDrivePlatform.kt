@@ -193,6 +193,20 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         prefs.edit().apply { if (userId == null) remove(KEY_USER) else putString(KEY_USER, userId) }.apply()
     }
 
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+    override fun rememberedHousehold(): com.deepak.photovault.core.household.Household? =
+        prefs.getString(KEY_HOUSEHOLD, null)?.let { text ->
+            runCatching { json.decodeFromString(com.deepak.photovault.core.household.Household.serializer(), text) }.getOrNull()
+        }
+
+    override fun rememberHousehold(household: com.deepak.photovault.core.household.Household?) {
+        prefs.edit().apply {
+            if (household == null) remove(KEY_HOUSEHOLD)
+            else putString(KEY_HOUSEHOLD, json.encodeToString(com.deepak.photovault.core.household.Household.serializer(), household))
+        }.apply()
+    }
+
     override fun describe(error: Throwable): String = when (error) {
         is AlreadySetUp -> "This drive already has a Pixallery family. Join it instead."
         is DriveNotFound -> "Something on the drive is missing. Refresh and try again."
@@ -213,6 +227,7 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         private const val KEY_FEEDBACK_NOTIFIED = "feedback_notified_at"
         const val KEY_DEVICE = "device_id"
         const val KEY_USER = "user_id"
+        const val KEY_HOUSEHOLD = "household_json"
 
         /** The family drive's own SMB server ID, so the address fallback signs in only to it. */
         const val KEY_SERVER_ID = "drive_server_id"

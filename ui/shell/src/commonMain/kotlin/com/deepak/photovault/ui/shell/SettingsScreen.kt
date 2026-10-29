@@ -55,7 +55,6 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.BlurOn
-import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.ui.graphics.Color
 import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
@@ -98,7 +97,6 @@ enum class SettingsPage(val title: String) {
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
-    FREE_UP("Free up space"),
     REMOTE("Remote access"),
     STORAGE("Storage"),
     // The last three stay at the end, in this order, in every build (25 Oct); the rest are alphabetical.
@@ -126,7 +124,6 @@ fun SettingsScreen(
                         SettingsPage.ALBUMS -> Icons.Rounded.Collections to (gallery?.hiddenAlbums?.size?.takeIf { it > 0 }?.let { "$it hidden" } ?: "Show or hide albums")
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
-                        SettingsPage.FREE_UP -> Icons.Rounded.CleaningServices to (backup?.settings?.freeUpDays?.takeIf { it > 0 }?.let { "After $it days" } ?: "Off")
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
                         SettingsPage.OPEN_WITH -> Icons.AutoMirrored.Rounded.OpenInNew to "Photos and videos from other apps"
                         SettingsPage.REMOTE -> Icons.Rounded.VpnKey to state.remote.summary()
@@ -199,7 +196,6 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }
-            SettingsPage.FREE_UP -> item { FreeUpContent(backup, actions) }
             SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
             SettingsPage.OPEN_WITH -> item { OpenWithContent(actions) }
             SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
@@ -387,6 +383,13 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.PersonAdd, "Invites", "Done")
         InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Open with Pixallery", "Done")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Done")
+        // Experiment (30 Oct): compare with the sliding choice on Backup > Free up space. Removed after testing.
+        GlassSwitchRow(
+            "Test: stronger chosen chips",
+            state.appearance.strongChips,
+            { on -> state.updateAppearance { it.copy(strongChips = on) } },
+            icon = Icons.Rounded.AutoAwesome,
+        )
         InfoRow(Icons.Rounded.Place, "Places and people", "Phase 7")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
     }

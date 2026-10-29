@@ -183,7 +183,7 @@ fun PhotoVaultApp(
         // Opening the app: check if this phone doesn't know the family yet, or the last check is old. With the
         // automatic check off, only the first (the family is unknown) happens; pages that need the drive check themselves.
         val stale = platform_now(drive) - drive.checkedAtMillis > DRIVE_RECHECK_MS
-        if (drive.joined == null || (auto && stale)) check()
+        if (drive.joined == null || drive.membershipStale || (auto && stale)) check()
         while (auto) {
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
             check()
@@ -203,8 +203,9 @@ fun PhotoVaultApp(
     // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
     // 28 Oct: read in full at the start, after each backup, after three hours, or when you pull down; not on every return.
     var seenHistory by remember { mutableStateOf(-1) }
-    LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
-        if (signals.foreground && drive.joined != null) {
+    LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground, drive.membershipStale) {
+        // Waits for the drive's own answer when only the remembered family is known, so the drive is read one thing at a time.
+        if (signals.foreground && drive.joined != null && !drive.membershipStale) {
             val backupDone = seenHistory != -1 && seenHistory != backup.history.size
             seenHistory = backup.history.size
             val old = platform_now(drive) - drive.libraryReadAtMillis > DRIVE_LIBRARY_MS

@@ -98,6 +98,8 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
     GlassListScreen(title = if (onBack != null) "Backup" else null, subtitle = null, onBack = onBack) {
         item { StatusCard(drive, backup, gallery, actions, eligible.size, done) }
         item { PrivacyCard(state, drive, backup) }
+        // Free up space lives here, right under Backup privacy (30 Oct).
+        item { FreeUpContent(backup, actions) }
         item {
             GlassCard(Modifier.cardWidth()) {
                 SettingRow(Icons.Rounded.Schedule, "Schedule", scheduleSummary(settings), onClick = { scheduleOpen = true })
@@ -554,7 +556,7 @@ private fun RestoreCard(drive: DriveState, backup: BackupState, gallery: Gallery
                 Text(if (rp == null) "Restoring..." else "Restoring ${rp.first} of ${rp.second}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
                 if (rp != null && rp.second > 0) GlassProgressBar(rp.first / rp.second.toFloat(), label = "Restore progress")
             }
-            missing == null -> GlassButton(if (checking) "Checking..." else "Check the drive", icon = Icons.Rounded.CloudDownload, modifier = Modifier.padding(top = 8.dp), onClick = {
+            missing == null -> GlassButton(if (checking) "Checking..." else "Restore backup", icon = Icons.Rounded.CloudDownload, modifier = Modifier.padding(top = 8.dp), onClick = {
                 if (!checking) {
                     checking = true
                     scope.launch {

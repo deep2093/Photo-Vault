@@ -69,6 +69,8 @@ data class AppearanceSettings(
     val pinBottomBar: Boolean = false,
     /** Check the family drive by itself when the app opens and once an hour while it is on screen (28 Oct). */
     val autoDriveCheck: Boolean = true,
+    /** Experiment (30 Oct, Settings > About): solid accent fill and bold text on chosen chips. Remove the loser after testing. */
+    val strongChips: Boolean = false,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
@@ -380,6 +382,7 @@ class ShellState(private val store: AppearanceStore) {
         // Lens glass (thick-glass look, Android 13+) is what the Blur slider's 0 setting means (29 Oct).
         lensEnabled = appearance.blurStep == 0,
         blurScale = BLUR_SCALES[appearance.blurStep.coerceIn(0, 4)],
+        strongChips = appearance.strongChips,
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */

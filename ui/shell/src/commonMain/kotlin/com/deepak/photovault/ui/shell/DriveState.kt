@@ -69,6 +69,10 @@ interface DrivePlatform {
     fun rememberedUserId(): String?
     fun rememberUserId(userId: String?)
 
+    /** The family as last read from the drive (30 Oct), so Family can show it at once while the drive wakes up. */
+    fun rememberedHousehold(): com.deepak.photovault.core.household.Household? = null
+    fun rememberHousehold(household: com.deepak.photovault.core.household.Household?) = Unit
+
     /** The newest feedback note the owner has looked at (25 Oct), for the dot on Settings. */
     fun feedbackSeenAt(): Long = 0L
     fun setFeedbackSeenAt(millis: Long) = Unit
@@ -91,7 +95,12 @@ class DriveState(private val platform: DrivePlatform) {
     var connection by mutableStateOf(platform.loadConnection())
         private set
 
-    var membership by mutableStateOf<Membership?>(null)
+    /** Starts as the family last seen on this phone, if any; it is replaced as soon as the drive answers. */
+    var membership by mutableStateOf<Membership?>(rememberedMembership())
+        private set
+
+    /** True while [membership] is only the remembered copy and the drive has not been asked yet. */
+    var membershipStale by mutableStateOf(membership != null)
         private set
 
     var usage by mutableStateOf<Map<String, MemberUsage>>(emptyMap())
@@ -109,6 +118,12 @@ class DriveState(private val platform: DrivePlatform) {
 
     var busy by mutableStateOf(false)
         private set
+
+    private fun rememberedMembership(): Membership? {
+        val h = runCatching { platform.rememberedHousehold() }.getOrNull() ?: return null
+        val me = platform.rememberedUserId()?.let { h.member(it) } ?: h.memberForDevice(platform.deviceId) ?: return null
+        return Membership.Joined(h, me)
+    }
 
     private var drive: DriveFileSystem? = null
     private var store: HouseholdStore? = null
@@ -166,6 +181,8 @@ class DriveState(private val platform: DrivePlatform) {
     fun forget() {
         platform.forgetConnection()
         platform.rememberUserId(null)
+        platform.rememberHousehold(null)
+        membershipStale = false
         connection = null
         drive = null
         store = null
@@ -181,7 +198,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun refresh(): String? = guarded { refreshLocked() }.also { checkedAtMillis = platform.now() }
 
     /** When the drive was last checked (28 Oct); 0 until this run of the app has checked. Used to check less often. */
-    var checkedAtMillis = 0L
+    var checkedAtMillis by mutableStateOf(0L)
         private set
 
     /** When the list of photos on the drive was last read in full; 0 until read. */
@@ -192,6 +209,8 @@ class DriveState(private val platform: DrivePlatform) {
         val s = ensureStore() ?: return
         val m = s.membership(platform.deviceId, platform.rememberedUserId())
         membership = m
+        membershipStale = false
+        platform.rememberHousehold((m as? Membership.Joined)?.household)
         if (m is Membership.Joined) platform.rememberUserId(m.me.userId)
         if (m is Membership.Removed) platform.rememberUserId(null)
         requests = if (m is Membership.Joined && m.isOwner) s.pendingRequests() else emptyList()

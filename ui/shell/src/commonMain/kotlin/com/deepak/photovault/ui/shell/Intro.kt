@@ -100,15 +100,17 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-30-1"
+    const val ID = "2026-10-30-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Pull to refresh on Drive", "Pull down on Storage > Drive, the Drive settings page and any list of backed-up files to read the drive again."),
-        Change(ChangeKind.NEW, "60 days in Free up space", "Choose Off, 7, 30, 60 or 90 days."),
-        Change(ChangeKind.CHANGED, "Free up space page", "Simpler wording that says what turning it on does. The Who asks box, the intro text and the yellow warnings are gone."),
-        Change(ChangeKind.CHANGED, "Drive thumbnails", "Files backed up from this phone show the phone's own picture, so the drive is not read for them. Drive pictures are kept on the phone once, at one size, and the drive is only asked after you stop scrolling."),
-        Change(ChangeKind.FIXED, "Scroll place forgotten", "Coming back from a photo no longer jumps a page to the top after you have tapped a tab to scroll up."),
-        Change(ChangeKind.FIXED, "Empty folder on the Drive page", "A failed read of the drive no longer empties the file list."),
+        Change(ChangeKind.NEW, "Side slider on file lists", "In Settings > Storage, long lists of files show a slider on the right while you scroll. Drag it to move quickly; it says the letter, month, size or type, following the sort."),
+        Change(ChangeKind.NEW, "Haptic tick on pull to refresh", "A medium tap when a pull down is accepted."),
+        Change(ChangeKind.NEW, "Test: stronger chosen chips", "Settings > About has a switch that gives chosen chips a solid colour and bold text, to compare. It will be removed after testing."),
+        Change(ChangeKind.CHANGED, "Free up space moved to Backup", "It now sits under Backup privacy, and the days are one sliding choice: Off, 7, 30, 60, 90."),
+        Change(ChangeKind.CHANGED, "Remote access stays on a minute", "After you leave the app, the connection stays up for 1 minute before it switches off (a running backup still keeps it up)."),
+        Change(ChangeKind.CHANGED, "Restore backup", "The button that was called Check the drive now says Restore backup."),
+        Change(ChangeKind.FIXED, "Sideways thumbnails", "Photos that are only on the drive no longer show turned on their side in Photos and Albums."),
+        Change(ChangeKind.FIXED, "Family page flashing set up", "Family shows your family straight away while the drive wakes up, instead of offering to set it up."),
     )
 }
 
