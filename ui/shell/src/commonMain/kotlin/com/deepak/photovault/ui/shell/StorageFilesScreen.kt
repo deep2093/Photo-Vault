@@ -79,6 +79,7 @@ import com.deepak.photovault.core.media.StorageStats
 import com.deepak.photovault.core.media.StoredFile
 import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.core.backup.BackupSelection
+import com.deepak.photovault.core.backup.isDriveOnly
 import com.deepak.photovault.core.backup.DriveTimeline
 import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.designsystem.accentSurface
