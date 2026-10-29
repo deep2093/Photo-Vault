@@ -123,7 +123,7 @@ class FreeUpSpaceTest {
     @Test
     fun freeUpSpaceIsOffByDefaultAndOldSavedSettingsStillLoad() {
         assertEquals(0, BackupSettings().freeUpDays)
-        assertEquals(listOf(7, 30, 90), FreeUpSpace.DAY_CHOICES)
+        assertEquals(listOf(7, 30, 60, 90), FreeUpSpace.DAY_CHOICES)
         val old = BackupEngine.json.decodeFromString(BackupSettings.serializer(), "{\"videos\":true}")
         assertEquals(0, old.freeUpDays)
     }

@@ -100,13 +100,15 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-29-9"
+    const val ID = "2026-10-30-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Free up space", "Settings > Free up space, off by default. Choose 7, 30 or 90 days: once a photo has been on the family drive that long, its phone copy can move to Recently deleted. Each photo is read back from the drive and checked first, and the drive must have a preview of it. Works with Normal backup; Private backup isn't included yet."),
-        Change(ChangeKind.NEW, "Cleanup by itself or with a question", "With Android's Media management allowed, Pixallery cleans up when you open it and after each backup. Without it, you press Check now and Android asks before anything moves. The page has a button to Android's permission screen."),
-        Change(ChangeKind.CHANGED, "Glass switch wording", "The glass switch now says Turn off glass effect while it is on and Turn on glass effect while it is off, with no text underneath. Keep the bottom bar in place and Reduce motion also lost their extra text."),
-        Change(ChangeKind.REMOVED, "Away from home line in Drive", "It repeated Remote access, which has its own page."),
+        Change(ChangeKind.NEW, "Pull to refresh on Drive", "Pull down on Storage > Drive, the Drive settings page and any list of backed-up files to read the drive again."),
+        Change(ChangeKind.NEW, "60 days in Free up space", "Choose Off, 7, 30, 60 or 90 days."),
+        Change(ChangeKind.CHANGED, "Free up space page", "Simpler wording that says what turning it on does. The Who asks box, the intro text and the yellow warnings are gone."),
+        Change(ChangeKind.CHANGED, "Drive thumbnails", "Files backed up from this phone show the phone's own picture, so the drive is not read for them. Drive pictures are kept on the phone once, at one size, and the drive is only asked after you stop scrolling."),
+        Change(ChangeKind.FIXED, "Scroll place forgotten", "Coming back from a photo no longer jumps a page to the top after you have tapped a tab to scroll up."),
+        Change(ChangeKind.FIXED, "Empty folder on the Drive page", "A failed read of the drive no longer empties the file list."),
     )
 }
 

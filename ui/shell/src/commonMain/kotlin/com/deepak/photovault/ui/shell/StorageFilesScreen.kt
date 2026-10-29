@@ -261,43 +261,53 @@ fun StorageFilesScreen(
                 }
             }
         }
-        LazyColumn(
-            state = list,
-            contentPadding = padding,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { heightPx = it.height.toFloat() }
-                .selectGestures({ list.isScrollInProgress }, handler),
-        ) {
-            item(key = "sort", contentType = "sort") {
-                Column(Modifier.cardWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SortBar(order) { order = order.tapped(it) }
-                    message?.let { WarningNote(it) }
-                    if (page.onDrive) {
-                        Text(
-                            "Tap to open. Press and hold to pick backups.",
-                            color = theme.onGlassSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+        val refreshList: @Composable () -> Unit = {
+            LazyColumn(
+                state = list,
+                contentPadding = padding,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { heightPx = it.height.toFloat() }
+                    .selectGestures({ list.isScrollInProgress }, handler),
+            ) {
+                item(key = "sort", contentType = "sort") {
+                    Column(Modifier.cardWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SortBar(order) { order = order.tapped(it) }
+                        message?.let { WarningNote(it) }
+                        if (page.onDrive) {
+                            Text(
+                                "Tap to open. Press and hold to pick backups.",
+                                color = theme.onGlassSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (files.isEmpty()) Text("Nothing here any more.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     }
-                    if (files.isEmpty()) Text("Nothing here any more.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+                items(sorted, key = { it.ref }, contentType = { "file" }) { file ->
+                    val item = if (page.onDrive) null else file.ref.toLongOrNull()?.let(gallery::find)
+                    FileRow(
+                        file = file,
+                        // The copy still on this phone is shown when there is one, so the drive is not read for it (30 Oct).
+                    thumbUri = if (page.onDrive) (openable[file.ref]?.let(gallery::find)?.takeUnless { it.isDriveOnly }?.uri ?: DriveTimeline.uriOf(file.ref)) else item?.uri,
+                        when_ = takenText(file.takenAtMillis, zone),
+                        selected = file.ref in selected,
+                        selecting = selecting,
+                        onThumbPlaced = { thumbs[file.ref] = it },
+                        modifier = Modifier.cardWidth().animateItem(),
+                    )
                 }
             }
-            items(sorted, key = { it.ref }, contentType = { "file" }) { file ->
-                val item = if (page.onDrive) null else file.ref.toLongOrNull()?.let(gallery::find)
-                FileRow(
-                    file = file,
-                    thumbUri = if (page.onDrive) DriveTimeline.uriOf(file.ref) else item?.uri,
-                    when_ = takenText(file.takenAtMillis, zone),
-                    selected = file.ref in selected,
-                    selecting = selecting,
-                    onThumbPlaced = { thumbs[file.ref] = it },
-                    modifier = Modifier.cardWidth().animateItem(),
-                )
-            }
         }
+        if (page.onDrive) PullToRefresh(padding, onRefresh = {
+            drive.refresh()
+            if (drive.joined != null) {
+                drive.loadBackupRecords(force = true)
+                drive.refreshUsage(force = true)
+            }
+        }, content = refreshList) else refreshList()
     }
 
     if (confirmDelete) {

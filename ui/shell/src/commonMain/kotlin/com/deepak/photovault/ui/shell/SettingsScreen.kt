@@ -183,7 +183,16 @@ private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
 /** One Settings page on its own, with a back button. */
 @Composable
 fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, gallery: GalleryState, actions: MediaActions, backup: BackupState, startOnDrive: Boolean = false) {
-    GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }) {
+    // Pull down on the drive pages to read the drive again (30 Oct).
+    val refresh: (suspend () -> Unit)? = if (page == SettingsPage.STORAGE || page == SettingsPage.DRIVE) ({
+        if (page == SettingsPage.STORAGE) gallery.refresh()
+        drive.refresh()
+        if (drive.joined != null) {
+            drive.loadBackupRecords(force = true)
+            drive.refreshUsage(force = true)
+        }
+    }) else null
+    GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }, onRefresh = refresh) {
         when (page) {
             SettingsPage.ABOUT -> item { AboutSection(state) }
             SettingsPage.ALBUMS -> albumsPage(gallery)

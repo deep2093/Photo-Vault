@@ -9,7 +9,7 @@ import com.deepak.photovault.core.media.MediaItem
  */
 object FreeUpSpace {
     /** The waits on offer, in days. Off (0) is the default and is its own choice. */
-    val DAY_CHOICES = listOf(7, 30, 90)
+    val DAY_CHOICES = listOf(7, 30, 60, 90)
 
     private const val DAY_MS = 86_400_000L
 

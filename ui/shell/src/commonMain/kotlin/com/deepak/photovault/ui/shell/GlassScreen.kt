@@ -271,11 +271,12 @@ private fun GlassTopBar(
  * bar; pages opened on top keep theirs, with a back button. Cards are capped in width on wide windows.
  */
 @Composable
-fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = null, items: LazyListScope.() -> Unit) {
+fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = null, onRefresh: (suspend () -> Unit)? = null, items: LazyListScope.() -> Unit) {
     GlassScreen(title, subtitle, onBack = onBack) { padding ->
         val listState = rememberSavedListState()
         val topFade = ScrollToTopEffect(listState)
-        LazyColumn(
+        @Composable
+        fun list() = LazyColumn(
             state = listState,
             // Only pages that are lists pad for the keyboard, so a text field stays above it.
             modifier = Modifier.fillMaxSize().imePadding().then(topFade),
@@ -284,6 +285,7 @@ fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = n
             horizontalAlignment = Alignment.CenterHorizontally,
             content = items,
         )
+        if (onRefresh != null) PullToRefresh(padding, onRefresh) { list() } else list()
     }
 }
 

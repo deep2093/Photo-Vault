@@ -546,8 +546,11 @@ class DriveState(private val platform: DrivePlatform) {
         if (backupRecordsLoading || (!force && backupRecords != null)) return
         backupRecordsLoading = true
         try {
-            backupRecords = myBackupRecords()
-            if (backupRecords != null) libraryReadAtMillis = platform.now()
+            // A failed read keeps the list already on screen: an empty folder after a hiccup was a bug (30 Oct).
+            myBackupRecords()?.let {
+                backupRecords = it
+                libraryReadAtMillis = platform.now()
+            }
         } finally {
             backupRecordsLoading = false
         }

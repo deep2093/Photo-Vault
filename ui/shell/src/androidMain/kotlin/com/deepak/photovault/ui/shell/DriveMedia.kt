@@ -107,11 +107,17 @@ object DriveMedia {
     suspend fun thumbnail(path: String, sizePx: Int): Bitmap? = withContext(Dispatchers.IO) {
         val dir = thumbs ?: return@withContext null
         val isJpeg = path.lowercase().let { it.endsWith(".jpg") || it.endsWith(".jpeg") }
-        val jpegKey = JpegThumbCache.key("drive", path, sizePx)
+        // One kept picture serves every small tile size, so a list row and a grid tile never read the drive twice (30 Oct).
+        val keepPx = if (sizePx <= PREVIEW_MAX_PX) PREVIEW_MAX_PX else sizePx
+        val jpegKey = JpegThumbCache.key("drive", path, keepPx)
         // A JPEG whose own preview was too small: made once from the photo, kept in the capped JPEG thumbnail folder.
         if (isJpeg) JpegThumbCache.get(jpegKey)?.let { return@withContext it }
-        val kept = File(dir, "${name(path)}-$sizePx.jpg")
+        val kept = File(dir, "${name(path)}-$keepPx.jpg")
         if (!isJpeg && kept.exists()) BitmapFactory.decodeFile(kept.path)?.let { return@withContext it }
+        // Nothing kept yet, so the drive must be read. Wait a moment first: a tile scrolled past quickly is cancelled
+        // here and never wakes the drive (30 Oct).
+        if (sizePx <= QUICK_MAX_PX) File(dir, "${name(path)}-q2-$sizePx.jpg").takeIf { it.exists() }?.let { f -> BitmapFactory.decodeFile(f.path)?.let { return@withContext it } }
+        kotlinx.coroutines.delay(DRIVE_WAIT_MS)
         // A Normal backup keeps a small preview beside each photo (28 Oct): one small read instead of the whole photo.
         if (sizePx <= PREVIEW_MAX_PX) {
             driveThumbnail(path)?.let { bitmap ->
@@ -143,11 +149,12 @@ object DriveMedia {
     }
 
     /** Photos with no preview on the drive (backed up before 28 Oct), so they are not asked for again this time. */
-    private val noPreview = java.util.Collections.synchronizedSet(HashSet<String>())
+    private val noPreview = java.util.Collections.synchronizedMap(HashMap<String, Long>())
 
     private suspend fun driveThumbnail(path: String): Bitmap? {
         val thumbPath = com.deepak.photovault.core.backup.NormalThumbs.pathFor(path) ?: return null
-        if (thumbPath in noPreview) return null
+        // A failed read is only remembered for a while, so a drive that was briefly out of reach isn't skipped for good.
+        noPreview[thumbPath]?.let { at -> if (System.currentTimeMillis() - at < NO_PREVIEW_MS) return null else noPreview.remove(thumbPath) }
         val read = reader ?: return null
         val bytes = java.io.ByteArrayOutputStream()
         val ok = gate.withPermit {
@@ -161,7 +168,7 @@ object DriveMedia {
         }
         val data = bytes.toByteArray()
         val bitmap = if (ok && data.isNotEmpty()) BitmapFactory.decodeByteArray(data, 0, data.size) else null
-        if (bitmap == null) noPreview += thumbPath
+        if (bitmap == null) noPreview[thumbPath] = System.currentTimeMillis()
         return bitmap
     }
 
@@ -208,4 +215,6 @@ object DriveMedia {
     private const val HEAD_BYTES = 256 * 1024
     private const val QUICK_MAX_PX = 256
     private const val PREVIEW_MAX_PX = 512
+    private const val DRIVE_WAIT_MS = 180L
+    private const val NO_PREVIEW_MS = 10L * 60 * 1000
 }

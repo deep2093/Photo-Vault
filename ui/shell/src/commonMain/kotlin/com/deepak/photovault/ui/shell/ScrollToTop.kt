@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 
@@ -65,8 +66,11 @@ private suspend fun glideToTop(
 @Composable
 fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0): Modifier {
     val signal = LocalScrollToTop.current
+    // A page built again (coming back from a photo) must not take an old tap as a new one and jump to the top (30 Oct).
+    val firstSignal = remember { signal }
+    val firstTaps = remember { extraTaps }
     LaunchedEffect(signal, extraTaps) {
-        if (signal == 0 && extraTaps == 0) return@LaunchedEffect
+        if (signal == firstSignal && extraTaps == firstTaps) return@LaunchedEffect
         val info = { state.layoutInfo }
         // Rows above, from the tiles on screen: the smallest width is a tile, so a row is one of its height.
         fun distance(): Float {
@@ -101,8 +105,9 @@ fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0): Modifier {
 @Composable
 fun ScrollToTopEffect(state: LazyListState): Modifier {
     val signal = LocalScrollToTop.current
+    val firstSignal = remember { signal }
     LaunchedEffect(signal) {
-        if (signal == 0) return@LaunchedEffect
+        if (signal == firstSignal) return@LaunchedEffect
         fun distance(): Float {
             val visible = state.layoutInfo.visibleItemsInfo
             if (visible.isEmpty()) return 0f

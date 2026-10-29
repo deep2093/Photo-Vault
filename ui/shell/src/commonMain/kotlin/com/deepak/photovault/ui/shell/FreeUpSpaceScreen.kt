@@ -24,7 +24,6 @@ import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.GlassChip
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.SectionHeader
-import com.deepak.photovault.designsystem.WarningNote
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -49,53 +48,27 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
     val automatic = actions.canDeleteWithoutAsking()
 
     GlassCard(Modifier.cardWidth()) {
-        Text(
-            "Takes the copy off this phone once the photo has been safely on the family drive for a while. The photo stays on the drive and still shows in Photos.",
-            color = theme.onGlass,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        SectionHeader("Remove phone copies after", Modifier.padding(top = 12.dp))
+        SectionHeader("Remove phone copies after")
+        // One row of equal chips: Off and the day counts (the header says they are days).
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlassChip("Off", selected = days == 0, onClick = { backup.update { it.copy(freeUpDays = 0) }; backup.clearFreeUp() })
+            GlassChip("Off", selected = days == 0, onClick = { backup.update { it.copy(freeUpDays = 0) }; backup.clearFreeUp() }, modifier = Modifier.weight(1f))
             FreeUpSpace.DAY_CHOICES.forEach { d ->
-                GlassChip("$d days", selected = days == d, onClick = { backup.update { it.copy(freeUpDays = d) }; backup.clearFreeUp() })
+                GlassChip("$d days", selected = days == d, onClick = { backup.update { it.copy(freeUpDays = d) }; backup.clearFreeUp() }, modifier = Modifier.weight(1f))
             }
         }
-        if (days == 0) {
-            Text("Off. Nothing is removed from this phone.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-        } else {
-            Text(
-                "Each photo is read back from the drive and compared again before its phone copy goes, and the drive must have a preview of it. Anything that doesn't pass stays on the phone. Photos go to your phone's Recently deleted for 30 days, so you can still undo. This covers every album and favourites.",
-                color = theme.onGlassSecondary,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            WarningNote("Once the phone copy is gone, the family drive holds the only copy. Keep a second copy of the drive if these photos matter.")
+        Text(
+            if (days == 0) "Turn this on and photos that are already backed up to the drive are taken off this phone after that many days. Right now nothing is removed."
+            else "Photos that are already backed up are taken off this phone $days days after their backup. They stay on the drive and in Photos, and sit in Recently deleted for 30 days first.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        if (days > 0 && !automatic && actions.automaticCleanupAvailable()) {
+            GlassButton("Allow without asking each time", onClick = actions::askDeletePermission, modifier = Modifier.padding(top = 10.dp))
         }
     }
 
     if (days > 0) {
-        GlassCard(Modifier.cardWidth()) {
-            SectionHeader("Who asks")
-            if (automatic) {
-                Text(
-                    "Pixallery can remove them by itself: when you open the app and after each backup, it checks and moves the phone copies to Recently deleted without asking.",
-                    color = theme.onGlass,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                Text(
-                    "Android asks you each time before anything moves. To let Pixallery do it by itself, allow \"Media management\" for Pixallery in Android's settings.",
-                    color = theme.onGlass,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (actions.automaticCleanupAvailable()) {
-                    GlassButton("Open Android permission screen", onClick = actions::askDeletePermission, modifier = Modifier.padding(top = 10.dp))
-                } else {
-                    Text("This version of Android always asks.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
-                }
-            }
-        }
         GlassCard(Modifier.cardWidth()) {
             SectionHeader("Check now")
             val progress = backup.freeUpProgress
@@ -126,9 +99,11 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
                 }
             }
             if (result != null && result.smaller.isNotEmpty() && !backup.freeUpChecking) {
-                WarningNote(
+                Text(
                     "${result.smaller.size} photos (${DetailsFormat.size(result.smallerBytes)} on the phone) were saved smaller by Storage saver. The drive has only the smaller copy, so Pixallery never removes these by itself.",
-                    Modifier.padding(top = 10.dp),
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 10.dp),
                 )
                 GlassButton("Also move these ${result.smaller.size}", onClick = { confirmSmaller = true })
             }
