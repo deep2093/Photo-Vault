@@ -100,17 +100,15 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-30-2"
+    const val ID = "2026-10-31-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Side slider on file lists", "In Settings > Storage, long lists of files show a slider on the right while you scroll. Drag it to move quickly; it says the letter, month, size or type, following the sort."),
-        Change(ChangeKind.NEW, "Haptic tick on pull to refresh", "A medium tap when a pull down is accepted."),
-        Change(ChangeKind.NEW, "Test: stronger chosen chips", "Settings > About has a switch that gives chosen chips a solid colour and bold text, to compare. It will be removed after testing."),
-        Change(ChangeKind.CHANGED, "Free up space moved to Backup", "It now sits under Backup privacy, and the days are one sliding choice: Off, 7, 30, 60, 90."),
-        Change(ChangeKind.CHANGED, "Remote access stays on a minute", "After you leave the app, the connection stays up for 1 minute before it switches off (a running backup still keeps it up)."),
-        Change(ChangeKind.CHANGED, "Restore backup", "The button that was called Check the drive now says Restore backup."),
-        Change(ChangeKind.FIXED, "Sideways thumbnails", "Photos that are only on the drive no longer show turned on their side in Photos and Albums."),
-        Change(ChangeKind.FIXED, "Family page flashing set up", "Family shows your family straight away while the drive wakes up, instead of offering to set it up."),
+        Change(ChangeKind.NEW, "Genie effect on drive deletes", "Backups you delete from the drive in Settings > Storage now fly into the delete button like other deletes."),
+        Change(ChangeKind.CHANGED, "Quieter drive", "Opening the app no longer wakes the drive. It is read when you open a drive page, pull down, finish a backup or open a drive photo. Family shows what this phone remembers; pull down there for fresh numbers."),
+        Change(ChangeKind.CHANGED, "Slower pie charts", "The rings in Storage take about two seconds to fill."),
+        Change(ChangeKind.REMOVED, "Chip test switch", "The Test: stronger chosen chips switch in About is gone; the sliding choice stays."),
+        Change(ChangeKind.FIXED, "Zoom copy in the viewer", "Double-tapping to zoom no longer leaves a second small copy of the photo behind it."),
+        Change(ChangeKind.FIXED, "Square flash on the days choice", "The Free up space days choice no longer flashes a square while it slides."),
     )
 }
 

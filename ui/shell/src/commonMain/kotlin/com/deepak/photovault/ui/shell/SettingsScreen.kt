@@ -383,13 +383,6 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.PersonAdd, "Invites", "Done")
         InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Open with Pixallery", "Done")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Done")
-        // Experiment (30 Oct): compare with the sliding choice on Backup > Free up space. Removed after testing.
-        GlassSwitchRow(
-            "Test: stronger chosen chips",
-            state.appearance.strongChips,
-            { on -> state.updateAppearance { it.copy(strongChips = on) } },
-            icon = Icons.Rounded.AutoAwesome,
-        )
         InfoRow(Icons.Rounded.Place, "Places and people", "Phase 7")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
     }

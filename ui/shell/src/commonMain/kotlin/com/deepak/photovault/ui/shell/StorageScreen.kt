@@ -283,7 +283,7 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
         if (slices.isEmpty() || reduceMotion) return@LaunchedEffect
         grow.snapTo(0f)
         kotlinx.coroutines.delay(350)
-        grow.animateTo(1f, androidx.compose.animation.core.tween(900, easing = com.deepak.photovault.designsystem.PageEasing))
+        grow.animateTo(1f, androidx.compose.animation.core.tween(2000, easing = com.deepak.photovault.designsystem.PageEasing))
     }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->

@@ -707,13 +707,10 @@ private fun ZoomablePhoto(item: MediaItem, onTap: () -> Unit) {
             }
             .semantics { contentDescription = "Photo, ${whenTaken(item)}" },
     ) {
-        // The cached thumbnail shows instantly; the full photo fades in over it.
-        AsyncImage(model = Thumb(item.uri, false, 512), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-        AsyncImage(
-            model = ImageRequest.Builder(context).data(item.uri).crossfade(true).build(),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
+        // The cached thumbnail shows instantly; the full photo fades in over it. Both zoom together (30 Oct: the
+        // thumbnail stayed small behind the zoomed photo and showed as a second copy).
+        Box(
+            Modifier
                 .fillMaxSize()
                 .graphicsLayer {
                     scaleX = scale.value
@@ -721,7 +718,15 @@ private fun ZoomablePhoto(item: MediaItem, onTap: () -> Unit) {
                     translationX = offset.value.x
                     translationY = offset.value.y
                 },
-        )
+        ) {
+            AsyncImage(model = Thumb(item.uri, false, 512), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+            AsyncImage(
+                model = ImageRequest.Builder(context).data(item.uri).crossfade(true).build(),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 

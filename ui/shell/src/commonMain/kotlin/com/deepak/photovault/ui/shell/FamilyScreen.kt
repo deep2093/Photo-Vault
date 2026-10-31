@@ -82,14 +82,14 @@ const val FOLDER_PRIVACY_NOTE =
 fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = NoMediaActions) {
     val scope = rememberCoroutineScope()
     val theme = LocalGlassTheme.current
-    // Fresh numbers when the screen opens, then every 20 seconds (new requests, space used). Only while
-    // Family is on screen: sections stay ready in the background and this reads the drive (23 Oct).
+    // Family shows the family remembered on this phone and does not read the drive by itself (30 Oct): pull down for
+    // fresh numbers and new requests (the dot on Family still comes from the hourly check). Only a phone that has
+    // never read its family asks once.
     val onScreen = state.destination == Destination.FAMILY
     LaunchedEffect(drive.connection, onScreen) {
-        while (onScreen && drive.isSetUp) {
+        if (onScreen && drive.isSetUp && drive.membership == null) {
             drive.refresh()
             drive.refreshUsage()
-            delay(20_000)
         }
     }
     var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -99,7 +99,16 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
     }
 
     val joined = drive.joined
-    GlassListScreen(title = null, subtitle = null) {
+    GlassListScreen(
+        title = null,
+        subtitle = null,
+        onRefresh = {
+            if (drive.isSetUp) {
+                drive.refresh()
+                drive.refreshUsage(force = true)
+            }
+        },
+    ) {
         if (joined == null) {
             // The drive is still being asked for the first time: don't offer setup yet (30 Oct).
             if (drive.isSetUp && drive.membership == null && drive.checkedAtMillis == 0L) {

@@ -122,8 +122,6 @@ private val PAGE_SHADOW_WIDTH = 28.dp
 /** While the app is open the drive is checked once an hour (28 Oct; was every minute, which kept a hard disk awake). */
 private const val DRIVE_REFRESH_MS = 60 * 60_000L
 
-/** Coming back to the app checks again only if the last check was longer ago than this. */
-private const val DRIVE_RECHECK_MS = 15 * 60_000L
 
 /** The full list of photos on the drive is read again at most this often, unless a backup finished or you pull down. */
 private const val DRIVE_LIBRARY_MS = 3 * 60 * 60_000L
@@ -180,10 +178,10 @@ fun PhotoVaultApp(
             drive.refreshFeedbackDot()
         }
         val auto = state.appearance.autoDriveCheck
-        // Opening the app: check if this phone doesn't know the family yet, or the last check is old. With the
-        // automatic check off, only the first (the family is unknown) happens; pages that need the drive check themselves.
-        val stale = platform_now(drive) - drive.checkedAtMillis > DRIVE_RECHECK_MS
-        if (drive.joined == null || drive.membershipStale || (auto && stale)) check()
+        // Opening the app does not wake the drive (30 Oct): the family and the photo list are the ones remembered on this
+        // phone. Only a phone that doesn't know its family yet asks. After that: every hour while on screen, on pull
+        // down, when a drive page opens, after a backup, or when a drive photo is opened.
+        if (drive.joined == null) check()
         while (auto) {
             kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
             check()
@@ -203,13 +201,13 @@ fun PhotoVaultApp(
     // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
     // 28 Oct: read in full at the start, after each backup, after three hours, or when you pull down; not on every return.
     var seenHistory by remember { mutableStateOf(-1) }
-    LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground, drive.membershipStale) {
-        // Waits for the drive's own answer when only the remembered family is known, so the drive is read one thing at a time.
-        if (signals.foreground && drive.joined != null && !drive.membershipStale) {
+    LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
+        if (signals.foreground && drive.joined != null) {
             val backupDone = seenHistory != -1 && seenHistory != backup.history.size
             seenHistory = backup.history.size
-            val old = platform_now(drive) - drive.libraryReadAtMillis > DRIVE_LIBRARY_MS
-            if (backupDone || old || drive.backupRecords == null) {
+            // Not read when the app opens (30 Oct): read after a backup, or after three hours once it has been read.
+            val old = drive.libraryReadAtMillis > 0 && platform_now(drive) - drive.libraryReadAtMillis > DRIVE_LIBRARY_MS
+            if (backupDone || old) {
                 drive.loadBackupRecords(force = true)
                 drive.loadDriveTrash()
                 drive.loadFamilyAlbum()

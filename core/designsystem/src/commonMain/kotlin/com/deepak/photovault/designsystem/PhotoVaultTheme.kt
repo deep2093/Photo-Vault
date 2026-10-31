@@ -45,8 +45,6 @@ data class GlassSettings(
     val lensEnabled: Boolean = false,
     /** How strong the blur is: 1 = the theme's own, 0 = none (a clear film only). The Blur slider (0 to 4) sets it. */
     val blurScale: Float = 1f,
-    /** Experiment (30 Oct): chosen chips get a solid accent fill and bold text, so the choice is clear in every theme. */
-    val strongChips: Boolean = false,
 )
 
 val LocalGlassTheme = staticCompositionLocalOf { GlassThemes.default }

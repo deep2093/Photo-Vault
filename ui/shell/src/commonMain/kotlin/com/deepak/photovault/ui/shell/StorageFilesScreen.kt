@@ -332,9 +332,17 @@ fun StorageFilesScreen(
             confirmDelete = false
             val paths = chosen.map { it.ref }.toSet()
             val keys = drive.backupRecords.orEmpty().filter { it.drivePath in paths }.map { it.key }.toSet()
+            // The rows fly into the delete button like everywhere else (30 Oct).
+            val flying = chosen.mapNotNull { f ->
+                thumbs[f.ref]?.let { rect ->
+                    val uri = openable[f.ref]?.let(gallery::find)?.takeUnless { it.isDriveOnly }?.uri ?: DriveTimeline.uriOf(f.ref)
+                    FlyingPhoto(uri, f.isVideo, rect)
+                }
+            }
             scope.launch {
                 val error = drive.deleteBackups(paths)
                 if (error == null) {
+                    flight.launch(flying, bin.bounds)
                     runCatching { backup.forgetBackedUp(keys) }
                     state.filesSelected = emptySet()
                     message = "Deleted ${LibraryCounts.grouped(paths.size)} from the drive."

@@ -126,10 +126,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
 fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
-    val strong = LocalGlassSettings.current.strongChips
-    val fill = if (strong) theme.accent else theme.accentSurface
-    val background by animateColorAsState(if (selected) fill else Color.Transparent, motionSpec())
-    val chosenText = if (strong) readableOn(theme.accent) else theme.onAccent
+    val background by animateColorAsState(if (selected) theme.accentSurface else Color.Transparent, motionSpec())
     Box(
         modifier
             .heightIn(min = MinTouchTarget)
@@ -143,14 +140,7 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            label,
-            color = if (selected) chosenText else theme.onGlass,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (strong && selected) FontWeight.Bold else null,
-            maxLines = 1,
-            softWrap = false,
-        )
+        Text(label, color = if (selected) theme.onAccent else theme.onGlass, style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -200,12 +190,19 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
                     Modifier
                         .weight(1f)
                         .heightIn(min = MinTouchTarget - 6.dp)
-                        .selectable(selected = chosen, role = Role.RadioButton, onClick = {
-                            if (!chosen) {
-                                haptics.tick()
-                                onSelect(index)
-                            }
-                        }),
+                        // No tap highlight: its square showed while the thumb slid (30 Oct); the thumb is the feedback.
+                        .selectable(
+                            selected = chosen,
+                            interactionSource = null,
+                            indication = null,
+                            role = Role.RadioButton,
+                            onClick = {
+                                if (!chosen) {
+                                    haptics.tick()
+                                    onSelect(index)
+                                }
+                            },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
