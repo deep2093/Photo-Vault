@@ -316,7 +316,7 @@ fun MediaGrid(
             grid = gridState,
             photos = remember(sections) { sections.flatMap { it.items } },
             headerItems = headerItems,
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = contentPadding.calculateTopPadding() + 4.dp),
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
         )
         if (topButton) BackToTopButton(
             grid = gridState,
@@ -686,12 +686,14 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
     if (text.isEmpty()) return
     Text(
         text,
-        color = theme.onGlass,
+        // White on a dark film, so it reads on every theme and over any photo (31 Oct).
+        color = Color.White,
         style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         maxLines = 1,
         modifier = modifier
-            .glassChrome(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50), elevation = 0.dp)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50))
+            .background(Color.Black.copy(alpha = 0.45f))
+            .padding(horizontal = 12.dp, vertical = 4.dp),
     )
 }

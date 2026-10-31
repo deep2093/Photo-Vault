@@ -53,13 +53,13 @@ internal fun BoxScope.GlassMenuLayer(expanded: Boolean, onDismiss: () -> Unit, c
             .align(Alignment.TopEnd)
             .padding(
                 end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
-                top = insets.calculateTopPadding() + 8.dp + TopBarHeight + 6.dp,
+                top = insets.calculateTopPadding() + 8.dp + TopBarHeight + 2.dp,
             )
-            .widthIn(min = 200.dp, max = 280.dp)
+            .widthIn(min = 150.dp, max = 220.dp)
             .glassChrome(shape, elevation = 12.dp)
             // A firmer tint under the words (31 Oct: the plain glass was hard to read over photos); still the theme's own colour.
             .background(LocalGlassTheme.current.glassFallback.copy(alpha = 0.82f), shape)
-            .padding(vertical = 6.dp),
+            .padding(vertical = 4.dp),
         content = content,
     )
 }
@@ -78,17 +78,17 @@ internal fun GlassMenuItem(
     Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
+            .heightIn(min = 36.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val tint = if (selected) theme.accent else theme.onGlass
         if (icon != null) {
-            Icon(icon, null, tint = if (selected) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.size(12.dp))
+            Icon(icon, null, tint = if (selected) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(10.dp))
         }
-        Text(label, color = tint, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), maxLines = 1)
+        Text(label, color = tint, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1)
         if (trailing != null) {
             Spacer(Modifier.size(8.dp))
             Icon(trailing, null, tint = tint, modifier = Modifier.size(18.dp))
