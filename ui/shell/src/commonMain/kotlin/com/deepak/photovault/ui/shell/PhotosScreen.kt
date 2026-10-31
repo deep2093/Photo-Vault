@@ -175,6 +175,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             jumpTo = gallery.jumpTo,
                             onJumped = { gallery.jumpTo = null },
                             onZoomOutPastMax = { gallery.view = LibraryView.MONTHS },
+                            continuous = true,
                             header = {
                                 item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
                                     androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = SCREEN_MARGIN)) {

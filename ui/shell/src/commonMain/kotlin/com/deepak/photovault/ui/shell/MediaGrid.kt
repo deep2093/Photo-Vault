@@ -67,6 +67,7 @@ import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -132,6 +133,8 @@ fun MediaGrid(
     footer: (LazyGridScope.() -> Unit)? = null,
     /** A round button that glides back to the top: shows when away from the top, hides while scrolling down (albums, 27 Oct). */
     topButton: Boolean = false,
+    /** One unbroken grid with no date rows, and a date that floats at the top left (Photos > All, like iOS, 31 Oct). */
+    continuous: Boolean = false,
 ) {
     // Photos run edge to edge like Samsung Gallery (23 Oct): only the system's own side insets stay
     // (landscape cut-outs); headers and controls keep the screen margin themselves.
@@ -166,7 +169,7 @@ fun MediaGrid(
                     gridState.scrollToItem(index)
                     break
                 }
-                index += 1 + section.items.size
+                index += (if (continuous) 0 else 1) + section.items.size
             }
             onJumped()
         }
@@ -288,7 +291,7 @@ fun MediaGrid(
         ) {
             header?.invoke(this)
             sections.forEach { section ->
-                item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
+                if (!continuous) item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
                     SectionHeader(section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
                 }
                 items(section.items, key = { it.id }, contentType = { "tile" }) { item ->
@@ -309,6 +312,12 @@ fun MediaGrid(
             footer?.invoke(this)
         }
 
+        if (continuous) FloatingDate(
+            grid = gridState,
+            photos = remember(sections) { sections.flatMap { it.items } },
+            headerItems = headerItems,
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = contentPadding.calculateTopPadding() + 4.dp),
+        )
         if (topButton) BackToTopButton(
             grid = gridState,
             onClick = { topTaps++ },
@@ -318,6 +327,7 @@ fun MediaGrid(
             grid = gridState,
             sections = sections,
             headerItems = headerItems,
+            continuous = continuous,
             top = contentPadding.calculateTopPadding(),
             bottom = contentPadding.calculateBottomPadding(),
             modifier = Modifier.align(Alignment.TopEnd),
@@ -370,6 +380,7 @@ private fun FastScroller(
     grid: LazyGridState,
     sections: List<TimelineSection>,
     headerItems: Int,
+    continuous: Boolean,
     top: Dp,
     bottom: Dp,
     modifier: Modifier = Modifier,
@@ -388,11 +399,12 @@ private fun FastScroller(
         }
     }
     // Grid position of each section's header, to name the date under the slider.
-    val starts = remember(sections, headerItems) {
+    val rows = if (continuous) 0 else 1
+    val starts = remember(sections, headerItems, continuous) {
         var index = headerItems
-        sections.map { s -> (index to s.label).also { index += 1 + s.items.size } }
+        sections.map { s -> (index to s.label).also { index += rows + s.items.size } }
     }
-    val total = remember(sections, headerItems) { headerItems + sections.sumOf { 1 + it.items.size } }
+    val total = remember(sections, headerItems, continuous) { headerItems + sections.sumOf { rows + it.items.size } }
     if (total < 60) return // Short lists don't need it.
     BoxWithConstraints(modifier.fillMaxHeight().padding(top = top, bottom = bottom).width(140.dp)) {
         val density = LocalDensity.current
@@ -486,11 +498,7 @@ private fun PhotoTile(
     val select = onLongClick
     // Thumbnail sizes are rounded up to a few buckets so the cache is shared between grid sizes.
     val px = with(LocalDensity.current) { tileSize.toPx() }.toInt()
-    val bucket = when {
-        px <= 128 -> 128
-        px <= 256 -> 256
-        else -> 512
-    }
+    val bucket = thumbBucket(px)
     val inset by animateFloatAsState(if (selected) 0.86f else 1f, motionSpec())
     ContributeScreenColor(mainColors[item.id]?.let { Color(it) })
     Box(
@@ -651,4 +659,39 @@ fun EmptyState(title: String, body: String, modifier: Modifier = Modifier, actio
         )
         action?.invoke()
     }
+}
+
+/** The picture size a grid tile of [px] pixels asks for. The delete effect asks for the same, so it finds the picture already in memory. */
+internal fun thumbBucket(px: Int): Int = when {
+    px <= 128 -> 128
+    px <= 256 -> 256
+    else -> 512
+}
+
+/**
+ * The date of the photo at the top of the screen, floating at the top left (31 Oct, like iOS Photos). It changes as
+ * you scroll; no word "Library", just the date, in the same glass as the other floating controls.
+ */
+@Composable
+private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerItems: Int, modifier: Modifier = Modifier) {
+    val theme = LocalGlassTheme.current
+    val zone = remember { kotlinx.datetime.TimeZone.currentSystemDefault() }
+    val text by remember(photos, headerItems) {
+        derivedStateOf {
+            val item = photos.getOrNull((grid.firstVisibleItemIndex - headerItems).coerceAtLeast(0)) ?: return@derivedStateOf ""
+            val d = com.deepak.photovault.core.media.Timeline.localDate(item.takenAtMillis, zone)
+            "${d.dayOfMonth} ${com.deepak.photovault.core.media.Timeline.monthName(d.month).take(3)} ${d.year}"
+        }
+    }
+    if (text.isEmpty()) return
+    Text(
+        text,
+        color = theme.onGlass,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        modifier = modifier
+            .glassChrome(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50), elevation = 0.dp)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+    )
 }

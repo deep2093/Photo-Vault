@@ -70,7 +70,14 @@ class DeleteFlight {
 }
 
 /** One photo on its way to the bin: where it was on screen (window coordinates) and how it was drawn. */
-data class FlyingPhoto(val uri: String, val isVideo: Boolean, val bounds: Rect, val fit: Boolean = false)
+data class FlyingPhoto(val uri: String, val isVideo: Boolean, val bounds: Rect, val fit: Boolean = false, val sizePx: Int = 0) {
+    /**
+     * The picture size to draw with. It must be the size the screen already showed, so the picture is found in memory:
+     * a photo deleted for good can't be read from the phone any more, and asking for another size drew nothing
+     * (the reason Recently deleted showed no effect, 31 Oct).
+     */
+    val thumbPx: Int get() = if (sizePx > 0) sizePx else if (fit) 512 else 256
+}
 
 val LocalDeleteFlight = staticCompositionLocalOf { DeleteFlight() }
 
@@ -96,7 +103,7 @@ val LocalTileSpots = staticCompositionLocalOf<TileSpots?> { null }
 /** The photos of [items] that are on screen, ready to fly. */
 fun TileSpots?.flying(items: List<MediaItem>): List<FlyingPhoto> {
     val bounds = this?.boundsOf(items.map { it.id }) ?: return emptyList()
-    return items.mapNotNull { item -> bounds[item.id]?.let { FlyingPhoto(item.uri, item.isVideo, it) } }
+    return items.mapNotNull { item -> bounds[item.id]?.let { FlyingPhoto(item.uri, item.isVideo, it, sizePx = thumbBucket(it.width.toInt())) } }
 }
 
 /** Pure maths of one photo's flight, tested. [t] runs 0 to 1. */
@@ -136,10 +143,10 @@ private fun FlightView(f: DeleteFlight.Flight, onDone: () -> Unit) {
     val haptics = rememberHaptics()
     // The pictures are made ready first: a picture that is still loading drew nothing for the first frames, so the
     // effect looked broken or missing (31 Oct, Recently deleted).
-    val painters = f.photos.map { p -> rememberAsyncImagePainter(Thumb(p.uri, p.isVideo, if (p.fit) 512 else 256)) }
+    val painters = f.photos.map { p -> rememberAsyncImagePainter(Thumb(p.uri, p.isVideo, p.thumbPx)) }
     LaunchedEffect(Unit) {
         if (!reduceMotion) {
-            kotlinx.coroutines.withTimeoutOrNull(700) {
+            kotlinx.coroutines.withTimeoutOrNull(300) {
                 androidx.compose.runtime.snapshotFlow { painters.all { it.intrinsicSize.isSpecified && it.intrinsicSize.width > 0f } }.first { it }
             }
             t.animateTo(1f, tween(FLY_MS, easing = LinearEasing))

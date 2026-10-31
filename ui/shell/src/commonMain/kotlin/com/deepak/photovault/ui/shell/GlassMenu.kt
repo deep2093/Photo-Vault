@@ -57,6 +57,8 @@ internal fun BoxScope.GlassMenuLayer(expanded: Boolean, onDismiss: () -> Unit, c
             )
             .widthIn(min = 200.dp, max = 280.dp)
             .glassChrome(shape, elevation = 12.dp)
+            // A firmer tint under the words (31 Oct: the plain glass was hard to read over photos); still the theme's own colour.
+            .background(LocalGlassTheme.current.glassFallback.copy(alpha = 0.82f), shape)
             .padding(vertical = 6.dp),
         content = content,
     )

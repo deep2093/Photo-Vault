@@ -319,7 +319,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     val tile = if (tablet) Modifier.width(200.dp) else Modifier.weight(1f)
                     PlaceTile(
                         Icons.Rounded.Delete, "Recently deleted",
-                        if (gallery.trashed.isEmpty()) "Empty" else "${gallery.trashed.size}",
+                        if (gallery.trashed.isEmpty()) "Empty" else "",
                         tile,
                     ) { state.open(Overlay.RecentlyDeleted) }
                     PlaceTile(Icons.Rounded.Place, "Places", "Soon", tile, enabled = false) {}
