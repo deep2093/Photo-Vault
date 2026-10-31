@@ -148,6 +148,8 @@ fun SecuredFolderScreen(state: ShellState) {
 @Composable
 private fun PinEntry(pin: String, onChange: (String) -> Unit, fingerprint: (() -> Unit)? = null) {
     val theme = LocalGlassTheme.current
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    fun tick() = haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 10.dp)) {
             repeat(SecuredRules.PIN_LENGTH) { i ->
@@ -170,9 +172,9 @@ private fun PinEntry(pin: String, onChange: (String) -> Unit, fingerprint: (() -
                             .then(
                                 when {
                                     key == "fp" && fingerprint == null -> Modifier
-                                    key == "fp" -> Modifier.clickable(onClickLabel = "Use fingerprint") { fingerprint?.invoke() }
-                                    key == "del" -> Modifier.clickable(onClickLabel = "Delete the last digit") { if (pin.isNotEmpty()) onChange(pin.dropLast(1)) }
-                                    else -> Modifier.clickable { if (pin.length < SecuredRules.PIN_LENGTH) onChange(pin + key) }
+                                    key == "fp" -> Modifier.clickable(onClickLabel = "Use fingerprint") { tick(); fingerprint?.invoke() }
+                                    key == "del" -> Modifier.clickable(onClickLabel = "Delete the last digit") { if (pin.isNotEmpty()) { tick(); onChange(pin.dropLast(1)) } }
+                                    else -> Modifier.clickable { if (pin.length < SecuredRules.PIN_LENGTH) { tick(); onChange(pin + key) } }
                                 },
                             ),
                         contentAlignment = Alignment.Center,
@@ -195,6 +197,7 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
     var pin by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     var forgot by rememberSaveable { mutableStateOf(false) }
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(Unit) {
         if (sec.platform.biometricReady) sec.platform.askBiometric { ok -> if (ok) sec.unlocked = true }
     }
@@ -216,6 +219,7 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
                             if (r.ok) {
                                 sec.unlocked = true
                             } else {
+                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                 message = if (r.waitMillis > 0) "Too many tries. Wait ${(r.waitMillis + 999) / 1000} seconds." else "That PIN isn't right."
                             }
                         }

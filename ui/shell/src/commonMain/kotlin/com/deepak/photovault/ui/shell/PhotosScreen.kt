@@ -235,7 +235,7 @@ private fun ViewButtons(gallery: GalleryState) {
                     option.label,
                     color = if (selected) theme.onAccent else theme.onGlass,
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }

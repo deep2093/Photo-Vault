@@ -227,9 +227,6 @@ class BackupRunner(
             if (!hasPhotoAccess()) return FreeUpResult(message = FailureReason.NO_PHOTO_ACCESS.plain)
             val privacy = settingsStore.load().privacy
             if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET) return FreeUpResult(message = FailureReason.PRIVACY_NOT_CHOSEN.plain)
-            if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) {
-                return FreeUpResult(message = "Free up space doesn't work with Private backup yet, so nothing is removed.")
-            }
             val connection = platform.loadConnection() ?: return FreeUpResult(message = FailureReason.NO_DRIVE.plain)
             if (connection.username.isNotBlank() && connection.password.isEmpty()) return FreeUpResult(message = FailureReason.NO_PASSWORD.plain)
             val drive = try {
@@ -247,7 +244,10 @@ class BackupRunner(
                     val split = FreeUpSpace.split(MediaStoreLibrary(context).loadAll(), records, days, System.currentTimeMillis())
                     val engine = BackupEngine(
                         drive = fs, userId = joined.me.userId, deviceId = platform.deviceId, reader = AndroidMediaReader(context), index = index,
-                        now = System::currentTimeMillis, zone = TimeZone.currentSystemDefault(), classify = { classify(it) }, vault = null,
+                        now = System::currentTimeMillis, zone = TimeZone.currentSystemDefault(), classify = { classify(it) },
+                        vault = if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) {
+                            com.deepak.photovault.PrivateKeys.vault(context, joined.household.householdId, joined.me.userId) ?: return FreeUpResult(message = FailureReason.NO_PRIVATE_KEY.plain)
+                        } else null,
                     )
                     val (passed, failed) = engine.verifyForRemoval(split.ready, onProgress)
                     return FreeUpSpace.result(passed, split.waiting, failed)

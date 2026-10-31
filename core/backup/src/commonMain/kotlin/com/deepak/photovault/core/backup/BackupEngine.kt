@@ -289,11 +289,11 @@ class BackupEngine(
     /**
      * Free up space (29 Oct): reads every backup in [ready] back from the drive and compares it with what was written
      * (same size, same checksum), and makes sure the drive has a preview so the photo still shows after the phone copy
-     * goes. Returns the ones that passed and how many didn't. Nothing is deleted here. A Private person's files can't be
-     * read back without decrypting, so none of them pass.
+     * goes. Returns the ones that passed and how many didn't. Nothing is deleted here. A Private person's files are
+     * decrypted and checked the same way (8B): every part must authenticate, and the plain size and checksum must match
+     * the phone's original, and the small private preview must be on the drive.
      */
     suspend fun verifyForRemoval(ready: List<FreeUpSpace.Ready>, onProgress: (Int, Int) -> Unit = { _, _ -> }): Pair<List<FreeUpSpace.Ready>, Int> {
-        if (vault != null) return emptyList<FreeUpSpace.Ready>() to ready.size
         val passed = mutableListOf<FreeUpSpace.Ready>()
         var failed = 0
         val listings = HashMap<String, Map<String, Long>>()
@@ -301,10 +301,14 @@ class BackupEngine(
             currentCoroutineContext().ensureActive()
             onProgress(i, ready.size)
             val ok = try {
+                if (r.record.encrypted) {
+                    verifyPrivate(r)
+                } else {
                 val folder = DrivePaths.parent(r.record.drivePath)
                 val sizes = listings.getOrPut(folder) { drive.list(folder).filter { !it.isFolder }.associate { it.name to it.size } }
                 val size = sizes[r.record.drivePath.substringAfterLast('/')]
                 size == r.record.sizeBytes && checksumOnDrive(r.record.drivePath).first == r.record.sha256 && ensurePreview(r)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -314,6 +318,30 @@ class BackupEngine(
         }
         onProgress(ready.size, ready.size)
         return passed to failed
+    }
+
+    /** Private backup: the stored file must decrypt (every part checked) to the same bytes that were backed up. */
+    private suspend fun verifyPrivate(r: FreeUpSpace.Ready): Boolean {
+        val vault = vault ?: return false
+        val path = r.record.drivePath
+        if (!r.record.encrypted || !path.endsWith(".${ObjectKind.MEDIA.extension}")) return false
+        val id = path.substringAfterLast('/').substringBeforeLast('.')
+        if (!drive.exists(path)) return false
+        val checker = newSha256()
+        var size = 0L
+        try {
+            vault.decrypt(ObjectKind.MEDIA, id, { sink -> drive.readStream(path, sink) }) { b, n ->
+                checker.update(b, 0, n)
+                size += n
+            }
+        } catch (_: ObjectAuthenticationFailed) {
+            return false
+        }
+        if (size != r.record.sizeBytes || checker.hex() != r.record.sha256) return false
+        val thumb = PrivatePaths.path(userFolder, ObjectKind.THUMB, id)
+        if (drive.exists(thumb)) return true
+        writeThumbnail(vault, r.item, id)
+        return drive.exists(thumb)
     }
 
     private suspend fun ensurePreview(r: FreeUpSpace.Ready): Boolean {

@@ -21,7 +21,7 @@ object FreeUpSpace {
 
     /**
      * Phone photos whose backup is at least [days] old. Covers every album and favourites, not only the backed-up
-     * folders. Private (encrypted) backups are left out for now: they can't be read back without the key here.
+     * folders. Private (encrypted) backups are included since 8B: the check decrypts them.
      */
     fun split(items: List<MediaItem>, records: Map<String, BackupRecord>, days: Int, nowMillis: Long): Split {
         if (days <= 0) return Split(emptyList(), 0)
@@ -29,7 +29,6 @@ object FreeUpSpace {
         var waiting = 0
         for (item in items) {
             val record = records[BackupSelection.key(item)] ?: continue
-            if (record.encrypted) continue
             if (nowMillis - record.savedAtMillis >= days * DAY_MS) ready += Ready(item, record) else waiting++
         }
         return Split(ready, waiting)

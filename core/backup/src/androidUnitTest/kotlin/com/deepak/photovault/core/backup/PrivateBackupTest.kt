@@ -147,4 +147,22 @@ class PrivateBackupTest {
         catalog.deleteForever(catalog.trashed())
         assertTrue(drive.allFiles().none { it.endsWith(".pxo") || it.endsWith(".pxt") || it.contains("/trash/") }, drive.allFiles().toString())
     }
+
+    @Test
+    fun freeUpSpaceChecksPrivateCopiesByDecrypting() = runTest {
+        val item = photo(1, "IMG_1.jpg", 40_000)
+        val index = MemoryBackupIndex()
+        val e = engine(index = index)
+        e.run(listOf(item), BackupSettings(), 100_000_000_000L, BackupTrigger.MANUAL)
+        val rec = index.records.single()
+        assertTrue(rec.encrypted)
+        val ready = listOf(FreeUpSpace.Ready(item, rec))
+        assertEquals(1, e.verifyForRemoval(ready).first.size)
+        // A record that doesn't match the decrypted bytes fails.
+        assertEquals(1, e.verifyForRemoval(listOf(FreeUpSpace.Ready(item, rec.copy(sha256 = "0".repeat(64))))).second)
+        // A damaged drive file fails.
+        val stored = drive.allFiles().first { it.endsWith(".pxo") }
+        drive.delete(stored)
+        assertEquals(1, e.verifyForRemoval(ready).second)
+    }
 }

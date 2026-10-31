@@ -326,7 +326,7 @@ fun MediaGrid(
             photos = remember(sections) { sections.flatMap { it.items } },
             headerItems = headerItems,
             color = dateColor,
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
         )
         if (topButton) BackToTopButton(
             grid = gridState,
@@ -699,6 +699,7 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         text,
         color = color,
         style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
         modifier = modifier,
     )
 }

@@ -59,12 +59,12 @@ class FreeUpSpaceTest {
     }
 
     @Test
-    fun everyAlbumCountsAndPrivateBackupsAreLeftOut() {
+    fun everyAlbumCountsAndPrivateBackupsAreIncluded() {
         val a = photo(1, "a.jpg", album = "Camera")
         val b = photo(2, "b.jpg", album = "WhatsApp Images")
         val p = photo(3, "p.jpg")
         val records = listOf(a, b).associate { BackupSelection.key(it) to record(it, OCT_15 - 90 * DAY) } + (BackupSelection.key(p) to record(p, OCT_15 - 90 * DAY, encrypted = true))
-        assertEquals(listOf(a, b), FreeUpSpace.split(listOf(a, b, p), records, 7, OCT_15).ready.map { it.item })
+        assertEquals(listOf(a, b, p), FreeUpSpace.split(listOf(a, b, p), records, 7, OCT_15).ready.map { it.item })
     }
 
     @Test
