@@ -135,6 +135,10 @@ fun MediaGrid(
     topButton: Boolean = false,
     /** One unbroken grid with no date rows, and a date that floats at the top left (Photos > All, like iOS, 31 Oct). */
     continuous: Boolean = false,
+    /** Photos: tells the screen whether the grid is away from the top (the pills and the date turn white then). */
+    onAwayFromTop: ((Boolean) -> Unit)? = null,
+    /** The floating date's colour (Photos changes it with the pills). */
+    dateColor: Color = Color.White,
 ) {
     // Photos run edge to edge like Samsung Gallery (23 Oct): only the system's own side insets stay
     // (landscape cut-outs); headers and controls keep the screen margin themselves.
@@ -160,6 +164,11 @@ fun MediaGrid(
             onDispose { state.savedScroll[scrollKey] = gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
         }
         var topTaps by remember { mutableStateOf(0) }
+        val currentAway by rememberUpdatedState(onAwayFromTop)
+        LaunchedEffect(gridState) {
+            snapshotFlow { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 0 }.collect { currentAway?.invoke(it) }
+        }
+        DisposableEffect(Unit) { onDispose { currentAway?.invoke(false) } }
         val topFade = ScrollToTopEffect(gridState, topTaps)
         LaunchedEffect(jumpTo, sections) {
             val key = jumpTo ?: return@LaunchedEffect
@@ -316,6 +325,7 @@ fun MediaGrid(
             grid = gridState,
             photos = remember(sections) { sections.flatMap { it.items } },
             headerItems = headerItems,
+            color = dateColor,
             modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
         )
         if (topButton) BackToTopButton(
@@ -673,7 +683,7 @@ internal fun thumbBucket(px: Int): Int = when {
  * you scroll; no word "Library", just the date, in the same glass as the other floating controls.
  */
 @Composable
-private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerItems: Int, modifier: Modifier = Modifier) {
+private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerItems: Int, color: Color, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val zone = remember { kotlinx.datetime.TimeZone.currentSystemDefault() }
     val text by remember(photos, headerItems) {
@@ -684,16 +694,11 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         }
     }
     if (text.isEmpty()) return
-    Text(
+    // Plain text on the photos, in the same style as Years / Months / All (31 Oct).
+    com.deepak.photovault.designsystem.DepthText(
         text,
-        // White on a dark film, so it reads on every theme and over any photo (31 Oct).
-        color = Color.White,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        maxLines = 1,
-        modifier = modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50))
-            .background(Color.Black.copy(alpha = 0.45f))
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+        color = color,
+        style = MaterialTheme.typography.labelSmall,
+        modifier = modifier,
     )
 }

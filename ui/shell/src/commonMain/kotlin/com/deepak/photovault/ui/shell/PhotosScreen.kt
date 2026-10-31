@@ -112,15 +112,27 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         gallery.viewHistory.add(gallery.view)
         gallery.view = LibraryView.ALL
     }
+    // Light themes only (31 Oct): the buttons, the search icon and the date are black at the top of the page and turn
+    // white once the photos scroll under them. Dark themes stay as they were.
+    val baseTheme = LocalGlassTheme.current
+    var scrolled by remember { mutableStateOf(false) }
+    val ink by androidx.compose.animation.animateColorAsState(
+        if (scrolled) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black,
+        motionSpec(),
+        label = "pillInk",
+    )
+    val pillTheme = if (baseTheme.isDark) baseTheme else baseTheme.copy(onGlass = ink)
     SelectableScreen(
         title = null,
         subtitle = null,
         state = state,
         gallery = gallery,
         actions = actions,
-        floatingStartActions = { ViewButtons(gallery) },
+        floatingStartActions = { androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { ViewButtons(gallery) } },
         floatingActions = {
-            SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
+            androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) {
+                SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
+            }
         },
     ) { padding ->
         when {
@@ -176,6 +188,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             onJumped = { gallery.jumpTo = null },
                             onZoomOutPastMax = { gallery.view = LibraryView.MONTHS },
                             continuous = true,
+                            onAwayFromTop = { scrolled = it },
+                            dateColor = if (baseTheme.isDark) androidx.compose.ui.graphics.Color.White else ink,
                             header = {
                                 item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
                                     androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = SCREEN_MARGIN)) {

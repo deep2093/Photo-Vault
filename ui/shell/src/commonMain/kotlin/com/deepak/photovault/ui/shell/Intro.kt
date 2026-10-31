@@ -100,10 +100,10 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-31-6"
+    const val ID = "2026-10-31-7"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Hold and slide scrolls", "While you slide an album, the page scrolls when your finger is near the top or bottom edge, so you can carry it a long way."),
+        Change(ChangeKind.CHANGED, "Photos date and buttons", "The date in Photos is plain text in the same style as Years, Months and All. On light themes the buttons, the search icon and the date are black at the top and turn white when you scroll."),
     )
 }
 
