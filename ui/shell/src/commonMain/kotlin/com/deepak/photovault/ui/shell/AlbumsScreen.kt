@@ -69,6 +69,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.semantics.selected
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.GlassIconButton
