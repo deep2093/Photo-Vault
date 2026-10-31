@@ -219,13 +219,14 @@ object AlbumSorting {
     fun apply(keys: List<AlbumSortKey>, sort: AlbumSort, descending: Boolean): List<String> {
         if (sort == AlbumSort.MINE) return keys.map { it.id }
         val byName = compareBy<AlbumSortKey>({ it.name.lowercase() }, { it.id })
-        val base: Comparator<AlbumSortKey> = when (sort) {
-            AlbumSort.NAME -> byName
-            AlbumSort.ITEMS -> compareBy<AlbumSortKey> { it.count }.then(byName)
-            AlbumSort.RECENT -> compareBy<AlbumSortKey> { it.newestMillis }.then(byName)
-            AlbumSort.MINE -> byName
+        val primary: Comparator<AlbumSortKey> = when (sort) {
+            AlbumSort.NAME, AlbumSort.MINE -> byName
+            AlbumSort.ITEMS -> compareBy { it.count }
+            AlbumSort.RECENT -> compareBy { it.newestMillis }
         }
-        return keys.sortedWith(if (descending) base.reversed() else base).map { it.id }
+        // Ties always go A to Z, whichever way the sort runs.
+        val order = (if (descending) primary.reversed() else primary).then(byName)
+        return keys.sortedWith(order).map { it.id }
     }
 
     /** "NAME:asc" and back; anything unreadable means the person's own order. */
