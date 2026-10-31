@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
@@ -93,6 +94,9 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     var menuOpen by remember { mutableStateOf(false) }
     var sortPage by remember { mutableStateOf(false) }
     var movingCard by remember { mutableStateOf<String?>(null) }
+    // While a card is being slid: where the finger is (in the grid) and how big the card is, for the copy that follows it.
+    var dragPos by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    var dragSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     val flight = LocalDeleteFlight.current
     val prompt = LocalDeletePrompt.current
     val bin = remember { ScreenSpot() }
@@ -160,54 +164,46 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     }
 
     GlassScreen(
-        // No title bar (31 Oct): two small floating pills, like Photos. The room at the top stays the same.
-        title = null,
+        // A title bar again (31 Oct), with the 3-dot menu in it; it follows the theme, glass depth and blur like the others.
+        title = if (selected.isEmpty() && !state.albumsSelectMode) "Albums" else if (selected.isEmpty()) "Select albums" else "${selected.size} selected",
         subtitle = null,
         pinned = selecting,
-        floatingStartActions = if (!selecting) null else ({
-            GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { clearSelection() })
-            Text(
-                if (selected.isEmpty()) "Select albums" else "${selected.size} selected",
-                color = LocalGlassTheme.current.onGlass,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(end = 12.dp),
-            )
-        }),
-        floatingActions = {
-            Box {
-                GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { sortPage = false; menuOpen = true })
-                GlassMenu(menuOpen, onDismiss = { menuOpen = false }) {
-                    val single = chosen.singleOrNull()
-                    val renamable = single?.kind is AlbumKind.Phone && !AlbumRules.isSystem(single.name)
-                    val hideable = chosen.filter { it.id != FAMILY_CARD }
-                    when {
-                        sortPage -> {
-                            GlassMenuItem(Icons.Rounded.ArrowBack, "Sort by", onClick = { sortPage = false })
-                            GlassMenuDivider()
-                            AlbumSort.entries.forEach { sort ->
-                                val on = gallery.albumSort == sort
-                                GlassMenuItem(
-                                    icon = null,
-                                    label = sort.label,
-                                    selected = on,
-                                    // The arrow shows the direction; tapping the chosen one turns it round.
-                                    trailing = if (on && sort != AlbumSort.MINE) (if (gallery.albumSortDescending) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward) else if (on) Icons.Rounded.TaskAlt else null,
-                                    onClick = { gallery.chooseSort(sort) },
-                                )
-                            }
+        actions = {
+            if (selecting) GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { clearSelection() })
+            GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { sortPage = false; menuOpen = !menuOpen })
+        },
+        overlay = {
+            GlassMenuLayer(menuOpen, onDismiss = { menuOpen = false }) {
+                val single = chosen.singleOrNull()
+                val renamable = single?.kind is AlbumKind.Phone && !AlbumRules.isSystem(single.name)
+                val hideable = chosen.filter { it.id != FAMILY_CARD }
+                when {
+                    sortPage -> {
+                        GlassMenuItem(Icons.Rounded.ArrowBack, "Sort by", onClick = { sortPage = false })
+                        GlassMenuDivider()
+                        AlbumSort.entries.forEach { sort ->
+                            val on = gallery.albumSort == sort
+                            GlassMenuItem(
+                                icon = null,
+                                label = sort.label,
+                                selected = on,
+                                // The arrow shows the direction; tapping the chosen one turns it round.
+                                trailing = if (on && sort != AlbumSort.MINE) (if (gallery.albumSortDescending) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward) else if (on) Icons.Rounded.TaskAlt else null,
+                                onClick = { gallery.chooseSort(sort) },
+                            )
                         }
-                        !selecting -> {
-                            GlassMenuItem(Icons.Rounded.TaskAlt, "Select", onClick = { menuOpen = false; state.albumsSelectMode = true })
-                            GlassMenuItem(Icons.Rounded.SwapVert, "Sort", trailing = Icons.Rounded.ChevronRight, onClick = { sortPage = true })
-                            GlassMenuItem(Icons.Rounded.VisibilityOff, "Hide albums", onClick = { menuOpen = false; state.open(Overlay.HiddenAlbums) })
+                    }
+                    !selecting -> {
+                        GlassMenuItem(Icons.Rounded.TaskAlt, "Select", onClick = { menuOpen = false; state.albumsSelectMode = true })
+                        GlassMenuItem(Icons.Rounded.SwapVert, "Sort", trailing = Icons.Rounded.ChevronRight, onClick = { sortPage = true })
+                        GlassMenuItem(Icons.Rounded.VisibilityOff, "Hide albums", onClick = { menuOpen = false; state.open(Overlay.HiddenAlbums) })
+                    }
+                    else -> {
+                        if (renamable) GlassMenuItem(Icons.Rounded.Edit, "Rename", onClick = { menuOpen = false; renaming = single })
+                        if (hideable.isNotEmpty()) {
+                            GlassMenuItem(Icons.Rounded.VisibilityOff, if (hideable.size == 1) "Hide album" else "Hide albums", onClick = { menuOpen = false; hide(hideable) })
                         }
-                        else -> {
-                            if (renamable) GlassMenuItem(Icons.Rounded.Edit, "Rename", onClick = { menuOpen = false; renaming = single })
-                            if (hideable.isNotEmpty()) {
-                                GlassMenuItem(Icons.Rounded.VisibilityOff, if (hideable.size == 1) "Hide album" else "Hide albums", onClick = { menuOpen = false; hide(hideable) })
-                            }
-                            if (!renamable && hideable.isEmpty()) GlassMenuItem(Icons.Rounded.TaskAlt, "Pick an album first", onClick = { menuOpen = false })
-                        }
+                        if (!renamable && hideable.isEmpty()) GlassMenuItem(Icons.Rounded.TaskAlt, "Pick an album first", onClick = { menuOpen = false })
                     }
                 }
             }
@@ -272,10 +268,12 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     movingId = card.id.takeIf { it != FAMILY_CARD }
                     movingCard = movingId
                     moved = false
+                    gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "card:${card.id}" }?.let { dragSize = it.size }
                 }
 
                 override fun onDragSelectMove(position: androidx.compose.ui.geometry.Offset) {
                     val mine = movingId ?: return
+                    dragPos = position
                     val target = photoAt(position)?.let { currentCards.getOrNull(it.toInt()) } ?: return
                     if (target.id == mine || target.id == FAMILY_CARD) return
                     val ids = currentCards.map { it.id }.filter { it != FAMILY_CARD }
@@ -291,10 +289,12 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     if (moved) state.albumsSelected = emptySet()
                     movingId = null
                     movingCard = null
+                    dragPos = null
                     moved = false
                 }
             }
         }
+        Box(Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             // Pinch to make album cards bigger or smaller (24 Oct), on phones and tablets.
             columns = GridCells.Adaptive(minSize = ALBUM_SIZES[state.albumSize.coerceIn(0, ALBUM_SIZES.lastIndex)]),
@@ -313,17 +313,17 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             item(key = "places", span = { GridItemSpan(maxLineSpan) }) {
                 // Three equal tiles, same height, lined up (24 Oct). On tablets they stay small instead of stretching.
                 Row(
-                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(bottom = 4.dp),
+                    Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    val tile = if (tablet) Modifier.width(200.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight()
+                    val tile = if (tablet) Modifier.width(200.dp) else Modifier.weight(1f)
                     PlaceTile(
                         Icons.Rounded.Delete, "Recently deleted",
-                        if (gallery.trashed.isEmpty()) "Empty" else "${gallery.trashed.size} items",
+                        if (gallery.trashed.isEmpty()) "Empty" else "${gallery.trashed.size}",
                         tile,
                     ) { state.open(Overlay.RecentlyDeleted) }
-                    PlaceTile(Icons.Rounded.Place, "Places", "Coming soon", tile, enabled = false) {}
-                    PlaceTile(Icons.Rounded.Lock, "Secured folder", "Coming soon", tile, enabled = false) {}
+                    PlaceTile(Icons.Rounded.Place, "Places", "Soon", tile, enabled = false) {}
+                    PlaceTile(Icons.Rounded.Lock, "Secured folder", "Soon", tile, enabled = false) {}
                 }
             }
             items(cards, key = { "card:${it.id}" }) { card ->
@@ -336,9 +336,31 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     selecting = selecting,
                     selected = card.id in selected,
                     lifted = card.id == movingCard,
+                    away = card.id == movingCard && dragPos != null,
                     modifier = Modifier.animateItem(),
                 )
             }
+        }
+        // The album being slid follows the finger as a copy (like Samsung Gallery); the real card is empty meanwhile.
+        val ghost = cards.firstOrNull { it.id == movingCard }
+        val at = dragPos
+        if (ghost != null && at != null && dragSize.width > 0) {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            AlbumCard(
+                name = ghost.name,
+                count = ghost.count,
+                covers = gallery.coverOf(ghost.id, ghost.newest),
+                crop = gallery.cropOf(ghost.id),
+                icon = ghost.icon,
+                selecting = true,
+                selected = false,
+                lifted = true,
+                modifier = Modifier
+                    .width(with(density) { dragSize.width.toDp() })
+                    .offset { androidx.compose.ui.unit.IntOffset((at.x - dragSize.width / 2f).toInt(), (at.y - dragSize.height * 0.6f).toInt()) }
+                    .graphicsLayer { shadowElevation = 24f; alpha = 0.95f },
+            )
+        }
         }
     }
 
@@ -367,6 +389,7 @@ private fun AlbumCard(
     selecting: Boolean,
     selected: Boolean,
     lifted: Boolean = false,
+    away: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalGlassTheme.current
@@ -375,7 +398,7 @@ private fun AlbumCard(
         modifier
             .fillMaxWidth()
             .zIndex(if (lifted) 1f else 0f)
-            .graphicsLayer { scaleX = inset; scaleY = inset }
+            .graphicsLayer { scaleX = inset; scaleY = inset; alpha = if (away) 0f else 1f }
             .glassPanel(GlassCardShape)
             .then(if (selected) Modifier.background(theme.accent.copy(alpha = 0.18f)) else Modifier)
             // Touch is handled by the grid (tap, press and hold, slide to pick more); TalkBack gets the name.
@@ -469,23 +492,35 @@ internal fun CoverMosaic(photos: List<MediaItem>, modifier: Modifier = Modifier,
 @Composable
 private fun PlaceTile(icon: ImageVector, title: String, detail: String, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     val theme = LocalGlassTheme.current
+    // Compact (31 Oct): all three tiles are built the same way and are the same height, so text and icons line up.
     Column(
         modifier
             .glassPanel(GlassCardShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) {}
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = if (enabled) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(20.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = if (enabled) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(18.dp))
+            Text(
+                detail,
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                modifier = Modifier.weight(1f).padding(start = 6.dp),
+            )
+        }
         Text(
             title,
-            color = theme.onGlass,
+            color = if (enabled) theme.onGlass else theme.onGlassSecondary,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
+            maxLines = 1,
+            softWrap = false,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp).weight(1f),
         )
-        Text(detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

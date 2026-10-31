@@ -100,16 +100,18 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-31-2"
+    const val ID = "2026-10-31-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Albums menu", "A small 3-dot pill at the top right of Albums: Select, Sort and Hide albums. With one album picked it also has Rename and Hide."),
+        Change(ChangeKind.NEW, "Albums menu", "Albums has a title bar again with a 3-dot menu in it: Select, Sort and Hide albums. With one album picked it also has Rename and Hide. The menu is made like the top bar, so it follows the theme, glass depth and blur."),
         Change(ChangeKind.NEW, "Sort albums", "Sort by name, items or recently updated. Tap the chosen one again to turn the order round."),
-        Change(ChangeKind.NEW, "Hold and slide to move", "Press and hold an album and slide it to a new place. Moving one returns Albums to My order."),
+        Change(ChangeKind.NEW, "Hold and slide to move", "Press and hold an album, then slide: a copy follows your finger and the others move out of the way. Moving one returns Albums to My order."),
         Change(ChangeKind.NEW, "Crop a cover", "Pick one photo for a cover and move or resize a frame on it. Pick two to four for a collage, as before."),
         Change(ChangeKind.CHANGED, "Move to", "The Move to list shows each album's picture, name and count, with New album first."),
-        Change(ChangeKind.CHANGED, "Smaller album cards", "Thinner borders and a bigger photo on each card."),
+        Change(ChangeKind.CHANGED, "Smaller cards and tiles", "Albums cards have thinner borders and a bigger photo. Recently deleted, Places and Secured folder are smaller and built the same way."),
+        Change(ChangeKind.CHANGED, "Clearer crop", "Next and Apply are buttons with words, and the crop frame is white with a dark edge."),
         Change(ChangeKind.REMOVED, "Albums in Settings", "Hiding and ordering albums now live on the Albums page."),
+        Change(ChangeKind.FIXED, "Delete effect", "The delete effect waits for the photo's picture to be ready, so it no longer starts half drawn (seen in Recently deleted)."),
     )
 }
 

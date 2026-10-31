@@ -86,6 +86,8 @@ fun GlassScreen(
      * navigation bar rolls down (24 Oct); null hides it.
      */
     bottomActions: (@Composable RowScope.() -> Unit)? = null,
+    /** Drawn last, above the bars (a menu opened from the top bar), in the same glass. */
+    overlay: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     // Photos and Albums: scrolling down tucks the pills and the navigation bar away; scrolling up brings them back.
@@ -198,6 +200,7 @@ fun GlassScreen(
                 ),
         )
         }
+        if (overlay != null) overlay.invoke(this@Box)
         }
     }
 }

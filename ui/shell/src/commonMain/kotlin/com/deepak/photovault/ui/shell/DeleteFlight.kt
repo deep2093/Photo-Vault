@@ -38,6 +38,7 @@ import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.designsystem.LocalGlassSettings
 import com.deepak.photovault.designsystem.rememberHaptics
+import kotlinx.coroutines.flow.first
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -133,14 +134,22 @@ private fun FlightView(f: DeleteFlight.Flight, onDone: () -> Unit) {
     val t = remember { Animatable(0f) }
     val reduceMotion = LocalGlassSettings.current.reduceMotion
     val haptics = rememberHaptics()
+    // The pictures are made ready first: a picture that is still loading drew nothing for the first frames, so the
+    // effect looked broken or missing (31 Oct, Recently deleted).
+    val painters = f.photos.map { p -> rememberAsyncImagePainter(Thumb(p.uri, p.isVideo, if (p.fit) 512 else 256)) }
     LaunchedEffect(Unit) {
-        if (!reduceMotion) t.animateTo(1f, tween(FLY_MS, easing = LinearEasing))
+        if (!reduceMotion) {
+            kotlinx.coroutines.withTimeoutOrNull(700) {
+                androidx.compose.runtime.snapshotFlow { painters.all { it.intrinsicSize.isSpecified && it.intrinsicSize.width > 0f } }.first { it }
+            }
+            t.animateTo(1f, tween(FLY_MS, easing = LinearEasing))
+        }
         haptics.tick()
         onDone()
     }
     if (reduceMotion) return
     f.photos.forEachIndexed { index, p ->
-        val painter = rememberAsyncImagePainter(Thumb(p.uri, p.isVideo, if (p.fit) 512 else 256))
+        val painter = painters[index]
         // Drawn in thin horizontal strips, each squeezed and pulled toward the bin on its own, bottom first:
         // the photo pinches at the bottom and stretches down into the button, like a window minimising (24 Oct).
         Canvas(Modifier.fillMaxSize()) {
@@ -223,4 +232,4 @@ object GenieMath {
     private const val LEAD = 1.0f
 }
 
-private const val FLY_MS = 560
+private const val FLY_MS = 700

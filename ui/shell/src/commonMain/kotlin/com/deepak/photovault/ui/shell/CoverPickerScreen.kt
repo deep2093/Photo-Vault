@@ -9,7 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.core.media.TimelineGrouping
-import com.deepak.photovault.designsystem.GlassIconButton
+import com.deepak.photovault.designsystem.GlassButton
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 
@@ -45,12 +45,12 @@ fun CoverPickerScreen(page: Overlay.CoverPicker, state: ShellState, gallery: Gal
         onBack = { state.back() },
         pinned = true,
         bottomActions = {
-            GlassIconButton(Icons.Rounded.AutoAwesome, "Use newest", onClick = {
+            GlassButton("Use newest", onClick = {
                 gallery.setCover(page.cardId, emptyList())
                 state.back()
             })
             if (picked in 1..MAX_COVER) {
-                GlassIconButton(Icons.Rounded.Check, "Save cover", onClick = {
+                GlassButton(if (picked == 1) "Next: crop" else "Save", primary = true, onClick = {
                     // Keep the order: newest first among the picked ones.
                     val ids = items.filter { it.id in state.selected }.sortedByDescending { it.takenAtMillis }.map { it.id }
                     if (ids.size == 1) {

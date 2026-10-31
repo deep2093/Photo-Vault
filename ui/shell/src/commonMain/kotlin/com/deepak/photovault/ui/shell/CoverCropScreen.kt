@@ -1,6 +1,7 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
@@ -39,7 +40,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.deepak.photovault.core.media.Thumb
-import com.deepak.photovault.designsystem.GlassIconButton
+import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import kotlin.math.roundToInt
 
@@ -81,8 +82,8 @@ fun CoverCropScreen(page: Overlay.CropCover, state: ShellState, gallery: Gallery
         onBack = { state.back() },
         pinned = true,
         bottomActions = {
-            GlassIconButton(Icons.Rounded.Close, "Cancel", onClick = { state.back() })
-            GlassIconButton(Icons.Rounded.Check, "Apply", onClick = {
+            GlassButton("Cancel", onClick = { state.back() })
+            GlassButton("Apply", primary = true, onClick = {
                 if (ready && side > 0f) {
                     gallery.setCover(page.cardId, listOf(page.photoId), CoverCrop.toCover(left, top, side, photoW, photoH))
                 } else {
@@ -136,7 +137,14 @@ fun CoverCropScreen(page: Overlay.CropCover, state: ShellState, gallery: Gallery
                     drawRect(Color.Black.copy(alpha = 0.55f))
                     val radius = CornerRadius(fs * 0.09f)
                     drawRoundRect(Color.Black, topLeft = Offset(fl, ft), size = Size(fs, fs), cornerRadius = radius, blendMode = BlendMode.Clear)
-                    drawRoundRect(theme.accent, topLeft = Offset(fl, ft), size = Size(fs, fs), cornerRadius = radius, style = Stroke(width = 2.dp.toPx()))
+                    // White line with a dark edge, so it shows on light and dark photos and in every theme.
+                    drawRoundRect(Color.Black.copy(alpha = 0.55f), topLeft = Offset(fl, ft), size = Size(fs, fs), cornerRadius = radius, style = Stroke(width = 5.dp.toPx()))
+                    drawRoundRect(Color.White, topLeft = Offset(fl, ft), size = Size(fs, fs), cornerRadius = radius, style = Stroke(width = 2.5.dp.toPx()))
+                    for (n in 1..2) {
+                        val d = fs * n / 3f
+                        drawLine(Color.White.copy(alpha = 0.6f), Offset(fl + d, ft), Offset(fl + d, ft + fs), strokeWidth = 1.dp.toPx())
+                        drawLine(Color.White.copy(alpha = 0.6f), Offset(fl, ft + d), Offset(fl + fs, ft + d), strokeWidth = 1.dp.toPx())
+                    }
                 }
                 // The corner dot: drag it to make the frame bigger or smaller (the top-left corner stays put).
                 Box(
@@ -144,7 +152,8 @@ fun CoverCropScreen(page: Overlay.CropCover, state: ShellState, gallery: Gallery
                         .offset { IntOffset((fl + fs).roundToInt() - 14.dp.roundToPx(), (ft + fs).roundToInt() - 14.dp.roundToPx()) }
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(theme.accent)
+                        .background(Color.White)
+                        .border(3.dp, Color.Black.copy(alpha = 0.6f), CircleShape)
                         .pointerInput(ready) {
                             detectDragGestures { change, drag ->
                                 change.consume()

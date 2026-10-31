@@ -28,40 +28,38 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.unit.LayoutDirection
+import com.deepak.photovault.designsystem.glassChrome
 import com.deepak.photovault.designsystem.LocalGlassSettings
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.glassRim
 
 /**
- * A small menu in the app's own glass (31 Oct), opened from a pill button. It takes the theme's glass colour and
- * rim, and goes solid when the glass effect is off. It opens just under the button, at its right edge.
- * (A pop-up is a window of its own, so it can't blur what is behind it; it is tinted glass instead.)
+ * A small menu in the app's own glass (31 Oct), drawn inside the screen (not a pop-up window) so it is made exactly
+ * like the top bar: the theme's glass, depth and rim, and the blur slider. A tap outside closes it. It opens just
+ * under the top bar, at the right.
  */
 @Composable
-internal fun GlassMenu(expanded: Boolean, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun BoxScope.GlassMenuLayer(expanded: Boolean, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     if (!expanded) return
-    val theme = LocalGlassTheme.current
-    val glassOn = LocalGlassSettings.current.blurEnabled
-    val gap = with(LocalDensity.current) { 44.dp.roundToPx() }
-    Popup(
-        alignment = Alignment.TopEnd,
-        offset = IntOffset(0, gap),
-        onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true),
-    ) {
-        val shape = RoundedCornerShape(20.dp)
-        Column(
-            Modifier
-                .widthIn(min = 200.dp, max = 280.dp)
-                .clip(shape)
-                .background(theme.glassFallback.copy(alpha = if (glassOn) 0.94f else 1f).compositeOver(theme.wallpaper.first()))
-                .glassRim(shape)
-                .padding(vertical = 6.dp),
-            content = content,
-        )
-    }
+    val insets = LocalScreenInsets.current
+    Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null, onClick = onDismiss))
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        Modifier
+            .align(Alignment.TopEnd)
+            .padding(
+                end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
+                top = insets.calculateTopPadding() + 8.dp + TopBarHeight + 6.dp,
+            )
+            .widthIn(min = 200.dp, max = 280.dp)
+            .glassChrome(shape, elevation = 12.dp)
+            .padding(vertical = 6.dp),
+        content = content,
+    )
 }
 
 /** One row of a [GlassMenu]: icon, label and, if wanted, something at the end (a tick or an arrow). */
