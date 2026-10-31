@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.launch
 import androidx.compose.ui.semantics.selected
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.GlassIconButton
@@ -233,6 +234,8 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         val tablet = LocalTablet.current
         val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
         val currentCards by androidx.compose.runtime.rememberUpdatedState(cards)
+        val dragScope = androidx.compose.runtime.rememberCoroutineScope()
+        val edgeZonePx = with(androidx.compose.ui.platform.LocalDensity.current) { 110.dp.toPx() }
         val handler = remember(gridState) {
             object : PhotoGridGestureHandler {
                 override fun photoAt(position: androidx.compose.ui.geometry.Offset): Long? {
@@ -271,9 +274,12 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "card:${card.id}" }?.let { dragSize = it.size }
                 }
 
-                override fun onDragSelectMove(position: androidx.compose.ui.geometry.Offset) {
+                // Where the finger is, and the loop that scrolls the page while it is near the top or bottom edge (31 Oct).
+                private var finger: androidx.compose.ui.geometry.Offset? = null
+                private var scroller: kotlinx.coroutines.Job? = null
+
+                private fun reorderAt(position: androidx.compose.ui.geometry.Offset) {
                     val mine = movingId ?: return
-                    dragPos = position
                     val target = photoAt(position)?.let { currentCards.getOrNull(it.toInt()) } ?: return
                     if (target.id == mine || target.id == FAMILY_CARD) return
                     val ids = currentCards.map { it.id }.filter { it != FAMILY_CARD }
@@ -285,7 +291,39 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
                 }
 
+                override fun onDragSelectMove(position: androidx.compose.ui.geometry.Offset) {
+                    if (movingId == null) return
+                    dragPos = position
+                    finger = position
+                    reorderAt(position)
+                    if (scroller == null) {
+                        scroller = dragScope.launch {
+                            while (true) {
+                                val p = finger
+                                if (p != null) {
+                                    val height = gridState.layoutInfo.viewportSize.height.toFloat()
+                                    val zone = edgeZonePx
+                                    // Faster the closer the finger is to the edge.
+                                    val step = when {
+                                        p.y < zone -> -(1f - p.y / zone).coerceIn(0f, 1f) * MAX_EDGE_STEP
+                                        p.y > height - zone -> ((p.y - (height - zone)) / zone).coerceIn(0f, 1f) * MAX_EDGE_STEP
+                                        else -> 0f
+                                    }
+                                    if (step != 0f) {
+                                        gridState.scrollBy(step)
+                                        reorderAt(p)
+                                    }
+                                }
+                                kotlinx.coroutines.delay(16)
+                            }
+                        }
+                    }
+                }
+
                 override fun onDragSelectEnd() {
+                    scroller?.cancel()
+                    scroller = null
+                    finger = null
                     if (moved) state.albumsSelected = emptySet()
                     movingId = null
                     movingCard = null
@@ -375,6 +413,9 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     }
 
 }
+
+/** The most the page scrolls in one frame while an album is held at the edge (pixels). */
+private const val MAX_EDGE_STEP = 28f
 
 /** Album card sizes for pinching, smallest first. */
 private val ALBUM_SIZES = listOf(100.dp, 130.dp, 160.dp, 210.dp, 280.dp)

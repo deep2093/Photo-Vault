@@ -100,13 +100,10 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-31-5"
+    const val ID = "2026-10-31-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Photos like iOS", "Photos > All is one continuous grid with no date rows. A bold white date floats at the top left, just under the Years / Months / All buttons, and changes as you scroll."),
-        Change(ChangeKind.CHANGED, "Easier to read menu", "The Albums 3-dot menu has a firmer tint behind its words, and it is smaller."),
-        Change(ChangeKind.CHANGED, "Recently deleted tile", "It no longer shows a number."),
-        Change(ChangeKind.FIXED, "Delete effect in Recently deleted", "The effect asked for a different picture size from the one on screen, which can't be read once a photo is deleted for good. It now uses the one already shown."),
+        Change(ChangeKind.CHANGED, "Hold and slide scrolls", "While you slide an album, the page scrolls when your finger is near the top or bottom edge, so you can carry it a long way."),
     )
 }
 
