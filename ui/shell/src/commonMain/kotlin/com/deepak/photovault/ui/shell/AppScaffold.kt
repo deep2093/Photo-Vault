@@ -445,6 +445,7 @@ private fun OverlayPage(
                         is Overlay.StorageFiles -> StorageFilesScreen(overlay, state, gallery, drive, backup, actions)
                         is Overlay.CoverPicker -> CoverPickerScreen(overlay, state, gallery)
                         is Overlay.CropCover -> CoverCropScreen(overlay, state, gallery)
+                        Overlay.Secured -> SecuredFolderScreen(state)
                         Overlay.HiddenAlbums -> HiddenAlbumsScreen(state, gallery)
                         is Overlay.Viewer -> Unit
                     }

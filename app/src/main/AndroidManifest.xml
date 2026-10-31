@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- The Secured folder asks for a fingerprint or face with Android's own prompt (Phase 8A). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <!-- Reading the phone's photos and videos (Phase 2). Asked for only when the user taps "Allow access".
          Android 11-12 use storage access; 13+ ask for images and videos; 14+ may share only selected photos. -->

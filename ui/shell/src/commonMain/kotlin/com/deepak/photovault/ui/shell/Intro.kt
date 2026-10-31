@@ -100,10 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-31-7"
+    const val ID = "2026-11-01-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Photos date and buttons", "The date in Photos is plain text in the same style as Years, Months and All. On light themes the buttons, the search icon and the date are black at the top and turn white when you scroll."),
+        Change(ChangeKind.NEW, "Secured folder: lock and set-up", "Albums > Secured folder now opens. Set it up with a 6-digit PIN and a fingerprint, and keep a recovery code: 24 words (save them in your password manager if you like) or a code of your own. Moving photos in comes in the next update."),
+        Change(ChangeKind.NEW, "Forgot the PIN", "Type your 24 words or your own code to choose a new PIN. Wrong PINs make you wait longer each time."),
     )
 }
 

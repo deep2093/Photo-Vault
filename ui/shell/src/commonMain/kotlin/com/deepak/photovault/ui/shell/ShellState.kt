@@ -87,6 +87,9 @@ sealed interface Overlay {
     /** Choosing 1 to 4 photos as an album's cover (24 Oct). [cardId] is the album, or Favourites / Videos. */
     data class CoverPicker(val cardId: String, val title: String) : Overlay
 
+    /** The Secured folder: set up, locked or open (Phase 8A, 1 Nov). */
+    data object Secured : Overlay
+
     /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
     data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
 
@@ -376,6 +379,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** Private backup keys (Phase 4A). */
     var encryption: EncryptionState = EncryptionState()
+
+    /** The Secured folder's lock and key (Phase 8A). */
+    var secured: SecuredState = SecuredState()
 
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)
