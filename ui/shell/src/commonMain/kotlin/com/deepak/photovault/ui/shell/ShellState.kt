@@ -87,6 +87,12 @@ sealed interface Overlay {
     /** Choosing 1 to 4 photos as an album's cover (24 Oct). [cardId] is the album, or Favourites / Videos. */
     data class CoverPicker(val cardId: String, val title: String) : Overlay
 
+    /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
+    data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
+
+    /** Albums > menu > Hide albums: a switch for every album (31 Oct; replaced Settings > Albums). */
+    data object HiddenAlbums : Overlay
+
     data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>) : Overlay
 
     /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
@@ -210,6 +216,7 @@ class ShellState(private val store: AppearanceStore) {
     fun tapSection(target: Destination) {
         selected = emptySet()
         albumsSelected = emptySet()
+        albumsSelectMode = false
         chrome.hidden = false
         if (target == destination) {
             reselects[target] = (reselects[target] ?: 0) + 1
@@ -232,6 +239,9 @@ class ShellState(private val store: AppearanceStore) {
     /** Album cards picked in Albums by press-and-hold (24 Oct). Back clears them first. */
     var albumsSelected by mutableStateOf<Set<String>>(emptySet())
 
+    /** Albums menu > Select: picking albums by tapping, even before the first one is picked (31 Oct). */
+    var albumsSelectMode by mutableStateOf(false)
+
     /** Files picked on a Storage file page (phone media IDs or drive paths, 23 Oct). Back clears them first. */
     var filesSelected by mutableStateOf<Set<String>>(emptySet())
 
@@ -253,7 +263,7 @@ class ShellState(private val store: AppearanceStore) {
 
     /** A back gesture moves the top page itself only when nothing smaller (a selection, the details) would close first. */
     val canDragBack: Boolean
-        get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && overlays.lastOrNull().slidesSideways()
+        get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && !albumsSelectMode && overlays.lastOrNull().slidesSideways()
 
     suspend fun dragBack(progress: Float, toRight: Boolean) {
         pageBackDir = if (toRight) 1 else -1
@@ -286,7 +296,7 @@ class ShellState(private val store: AppearanceStore) {
     /** Settings > Storage remembers Phone or Drive while pages are opened on top (25 Oct). */
     var storageOnDrive: Boolean? by mutableStateOf(null)
 
-    val canGoBack: Boolean get() = canStepBack || overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty()
+    val canGoBack: Boolean get() = canStepBack || overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty() || albumsSelectMode
 
     /** Where each page was scrolled to when a photo was opened from it, so coming back lands in the same place (25 Oct). */
     val savedScroll = HashMap<String, Pair<Int, Int>>()
@@ -299,6 +309,7 @@ class ShellState(private val store: AppearanceStore) {
         selected = emptySet()
         filesSelected = emptySet()
         albumsSelected = emptySet()
+        albumsSelectMode = false
         detailsOpen = false
         overlays.add(overlay)
     }
@@ -323,8 +334,9 @@ class ShellState(private val store: AppearanceStore) {
             filesSelected = emptySet()
             true
         }
-        albumsSelected.isNotEmpty() -> {
+        albumsSelected.isNotEmpty() || albumsSelectMode -> {
             albumsSelected = emptySet()
+            albumsSelectMode = false
             true
         }
         overlays.isNotEmpty() -> {

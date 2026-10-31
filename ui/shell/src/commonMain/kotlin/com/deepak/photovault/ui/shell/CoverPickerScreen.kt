@@ -14,7 +14,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 
 /**
- * Choose an album's cover (24 Oct): tap 1 to 4 photos (shown newest first), then Save. "Use newest"
+ * Choose an album's cover (24 Oct): tap 1 to 4 photos (shown newest first), then Save. One photo goes on to the crop page. "Use newest"
  * goes back to the newest photo. The cover is kept on this phone.
  */
 @Composable
@@ -53,8 +53,14 @@ fun CoverPickerScreen(page: Overlay.CoverPicker, state: ShellState, gallery: Gal
                 GlassIconButton(Icons.Rounded.Check, "Save cover", onClick = {
                     // Keep the order: newest first among the picked ones.
                     val ids = items.filter { it.id in state.selected }.sortedByDescending { it.takenAtMillis }.map { it.id }
-                    gallery.setCover(page.cardId, ids)
-                    state.back()
+                    if (ids.size == 1) {
+                        // One photo: position it in the card first (31 Oct). More than one makes a collage as before.
+                        state.back()
+                        state.open(Overlay.CropCover(page.cardId, page.title, ids.first()))
+                    } else {
+                        gallery.setCover(page.cardId, ids)
+                        state.back()
+                    }
                 })
             }
         },

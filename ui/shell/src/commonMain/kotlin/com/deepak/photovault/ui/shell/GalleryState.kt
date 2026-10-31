@@ -151,6 +151,14 @@ interface AlbumLayoutStore {
     fun saveOrder(ids: List<String>)
     fun loadCovers(): Map<String, List<Long>>
     fun saveCovers(covers: Map<String, List<Long>>)
+
+    /** How Albums is sorted: "" for the person's own order, else "NAME:asc", "ITEMS:desc" and so on. */
+    fun loadSort(): String = ""
+    fun saveSort(value: String) = Unit
+
+    /** A cropped single-photo cover: card ID to [zoom, shiftX, shiftY] (see [CoverCrop]). */
+    fun loadCrops(): Map<String, List<Float>> = emptyMap()
+    fun saveCrops(crops: Map<String, List<Float>>) = Unit
 }
 
 class MemoryAlbumLayoutStore : AlbumLayoutStore {
@@ -163,6 +171,70 @@ class MemoryAlbumLayoutStore : AlbumLayoutStore {
     override fun loadCovers() = covers
     override fun saveCovers(covers: Map<String, List<Long>>) {
         this.covers = covers
+    }
+}
+
+/** How Albums can be sorted (31 Oct). [MINE] is the person's own order, set by holding and sliding a card. */
+enum class AlbumSort(val label: String) {
+    MINE("My order"),
+    NAME("Name"),
+    ITEMS("Items"),
+    RECENT("Recently updated"),
+    ;
+
+    /** The direction a first tap gives: names A to Z, the rest biggest and newest first. */
+    val firstDescending: Boolean get() = this == ITEMS || this == RECENT
+}
+
+/** What sorting needs to know about one card. */
+data class AlbumSortKey(val id: String, val name: String, val count: Int, val newestMillis: Long)
+
+/**
+ * The maths for cropping an album cover (31 Oct), pure and tested. A crop is kept as [zoom, shiftX, shiftY]: the
+ * photo is first filled into the square card (the middle square), then zoomed about the centre by zoom and shifted by
+ * the fractions of the card's side. The same three numbers work at any card size.
+ */
+object CoverCrop {
+    const val MIN_FRACTION = 0.15f
+
+    /** Keeps the frame ([left], [top], [side] in photo pixels) inside a [w] x [h] photo and not smaller than a small part of it. */
+    fun clamp(left: Float, top: Float, side: Float, w: Float, h: Float): Triple<Float, Float, Float> {
+        val most = minOf(w, h)
+        val s = side.coerceIn(most * MIN_FRACTION, most)
+        return Triple(left.coerceIn(0f, w - s), top.coerceIn(0f, h - s), s)
+    }
+
+    /** The three numbers to keep for a frame. A frame that is the middle square gives (1, 0, 0). */
+    fun toCover(left: Float, top: Float, side: Float, w: Float, h: Float): List<Float> {
+        val zoom = minOf(w, h) / side
+        val cx = left + side / 2f
+        val cy = top + side / 2f
+        return listOf(zoom, -(cx - w / 2f) / side, -(cy - h / 2f) / side)
+    }
+}
+
+/** Pure sorting rules for Albums, tested. */
+object AlbumSorting {
+    /** The IDs of [keys] in [sort] order; [MINE] keeps them as given. Ties fall back to the name, then the ID. */
+    fun apply(keys: List<AlbumSortKey>, sort: AlbumSort, descending: Boolean): List<String> {
+        if (sort == AlbumSort.MINE) return keys.map { it.id }
+        val byName = compareBy<AlbumSortKey>({ it.name.lowercase() }, { it.id })
+        val base: Comparator<AlbumSortKey> = when (sort) {
+            AlbumSort.NAME -> byName
+            AlbumSort.ITEMS -> compareBy<AlbumSortKey> { it.count }.then(byName)
+            AlbumSort.RECENT -> compareBy<AlbumSortKey> { it.newestMillis }.then(byName)
+            AlbumSort.MINE -> byName
+        }
+        return keys.sortedWith(if (descending) base.reversed() else base).map { it.id }
+    }
+
+    /** "NAME:asc" and back; anything unreadable means the person's own order. */
+    fun encode(sort: AlbumSort, descending: Boolean): String = if (sort == AlbumSort.MINE) "" else "${sort.name}:${if (descending) "desc" else "asc"}"
+
+    fun decode(value: String): Pair<AlbumSort, Boolean> {
+        val sort = AlbumSort.entries.firstOrNull { it.name == value.substringBefore(':') } ?: return AlbumSort.MINE to false
+        if (sort == AlbumSort.MINE) return AlbumSort.MINE to false
+        return sort to (value.substringAfter(':', "") == "desc")
     }
 }
 
@@ -256,10 +328,54 @@ class GalleryState(
         layoutStore.saveOrder(albumOrder)
     }
 
-    fun setCover(cardId: String, photoIds: List<Long>) {
+    /** How Albums is sorted now; moving a card by hand switches back to [AlbumSort.MINE]. */
+    var albumSort by mutableStateOf(AlbumSorting.decode(layoutStore.loadSort()).first)
+        private set
+    var albumSortDescending by mutableStateOf(AlbumSorting.decode(layoutStore.loadSort()).second)
+        private set
+
+    /** Choosing a sort; choosing the one already on turns it round (31 Oct). */
+    fun chooseSort(sort: AlbumSort) {
+        if (sort == albumSort && sort != AlbumSort.MINE) {
+            albumSortDescending = !albumSortDescending
+        } else {
+            albumSort = sort
+            albumSortDescending = sort.firstDescending
+        }
+        layoutStore.saveSort(AlbumSorting.encode(albumSort, albumSortDescending))
+    }
+
+    /**
+     * The person moved a card by hand. [shown] is the order on screen now (the sorted order if a sort was on), so
+     * the cards stay where they are and Albums goes back to "My order". Hidden cards keep their old places at the end.
+     */
+    fun setAlbumOrder(shown: List<String>) {
+        val hiddenTail = orderedCards().filter { it !in shown }
+        albumOrder = shown + hiddenTail
+        layoutStore.saveOrder(albumOrder)
+        if (albumSort != AlbumSort.MINE) {
+            albumSort = AlbumSort.MINE
+            albumSortDescending = false
+            layoutStore.saveSort("")
+        }
+    }
+
+    /** Crops of one-photo covers: card ID to [zoom, shiftX, shiftY]. */
+    var albumCrops by mutableStateOf(layoutStore.loadCrops())
+        private set
+
+    /** [crop] only counts for a one-photo cover; any other change of cover forgets an old crop. */
+    fun setCover(cardId: String, photoIds: List<Long>, crop: List<Float>? = null) {
         albumCovers = if (photoIds.isEmpty()) albumCovers - cardId else albumCovers + (cardId to photoIds.take(4))
         layoutStore.saveCovers(albumCovers)
+        val keep = crop?.takeIf { photoIds.size == 1 && it.size == 3 }
+        albumCrops = if (keep != null) albumCrops + (cardId to keep) else albumCrops - cardId
+        layoutStore.saveCrops(albumCrops)
     }
+
+    /** The crop of a card's one-photo cover, if the person made one. */
+    fun cropOf(cardId: String): List<Float>? =
+        albumCrops[cardId]?.takeIf { albumCovers[cardId]?.size == 1 }
 
     /** The photos to show on a card: the chosen cover if any are still here, otherwise the newest. */
     fun coverOf(cardId: String, newest: MediaItem?): List<MediaItem> {

@@ -48,6 +48,13 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.glassPanel
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.rounded.Add
 
 private fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
 
@@ -161,7 +168,7 @@ private fun MoveToAlbumDialog(
     var name by remember { mutableStateOf("") }
     val clean = AlbumRules.cleanName(name)
     com.deepak.photovault.designsystem.GlassDialog(
-        title = if (creating) "New album" else "Move to album",
+        title = if (creating) "New album" else "Move to",
         onDismiss = onDismiss,
         buttons = {
             com.deepak.photovault.designsystem.GlassButton(if (creating) "Back" else "Cancel", onClick = { if (creating) creating = false else onDismiss() })
@@ -174,29 +181,52 @@ private fun MoveToAlbumDialog(
         } else {
             androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 320.dp)) {
                 item {
-                    AlbumPickRow("New album...", null, onClick = { creating = true })
+                    AlbumPickRow("New album", null, null, onClick = { creating = true })
                 }
                 items(albums, key = { it.id }) { album ->
-                    AlbumPickRow(album.name, "${album.count}", onClick = { onExisting(album.id) })
+                    AlbumPickRow(album.name, "${album.count} items", album.cover, onClick = { onExisting(album.id) })
                 }
             }
         }
     }
 }
 
+/** One album in the Move to list (31 Oct): its picture, name and count. A null [cover] is the "New album" row. */
 @Composable
-private fun AlbumPickRow(title: String, count: String?, onClick: () -> Unit) {
+private fun AlbumPickRow(title: String, detail: String?, cover: com.deepak.photovault.core.media.MediaItem?, onClick: () -> Unit) {
     val theme = LocalGlassTheme.current
     androidx.compose.foundation.layout.Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 56.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
             .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), maxLines = 1)
-        if (count != null) Text(count, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium)
+        androidx.compose.foundation.layout.Box(
+            Modifier
+                .size(44.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                .background(theme.onGlass.copy(alpha = 0.08f)),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
+            if (cover != null) {
+                coil3.compose.AsyncImage(
+                    model = com.deepak.photovault.core.media.Thumb(cover.uri, cover.isVideo, 160),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.Add, null, tint = theme.accent)
+            }
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+        }
     }
 }
 

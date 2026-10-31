@@ -93,7 +93,6 @@ import kotlinx.coroutines.launch
  * Each opens on its own, like Backup.
  */
 enum class SettingsPage(val title: String) {
-    ALBUMS("Albums"),
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
@@ -121,7 +120,6 @@ fun SettingsScreen(
                 SettingsPage.entries.forEach { page ->
                     val (icon, summary) = when (page) {
                         SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
-                        SettingsPage.ALBUMS -> Icons.Rounded.Collections to (gallery?.hiddenAlbums?.size?.takeIf { it > 0 }?.let { "$it hidden" } ?: "Show or hide albums")
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
@@ -192,7 +190,6 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
     GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }, onRefresh = refresh) {
         when (page) {
             SettingsPage.ABOUT -> item { AboutSection(state) }
-            SettingsPage.ALBUMS -> albumsPage(gallery)
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }

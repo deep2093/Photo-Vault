@@ -100,15 +100,16 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-10-31-1"
+    const val ID = "2026-10-31-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Genie effect on drive deletes", "Backups you delete from the drive in Settings > Storage now fly into the delete button like other deletes."),
-        Change(ChangeKind.CHANGED, "Quieter drive", "Opening the app no longer wakes the drive. It is read when you open a drive page, pull down, finish a backup or open a drive photo. Family shows what this phone remembers; pull down there for fresh numbers."),
-        Change(ChangeKind.CHANGED, "Slower pie charts", "The rings in Storage take about two seconds to fill."),
-        Change(ChangeKind.REMOVED, "Chip test switch", "The Test: stronger chosen chips switch in About is gone; the sliding choice stays."),
-        Change(ChangeKind.FIXED, "Zoom copy in the viewer", "Double-tapping to zoom no longer leaves a second small copy of the photo behind it."),
-        Change(ChangeKind.FIXED, "Square flash on the days choice", "The Free up space days choice no longer flashes a square while it slides."),
+        Change(ChangeKind.NEW, "Albums menu", "A small 3-dot pill at the top right of Albums: Select, Sort and Hide albums. With one album picked it also has Rename and Hide."),
+        Change(ChangeKind.NEW, "Sort albums", "Sort by name, items or recently updated. Tap the chosen one again to turn the order round."),
+        Change(ChangeKind.NEW, "Hold and slide to move", "Press and hold an album and slide it to a new place. Moving one returns Albums to My order."),
+        Change(ChangeKind.NEW, "Crop a cover", "Pick one photo for a cover and move or resize a frame on it. Pick two to four for a collage, as before."),
+        Change(ChangeKind.CHANGED, "Move to", "The Move to list shows each album's picture, name and count, with New album first."),
+        Change(ChangeKind.CHANGED, "Smaller album cards", "Thinner borders and a bigger photo on each card."),
+        Change(ChangeKind.REMOVED, "Albums in Settings", "Hiding and ordering albums now live on the Albums page."),
     )
 }
 

@@ -50,6 +50,14 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.TaskAlt
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -58,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.selected
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.GlassIconButton
@@ -80,7 +89,10 @@ private class AlbumCardData(val id: String, val name: String, val items: () -> L
 @Composable
 fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState) {
     val selected = state.albumsSelected
-    val selecting = selected.isNotEmpty()
+    val selecting = selected.isNotEmpty() || state.albumsSelectMode
+    var menuOpen by remember { mutableStateOf(false) }
+    var sortPage by remember { mutableStateOf(false) }
+    var movingCard by remember { mutableStateOf<String?>(null) }
     val flight = LocalDeleteFlight.current
     val prompt = LocalDeletePrompt.current
     val bin = remember { ScreenSpot() }
@@ -89,7 +101,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val favourites = remember(gallery.items, gallery.favourites) { gallery.items.filter { it.id in gallery.favourites } }
     val videos = remember(gallery.items) { gallery.items.filter { it.isVideo } }
     val inFamily = drive.joined != null
-    val cards: List<AlbumCardData> = remember(gallery.items, gallery.albums, gallery.albumOrder, gallery.hiddenAlbums, favourites, videos, gallery.familyAlbum, inFamily) {
+    val cards: List<AlbumCardData> = remember(gallery.items, gallery.albums, gallery.albumOrder, gallery.hiddenAlbums, favourites, videos, gallery.familyAlbum, inFamily, gallery.albumSort, gallery.albumSortDescending) {
         val byId = buildMap {
             put(GalleryState.FAVOURITES_CARD, AlbumCardData(GalleryState.FAVOURITES_CARD, "Favourites", { favourites }, favourites.size, favourites.maxByOrNull { it.takenAtMillis }, Icons.Rounded.Favorite, AlbumKind.Favourites))
             put(GalleryState.VIDEOS_CARD, AlbumCardData(GalleryState.VIDEOS_CARD, "Videos", { videos }, videos.size, videos.maxByOrNull { it.takenAtMillis }, Icons.Rounded.VideoLibrary, AlbumKind.Videos))
@@ -99,7 +111,13 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         }
         // The order chosen in Settings > Albums (24 Oct); hidden ones left out.
         val family = if (inFamily) listOf(AlbumCardData(FAMILY_CARD, "Family Album", { gallery.familyAlbum }, gallery.familyAlbum.size, gallery.familyAlbum.firstOrNull(), Icons.Rounded.Groups, AlbumKind.Family)) else emptyList()
-        family + gallery.orderedCards().filter { it !in gallery.hiddenAlbums }.mapNotNull { byId[it] }
+        val mine = gallery.orderedCards().filter { it !in gallery.hiddenAlbums }.mapNotNull { byId[it] }
+        // Sorted by name, items or date when the person chose that (31 Oct); otherwise their own order.
+        val sorted = if (gallery.albumSort == AlbumSort.MINE) mine else {
+            val keys = mine.map { AlbumSortKey(it.id, it.name, it.count, it.newest?.takenAtMillis ?: 0L) }
+            AlbumSorting.apply(keys, gallery.albumSort, gallery.albumSortDescending).mapNotNull { id -> mine.firstOrNull { it.id == id } }
+        }
+        family + sorted
     }
     val chosen = cards.filter { it.id in selected }
     val gridState = rememberSavedGridState()
@@ -128,19 +146,78 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         }
     }
 
+    fun clearSelection() {
+        state.albumsSelected = emptySet()
+        state.albumsSelectMode = false
+    }
+
+    fun hide(albums: List<AlbumCardData>) {
+        val ids = albums.map { it.id }.filter { it != FAMILY_CARD }
+        if (ids.isEmpty()) return
+        ids.forEach { gallery.setHidden(it, true) }
+        clearSelection()
+        actions.toast(if (ids.size == 1) "Album hidden. Bring it back from the menu: Hide albums." else "Albums hidden. Bring them back from the menu: Hide albums.")
+    }
+
     GlassScreen(
-        title = if (selecting) "${selected.size} selected" else null,
+        // No title bar (31 Oct): two small floating pills, like Photos. The room at the top stays the same.
+        title = null,
         subtitle = null,
         pinned = selecting,
-        actions = { if (selecting) GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { state.albumsSelected = emptySet() }) },
-        // Press and hold an album (slide to pick more): share, rename, cover, delete (24 Oct).
-        bottomActions = if (!selecting) null else ({
+        floatingStartActions = if (!selecting) null else ({
+            GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { clearSelection() })
+            Text(
+                if (selected.isEmpty()) "Select albums" else "${selected.size} selected",
+                color = LocalGlassTheme.current.onGlass,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(end = 12.dp),
+            )
+        }),
+        floatingActions = {
+            Box {
+                GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { sortPage = false; menuOpen = true })
+                GlassMenu(menuOpen, onDismiss = { menuOpen = false }) {
+                    val single = chosen.singleOrNull()
+                    val renamable = single?.kind is AlbumKind.Phone && !AlbumRules.isSystem(single.name)
+                    val hideable = chosen.filter { it.id != FAMILY_CARD }
+                    when {
+                        sortPage -> {
+                            GlassMenuItem(Icons.Rounded.ArrowBack, "Sort by", onClick = { sortPage = false })
+                            GlassMenuDivider()
+                            AlbumSort.entries.forEach { sort ->
+                                val on = gallery.albumSort == sort
+                                GlassMenuItem(
+                                    icon = null,
+                                    label = sort.label,
+                                    selected = on,
+                                    // The arrow shows the direction; tapping the chosen one turns it round.
+                                    trailing = if (on && sort != AlbumSort.MINE) (if (gallery.albumSortDescending) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward) else if (on) Icons.Rounded.TaskAlt else null,
+                                    onClick = { gallery.chooseSort(sort) },
+                                )
+                            }
+                        }
+                        !selecting -> {
+                            GlassMenuItem(Icons.Rounded.TaskAlt, "Select", onClick = { menuOpen = false; state.albumsSelectMode = true })
+                            GlassMenuItem(Icons.Rounded.SwapVert, "Sort", trailing = Icons.Rounded.ChevronRight, onClick = { sortPage = true })
+                            GlassMenuItem(Icons.Rounded.VisibilityOff, "Hide albums", onClick = { menuOpen = false; state.open(Overlay.HiddenAlbums) })
+                        }
+                        else -> {
+                            if (renamable) GlassMenuItem(Icons.Rounded.Edit, "Rename", onClick = { menuOpen = false; renaming = single })
+                            if (hideable.isNotEmpty()) {
+                                GlassMenuItem(Icons.Rounded.VisibilityOff, if (hideable.size == 1) "Hide album" else "Hide albums", onClick = { menuOpen = false; hide(hideable) })
+                            }
+                            if (!renamable && hideable.isEmpty()) GlassMenuItem(Icons.Rounded.TaskAlt, "Pick an album first", onClick = { menuOpen = false })
+                        }
+                    }
+                }
+            }
+        },
+        // Press and hold an album: share, change cover, delete. The rest is in the menu (31 Oct).
+        bottomActions = if (selected.isEmpty()) null else ({
             GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(chosen.flatMap { it.items() }.distinctBy { it.id }) })
             val single = chosen.singleOrNull()
-            val renamable = single?.kind is AlbumKind.Phone && !AlbumRules.isSystem(single.name)
-            if (renamable) GlassIconButton(Icons.Rounded.Edit, "Rename", onClick = { renaming = single })
             if (single != null) GlassIconButton(Icons.Rounded.Wallpaper, "Change cover", onClick = {
-                state.albumsSelected = emptySet()
+                clearSelection()
                 state.open(Overlay.CoverPicker(single.id, single.name))
             })
             if (chosen.any { it.kind is AlbumKind.Phone }) {
@@ -162,10 +239,6 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         val currentCards by androidx.compose.runtime.rememberUpdatedState(cards)
         val handler = remember(gridState) {
             object : PhotoGridGestureHandler {
-                private var anchor = -1
-                private var adding = true
-                private var initial: Set<Long> = emptySet()
-
                 override fun photoAt(position: androidx.compose.ui.geometry.Offset): Long? {
                     val info = gridState.layoutInfo
                     val hit = info.visibleItemsInfo.firstOrNull { item ->
@@ -180,33 +253,46 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
 
                 override fun onTap(id: Long) {
                     val card = currentCards.getOrNull(id.toInt()) ?: return
-                    if (state.albumsSelected.isNotEmpty()) {
+                    if (state.albumsSelected.isNotEmpty() || state.albumsSelectMode) {
                         state.albumsSelected = if (card.id in state.albumsSelected) state.albumsSelected - card.id else state.albumsSelected + card.id
                     } else {
                         state.open(Overlay.Album(card.kind))
                     }
                 }
 
-                override fun onDragSelectStart(id: Long) {
-                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                    val all = currentCards
-                    initial = all.indices.filter { all[it].id in state.albumsSelected }.map { it.toLong() }.toSet()
-                    anchor = id.toInt()
-                    adding = id !in initial
-                    pick(anchor)
-                }
+                // Press and hold picks the album; sliding on moves it to the place under the finger. Letting go after a
+                // move clears the pick (31 Oct). The cards around make way (animateItem).
+                private var movingId: String? = null
+                private var moved = false
 
-                private fun pick(current: Int) {
-                    val all = currentCards
-                    state.albumsSelected = DragSelect.selection(initial, all.indices.map { it.toLong() }, anchor, current, adding)
-                        .mapNotNull { all.getOrNull(it.toInt())?.id }.toSet()
+                override fun onDragSelectStart(id: Long) {
+                    val card = currentCards.getOrNull(id.toInt()) ?: return
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    state.albumsSelected = state.albumsSelected + card.id
+                    movingId = card.id.takeIf { it != FAMILY_CARD }
+                    movingCard = movingId
+                    moved = false
                 }
 
                 override fun onDragSelectMove(position: androidx.compose.ui.geometry.Offset) {
-                    photoAt(position)?.let { pick(it.toInt()) }
+                    val mine = movingId ?: return
+                    val target = photoAt(position)?.let { currentCards.getOrNull(it.toInt()) } ?: return
+                    if (target.id == mine || target.id == FAMILY_CARD) return
+                    val ids = currentCards.map { it.id }.filter { it != FAMILY_CARD }
+                    val from = ids.indexOf(mine)
+                    val to = ids.indexOf(target.id)
+                    if (from < 0 || to < 0) return
+                    gallery.setAlbumOrder(AlbumOrder.move(ids, from, to))
+                    moved = true
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
                 }
 
-                override fun onDragSelectEnd() = Unit
+                override fun onDragSelectEnd() {
+                    if (moved) state.albumsSelected = emptySet()
+                    movingId = null
+                    movingCard = null
+                    moved = false
+                }
             }
         }
         LazyVerticalGrid(
@@ -214,8 +300,8 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             columns = GridCells.Adaptive(minSize = ALBUM_SIZES[state.albumSize.coerceIn(0, ALBUM_SIZES.lastIndex)]),
             state = gridState,
             contentPadding = padding,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .onGloballyPositioned { val p = it.positionInRoot(); gridOrigin[0] = p.x; gridOrigin[1] = p.y }
@@ -245,9 +331,11 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     name = card.name,
                     count = card.count,
                     covers = gallery.coverOf(card.id, card.newest),
+                    crop = gallery.cropOf(card.id),
                     icon = card.icon,
                     selecting = selecting,
                     selected = card.id in selected,
+                    lifted = card.id == movingCard,
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -274,16 +362,19 @@ private fun AlbumCard(
     name: String,
     count: Int,
     covers: List<MediaItem>,
+    crop: List<Float>?,
     icon: ImageVector?,
     selecting: Boolean,
     selected: Boolean,
+    lifted: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalGlassTheme.current
-    val inset by androidx.compose.animation.core.animateFloatAsState(if (selected) 0.92f else 1f, motionSpec(), label = "card")
+    val inset by androidx.compose.animation.core.animateFloatAsState(if (lifted) 1.06f else if (selected) 0.94f else 1f, motionSpec(), label = "card")
     Column(
         modifier
             .fillMaxWidth()
+            .zIndex(if (lifted) 1f else 0f)
             .graphicsLayer { scaleX = inset; scaleY = inset }
             .glassPanel(GlassCardShape)
             .then(if (selected) Modifier.background(theme.accent.copy(alpha = 0.18f)) else Modifier)
@@ -292,13 +383,14 @@ private fun AlbumCard(
                 contentDescription = "$name, ${LibraryCounts.grouped(count)} items"
                 if (selecting) this.selected = selected
             }
-            .padding(8.dp),
+            // Compact (31 Oct): a thinner border round a bigger photo.
+            .padding(4.dp),
     ) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(18.dp)).background(theme.onGlass.copy(alpha = 0.08f)),
+            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(15.dp)).background(theme.onGlass.copy(alpha = 0.08f)),
         ) {
             if (covers.isNotEmpty()) {
-                CoverMosaic(covers, Modifier.fillMaxSize())
+                CoverMosaic(covers, Modifier.fillMaxSize(), crop)
             } else if (icon != null) {
                 Icon(icon, null, tint = theme.onGlassSecondary, modifier = Modifier.padding(24.dp).fillMaxSize())
             }
@@ -316,7 +408,7 @@ private fun AlbumCard(
                 }
             }
         }
-        Row(Modifier.padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 6.dp)) {
+        Row(Modifier.padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 4.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(name, color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${LibraryCounts.grouped(count)} items", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
@@ -328,7 +420,7 @@ private fun AlbumCard(
 
 /** An album cover of 1 to 4 photos (24 Oct): one fills it; two side by side; three as one big and two small; four as a grid. */
 @Composable
-internal fun CoverMosaic(photos: List<MediaItem>, modifier: Modifier = Modifier) {
+internal fun CoverMosaic(photos: List<MediaItem>, modifier: Modifier = Modifier, crop: List<Float>? = null) {
     val gap = 2.dp
     @Composable
     fun Tile(item: MediaItem, m: Modifier) = AsyncImage(
@@ -338,7 +430,22 @@ internal fun CoverMosaic(photos: List<MediaItem>, modifier: Modifier = Modifier)
         modifier = m,
     )
     when (photos.size) {
-        1 -> Tile(photos[0], modifier)
+        1 -> if (crop != null && crop.size == 3) {
+            // A cropped cover (31 Oct): the photo zoomed and shifted inside the card.
+            Box(modifier.clip(RoundedCornerShape(0.dp))) {
+                AsyncImage(
+                    model = Thumb(photos[0].uri, photos[0].isVideo, 512),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        scaleX = crop[0]
+                        scaleY = crop[0]
+                        translationX = crop[1] * size.width
+                        translationY = crop[2] * size.height
+                    },
+                )
+            }
+        } else Tile(photos[0], modifier)
         2 -> Row(modifier, horizontalArrangement = Arrangement.spacedBy(gap)) {
             photos.forEach { Tile(it, Modifier.weight(1f).fillMaxHeight()) }
         }

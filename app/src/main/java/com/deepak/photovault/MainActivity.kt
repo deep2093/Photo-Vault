@@ -900,6 +900,23 @@ private class PrefsAlbumLayoutStore(context: Context) : com.deepak.photovault.ui
             id to line.substringAfter('=').split(',').mapNotNull { it.trim().toLongOrNull() }
         }.toMap()
 
+    override fun loadCrops(): Map<String, List<Float>> =
+        prefs.getString("crops", "").orEmpty().split('\n').mapNotNull { line ->
+            val id = line.substringBefore('=', "").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val v = line.substringAfter('=').split(',').mapNotNull { it.trim().toFloatOrNull() }
+            if (v.size == 3) id to v else null
+        }.toMap()
+
+    override fun saveCrops(crops: Map<String, List<Float>>) {
+        prefs.edit().putString("crops", crops.entries.joinToString("\n") { (id, v) -> "$id=${v.joinToString(",")}" }).apply()
+    }
+
+    override fun loadSort(): String = prefs.getString("sort", "").orEmpty()
+
+    override fun saveSort(value: String) {
+        prefs.edit().putString("sort", value).apply()
+    }
+
     override fun saveCovers(covers: Map<String, List<Long>>) {
         prefs.edit().putString("covers", covers.entries.joinToString("\n") { (id, photos) -> "$id=${photos.joinToString(",")}" }).apply()
     }
