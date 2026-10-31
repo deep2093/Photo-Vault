@@ -349,7 +349,7 @@ class GalleryState(
      * The person moved a card by hand. [shown] is the order on screen now (the sorted order if a sort was on), so
      * the cards stay where they are and Albums goes back to "My order". Hidden cards keep their old places at the end.
      */
-    fun setAlbumOrder(shown: List<String>) {
+    fun placeAlbums(shown: List<String>) {
         val hiddenTail = orderedCards().filter { it !in shown }
         albumOrder = shown + hiddenTail
         layoutStore.saveOrder(albumOrder)

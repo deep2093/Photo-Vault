@@ -282,7 +282,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     val from = ids.indexOf(mine)
                     val to = ids.indexOf(target.id)
                     if (from < 0 || to < 0) return
-                    gallery.setAlbumOrder(AlbumOrder.move(ids, from, to))
+                    gallery.placeAlbums(AlbumOrder.move(ids, from, to))
                     moved = true
                     haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.SegmentTick)
                 }
