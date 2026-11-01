@@ -100,12 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-01-2"
+    const val ID = "2026-11-01-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Free up space for Private backup", "Free up space now works with Private backup too. It decrypts the drive copy, checks it matches the original on your phone and that its small preview is there, then moves the phone copy to Recently deleted. If any step fails, nothing is removed."),
-        Change(ChangeKind.NEW, "Keypad feedback", "The Secured folder keypad gives a small tap on every press, and a stronger buzz on a wrong PIN."),
-        Change(ChangeKind.CHANGED, "Photos date and Years / Months / All", "The floating date now lines up with the \"Years\" text, and both are a little bolder."),
+        Change(ChangeKind.NEW, "Move photos into the Secured folder", "Select photos and tap the lock button (also in the photo viewer and in Move to). They are encrypted on your phone and checked, then Android asks to delete the originals for good. Videos and drive-only photos can't be moved in yet."),
+        Change(ChangeKind.NEW, "Inside the Secured folder", "See your locked photos, open them full screen (double-tap to zoom), press and hold to select, Select all, back-to-top, Move out to your gallery (Pictures/Pixallery) or Delete for good."),
+        Change(ChangeKind.NEW, "Change PIN", "In the Secured folder, tap the PIN button at the top to change your PIN."),
+        Change(ChangeKind.CHANGED, "Stronger keypad feedback", "Every key press on the Secured folder keypad now gives a firmer tap, and a wrong PIN gives three firm buzzes."),
     )
 }
 

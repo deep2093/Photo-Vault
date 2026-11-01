@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Lock
 
 private fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
 
@@ -76,6 +77,8 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
     // button floats at the top left, and the count sits in small text under the last photo. Rename, cover and
     // delete live in Albums (press and hold an album).
     var moving by remember { mutableStateOf<List<MediaItem>?>(null) }
+    val securedMover = rememberSecuredMover(state, gallery, actions)
+    securedMover.Dialogs()
     SelectableScreen(
         null, null, state, gallery, actions, onBack = { state.back() },
         tileSpots = spots,
@@ -111,6 +114,7 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
                 onDismiss = { moving = null },
                 onExisting = { id -> moving = null; actions.moveToAlbum(chosen, id, null, ::finish) },
                 onNew = { newName -> moving = null; actions.moveToAlbum(chosen, null, newName, ::finish) },
+                onSecured = { moving = null; securedMover.request(chosen) },
             )
         }
         if (items.isEmpty()) {
@@ -162,6 +166,7 @@ private fun MoveToAlbumDialog(
     onDismiss: () -> Unit,
     onExisting: (String) -> Unit,
     onNew: (String) -> Unit,
+    onSecured: () -> Unit,
 ) {
     val theme = LocalGlassTheme.current
     var creating by remember { mutableStateOf(false) }
@@ -183,6 +188,9 @@ private fun MoveToAlbumDialog(
                 item {
                     AlbumPickRow("New album", null, null, onClick = { creating = true })
                 }
+                item {
+                    AlbumPickRow("Secured folder", "Locked with your PIN", null, onClick = onSecured, icon = androidx.compose.material.icons.Icons.Rounded.Lock)
+                }
                 items(albums, key = { it.id }) { album ->
                     AlbumPickRow(album.name, "${album.count} items", album.cover, onClick = { onExisting(album.id) })
                 }
@@ -193,7 +201,7 @@ private fun MoveToAlbumDialog(
 
 /** One album in the Move to list (31 Oct): its picture, name and count. A null [cover] is the "New album" row. */
 @Composable
-private fun AlbumPickRow(title: String, detail: String?, cover: com.deepak.photovault.core.media.MediaItem?, onClick: () -> Unit) {
+private fun AlbumPickRow(title: String, detail: String?, cover: com.deepak.photovault.core.media.MediaItem?, onClick: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector = androidx.compose.material.icons.Icons.Rounded.Add) {
     val theme = LocalGlassTheme.current
     androidx.compose.foundation.layout.Row(
         Modifier
@@ -219,7 +227,7 @@ private fun AlbumPickRow(title: String, detail: String?, cover: com.deepak.photo
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.Add, null, tint = theme.accent)
+                androidx.compose.material3.Icon(icon, null, tint = theme.accent)
             }
         }
         androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))

@@ -1,14 +1,21 @@
 package com.deepak.photovault
 
+import android.content.ContentValues
 import android.content.Context
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
+import android.net.Uri
 import android.os.CancellationSignal
+import android.provider.MediaStore
 import android.util.Base64
 import android.view.WindowManager
 import androidx.credentials.CreatePasswordRequest
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.lifecycleScope
+import com.deepak.photovault.backup.AndroidMediaReader
+import com.deepak.photovault.core.backup.SecuredStore
+import com.deepak.photovault.core.backup.TinkVault
+import com.deepak.photovault.core.backup.newSha256
 import com.deepak.photovault.core.crypto.KeyContext
 import com.deepak.photovault.core.crypto.MemberKeys
 import com.deepak.photovault.core.crypto.RecoveryCode
@@ -16,9 +23,14 @@ import com.deepak.photovault.core.crypto.RecoveryEnvelope
 import com.deepak.photovault.core.security.SecretBox
 import com.deepak.photovault.ui.shell.PinGuard
 import com.deepak.photovault.ui.shell.PinOutcome
+import com.deepak.photovault.core.media.MediaItem
+import com.deepak.photovault.ui.shell.SecuredItem
 import com.deepak.photovault.ui.shell.SecuredPlatform
+import com.deepak.photovault.ui.shell.SecuredStored
 import com.deepak.photovault.ui.shell.SecuredRules
 import com.deepak.photovault.ui.shell.SecuredSetup
+import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
@@ -189,6 +201,109 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
     override fun protectScreen(on: Boolean) {
         if (on) activity.window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
+    // ---- Photos in the folder ----
+
+    private var cachedStore: SecuredStore? = null
+
+    private fun store(): SecuredStore? {
+        cachedStore?.let { return it }
+        val keys = root() ?: return null
+        return SecuredStore(File(activity.filesDir, "secured"), TinkVault(keys, context)).also { cachedStore = it }
+    }
+
+    override suspend fun items(): List<SecuredItem>? = withContext(Dispatchers.IO) {
+        val st = store() ?: return@withContext null
+        runCatching {
+            st.list().sortedByDescending { it.takenAtMillis }.map { SecuredItem(it.id, it.name, it.takenAtMillis, it.sizeBytes, it.width, it.height) }
+        }.getOrNull()
+    }
+
+    override suspend fun moveIn(items: List<MediaItem>, onProgress: (Int, Int) -> Unit): List<SecuredStored> = withContext(Dispatchers.IO) {
+        val st = store() ?: return@withContext emptyList()
+        val reader = AndroidMediaReader(activity)
+        val stored = mutableListOf<SecuredStored>()
+        items.forEachIndexed { i, item ->
+            withContext(Dispatchers.Main) { onProgress(i, items.size) }
+            val entry = runCatching {
+                st.add(
+                    name = item.displayName,
+                    mimeType = item.mimeType.ifBlank { "image/jpeg" },
+                    takenAtMillis = item.takenAtMillis,
+                    width = item.width,
+                    height = item.height,
+                    album = item.albumName,
+                    thumbnail = reader.thumbnail(item),
+                ) { activity.contentResolver.openInputStream(Uri.parse(item.uri)) ?: throw IOException("The photo can't be opened") }
+            }.getOrNull()
+            when {
+                entry == null -> Unit
+                // The copy must be exactly as big as the photo Android lists; if not, it is thrown away.
+                item.sizeBytes > 0 && entry.sizeBytes != item.sizeBytes -> st.remove(listOf(entry.id))
+                else -> stored += SecuredStored(item, entry.id)
+            }
+        }
+        stored
+    }
+
+    override suspend fun thumbnail(id: String): ByteArray? = withContext(Dispatchers.IO) { store()?.thumbnail(id) }
+
+    override suspend fun photo(id: String): ByteArray? = withContext(Dispatchers.IO) { store()?.photo(id) }
+
+    override suspend fun moveOut(ids: List<String>): Int = withContext(Dispatchers.IO) {
+        val st = store() ?: return@withContext 0
+        val entries = runCatching { st.list() }.getOrNull()?.associateBy { it.id } ?: return@withContext 0
+        val resolver = activity.contentResolver
+        var done = 0
+        for (id in ids) {
+            val entry = entries[id] ?: continue
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, entry.name)
+                put(MediaStore.MediaColumns.MIME_TYPE, entry.mimeType)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/Pixallery")
+                put(MediaStore.Images.Media.DATE_TAKEN, entry.takenAtMillis)
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: continue
+            val ok = try {
+                val hasher = newSha256()
+                var size = 0L
+                val wrote = resolver.openOutputStream(uri)?.use { out ->
+                    st.copyOut(id) { b, n ->
+                        out.write(b, 0, n)
+                        hasher.update(b, 0, n)
+                        size += n
+                    }
+                } ?: false
+                wrote && size == entry.sizeBytes && hasher.hex() == entry.sha256
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                runCatching { resolver.delete(uri, null, null) }
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+            if (ok) {
+                val release = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                if (runCatching { resolver.update(uri, release, null, null) }.getOrDefault(0) > 0) {
+                    st.remove(listOf(id))
+                    done++
+                    continue
+                }
+            }
+            runCatching { resolver.delete(uri, null, null) }
+        }
+        done
+    }
+
+    override suspend fun remove(ids: List<String>) = withContext(Dispatchers.IO) { runCatching { store()?.remove(ids) }; Unit }
+
+    override suspend fun changePin(oldPin: String, newPin: String): String? = withContext(Dispatchers.Default) {
+        val tried = tryPin(oldPin)
+        if (!tried.ok) {
+            return@withContext if (tried.waitMillis > 0) "Too many tries. Wait ${(tried.waitMillis + 999) / 1000} seconds." else "That isn't your current PIN."
+        }
+        if (runCatching { prefs.edit().putString(PIN, pinRecord(newPin)).commit() }.getOrDefault(false)) null else "The new PIN couldn't be saved."
     }
 
     private companion object {

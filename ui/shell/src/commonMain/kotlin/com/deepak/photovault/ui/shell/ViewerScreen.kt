@@ -143,6 +143,8 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     val prompt = LocalDeletePrompt.current
     val photoSpot = remember { ScreenSpot() }
     val bin = remember { ScreenSpot() }
+    val secureMover = rememberSecuredMover(state, gallery, actions)
+    secureMover.Dialogs()
     if (ids.isEmpty()) {
         LaunchedEffect(Unit) { state.back() }
         return
@@ -355,6 +357,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             }),
                             binModifier = Modifier.trackSpot(bin),
                             onWallpaper = if (current.isVideo) null else ({ wallpaperItem = current }),
+                            onSecure = if (gallery.isExternal(current) || current.isDriveOnly || current.isVideo) null else ({ secureMover.request(listOf(current)) }),
                         )
                     }
                     }
@@ -476,6 +479,7 @@ private fun ViewerActions(
     onFamily: (() -> Unit)? = null,
     onSave: (() -> Unit)? = null,
     onWallpaper: (() -> Unit)? = null,
+    onSecure: (() -> Unit)? = null,
 ) {
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
@@ -487,6 +491,7 @@ private fun ViewerActions(
         if (onFavourite != null) GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
         // 26 Oct: Set as wallpaper sits between Favourite and Delete; Details opens by swiping up on the photo.
         if (onWallpaper != null) GlassIconButton(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = onWallpaper)
+        if (onSecure != null) GlassIconButton(Icons.Rounded.Lock, "Move to Secured folder", onClick = onSecure)
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
     }
 }

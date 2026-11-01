@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.GlassTextField
@@ -114,7 +115,39 @@ interface SecuredPlatform {
 
     /** Hides the screen from screenshots and the recent apps list while it is open. */
     fun protectScreen(on: Boolean) = Unit
+
+    // ---- Photos in the folder (slice 2, 1 Nov) ----
+
+    /** What is in the folder, newest first. Null when the list can't be read (never an empty list by mistake). */
+    suspend fun items(): List<SecuredItem>? = emptyList()
+
+    /**
+     * Encrypts these phone photos into the folder and checks each copy. Returns the ones that are safely stored;
+     * the originals are not touched here.
+     */
+    suspend fun moveIn(items: List<MediaItem>, onProgress: (Int, Int) -> Unit): List<SecuredStored> = emptyList()
+
+    /** The small picture of a locked photo, decrypted. */
+    suspend fun thumbnail(id: String): ByteArray? = null
+
+    /** A locked photo, decrypted in memory, for the viewer. */
+    suspend fun photo(id: String): ByteArray? = null
+
+    /** Puts photos back in the phone's gallery (Pictures/Pixallery), checks them, then removes them from the folder. Returns how many. */
+    suspend fun moveOut(ids: List<String>): Int = 0
+
+    /** Deletes locked photos for good. */
+    suspend fun remove(ids: List<String>) = Unit
+
+    /** Changes the PIN. Null when it worked, else the problem in plain words. */
+    suspend fun changePin(oldPin: String, newPin: String): String? = "Not available on this device."
 }
+
+/** A photo in the Secured folder. */
+class SecuredItem(val id: String, val name: String, val takenAtMillis: Long, val sizeBytes: Long, val width: Int, val height: Int)
+
+/** A phone photo now safely kept in the folder as [id]. */
+class SecuredStored(val item: MediaItem, val id: String)
 
 object NoSecuredPlatform : SecuredPlatform
 
@@ -123,7 +156,11 @@ class SecuredState(val platform: SecuredPlatform = NoSecuredPlatform) {
     var setUp by mutableStateOf(platform.isSetUp())
     var unlocked by mutableStateOf(false)
 
-    fun lock() { unlocked = false }
+    /** Photos picked inside the folder, and the one open in its viewer (so the back gesture closes them first). */
+    var selected by mutableStateOf<Set<String>>(emptySet())
+    var viewing by mutableStateOf<String?>(null)
+
+    fun lock() { unlocked = false; selected = emptySet(); viewing = null }
     fun refresh() { setUp = platform.isSetUp() }
 }
 
@@ -146,10 +183,10 @@ fun SecuredFolderScreen(state: ShellState) {
 }
 
 @Composable
-private fun PinEntry(pin: String, onChange: (String) -> Unit, fingerprint: (() -> Unit)? = null) {
+internal fun PinEntry(pin: String, onChange: (String) -> Unit, fingerprint: (() -> Unit)? = null) {
     val theme = LocalGlassTheme.current
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
-    fun tick() = haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+    fun tick() = haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 10.dp)) {
             repeat(SecuredRules.PIN_LENGTH) { i ->
@@ -198,6 +235,7 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
     var message by remember { mutableStateOf<String?>(null) }
     var forgot by rememberSaveable { mutableStateOf(false) }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val buzzScope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         if (sec.platform.biometricReady) sec.platform.askBiometric { ok -> if (ok) sec.unlocked = true }
     }
@@ -219,7 +257,13 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
                             if (r.ok) {
                                 sec.unlocked = true
                             } else {
-                                haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                // A wrong PIN: three firm buzzes in a row.
+                                buzzScope.launch {
+                                    repeat(3) {
+                                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                        kotlinx.coroutines.delay(110)
+                                    }
+                                }
                                 message = if (r.waitMillis > 0) "Too many tries. Wait ${(r.waitMillis + 999) / 1000} seconds." else "That PIN isn't right."
                             }
                         }
@@ -431,20 +475,4 @@ private fun SecuredSetupScreen(state: ShellState, sec: SecuredState) {
 }
 
 @Composable
-private fun SecuredContentScreen(state: ShellState, sec: SecuredState) {
-    val theme = LocalGlassTheme.current
-    GlassListScreen(title = "Secured folder", subtitle = "Unlocked", onBack = { state.back() }) {
-        item {
-            GlassCard(Modifier.cardWidth()) {
-                Text("Nothing here yet", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Photos you move here will show in this folder only. Moving photos in comes in the next update.",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-        }
-        item { GlassButton("Lock now", primary = true, onClick = { sec.lock(); state.back() }) }
-    }
-}
+private fun SecuredContentScreen(state: ShellState, sec: SecuredState) = SecuredFolderContent(state, sec)

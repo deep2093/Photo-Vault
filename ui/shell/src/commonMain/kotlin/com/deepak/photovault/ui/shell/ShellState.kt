@@ -323,6 +323,15 @@ class ShellState(private val store: AppearanceStore) {
             detailsOpen = false
             true
         }
+        // Inside the Secured folder: close the viewer first, then the picks.
+        overlays.lastOrNull() is Overlay.Secured && secured.viewing != null -> {
+            secured.viewing = null
+            true
+        }
+        overlays.lastOrNull() is Overlay.Secured && secured.selected.isNotEmpty() -> {
+            secured.selected = emptySet()
+            true
+        }
         // Choosing a cover uses the photo picks; back leaves the page in one go.
         overlays.lastOrNull() is Overlay.CoverPicker -> {
             selected = emptySet()

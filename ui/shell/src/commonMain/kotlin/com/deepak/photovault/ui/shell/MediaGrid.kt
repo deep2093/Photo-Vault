@@ -350,7 +350,7 @@ fun MediaGrid(
  * person is scrolling down; it comes back when they scroll up or stop.
  */
 @Composable
-private fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val away by remember { derivedStateOf { grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 0 } }
     var goingDown by remember { mutableStateOf(false) }
     LaunchedEffect(grid) {
