@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.deepak.photovault.core.backup.isDriveOnly
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.GlassDialog
