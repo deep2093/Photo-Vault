@@ -202,7 +202,7 @@ fun rememberSecuredMover(state: ShellState, gallery: GalleryState, actions: Medi
     return remember(state, gallery, actions, flight) { SecuredMover(state, gallery, actions, scope, flight) }
 }
 
-private val NOWHERE = Offset(Float.NaN, Float.NaN)
+private val NO_FINGER = Offset(Float.NaN, Float.NaN)
 
 /** Inside the folder: the locked photos and videos, selection (hold and slide too), a viewer, Share, Move out, Delete, Change PIN. */
 @Composable
@@ -292,7 +292,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
             private var anchor = -1
             private var adding = true
             private var initial: Set<Long> = emptySet()
-            private var finger = NOWHERE
+            private var finger = NO_FINGER
             private var autoScroll: Job? = null
             private val order = ids.indices.map { it.toLong() }
 
@@ -349,7 +349,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
             override fun onDragSelectEnd() {
                 autoScroll?.cancel()
                 autoScroll = null
-                finger = NOWHERE
+                finger = NO_FINGER
             }
         }
     }
