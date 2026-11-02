@@ -2,4 +2,6 @@
 <paths>
     <!-- Photos that live only on the family drive, copied here for a moment while they are shared. -->
     <cache-path name="shared" path="drive-shared/" />
+    <!-- Locked photos and videos, decrypted for a moment while they are shared from the Secured folder. -->
+    <cache-path name="secured_share" path="secured_share/" />
 </paths>

@@ -305,7 +305,9 @@ class WireGuardManager private constructor(context: Context) {
         val host = serverHost()
         if (host.isEmpty()) return AutoConnectOutcome.NO_SERVER
         if (!reachability.hasUnderlyingNetwork()) return AutoConnectOutcome.OFFLINE
-        if (reachability.isDirectlyReachable(host)) return AutoConnectOutcome.DIRECT
+        // One slow answer is not "away": Wi-Fi just after the phone wakes is often slow, and the VPN used to start on
+        // the home network (Deepak, 1 Nov). Ask again before deciding.
+        if (reachability.isDirectlyReachable(host) || run { delay(1_000); reachability.isDirectlyReachable(host, timeoutMs = 3_000) }) return AutoConnectOutcome.DIRECT
         if (respectBackoff && backoffRemainingMs() > 0) return AutoConnectOutcome.FAILED
         return when (connectForAuto()) {
             is VpnState.Connected -> AutoConnectOutcome.CONNECTED

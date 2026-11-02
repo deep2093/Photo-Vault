@@ -100,13 +100,20 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-01-3"
+    const val ID = "2026-11-03-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Move photos into the Secured folder", "Select photos and tap the lock button (also in the photo viewer and in Move to). They are encrypted on your phone and checked, then Android asks to delete the originals for good. Videos and drive-only photos can't be moved in yet."),
-        Change(ChangeKind.NEW, "Inside the Secured folder", "See your locked photos, open them full screen (double-tap to zoom), press and hold to select, Select all, back-to-top, Move out to your gallery (Pictures/Pixallery) or Delete for good."),
-        Change(ChangeKind.NEW, "Change PIN", "In the Secured folder, tap the PIN button at the top to change your PIN."),
-        Change(ChangeKind.CHANGED, "Stronger keypad feedback", "Every key press on the Secured folder keypad now gives a firmer tap, and a wrong PIN gives three firm buzzes."),
+        Change(ChangeKind.NEW, "Videos in the Secured folder", "Videos can be moved in too. They are encrypted like photos and play from the folder (a short-lived copy is made for playing and erased when you leave or lock)."),
+        Change(ChangeKind.NEW, "Move-in animation", "Moving photos to the Secured folder now sucks them into the lock button."),
+        Change(ChangeKind.NEW, "Inside the Secured folder", "Hold and slide to select many, a side slider, a back-to-top button, a strip of only your Secured photos in the viewer, pinch to zoom, and the same bottom toolbar as the other viewer with Share."),
+        Change(ChangeKind.NEW, "Share from the Secured folder", "Share locked photos and videos from the viewer or the selection bar."),
+        Change(ChangeKind.NEW, "Delete effect in the Secured folder", "Deleting for good now uses the same drop-into-the-bin effect."),
+        Change(ChangeKind.CHANGED, "Move out goes to the original album", "Photos and videos go back to the album they came from (Camera goes back to Camera)."),
+        Change(ChangeKind.CHANGED, "Locks sooner", "The Secured folder locks the moment you leave it or switch to another app."),
+        Change(ChangeKind.REMOVED, "Back arrow in the Secured viewer", "Use the back gesture instead, like the other viewer."),
+        Change(ChangeKind.FIXED, "Back from a Secured photo", "The back gesture now closes the photo and stays in the folder instead of sliding the whole folder away."),
+        Change(ChangeKind.FIXED, "Folder flashing before the PIN", "Opening the Secured folder again quickly no longer shows it for a moment before asking for your PIN."),
+        Change(ChangeKind.FIXED, "Remote access", "The VPN no longer starts after one slow answer on the home Wi-Fi: it checks again first."),
     )
 }
 

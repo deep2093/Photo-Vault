@@ -395,6 +395,26 @@ private fun FastScroller(
     bottom: Dp,
     modifier: Modifier = Modifier,
 ) {
+    // Grid position of each section's header, to name the date under the slider.
+    val rows = if (continuous) 0 else 1
+    val starts = remember(sections, headerItems, continuous) {
+        var index = headerItems
+        sections.map { s -> (index to s.label).also { index += rows + s.items.size } }
+    }
+    val total = remember(sections, headerItems, continuous) { headerItems + sections.sumOf { rows + it.items.size } }
+    FastScroller(grid, starts, total, top, bottom, modifier)
+}
+
+/** The slider itself: [starts] are the grid positions where each named part (a month) begins; [total] counts every grid item. */
+@Composable
+internal fun FastScroller(
+    grid: LazyGridState,
+    starts: List<Pair<Int, String>>,
+    total: Int,
+    top: Dp,
+    bottom: Dp,
+    modifier: Modifier = Modifier,
+) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     var dragging by remember { mutableStateOf(false) }
@@ -408,13 +428,6 @@ private fun FastScroller(
             visible = false
         }
     }
-    // Grid position of each section's header, to name the date under the slider.
-    val rows = if (continuous) 0 else 1
-    val starts = remember(sections, headerItems, continuous) {
-        var index = headerItems
-        sections.map { s -> (index to s.label).also { index += rows + s.items.size } }
-    }
-    val total = remember(sections, headerItems, continuous) { headerItems + sections.sumOf { rows + it.items.size } }
     if (total < 60) return // Short lists don't need it.
     BoxWithConstraints(modifier.fillMaxHeight().padding(top = top, bottom = bottom).width(140.dp)) {
         val density = LocalDensity.current

@@ -75,4 +75,17 @@ class SecuredStoreTest {
         assertFalse(file.exists())
         assertFalse(File(dir, "${e.id}.pxt").exists())
     }
+
+    @Test
+    fun aVideoIsKeptAndCanBeDecryptedToAFileForPlaying() = runTest {
+        val s = store()
+        val video = ByteArray(2_500_000) { ((it * 31) % 253).toByte() }
+        val e = assertNotNull(s.add("clip.mp4", "video/mp4", 5L, 1920, 1080, "Camera", "poster".encodeToByteArray(), isVideo = true, durationMillis = 9_000) { ByteArrayInputStream(video) })
+        assertTrue(e.isVideo)
+        assertEquals(9_000L, s.list().single().durationMillis)
+        val target = File(dir, "play/clip.mp4")
+        assertTrue(s.decryptTo(e.id, target))
+        assertContentEquals(video, target.readBytes())
+        assertTrue(File(dir, "play").listFiles().orEmpty().none { it.name.endsWith(".part") })
+    }
 }

@@ -139,12 +139,30 @@ interface SecuredPlatform {
     /** Deletes locked photos for good. */
     suspend fun remove(ids: List<String>) = Unit
 
+    /** A locked video decrypted to a short-lived file for playing: its file:// address, or null. Erased by [clearTemp]. */
+    suspend fun videoFile(id: String): String? = null
+
+    /** Opens Android's share sheet with these locked photos or videos (decrypted to short-lived files). False if it can't. */
+    suspend fun share(ids: List<String>): Boolean = false
+
+    /** Erases the short-lived playing files. Called when the folder is left or locked. */
+    fun clearTemp() = Unit
+
     /** Changes the PIN. Null when it worked, else the problem in plain words. */
     suspend fun changePin(oldPin: String, newPin: String): String? = "Not available on this device."
 }
 
 /** A photo in the Secured folder. */
-class SecuredItem(val id: String, val name: String, val takenAtMillis: Long, val sizeBytes: Long, val width: Int, val height: Int)
+class SecuredItem(
+    val id: String,
+    val name: String,
+    val takenAtMillis: Long,
+    val sizeBytes: Long,
+    val width: Int,
+    val height: Int,
+    val isVideo: Boolean = false,
+    val durationMillis: Long = 0,
+)
 
 /** A phone photo now safely kept in the folder as [id]. */
 class SecuredStored(val item: MediaItem, val id: String)
@@ -160,7 +178,12 @@ class SecuredState(val platform: SecuredPlatform = NoSecuredPlatform) {
     var selected by mutableStateOf<Set<String>>(emptySet())
     var viewing by mutableStateOf<String?>(null)
 
-    fun lock() { unlocked = false; selected = emptySet(); viewing = null }
+    fun lock() {
+        unlocked = false
+        selected = emptySet()
+        viewing = null
+        platform.clearTemp()
+    }
     fun refresh() { setUp = platform.isSetUp() }
 }
 

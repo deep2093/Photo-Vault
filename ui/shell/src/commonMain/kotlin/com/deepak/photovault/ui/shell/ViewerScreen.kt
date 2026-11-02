@@ -145,6 +145,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     val bin = remember { ScreenSpot() }
     val secureMover = rememberSecuredMover(state, gallery, actions)
     secureMover.Dialogs()
+    val lockSpot = remember { ScreenSpot() }
     if (ids.isEmpty()) {
         LaunchedEffect(Unit) { state.back() }
         return
@@ -357,7 +358,8 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             }),
                             binModifier = Modifier.trackSpot(bin),
                             onWallpaper = if (current.isVideo) null else ({ wallpaperItem = current }),
-                            onSecure = if (gallery.isExternal(current) || current.isDriveOnly || current.isVideo) null else ({ secureMover.request(listOf(current)) }),
+                            onSecure = if (gallery.isExternal(current) || current.isDriveOnly) null else ({ secureMover.request(listOf(current), fly = flyCurrent, aim = { lockSpot.bounds }) }),
+                            secureModifier = Modifier.trackSpot(lockSpot),
                         )
                     }
                     }
@@ -380,7 +382,7 @@ private val THUMB_GAP = 4.dp
  * outlined. Scroll it to move through photos, or tap one to jump there. Swiping the photo moves the strip too.
  */
 @Composable
-private fun Filmstrip(ids: List<Long>, find: (Long) -> MediaItem?, pager: PagerState, onCurrentClick: (() -> Unit)? = null) {
+internal fun FilmstripCore(ids: List<Any>, pager: PagerState, onCurrentClick: (() -> Unit)?, label: (Int) -> String, thumb: @Composable (Int) -> Unit) {
     val strip = rememberLazyListState(initialFirstVisibleItemIndex = pager.currentPage.coerceIn(ids.indices))
     val scope = rememberCoroutineScope()
     val pitchPx = with(LocalDensity.current) { (THUMB_W + THUMB_GAP).toPx() }
@@ -418,7 +420,6 @@ private fun Filmstrip(ids: List<Long>, find: (Long) -> MediaItem?, pager: PagerS
             modifier = Modifier.fillMaxWidth().height(THUMB_H + 8.dp),
         ) {
             itemsIndexed(ids, key = { _, id -> id }) { index, id ->
-                val item = find(id)
                 val isCurrent = index == pager.currentPage
                 val shape = RoundedCornerShape(6.dp)
                 Box(
@@ -437,18 +438,28 @@ private fun Filmstrip(ids: List<Long>, find: (Long) -> MediaItem?, pager: PagerS
                             stripLeads = false
                             if (isCurrent && onCurrentClick != null) onCurrentClick() else scope.launch { pager.scrollToPage(index) }
                         }
-                        .semantics { contentDescription = if (item != null) "Show ${whenTaken(item)}" else "Show photo" },
+                        .semantics { contentDescription = label(index) },
                 ) {
-                    if (item != null) {
-                        AsyncImage(
-                            model = Thumb(item.uri, item.isVideo, 160),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                    thumb(index)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun Filmstrip(ids: List<Long>, find: (Long) -> MediaItem?, pager: PagerState, onCurrentClick: (() -> Unit)? = null) {
+    FilmstripCore(
+        ids, pager, onCurrentClick,
+        label = { index -> find(ids[index])?.let { "Show ${whenTaken(it)}" } ?: "Show photo" },
+    ) { index ->
+        find(ids[index])?.let { item ->
+            AsyncImage(
+                model = Thumb(item.uri, item.isVideo, 160),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
@@ -480,6 +491,7 @@ private fun ViewerActions(
     onSave: (() -> Unit)? = null,
     onWallpaper: (() -> Unit)? = null,
     onSecure: (() -> Unit)? = null,
+    secureModifier: Modifier = Modifier,
 ) {
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
@@ -491,7 +503,7 @@ private fun ViewerActions(
         if (onFavourite != null) GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
         // 26 Oct: Set as wallpaper sits between Favourite and Delete; Details opens by swiping up on the photo.
         if (onWallpaper != null) GlassIconButton(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = onWallpaper)
-        if (onSecure != null) GlassIconButton(Icons.Rounded.Lock, "Move to Secured folder", onClick = onSecure)
+        if (onSecure != null) GlassIconButton(Icons.Rounded.Lock, "Move to Secured folder", onClick = onSecure, modifier = secureModifier)
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
     }
 }
@@ -801,7 +813,7 @@ private fun VideoPage(item: MediaItem, isCurrent: Boolean, controls: VideoContro
 
 /** Play or pause, where it is, and sound on or off: one small row above the frame strip. */
 @Composable
-private fun VideoBar(video: VideoControls, onTouch: () -> Unit) {
+internal fun VideoBar(video: VideoControls, onTouch: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,

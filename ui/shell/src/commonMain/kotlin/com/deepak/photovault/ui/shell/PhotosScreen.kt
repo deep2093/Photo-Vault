@@ -287,6 +287,7 @@ fun SelectableScreen(
     val bin = remember { ScreenSpot() }
     val secureMover = rememberSecuredMover(state, gallery, actions)
     secureMover.Dialogs()
+    val lockSpot = remember { ScreenSpot() }
     androidx.compose.runtime.CompositionLocalProvider(LocalTileSpots provides tileSpots) {
     // One GlassScreen for both modes, so the grid keeps its scroll position when selection starts.
     // Selecting (24 Oct): the top shows only the count and Cancel; share, favourite and delete rise in at the
@@ -332,7 +333,11 @@ fun SelectableScreen(
                     gallery.toggleFavourite(selectedItems)
                     state.selected = emptySet()
                 })
-                GlassIconButton(Icons.Rounded.Lock, "Move to Secured folder", onClick = { secureMover.request(selectedItems) })
+                GlassIconButton(
+                    Icons.Rounded.Lock, "Move to Secured folder",
+                    modifier = Modifier.trackSpot(lockSpot),
+                    onClick = { secureMover.request(selectedItems, fly = { tileSpots.flying(selectedItems) }, aim = { lockSpot.bounds }) },
+                )
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
                     // Where the photos are now: by the time Android has asked, the grid may have changed.
                     val flying = tileSpots.flying(selectedItems)

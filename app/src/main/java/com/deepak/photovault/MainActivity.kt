@@ -278,6 +278,10 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.remote = remote.state
         state.encryption = com.deepak.photovault.ui.shell.EncryptionState(AndroidEncryption(this))
         state.secured = com.deepak.photovault.ui.shell.SecuredState(AndroidSecured(this))
+        // Going to another app locks the Secured folder again.
+        lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onStop(owner: androidx.lifecycle.LifecycleOwner) = state.secured.lock()
+        })
         state.invites = AndroidInvites(this) { answer -> onTextFilePicked = answer; textFilePicker.launch(arrayOf("*/*")) }
         state.restoreNavigation(savedInstanceState?.getString("nav"))
         remote.start()

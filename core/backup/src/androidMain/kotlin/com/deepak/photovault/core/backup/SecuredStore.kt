@@ -26,6 +26,8 @@ class SecuredEntry(
     val album: String,
     val sha256: String,
     val addedAtMillis: Long,
+    val isVideo: Boolean = false,
+    val durationMillis: Long = 0,
 )
 
 /**
@@ -68,6 +70,8 @@ class SecuredStore(private val dir: File, private val vault: PrivateVault, priva
         height: Int,
         album: String,
         thumbnail: ByteArray?,
+        isVideo: Boolean = false,
+        durationMillis: Long = 0,
         open: () -> InputStream,
     ): SecuredEntry? = lock.withLock {
         if (thumbnail == null) return@withLock null
@@ -130,7 +134,7 @@ class SecuredStore(private val dir: File, private val vault: PrivateVault, priva
                     }
                 }
             }
-            val entry = SecuredEntry(id, name, mimeType, takenAtMillis, size, width, height, album, sha, now())
+            val entry = SecuredEntry(id, name, mimeType, takenAtMillis, size, width, height, album, sha, now(), isVideo, durationMillis)
             writeIndex(before + entry)
             entry
         } catch (e: CancellationException) {
@@ -173,6 +177,25 @@ class SecuredStore(private val dir: File, private val vault: PrivateVault, priva
         } catch (_: Exception) {
             false
         }
+    }
+
+    /** Decrypts a photo or video into [target] (for playing or sharing). The file is plain: the caller erases it soon. False if it fails. */
+    suspend fun decryptTo(id: String, target: File): Boolean {
+        val tmp = File(target.parentFile, target.name + ".part")
+        val ok = try {
+            target.parentFile?.mkdirs()
+            tmp.outputStream().use { out -> copyOut(id) { b, n -> out.write(b, 0, n) } }
+        } catch (e: CancellationException) {
+            tmp.delete()
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+        if (!ok || !tmp.renameTo(target)) {
+            tmp.delete()
+            return false
+        }
+        return true
     }
 
     /** Takes these photos out of the folder for good (their files and list entries). */

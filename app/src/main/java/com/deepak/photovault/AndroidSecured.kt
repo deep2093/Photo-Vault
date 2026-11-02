@@ -13,6 +13,7 @@ import androidx.credentials.CreatePasswordRequest
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.lifecycleScope
 import com.deepak.photovault.backup.AndroidMediaReader
+import com.deepak.photovault.core.backup.SecuredPaths
 import com.deepak.photovault.core.backup.SecuredStore
 import com.deepak.photovault.core.backup.TinkVault
 import com.deepak.photovault.core.backup.newSha256
@@ -198,9 +199,21 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         }
     }
 
+    private var clearSecure: Runnable? = null
+
     override fun protectScreen(on: Boolean) {
-        if (on) activity.window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        val decor = activity.window.decorView
+        clearSecure?.let { decor.removeCallbacks(it) }
+        clearSecure = null
+        if (on) {
+            activity.window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            // Changing a window flag makes Android rebuild the window's surface; doing it as the page slides away dropped
+            // frames (1 Nov), so it waits until the slide is over.
+            val later = Runnable { activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+            clearSecure = later
+            decor.postDelayed(later, 900)
+        }
     }
 
     // ---- Photos in the folder ----
@@ -216,7 +229,7 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
     override suspend fun items(): List<SecuredItem>? = withContext(Dispatchers.IO) {
         val st = store() ?: return@withContext null
         runCatching {
-            st.list().sortedByDescending { it.takenAtMillis }.map { SecuredItem(it.id, it.name, it.takenAtMillis, it.sizeBytes, it.width, it.height) }
+            st.list().sortedByDescending { it.takenAtMillis }.map { SecuredItem(it.id, it.name, it.takenAtMillis, it.sizeBytes, it.width, it.height, it.isVideo, it.durationMillis) }
         }.getOrNull()
     }
 
@@ -229,12 +242,14 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
             val entry = runCatching {
                 st.add(
                     name = item.displayName,
-                    mimeType = item.mimeType.ifBlank { "image/jpeg" },
+                    mimeType = item.mimeType.ifBlank { if (item.isVideo) "video/mp4" else "image/jpeg" },
                     takenAtMillis = item.takenAtMillis,
                     width = item.width,
                     height = item.height,
                     album = item.albumName,
                     thumbnail = reader.thumbnail(item),
+                    isVideo = item.isVideo,
+                    durationMillis = item.durationMillis,
                 ) { activity.contentResolver.openInputStream(Uri.parse(item.uri)) ?: throw IOException("The photo can't be opened") }
             }.getOrNull()
             when {
@@ -258,14 +273,16 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         var done = 0
         for (id in ids) {
             val entry = entries[id] ?: continue
+            // Back to the album it came from (Camera goes to DCIM/Camera; a missing album is made again).
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, entry.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, entry.mimeType)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/Pixallery")
-                put(MediaStore.Images.Media.DATE_TAKEN, entry.takenAtMillis)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, SecuredPaths.relativePath(entry.album, entry.isVideo))
+                put(MediaStore.MediaColumns.DATE_TAKEN, entry.takenAtMillis)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
-            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: continue
+            val collection = if (entry.isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val uri = resolver.insert(collection, values) ?: continue
             val ok = try {
                 val hasher = newSha256()
                 var size = 0L
@@ -298,6 +315,61 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
 
     override suspend fun remove(ids: List<String>) = withContext(Dispatchers.IO) { runCatching { store()?.remove(ids) }; Unit }
 
+    private val playDir get() = File(activity.cacheDir, "secured_play")
+    private val shareDir get() = File(activity.cacheDir, "secured_share")
+
+    init {
+        // Anything left from an earlier run (a crash, or the app closed while a video played) is erased at start.
+        clearTemp()
+        runCatching { shareDir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > SHARE_KEEP_MS }?.forEach { it.delete() } }
+    }
+
+    override suspend fun videoFile(id: String): String? = withContext(Dispatchers.IO) {
+        val st = store() ?: return@withContext null
+        val entry = runCatching { st.list() }.getOrNull()?.firstOrNull { it.id == id } ?: return@withContext null
+        val ext = entry.name.substringAfterLast('.', "mp4").take(5).filter { it.isLetterOrDigit() }.ifEmpty { "mp4" }
+        val target = File(playDir, "$id.$ext")
+        if (!target.exists() && !st.decryptTo(id, target)) return@withContext null
+        Uri.fromFile(target).toString()
+    }
+
+    override suspend fun share(ids: List<String>): Boolean = withContext(Dispatchers.IO) {
+        val st = store() ?: return@withContext false
+        val entries = runCatching { st.list() }.getOrNull()?.filter { it.id in ids } ?: return@withContext false
+        if (entries.isEmpty()) return@withContext false
+        // Short-lived plain copies, shared once; erased on the next start or after a quarter of an hour.
+        runCatching { shareDir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > SHARE_KEEP_MS }?.forEach { it.delete() } }
+        val uris = entries.mapNotNull { e ->
+            val dir = File(shareDir, e.id)
+            val file = File(dir, e.name.replace('/', '_'))
+            if (!file.exists() && !st.decryptTo(e.id, file)) return@mapNotNull null
+            androidx.core.content.FileProvider.getUriForFile(activity, "${activity.packageName}.files", file)
+        }
+        if (uris.isEmpty()) return@withContext false
+        withContext(Dispatchers.Main) {
+            val type = when {
+                entries.all { it.isVideo } -> "video/*"
+                entries.none { it.isVideo } -> "image/*"
+                else -> "*/*"
+            }
+            val send = if (uris.size == 1) {
+                android.content.Intent(android.content.Intent.ACTION_SEND).putExtra(android.content.Intent.EXTRA_STREAM, uris.first())
+            } else {
+                android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, ArrayList(uris))
+            }.apply {
+                setType(type)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                clipData = android.content.ClipData.newRawUri(null, uris.first()).also { clip -> uris.drop(1).forEach { clip.addItem(android.content.ClipData.Item(it)) } }
+            }
+            activity.startActivity(android.content.Intent.createChooser(send, null))
+        }
+        true
+    }
+
+    override fun clearTemp() {
+        runCatching { playDir.deleteRecursively() }
+    }
+
     override suspend fun changePin(oldPin: String, newPin: String): String? = withContext(Dispatchers.Default) {
         val tried = tryPin(oldPin)
         if (!tried.ok) {
@@ -315,5 +387,6 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         const val UNTIL = "until"
         const val PIN_ITERATIONS = 150_000
         const val CODE_ITERATIONS = 600_000
+        const val SHARE_KEEP_MS = 15 * 60 * 1000L
     }
 }

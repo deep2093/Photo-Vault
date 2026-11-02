@@ -266,7 +266,8 @@ class ShellState(private val store: AppearanceStore) {
 
     /** A back gesture moves the top page itself only when nothing smaller (a selection, the details) would close first. */
     val canDragBack: Boolean
-        get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && !albumsSelectMode && overlays.lastOrNull().slidesSideways()
+        get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && !albumsSelectMode && overlays.lastOrNull().slidesSideways() &&
+            !(overlays.lastOrNull() is Overlay.Secured && (secured.viewing != null || secured.selected.isNotEmpty()))
 
     suspend fun dragBack(progress: Float, toRight: Boolean) {
         pageBackDir = if (toRight) 1 else -1
@@ -352,6 +353,8 @@ class ShellState(private val store: AppearanceStore) {
             true
         }
         overlays.isNotEmpty() -> {
+            // Leaving the Secured folder locks it at once, not when its page has finished sliding away.
+            if (overlays.last() is Overlay.Secured) secured.lock()
             overlays.removeAt(overlays.lastIndex)
             true
         }
