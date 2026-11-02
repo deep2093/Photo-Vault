@@ -353,8 +353,8 @@ class ShellState(private val store: AppearanceStore) {
             true
         }
         overlays.isNotEmpty() -> {
-            // Leaving the Secured folder locks it at once, not when its page has finished sliding away.
-            if (overlays.last() is Overlay.Secured) secured.lock()
+            // Leaving the Secured folder clears its picks and viewer at once; it stays unlocked until the app goes to the background.
+            if (overlays.last() is Overlay.Secured) secured.leave()
             overlays.removeAt(overlays.lastIndex)
             true
         }

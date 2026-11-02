@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -90,7 +91,10 @@ import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.GlassDialog
 import com.deepak.photovault.designsystem.GlassIconButton
+import com.deepak.photovault.designsystem.LocalGlassSettings
 import com.deepak.photovault.designsystem.LocalGlassTheme
+import com.deepak.photovault.designsystem.LocalHazeState
+import com.deepak.photovault.designsystem.LocalLensGlass
 import com.deepak.photovault.designsystem.glassChrome
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -153,10 +157,18 @@ class SecuredMover(
             }
             if (stored.isEmpty()) return@launch actions.toast("Couldn't move them. Nothing was changed.")
             val originals = stored.map { it.item }
+            // The flight draws from the folder's own small pictures: once Android has deleted the originals, the phone
+            // can't draw them any more, and the effect showed nothing (3 Nov).
+            val byUri = stored.associateBy { it.item.uri }
+            val withPictures = flyingNow.mapNotNull { f ->
+                val kept = byUri[f.uri] ?: return@mapNotNull null
+                val picture = sec.platform.thumbnail(kept.id) ?: return@mapNotNull null
+                f.copy(bytes = picture)
+            }
             actions.deleteForever(originals) { agreed ->
                 if (agreed) {
                     val goneIds = originals.map { it.id }.toSet()
-                    flight.launch(flyingNow.filter { f -> originals.any { it.uri == f.uri } }, aim())
+                    flight.launch(withPictures, aim())
                     gallery.dropNow(goneIds)
                     state.selected = emptySet()
                     val left = items.size - stored.size
@@ -224,6 +236,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
     val tileBounds = remember { HashMap<String, Rect>() }
     val bin = remember { ScreenSpot() }
     val gridState = rememberLazyGridState()
+    var screenWidth by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(reload) {
         val found = platform.items()
         items = found
@@ -248,11 +261,23 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
     val headerCount = (if (note != null) 1 else 0) + (if (list.isEmpty()) 1 else 0)
     val zone = remember { TimeZone.currentSystemDefault() }
 
+    fun tileFlying(which: List<String>): List<FlyingPhoto> = which.mapNotNull { id ->
+        val rect = tileBounds[id] ?: return@mapNotNull null
+        val bytes = thumbs[id] ?: return@mapNotNull null
+        FlyingPhoto("secured:$id", false, rect, bytes = bytes)
+    }
+
     fun moveOut(moving: List<String>) {
+        val flying = tileFlying(moving)
         scope.launch {
             busy = "Moving out..."
             val n = platform.moveOut(moving)
             busy = null
+            // Leaving the folder: the photos are pulled up and out of the top of the screen.
+            if (n > 0) {
+                val cx = screenWidth / 2f
+                flight.launch(flying, Rect(cx - 1f, -260f, cx + 1f, -258f))
+            }
             sec.selected = emptySet()
             sec.viewing = null
             note = when {
@@ -278,12 +303,6 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
             note = if (which.size == 1) "Deleted 1 item." else "Deleted ${which.size} items."
             reload++
         }
-    }
-
-    fun tileFlying(which: List<String>): List<FlyingPhoto> = which.mapNotNull { id ->
-        val rect = tileBounds[id] ?: return@mapNotNull null
-        val bytes = thumbs[id] ?: return@mapNotNull null
-        FlyingPhoto("secured:$id", false, rect, bytes = bytes)
     }
 
     // Hold a tile, then slide to select many; sliding near the top or bottom scrolls the page (same as Photos).
@@ -354,7 +373,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onSizeChanged { screenWidth = it.width.toFloat() }) {
         GlassScreen(
             title = if (selecting) "${sec.selected.size} selected" else "Secured folder",
             subtitle = if (selecting) null else if (items == null) null else if (list.size == 1) "1 item" else "${list.size} items",
@@ -372,7 +391,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
                     GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { sec.selected = emptySet() })
                 } else {
                     GlassIconButton(Icons.Rounded.Pin, "Change PIN", onClick = { changingPin = true })
-                    GlassIconButton(Icons.Rounded.Lock, "Lock now", onClick = { state.back() })
+                    GlassIconButton(Icons.Rounded.Lock, "Lock now", onClick = { sec.lock(); state.back() })
                 }
             },
             bottomActions = if (!selecting) null else ({
@@ -523,8 +542,12 @@ private fun SecuredViewer(
     val video = remember(current.id) { VideoControls() }
     var videoStarted by remember(current.id) { mutableStateOf(false) }
     val keys = remember(items) { items.map { it.id } }
+    // The same glass as the main viewer (3 Nov: it was darker here): no blur source, the lens looks through the photo.
+    val lensOn = LocalGlassSettings.current.lensEnabled && LocalGlassTheme.current.lens
+    val lens = rememberLensGlass()
+    CompositionLocalProvider(LocalHazeState provides null) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = !zoomed, key = { items[it].id }) { page ->
+        HorizontalPager(pager, Modifier.fillMaxSize().then(lens?.source(lensOn) ?: Modifier), userScrollEnabled = !zoomed, key = { items[it].id }) { page ->
             val item = items[page]
             val onTap = { barsVisible = !barsVisible }
             if (item.isVideo) {
@@ -559,16 +582,19 @@ private fun SecuredViewer(
                         }
                     }
                 }
-                Row(
-                    Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    GlassIconButton(Icons.Rounded.Share, "Share", onClick = { onShare(current.id) })
-                    GlassIconButton(Icons.Rounded.LockOpen, "Move out of the Secured folder", onClick = { onMoveOut(current.id) })
-                    GlassIconButton(Icons.Rounded.Delete, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = { onDelete(current.id) })
+                CompositionLocalProvider(LocalLensGlass provides lens) {
+                    Row(
+                        Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        GlassIconButton(Icons.Rounded.Share, "Share", onClick = { onShare(current.id) })
+                        GlassIconButton(Icons.Rounded.LockOpen, "Move out of the Secured folder", onClick = { onMoveOut(current.id) })
+                        GlassIconButton(Icons.Rounded.Delete, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = { onDelete(current.id) })
+                    }
                 }
             }
         }
+    }
     }
 }
 

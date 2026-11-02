@@ -100,20 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-03-1"
+    const val ID = "2026-11-03-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Videos in the Secured folder", "Videos can be moved in too. They are encrypted like photos and play from the folder (a short-lived copy is made for playing and erased when you leave or lock)."),
-        Change(ChangeKind.NEW, "Move-in animation", "Moving photos to the Secured folder now sucks them into the lock button."),
-        Change(ChangeKind.NEW, "Inside the Secured folder", "Hold and slide to select many, a side slider, a back-to-top button, a strip of only your Secured photos in the viewer, pinch to zoom, and the same bottom toolbar as the other viewer with Share."),
-        Change(ChangeKind.NEW, "Share from the Secured folder", "Share locked photos and videos from the viewer or the selection bar."),
-        Change(ChangeKind.NEW, "Delete effect in the Secured folder", "Deleting for good now uses the same drop-into-the-bin effect."),
-        Change(ChangeKind.CHANGED, "Move out goes to the original album", "Photos and videos go back to the album they came from (Camera goes back to Camera)."),
-        Change(ChangeKind.CHANGED, "Locks sooner", "The Secured folder locks the moment you leave it or switch to another app."),
-        Change(ChangeKind.REMOVED, "Back arrow in the Secured viewer", "Use the back gesture instead, like the other viewer."),
-        Change(ChangeKind.FIXED, "Back from a Secured photo", "The back gesture now closes the photo and stays in the folder instead of sliding the whole folder away."),
-        Change(ChangeKind.FIXED, "Folder flashing before the PIN", "Opening the Secured folder again quickly no longer shows it for a moment before asking for your PIN."),
-        Change(ChangeKind.FIXED, "Remote access", "The VPN no longer starts after one slow answer on the home Wi-Fi: it checks again first."),
+        Change(ChangeKind.NEW, "Move-out animation", "Moving items out of the Secured folder pulls them up and out of the top of the screen."),
+        Change(ChangeKind.CHANGED, "Secured folder stays open while you use the app", "Once unlocked, leaving the folder and going back in doesn't ask again. It locks when the app goes to the background, or when you tap Lock now. The Albums tile shows Unlocked or Locked."),
+        Change(ChangeKind.FIXED, "Move-in animation", "The photos now really get sucked into the lock button (the picture was gone before the effect could draw it)."),
+        Change(ChangeKind.FIXED, "Secured viewer toolbar", "The bottom toolbar in the Secured folder's viewer now uses the same glass as the main viewer, not a darker one."),
     )
 }
 

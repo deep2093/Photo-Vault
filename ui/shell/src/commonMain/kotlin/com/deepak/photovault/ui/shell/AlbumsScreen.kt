@@ -362,7 +362,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                         tile,
                     ) { state.open(Overlay.RecentlyDeleted) }
                     PlaceTile(Icons.Rounded.Place, "Places", "Soon", tile, enabled = false) {}
-                    PlaceTile(Icons.Rounded.Lock, "Secured folder", if (state.secured.setUp) "Locked" else "Set up", tile) { state.open(Overlay.Secured) }
+                    PlaceTile(Icons.Rounded.Lock, "Secured folder", if (!state.secured.setUp) "Set up" else if (state.secured.unlocked) "Unlocked" else "Locked", tile) { state.open(Overlay.Secured) }
                 }
             }
             items(cards, key = { "card:${it.id}" }) { card ->

@@ -180,6 +180,14 @@ class SecuredState(val platform: SecuredPlatform = NoSecuredPlatform) {
 
     fun lock() {
         unlocked = false
+        leave()
+    }
+
+    /**
+     * Leaving the folder inside the app (3 Nov, Deepak): it stays unlocked, so going back in doesn't ask again; it locks
+     * when the app goes to the background, or with Lock now. Picks, the open viewer and playing copies are cleared.
+     */
+    fun leave() {
         selected = emptySet()
         viewing = null
         platform.clearTemp()
@@ -195,7 +203,7 @@ fun SecuredFolderScreen(state: ShellState) {
         sec.platform.protectScreen(true)
         onDispose {
             sec.platform.protectScreen(false)
-            sec.lock()
+            sec.leave()
         }
     }
     when {
