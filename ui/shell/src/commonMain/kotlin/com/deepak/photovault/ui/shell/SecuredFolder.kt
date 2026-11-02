@@ -268,7 +268,9 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val buzzScope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
-        if (sec.platform.biometricReady) sec.platform.askBiometric { ok -> if (ok) sec.unlocked = true }
+        // Only when the folder is really being opened: a lock screen drawn while the page slides away (Lock now) must not
+        // pop up the fingerprint prompt after the person has left (3 Nov).
+        if (sec.platform.biometricReady && state.overlays.lastOrNull() == Overlay.Secured) sec.platform.askBiometric { ok -> if (ok) sec.unlocked = true }
     }
     if (forgot) {
         SecuredForgotScreen(state, sec, onDone = { forgot = false }, onCancel = { forgot = false })
