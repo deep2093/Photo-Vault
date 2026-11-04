@@ -79,15 +79,22 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
     // New people appear while a scan runs (it saves every 40 photos).
     LaunchedEffect(progress?.running, (progress?.done ?: 0) / 40) { if (people.enabled) people.refresh() }
     val onPhone = remember(gallery.items) { gallery.items.map { it.id }.toHashSet() }
-    val list = remember(people.people, people.spots, showHidden, onPhone) {
-        FaceGrouping.shown(people.people.filter { it.hidden == showHidden }, people.spots)
+    val takenAt = remember(gallery.items) { gallery.items.associate { it.id to it.takenAtMillis } }
+    val all = remember(people.people, people.spots, showHidden, onPhone) {
+        FaceGrouping.shown(people.people.filter { it.hidden == showHidden }, people.spots, newest = { p -> people.photosOf(p).maxOfOrNull { takenAt[it] ?: 0L } ?: 0L })
             .filter { p -> p.name != null || people.photosOf(p).any { it in onPhone } }
     }
+    // Strangers (5 Nov): unnamed people in only a few photos wait under "Others" at the bottom.
+    val (list, others) = remember(all, onPhone) {
+        all.partition { p -> p.name != null || people.photosOf(p).count { it in onPhone } >= FaceGrouping.OTHERS_BELOW }
+    }
+    var showOthers by remember { mutableStateOf(false) }
+    val question = if (!showHidden) people.nextQuestion() else null
     val selecting = people.selected.isNotEmpty()
 
     GlassScreen(
         title = if (selecting) "${people.selected.size} selected" else if (showHidden) "Hidden people" else "People",
-        subtitle = if (selecting || !people.enabled) null else if (list.size == 1) "1 person" else "${list.size} people",
+        subtitle = if (selecting || !people.enabled) null else if (all.size == 1) "1 person" else "${all.size} people",
         onBack = if (selecting) null else ({ if (showHidden) showHidden = false else state.back() }),
         pinned = selecting,
         actions = {
@@ -161,8 +168,44 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                             color = theme.onGlass,
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                        if (people.lookingAgain) Text(
+                            "Looking at every photo once more to leave out blurred and background faces. Your names and merges stay.",
+                            color = theme.onGlassSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                         val running = p?.running == true
                         GlassButton(if (running) "Pause" else "Scan now", onClick = { if (running) platform.stopScan() else platform.scanNow() }, modifier = Modifier.padding(top = 8.dp))
+                        var ask by remember { mutableStateOf(platform.askByNotification()) }
+                        com.deepak.photovault.designsystem.GlassSwitchRow(
+                            title = "Ask me by notification",
+                            checked = ask,
+                            onCheckedChange = { ask = it; platform.setAskByNotification(it) },
+                            description = "When Pixallery isn't sure two faces are the same person (at most once a day).",
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+                if (question != null && !selecting) {
+                    item(key = "question", span = { GridItemSpan(maxLineSpan) }) {
+                        val a = people.find(question.a)
+                        val b = people.find(question.b)
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Text("Same person?", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            androidx.compose.foundation.layout.Row(
+                                Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                            ) {
+                                listOfNotNull(a, b).forEach { p -> PersonCircle(people, p, thumbs, 96, onPhone) }
+                            }
+                            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                GlassButton("Yes", primary = true, onClick = { scope.launch { people.answer(question, true) } })
+                                GlassButton("No", onClick = { scope.launch { people.answer(question, false) } })
+                                GlassButton("Not sure", onClick = { people.skipped = people.skipped + question })
+                            }
+                            val left = people.questions.count { it !in people.skipped } - 1
+                            if (left > 0) Text("$left more to check", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 6.dp))
+                        }
                     }
                 }
                 if (list.isEmpty()) {
@@ -176,7 +219,8 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                         )
                     }
                 }
-                items(list, key = { it.id }) { person ->
+                val visible = if (showOthers) list + others else list
+                items(visible, key = { it.id }) { person ->
                     val picked = person.id in people.selected
                     val cover = people.coverOf(person)
                     LaunchedEffect(cover?.id) {
@@ -215,6 +259,15 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                             modifier = Modifier.padding(top = 6.dp),
                         )
                         Text(if (count == 1) "1 photo" else "$count photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                if (others.isNotEmpty()) {
+                    item(key = "others", span = { GridItemSpan(maxLineSpan) }) {
+                        GlassButton(
+                            if (showOthers) "Hide others" else "Others (${others.size})",
+                            onClick = { showOthers = !showOthers },
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     }
                 }
             }
@@ -308,6 +361,30 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp),
             )
+        }
+    }
+}
+
+/** A person's round face picture (the clearest front face), loaded once into [thumbs]. */
+@Composable
+internal fun PersonCircle(people: PeopleState, person: Person, thumbs: MutableMap<Int, ByteArray>, sizeDp: Int, onPhone: Set<Long>? = null) {
+    val theme = LocalGlassTheme.current
+    val cover = people.coverOf(person)
+    LaunchedEffect(cover?.id) {
+        if (cover != null && thumbs[cover.id] == null) people.platform.faceThumb(cover)?.let { thumbs[cover.id] = it }
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(sizeDp.dp).clip(CircleShape).background(theme.onGlass.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+            val bytes = cover?.let { thumbs[it.id] }
+            if (bytes != null) {
+                AsyncImage(model = bytes, contentDescription = person.name ?: "A person", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Icon(Icons.Rounded.Face, null, tint = theme.onGlassSecondary, modifier = Modifier.size((sizeDp * 0.4f).dp))
+            }
+        }
+        if (onPhone != null) {
+            val count = people.photosOf(person).count { it in onPhone }
+            Text(person.name ?: (if (count == 1) "1 photo" else "$count photos"), color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

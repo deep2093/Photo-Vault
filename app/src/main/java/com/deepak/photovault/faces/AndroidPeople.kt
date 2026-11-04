@@ -6,6 +6,7 @@ import com.deepak.photovault.ui.shell.FaceSpot
 import com.deepak.photovault.ui.shell.PeoplePlatform
 import com.deepak.photovault.ui.shell.PeopleSnapshot
 import com.deepak.photovault.ui.shell.Person
+import com.deepak.photovault.ui.shell.SamePersonQuestion
 import com.deepak.photovault.ui.shell.ScanProgress
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -41,4 +42,10 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
     override val progress: StateFlow<ScanProgress?> get() = FaceLibrary.progress
 
     override suspend fun faceThumb(spot: FaceSpot): ByteArray? = FaceLibrary.faceThumb(app, spot)
+
+    override suspend fun answer(question: SamePersonQuestion, same: Boolean) = FaceLibrary.answer(app, question, same)
+
+    override fun askByNotification(): Boolean = FaceLibrary.askByNotification(app)
+
+    override fun setAskByNotification(on: Boolean) = FaceLibrary.setAskByNotification(app, on)
 }

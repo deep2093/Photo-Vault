@@ -95,4 +95,45 @@ class FaceGroupingTest {
         assertEquals(listOf("Raj"), one.map { it.name })
         assertEquals(2, one.single().id)
     }
+
+    @Test
+    fun aSideViewThatMatchesNobodyDoesNotStartAPerson() {
+        val side = Face(1, 10, floatArrayOf(0f, 0f, 0.1f, 0.1f), vec(3), frontal = 0.1f)
+        val (none, _) = FaceGrouping.group(listOf(side), emptyList(), 1)
+        assertTrue(none.isEmpty())
+        // ...but it still joins someone it clearly matches.
+        val (one, _) = FaceGrouping.group(listOf(face(2, 11, 3), side), emptyList(), 1)
+        assertEquals(setOf(1, 2), one.single().faces)
+    }
+
+    @Test
+    fun twoFacesInOnePhotoAreNeverOnePerson() {
+        // Twins in one photo: the same look, but the same photo.
+        val (people, _) = FaceGrouping.group(listOf(face(1, 10, 0), face(2, 10, 0, 0.05f)), emptyList(), 1)
+        assertEquals(2, people.size)
+    }
+
+    @Test
+    fun closeGroupsBecomeAQuestionUntilAnswered() {
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f), face(3, 12, 0, 1.27f), face(4, 13, 0, 1.37f))
+        val a = Person(1, setOf(1, 2))
+        val b = Person(2, setOf(3, 4))
+        // Not alike enough to join by themselves...
+        assertEquals(2, FaceGrouping.joinGroups(faces, listOf(a, b)).size)
+        // ...so People asks.
+        val asked = FaceGrouping.questions(faces, listOf(a, b), emptySet())
+        assertEquals(listOf(1 to 2), asked.map { it.a to it.b })
+        // After "No" it never asks again.
+        assertTrue(FaceGrouping.questions(faces, listOf(a, b), setOf(1 to 2)).isEmpty())
+    }
+
+    @Test
+    fun namedPeopleWithTheNewestPhotoComeFirst() {
+        val spots = (1..6).associateWith { FaceSpot(it, it.toLong(), floatArrayOf()) }
+        val old = Person(1, setOf(1, 2), name = "Old")
+        val recent = Person(2, setOf(3, 4), name = "Recent")
+        val big = Person(3, setOf(5, 6))
+        val newest = mapOf(1 to 100L, 2 to 900L)
+        assertEquals(listOf(2, 1, 3), FaceGrouping.shown(listOf(old, recent, big), spots, newest = { newest[it.id] ?: 0L }).map { it.id })
+    }
 }

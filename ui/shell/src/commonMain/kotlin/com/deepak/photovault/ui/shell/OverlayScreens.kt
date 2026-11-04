@@ -56,6 +56,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.MoreHoriz
 
 internal fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
 
@@ -371,6 +372,7 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             onOpen = { item -> state.open(Overlay.Viewer(results.map { it.id }, item.id)) },
             header = {
                 item(key = "query", span = { GridItemSpan(maxLineSpan) }) {
+                    androidx.compose.foundation.layout.Column {
                     androidx.compose.foundation.layout.Row(
                         Modifier
                             .padding(horizontal = SCREEN_MARGIN)
@@ -401,9 +403,51 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                         )
                         if (query.isNotEmpty()) GlassIconButton(Icons.Rounded.Close, "Clear search", onClick = { query = "" })
                     }
+                    // People to tap before typing, like Google Photos (5 Nov).
+                    if (query.isBlank()) SearchPeopleRow(state, gallery)
+                    }
                 }
             },
         )
     }
 }
 
+
+/** Search, before anything is typed: round faces of the people in your photos, and "..." for all of them. */
+@Composable
+private fun SearchPeopleRow(state: ShellState, gallery: GalleryState) {
+    val people = state.people
+    if (!people.enabled) return
+    val onPhone = remember(gallery.items) { gallery.items.map { it.id }.toHashSet() }
+    val takenAt = remember(gallery.items) { gallery.items.associate { it.id to it.takenAtMillis } }
+    val shown = remember(people.people, people.spots, onPhone) {
+        FaceGrouping.shown(people.people.filter { !it.hidden }, people.spots, newest = { p -> people.photosOf(p).maxOfOrNull { takenAt[it] ?: 0L } ?: 0L })
+            .filter { p -> p.name != null || people.photosOf(p).count { it in onPhone } >= FaceGrouping.OTHERS_BELOW }
+            .take(12)
+    }
+    if (shown.isEmpty()) return
+    val thumbs = remember { androidx.compose.runtime.mutableStateMapOf<Int, ByteArray>() }
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SCREEN_MARGIN),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+    ) {
+        items(shown, key = { it.id }) { p ->
+            androidx.compose.foundation.layout.Box(Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable { state.open(Overlay.Person(p.id)) }) {
+                PersonCircle(people, p, thumbs, 64)
+            }
+        }
+        item(key = "more") {
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .size(64.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(LocalGlassTheme.current.onGlass.copy(alpha = 0.1f))
+                    .clickable { state.open(Overlay.People) },
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.MoreHoriz, "All people", tint = LocalGlassTheme.current.onGlass)
+            }
+        }
+    }
+}

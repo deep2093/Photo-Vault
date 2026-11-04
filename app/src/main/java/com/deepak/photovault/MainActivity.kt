@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity(), MediaActions {
     companion object {
         const val EXTRA_OPEN_BACKUP = "open_backup"
         const val EXTRA_OPEN_FAMILY = "open_family"
+        const val EXTRA_OPEN_PEOPLE = "open_people"
 
         /** The opening animation has played in this run of the app. */
         private var introPlayed = false
@@ -422,6 +423,11 @@ class MainActivity : ComponentActivity(), MediaActions {
         if (intent?.getBooleanExtra(EXTRA_OPEN_FAMILY, false) == true) {
             shell.overlays.clear()
             shell.destination = Destination.FAMILY
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_PEOPLE, false) == true) {
+            shell.overlays.clear()
+            shell.destination = Destination.ALBUMS
+            shell.open(Overlay.People)
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_BACKUP, false) == true) {
             shell.overlays.clear()

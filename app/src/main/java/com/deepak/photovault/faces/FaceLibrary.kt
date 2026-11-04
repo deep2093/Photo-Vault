@@ -10,6 +10,7 @@ import com.deepak.photovault.ui.shell.FaceGrouping
 import com.deepak.photovault.ui.shell.FaceSpot
 import com.deepak.photovault.ui.shell.PeopleSnapshot
 import com.deepak.photovault.ui.shell.Person
+import com.deepak.photovault.ui.shell.SamePersonQuestion
 import com.deepak.photovault.ui.shell.ScanProgress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,10 @@ import java.io.File
 /**
  * People's data on this phone only (7A, 5 Nov): the faces found (measurements and where they are, never pictures),
  * which photos were looked at, and the people with their names. Nothing here is uploaded. Turning People off deletes it.
+ *
+ * 7A-2: faces now also keep how much they face the camera and how sharp they are (faces2.bin). Faces found before
+ * (faces.bin) are used as "anchors" while every photo is looked at once more, so names and merges carry over; when
+ * that is done the old faces are dropped.
  */
 object FaceLibrary {
     private val lock = Mutex()
@@ -36,14 +41,20 @@ object FaceLibrary {
     @Volatile private var stopAsked = false
 
     private fun dir(context: Context) = File(context.applicationContext.filesDir, "people").apply { mkdirs() }
-    private fun facesFile(context: Context) = File(dir(context), "faces.bin")
-    private fun scannedFile(context: Context) = File(dir(context), "scanned.bin")
+    private fun oldFacesFile(context: Context) = File(dir(context), "faces.bin")
+    private fun oldScannedFile(context: Context) = File(dir(context), "scanned.bin")
+    private fun facesFile(context: Context) = File(dir(context), "faces2.bin")
+    private fun scannedFile(context: Context) = File(dir(context), "scanned2.bin")
     private fun peopleFile(context: Context) = File(dir(context), "people.json")
     fun thumbsDir(context: Context) = File(dir(context), "thumbs").apply { mkdirs() }
 
     fun enabled(context: Context): Boolean = prefs(context).getBoolean("on", false)
 
     fun setEnabled(context: Context, on: Boolean) { prefs(context).edit().putBoolean("on", on).apply() }
+
+    fun askByNotification(context: Context): Boolean = prefs(context).getBoolean("ask_notify", true)
+
+    fun setAskByNotification(context: Context, on: Boolean) { prefs(context).edit().putBoolean("ask_notify", on).apply() }
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("pixallery_people", Context.MODE_PRIVATE)
 
@@ -60,8 +71,7 @@ object FaceLibrary {
 
     // ---- Files ----
 
-    private fun readFaces(context: Context): List<Face> {
-        val file = facesFile(context)
+    private fun readFaces(file: File, withQuality: Boolean): List<Face> {
         if (!file.exists()) return emptyList()
         val out = mutableListOf<Face>()
         DataInputStream(file.inputStream().buffered()).use { input ->
@@ -70,9 +80,11 @@ object FaceLibrary {
                     val id = input.readInt()
                     val photo = input.readLong()
                     val box = FloatArray(4) { input.readFloat() }
+                    val frontal = if (withQuality) input.readFloat() else 1f
+                    val sharp = if (withQuality) input.readFloat() else Face.SHARP_DEFAULT
                     val n = input.readShort().toInt()
                     val v = FloatArray(n) { input.readFloat() }
-                    out += Face(id, photo, box, v)
+                    out += Face(id, photo, box, v, frontal, sharp)
                 }
             } catch (_: EOFException) {
                 // The end (or a half-written last face after a crash, which is dropped).
@@ -81,6 +93,9 @@ object FaceLibrary {
         return out
     }
 
+    /** New faces, plus the faces found before 7A-2 while they are still needed. */
+    private fun allFaces(context: Context): List<Face> = readFaces(oldFacesFile(context), false) + readFaces(facesFile(context), true)
+
     private fun appendFaces(context: Context, faces: List<Face>) {
         if (faces.isEmpty()) return
         DataOutputStream(java.io.FileOutputStream(facesFile(context), true).buffered()).use { out ->
@@ -88,14 +103,15 @@ object FaceLibrary {
                 out.writeInt(f.id)
                 out.writeLong(f.photoId)
                 f.box.forEach { out.writeFloat(it) }
+                out.writeFloat(f.frontal)
+                out.writeFloat(f.sharp)
                 out.writeShort(f.vector.size)
                 f.vector.forEach { out.writeFloat(it) }
             }
         }
     }
 
-    private fun readScanned(context: Context): MutableSet<Long> {
-        val file = scannedFile(context)
+    private fun readScanned(file: File): MutableSet<Long> {
         val out = HashSet<Long>()
         if (!file.exists()) return out
         DataInputStream(file.inputStream().buffered()).use { input ->
@@ -112,9 +128,11 @@ object FaceLibrary {
         DataOutputStream(java.io.FileOutputStream(scannedFile(context), true).buffered()).use { out -> ids.forEach { out.writeLong(it) } }
     }
 
-    private fun readPeople(context: Context): Pair<List<Person>, Int> {
+    private class Saved(val people: List<Person>, val next: Int, val different: Set<Pair<Int, Int>>, val questions: List<SamePersonQuestion>)
+
+    private fun readPeople(context: Context): Saved {
         val file = peopleFile(context)
-        if (!file.exists()) return emptyList<Person>() to 1
+        if (!file.exists()) return Saved(emptyList(), 1, emptySet(), emptyList())
         return runCatching {
             val root = JSONObject(file.readText())
             val arr = root.getJSONArray("people")
@@ -129,11 +147,15 @@ object FaceLibrary {
                     notFaces = ints("not"),
                 )
             }
-            list to root.optInt("next", (list.maxOfOrNull { it.id } ?: 0) + 1)
-        }.getOrDefault(emptyList<Person>() to 1)
+            val different = root.optJSONArray("different")?.let { a -> (0 until a.length()).map { val p = a.getJSONArray(it); p.getInt(0) to p.getInt(1) }.toSet() }.orEmpty()
+            val questions = root.optJSONArray("questions")?.let { a ->
+                (0 until a.length()).map { val q = a.getJSONArray(it); SamePersonQuestion(q.getInt(0), q.getInt(1), q.getDouble(2).toFloat()) }
+            }.orEmpty()
+            Saved(list, root.optInt("next", (list.maxOfOrNull { it.id } ?: 0) + 1), different, questions)
+        }.getOrDefault(Saved(emptyList(), 1, emptySet(), emptyList()))
     }
 
-    private fun writePeople(context: Context, people: List<Person>, next: Int) {
+    private fun writePeople(context: Context, people: List<Person>, next: Int, different: Set<Pair<Int, Int>>, questions: List<SamePersonQuestion>) {
         val arr = JSONArray()
         people.forEach { p ->
             arr.put(JSONObject().apply {
@@ -144,42 +166,90 @@ object FaceLibrary {
                 if (p.notFaces.isNotEmpty()) put("not", JSONArray(p.notFaces.toList()))
             })
         }
+        val diff = JSONArray().apply { different.forEach { put(JSONArray(listOf(it.first, it.second))) } }
+        val asks = JSONArray().apply { questions.forEach { put(JSONArray().put(it.a).put(it.b).put(it.score.toDouble())) } }
         val tmp = File(dir(context), "people.json.tmp")
-        tmp.writeText(JSONObject().put("people", arr).put("next", next).toString())
+        tmp.writeText(JSONObject().put("people", arr).put("next", next).put("different", diff).put("questions", asks).toString())
         if (!tmp.renameTo(peopleFile(context))) throw java.io.IOException("People couldn't be saved")
+    }
+
+    /** Groups new faces, joins groups of one person, and works out the questions. Under [lock]. */
+    private fun regroup(context: Context, all: List<Face>, join: Boolean): List<SamePersonQuestion> {
+        val saved = readPeople(context)
+        val (grouped, after) = FaceGrouping.group(all, saved.people, saved.next)
+        val people = if (join) FaceGrouping.joinGroups(all, grouped, saved.different) else grouped
+        val questions = if (join) {
+            val spots = all.associate { it.id to FaceSpot(it.id, it.photoId, it.box) }
+            FaceGrouping.questions(all, FaceGrouping.shown(people.filter { !it.hidden }, spots), saved.different)
+        } else {
+            saved.questions
+        }
+        writePeople(context, people, after, saved.different, questions)
+        return questions
     }
 
     // ---- Reading and changing ----
 
     suspend fun load(context: Context): PeopleSnapshot = lock.withLock {
         withContext(Dispatchers.Default) {
-            val faces = readFaces(context)
+            val faces = allFaces(context)
             // Once, for people grouped before groups were compared with each other (5 Nov).
             if (prefs(context).getInt("joined", 0) < JOIN_VERSION && peopleFile(context).exists()) {
-                val (people, next) = readPeople(context)
-                runCatching { writePeople(context, FaceGrouping.joinGroups(faces, people), next) }
+                runCatching { regroup(context, faces, join = true) }
                 prefs(context).edit().putInt("joined", JOIN_VERSION).apply()
             }
+            val saved = readPeople(context)
             PeopleSnapshot(
-                people = readPeople(context).first,
-                spots = faces.associate { it.id to FaceSpot(it.id, it.photoId, it.box) },
-                scanned = readScanned(context).size,
+                people = saved.people,
+                spots = faces.associate { it.id to FaceSpot(it.id, it.photoId, it.box, it.frontal, it.sharp) },
+                scanned = readScanned(scannedFile(context)).size,
+                questions = saved.questions,
+                lookingAgain = oldFacesFile(context).exists(),
             )
         }
     }
 
     suspend fun edit(context: Context, change: (List<Person>) -> List<Person>) = lock.withLock {
         withContext(Dispatchers.IO) {
-            val (people, next) = readPeople(context)
-            writePeople(context, change(people), next)
+            val saved = readPeople(context)
+            writePeople(context, change(saved.people), saved.next, saved.different, saved.questions)
+        }
+    }
+
+    /** "Same person?" answered: Yes joins the two, No is remembered. Either way the question goes. */
+    suspend fun answer(context: Context, q: SamePersonQuestion, same: Boolean) = lock.withLock {
+        withContext(Dispatchers.IO) {
+            val saved = readPeople(context)
+            val left = saved.questions.filterNot { it.a == q.a && it.b == q.b }
+            if (same) {
+                val a = saved.people.firstOrNull { it.id == q.a }
+                val b = saved.people.firstOrNull { it.id == q.b }
+                if (a == null || b == null) {
+                    writePeople(context, saved.people, saved.next, saved.different, left)
+                    return@withContext
+                }
+                val keep = if (a.name != null || (b.name == null && a.faces.size >= b.faces.size)) a else b
+                val gone = if (keep === a) b else a
+                val merged = FaceGrouping.merge(keep, listOf(gone))
+                // Questions about the person that was merged away now ask about the one that stayed.
+                val moved = left.map { x ->
+                    val na = if (x.a == gone.id) keep.id else x.a
+                    val nb = if (x.b == gone.id) keep.id else x.b
+                    SamePersonQuestion(minOf(na, nb), maxOf(na, nb), x.score)
+                }.filter { it.a != it.b }.distinctBy { it.a to it.b }
+                writePeople(context, saved.people.filter { it.id != a.id && it.id != b.id } + merged, saved.next, saved.different, moved)
+            } else {
+                writePeople(context, saved.people, saved.next, saved.different + (q.a to q.b), left)
+            }
         }
     }
 
     // ---- Scanning ----
 
     /**
-     * Looks at phone photos not looked at yet, newest first, up to [limit]. Returns true when photos are left for next
-     * time. Only one scan runs at a time; [stop] ends it after the current photo.
+     * Looks at phone photos not looked at yet (since 7A-2, with sharpness and pose), newest first, up to [limit].
+     * Returns true when photos are left for next time. Only one scan runs at a time; [stop] ends it after the current
+     * photo. When every photo has been looked at again, the faces from before 7A-2 are dropped.
      */
     suspend fun scan(context: Context, limit: Int = Int.MAX_VALUE): Boolean = withContext(Dispatchers.Default) {
         if (!enabled(context)) return@withContext false
@@ -188,24 +258,22 @@ object FaceLibrary {
         try {
             val engine = FaceEngine.create(context) ?: return@withContext false
             val photos = MediaStoreLibrary(context).loadAll().filter { !it.isVideo }.sortedByDescending { it.takenAtMillis }
-            val done = lock.withLock { withContext(Dispatchers.IO) { readScanned(context) } }
+            val done = lock.withLock { withContext(Dispatchers.IO) { readScanned(scannedFile(context)) } }
             val todo = photos.filter { it.id !in done }
             val batch = todo.take(limit)
-            var nextFace = lock.withLock { withContext(Dispatchers.IO) { (readFaces(context).maxOfOrNull { it.id } ?: 0) + 1 } }
+            var nextFace = lock.withLock { withContext(Dispatchers.IO) { (allFaces(context).maxOfOrNull { it.id } ?: 0) + 1 } }
             val newFaces = mutableListOf<Face>()
             val newScanned = mutableListOf<Long>()
             var count = photos.count { it.id in done }
             progress.value = ScanProgress(count, photos.size, running = true)
+            var questions: List<SamePersonQuestion> = emptyList()
             suspend fun flush(join: Boolean) {
                 lock.withLock {
                     withContext(Dispatchers.IO) {
                         appendFaces(context, newFaces)
                         appendScanned(context, newScanned)
-                        val all = readFaces(context)
-                        val (people, next) = readPeople(context)
-                        val (grouped, after) = FaceGrouping.group(all, people, next)
                         // Comparing whole groups is slower: done at the end of each turn, not every 40 photos.
-                        writePeople(context, if (join) FaceGrouping.joinGroups(all, grouped) else grouped, after)
+                        questions = regroup(context, allFaces(context), join)
                     }
                 }
                 newFaces.clear()
@@ -216,7 +284,7 @@ object FaceLibrary {
                 val bitmap = decode(context, item.uri, MAX_SIDE)
                 if (bitmap != null) {
                     try {
-                        engine.find(bitmap).forEach { f -> newFaces += Face(nextFace++, item.id, f.box, f.vector) }
+                        engine.find(bitmap).forEach { f -> newFaces += Face(nextFace++, item.id, f.box, f.vector, f.frontal, f.sharp) }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (_: Throwable) {
@@ -230,12 +298,41 @@ object FaceLibrary {
                 progress.value = ScanProgress(count, photos.size, running = true)
                 if (newScanned.size >= FLUSH_EVERY) flush(join = false)
             }
-            if (enabled(context)) flush(join = true)
+            if (enabled(context)) {
+                flush(join = true)
+                if (count >= photos.size) finishLookingAgain(context)
+            }
             progress.value = ScanProgress(count, photos.size, running = false)
+            if (enabled(context)) maybeNotify(context, questions)
             todo.size > batch.size || (stopAsked && count < photos.size)
         } finally {
             scanLock.unlock()
         }
+    }
+
+    /** Every photo has been looked at again: the faces from before 7A-2 leave the people, and their files go. */
+    private suspend fun finishLookingAgain(context: Context) = lock.withLock {
+        withContext(Dispatchers.IO) {
+            val old = oldFacesFile(context)
+            if (!old.exists()) return@withContext
+            val oldIds = readFaces(old, false).map { it.id }.toSet()
+            val saved = readPeople(context)
+            val people = saved.people.map { p -> p.copy(faces = p.faces - oldIds, notFaces = p.notFaces - oldIds) }
+                .filter { it.faces.isNotEmpty() || it.name != null }
+            writePeople(context, people, saved.next, saved.different, saved.questions)
+            old.delete()
+            oldScannedFile(context).delete()
+            oldIds.forEach { File(thumbsDir(context), "$it.jpg").delete() }
+        }
+    }
+
+    /** One quiet notification a day at most, when "Same person?" questions are waiting (7A-2). */
+    private fun maybeNotify(context: Context, questions: List<SamePersonQuestion>) {
+        if (questions.isEmpty() || !askByNotification(context)) return
+        val today = System.currentTimeMillis() / 86_400_000L
+        val p = prefs(context)
+        if (p.getLong("notified_day", -1L) == today) return
+        if (PeopleNotice.show(context, questions.size)) p.edit().putLong("notified_day", today).apply()
     }
 
     /** A small square of one face for its round picture, made once and kept. */
