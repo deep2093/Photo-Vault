@@ -33,8 +33,8 @@ jobs:
         run: |
           mkdir -p app/src/main/assets/faces
           base=https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models
-          curl -fsSL --retry 3 -o app/src/main/assets/faces/face_detection_yunet_2023mar.onnx $base/face_detection_yunet/face_detection_yunet_2023mar.onnx
-          curl -fsSL --retry 3 -o app/src/main/assets/faces/face_recognition_sface_2021dec.onnx $base/face_recognition_sface/face_recognition_sface_2021dec.onnx
+          curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o app/src/main/assets/faces/face_detection_yunet_2023mar.onnx $base/face_detection_yunet/face_detection_yunet_2023mar.onnx
+          curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o app/src/main/assets/faces/face_recognition_sface_2021dec.onnx $base/face_recognition_sface/face_recognition_sface_2021dec.onnx
           ls -l app/src/main/assets/faces
           sha256sum app/src/main/assets/faces/*
           # A Git LFS pointer instead of the model would be a few hundred bytes.
