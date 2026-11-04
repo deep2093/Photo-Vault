@@ -81,7 +81,8 @@ object FaceGrouping {
             Group(p, sum, spread(vectors, EXAMPLES).toMutableList(), p.faces.toMutableSet(), p.faces.mapNotNull { byId[it]?.photoId }.toMutableSet())
         }.toMutableList()
         var next = nextId
-        for (face in faces.sortedBy { it.id }) {
+        // Front faces first, so a side view can join a person made in the same scan.
+        for (face in faces.sortedWith(compareBy<Face> { it.turned }.thenBy { it.id })) {
             if (face.id in placed) continue
             var best: Group? = null
             var bestScore = SAME - 1e-6f
