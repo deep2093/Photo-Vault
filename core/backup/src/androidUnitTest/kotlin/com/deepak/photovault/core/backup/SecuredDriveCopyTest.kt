@@ -21,7 +21,7 @@ class SecuredDriveCopyTest {
     private val context = KeyContext("secured", "folder")
     private var clock = 1_000L
 
-    private fun tempDir(name: String) = File.createTempFile(name, "dir").let { it.delete(); it.mkdirs(); it }
+    private fun tempDir(name: String) = File.createTempFile("secured-$name", "dir").let { it.delete(); it.mkdirs(); it }
 
     private fun store(dir: File, k: MemberKeys = keys) = SecuredStore(dir, TinkVault(k, context))
 
