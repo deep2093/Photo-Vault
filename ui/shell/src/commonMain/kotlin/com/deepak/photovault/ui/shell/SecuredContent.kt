@@ -37,6 +37,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Deselect
 import androidx.compose.material.icons.rounded.Lock
@@ -171,6 +173,7 @@ class SecuredMover(
                     flight.launch(withPictures, aim())
                     gallery.dropNow(goneIds)
                     state.selected = emptySet()
+                    sec.platform.syncSoon()
                     val left = items.size - stored.size
                     actions.toast(
                         (if (stored.size == 1) "Moved 1 item to the Secured folder." else "Moved ${stored.size} items to the Secured folder.") +
@@ -237,6 +240,12 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
     val bin = remember { ScreenSpot() }
     val gridState = rememberLazyGridState()
     var screenWidth by remember { mutableFloatStateOf(0f) }
+    var driveDialog by remember { mutableStateOf(false) }
+    var driveLine by remember { mutableStateOf(platform.driveStatus()) }
+    LaunchedEffect(Unit) {
+        sec.lastNote?.let { note = it; sec.lastNote = null }
+        platform.syncSoon { driveLine = it }
+    }
     LaunchedEffect(reload) {
         val found = platform.items()
         items = found
@@ -286,6 +295,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
                 else -> "Moved $n of ${moving.size} out. The rest are still here."
             }
             reload++
+            platform.syncSoon { driveLine = it }
         }
     }
 
@@ -302,6 +312,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
             sec.viewing = null
             note = if (which.size == 1) "Deleted 1 item." else "Deleted ${which.size} items."
             reload++
+            platform.syncSoon { driveLine = it }
         }
     }
 
@@ -390,6 +401,11 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
                     )
                     GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { sec.selected = emptySet() })
                 } else {
+                    GlassIconButton(
+                        if (platform.driveCopyOn) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
+                        "Copy on the family drive",
+                        onClick = { driveLine = platform.driveStatus(); driveDialog = true },
+                    )
                     GlassIconButton(Icons.Rounded.Pin, "Change PIN", onClick = { changingPin = true })
                     GlassIconButton(Icons.Rounded.Lock, "Lock now", onClick = { sec.lock(); state.back() })
                 }
@@ -507,6 +523,39 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
                 deleteNow(which, tileFlying(which))
             },
         )
+    }
+    if (driveDialog) {
+        var on by remember { mutableStateOf(platform.driveCopyOn) }
+        var copying by remember { mutableStateOf(false) }
+        GlassDialog(
+            title = "Copy on the family drive",
+            onDismiss = { driveDialog = false },
+            buttons = {
+                com.deepak.photovault.designsystem.GlassButton("Close", onClick = { driveDialog = false })
+                if (on) com.deepak.photovault.designsystem.GlassButton(if (copying) "Copying..." else "Copy now", primary = true, onClick = {
+                    if (!copying) {
+                        copying = true
+                        scope.launch {
+                            driveLine = platform.copyToDriveNow()
+                            copying = false
+                        }
+                    }
+                })
+            },
+        ) {
+            com.deepak.photovault.designsystem.GlassSwitchRow(
+                title = "Keep an encrypted copy on the drive",
+                checked = on,
+                onCheckedChange = { on = it; platform.setDriveCopy(it) },
+                description = "Copied after each backup and whenever this folder changes. Only your recovery code opens it, on any phone.",
+            )
+            Text(
+                driveLine ?: if (on) "Not copied yet." else "Only on this phone. If you lose the phone, these items are gone.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
     }
     busy?.let { text ->
         GlassDialog(title = "Secured folder", onDismiss = {}, buttons = {}) {

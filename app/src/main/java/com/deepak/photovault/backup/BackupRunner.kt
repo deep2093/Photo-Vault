@@ -192,7 +192,7 @@ class BackupRunner(
                 state.queuePlace = 0
                 withContext(NonCancellable) { turn.leaveQueue() }
             }
-            return try {
+            val result = try {
                 coroutineScope {
                     val beat = launch {
                         while (true) {
@@ -212,6 +212,48 @@ class BackupRunner(
             } finally {
                 withContext(NonCancellable) { turn.finish() }
             }
+            // The Secured folder's encrypted copy goes up after the photos (8A part 2). Never fails the backup.
+            if (com.deepak.photovault.SecuredKeys.driveCopyOn(context) && com.deepak.photovault.SecuredKeys.store(context) != null) {
+                try {
+                    com.deepak.photovault.SecuredKeys.upload(context, fs, joined.me.userId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                }
+            }
+            return result
+        }
+    }
+
+    /**
+     * Opens the family drive as this person and runs [block] (the Secured folder's drive copy and restore, 8A part 2).
+     * Returns [block]'s line, or why the drive couldn't be used.
+     */
+    suspend fun onMyDrive(block: suspend (com.deepak.photovault.core.drive.DriveFileSystem, String) -> String): String {
+        if (!lock.tryLock()) return "A backup is running. The Secured folder is copied when it finishes."
+        try {
+            val connection = platform.loadConnection() ?: return FailureReason.NO_DRIVE.plain
+            if (connection.username.isNotBlank() && connection.password.isEmpty()) return FailureReason.NO_PASSWORD.plain
+            val drive = try {
+                platform.openDetached(connection)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                return classify(e).message
+            }
+            drive.use { fs ->
+                try {
+                    val membership = HouseholdStore(fs) { System.currentTimeMillis() }.membership(platform.deviceId, platform.rememberedUserId())
+                    val joined = membership as? Membership.Joined ?: return FailureReason.NOT_JOINED.plain
+                    return block(fs, joined.me.userId)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    return classify(e).message
+                }
+            }
+        } finally {
+            lock.unlock()
         }
     }
 

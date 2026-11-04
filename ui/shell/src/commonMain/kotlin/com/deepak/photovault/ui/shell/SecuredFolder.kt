@@ -148,6 +148,27 @@ interface SecuredPlatform {
     /** Erases the short-lived playing files. Called when the folder is left or locked. */
     fun clearTemp() = Unit
 
+    // ---- The copy on the family drive (8A part 2, 5 Nov) ----
+
+    /** Keep an encrypted copy on the family drive (on by default). */
+    val driveCopyOn: Boolean get() = false
+    fun setDriveCopy(on: Boolean) = Unit
+
+    /** The last copy's result in plain words, or null before the first one. */
+    fun driveStatus(): String? = null
+
+    /** Copies new items up and removes deleted ones now. Returns a line for the screen. */
+    suspend fun copyToDriveNow(): String = "Not available on this device."
+
+    /** Copies in a moment (after moving items in, deleting, or opening the folder), if the drive copy is on. */
+    fun syncSoon(onDone: (String) -> Unit = {}) = Unit
+
+    /**
+     * New phone: opens the folder's copy on the family drive with the 24 words or own code, keeps [newPin], and brings
+     * every item home. Returns a line for the screen; the folder is set up afterwards when it worked.
+     */
+    suspend fun restoreFromDrive(code: String, newPin: String): String = "Not available on this device."
+
     /** Changes the PIN. Null when it worked, else the problem in plain words. */
     suspend fun changePin(oldPin: String, newPin: String): String? = "Not available on this device."
 }
@@ -177,6 +198,9 @@ class SecuredState(val platform: SecuredPlatform = NoSecuredPlatform) {
     /** Photos picked inside the folder, and the one open in its viewer (so the back gesture closes them first). */
     var selected by mutableStateOf<Set<String>>(emptySet())
     var viewing by mutableStateOf<String?>(null)
+
+    /** A line to show once inside the folder (after a restore). */
+    var lastNote by mutableStateOf<String?>(null)
 
     fun lock() {
         unlocked = false
@@ -376,9 +400,14 @@ private fun SecuredSetupScreen(state: ShellState, sec: SecuredState) {
     var problem by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf<Boolean?>(null) }
+    var restoring by rememberSaveable { mutableStateOf(false) }
     // After a screen turn the typed PIN is gone from memory; start again.
     LaunchedEffect(chosenPin == null && step in 2..3) { if (chosenPin == null && step in 2..3) step = 0 }
     fun leave() { sec.platform.discard(); state.back() }
+    if (restoring) {
+        SecuredRestoreScreen(sec, onCancel = { restoring = false })
+        return
+    }
 
     GlassListScreen(title = "Secured folder", subtitle = "Step ${step + 1} of 4", onBack = { leave() }) {
         when (step) {
@@ -389,11 +418,12 @@ private fun SecuredSetupScreen(state: ShellState, sec: SecuredState) {
                         listOf(
                             "Photos you move here are locked with a PIN (or your fingerprint) and scrambled on this phone. They disappear from Photos, Albums and other gallery apps.",
                             "You will choose a PIN and get a recovery code (24 words, or a code of your own). The code is the only way back in if you forget the PIN.",
-                            "For now locked photos stay on this phone only; they are not backed up to the drive yet. If you lose the phone, they are gone.",
+                            "An encrypted copy is kept on the family drive (you can turn it off inside the folder). Nobody can open it without your recovery code, not even the family owner.",
                         ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
                     }
                 }
                 item { GlassButton("Choose my PIN", primary = true, onClick = { step = 1 }) }
+                item { GlassButton("Restore from the family drive", onClick = { restoring = true }) }
             }
             1 -> {
                 item {
@@ -509,3 +539,63 @@ private fun SecuredSetupScreen(state: ShellState, sec: SecuredState) {
 
 @Composable
 private fun SecuredContentScreen(state: ShellState, sec: SecuredState) = SecuredFolderContent(state, sec)
+
+/** New phone (8A part 2): the recovery words or own code, a new PIN, then everything comes home from the family drive. */
+@Composable
+private fun SecuredRestoreScreen(sec: SecuredState, onCancel: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
+    var first by remember { mutableStateOf<String?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+    GlassListScreen(title = "Secured folder", subtitle = "Restore from the family drive", onBack = { if (!working) onCancel() }) {
+        item {
+            GlassCard(Modifier.cardWidth()) {
+                Text("Type your recovery words or your own code", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("The same ones you kept when you made the Secured folder on your old phone. Connect to the home Wi-Fi first.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 4.dp))
+                GlassTextField(code, { code = it }, "Recovery words or code", minLines = 3)
+            }
+        }
+        item {
+            GlassCard(Modifier.cardWidth()) {
+                Text(if (first == null) "Choose a PIN for this phone" else "Type the PIN again", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                PinEntry(pin, onChange = { next ->
+                    if (working) return@PinEntry
+                    pin = next
+                    if (next.length == SecuredRules.PIN_LENGTH) {
+                        pin = ""
+                        val one = first
+                        if (one == null) {
+                            val bad = SecuredRules.pinProblem(next)
+                            if (bad != null) message = bad else { first = next; message = null }
+                        } else if (one != next) {
+                            first = null
+                            message = "The two PINs are different. Choose it again."
+                        } else if (code.isBlank()) {
+                            first = null
+                            message = "Type your recovery words or code first."
+                        } else {
+                            working = true
+                            message = "Bringing your Secured folder home. Keep the app open..."
+                            scope.launch {
+                                val line = sec.platform.restoreFromDrive(code, next)
+                                working = false
+                                sec.refresh()
+                                if (sec.setUp) {
+                                    sec.unlocked = true
+                                    sec.lastNote = line
+                                } else {
+                                    first = null
+                                    message = line
+                                }
+                            }
+                        }
+                    }
+                })
+                message?.let { Text(it, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
+            }
+        }
+    }
+}

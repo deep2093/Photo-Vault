@@ -100,13 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-03-2"
+    const val ID = "2026-11-05-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Move-out animation", "Moving items out of the Secured folder pulls them up and out of the top of the screen."),
-        Change(ChangeKind.CHANGED, "Secured folder stays open while you use the app", "Once unlocked, leaving the folder and going back in doesn't ask again. It locks when the app goes to the background, or when you tap Lock now. The Albums tile shows Unlocked or Locked."),
-        Change(ChangeKind.FIXED, "Move-in animation", "The photos now really get sucked into the lock button (the picture was gone before the effect could draw it)."),
-        Change(ChangeKind.FIXED, "Secured viewer toolbar", "The bottom toolbar in the Secured folder's viewer now uses the same glass as the main viewer, not a darker one."),
+        Change(ChangeKind.NEW, "Secured folder on the family drive", "Your Secured folder now keeps an encrypted copy on the family drive. It is copied after each backup and whenever the folder changes. Nothing on the drive can be read, not even the names, without your recovery code."),
+        Change(ChangeKind.NEW, "Restore on a new phone", "On a new phone, open Albums > Secured folder and tap Restore from the family drive. Type your 24 words or your own code, choose a PIN, and everything comes back to its place."),
+        Change(ChangeKind.NEW, "Drive copy switch", "Inside the Secured folder, the cloud button shows when it was last copied, lets you copy now, or turn the drive copy off."),
+        Change(ChangeKind.CHANGED, "Delete for good and Move out", "These now remove the drive copy too, at the next copy."),
     )
 }
 

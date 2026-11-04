@@ -13,6 +13,7 @@ import androidx.credentials.CreatePasswordRequest
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.lifecycleScope
 import com.deepak.photovault.backup.AndroidMediaReader
+import com.deepak.photovault.core.backup.SecuredDriveCopy
 import com.deepak.photovault.core.backup.SecuredPaths
 import com.deepak.photovault.core.backup.SecuredStore
 import com.deepak.photovault.core.backup.TinkVault
@@ -153,7 +154,11 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
                 .putLong(UNTIL, 0L)
                 .commit()
         }.getOrDefault(false) && root() != null
-        if (ok) pending = null
+        if (ok) {
+            pending = null
+            SecuredKeys.forget()
+            syncSoon()
+        }
         return ok
     }
 
@@ -165,17 +170,9 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         val envelope = prefs.getString(RECOVERY, null)?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
             ?: return@withContext "This phone has no recovery to open."
         val saltText = prefs.getString(CODE_SALT, null)
-        val secret: ByteArray = if (saltText == null) {
-            when (val parsed = RecoveryCode.parse(code)) {
-                is RecoveryCode.Parsed.Ok -> parsed.secret
-                is RecoveryCode.Parsed.WrongCount -> return@withContext "There should be 24 words; you typed ${parsed.found}."
-                is RecoveryCode.Parsed.UnknownWord -> return@withContext "Word ${parsed.position} (\"${parsed.word}\") isn't one of the recovery words. Check the spelling."
-                RecoveryCode.Parsed.BadCheck -> return@withContext "These words don't add up. A word is wrong or out of order."
-            }
-        } else {
-            val salt = runCatching { Base64.decode(saltText, Base64.NO_WRAP) }.getOrNull() ?: return@withContext "The recovery is damaged."
-            ownSecret(code, salt)
-        }
+        val salt = saltText?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() ?: return@withContext "The recovery is damaged." }
+        val (secret, problem) = secretFor(code, salt)
+        if (secret == null) return@withContext problem ?: "That doesn't open the Secured folder's recovery."
         val opened = RecoveryEnvelope.unwrap(envelope, secret, context)
             ?: return@withContext "That doesn't open the Secured folder's recovery."
         val local = root()
@@ -218,13 +215,7 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
 
     // ---- Photos in the folder ----
 
-    private var cachedStore: SecuredStore? = null
-
-    private fun store(): SecuredStore? {
-        cachedStore?.let { return it }
-        val keys = root() ?: return null
-        return SecuredStore(File(activity.filesDir, "secured"), TinkVault(keys, context)).also { cachedStore = it }
-    }
+    private fun store(): SecuredStore? = SecuredKeys.store(activity)
 
     override suspend fun items(): List<SecuredItem>? = withContext(Dispatchers.IO) {
         val st = store() ?: return@withContext null
@@ -370,6 +361,82 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         runCatching { playDir.deleteRecursively() }
     }
 
+    /** The secret that opens a recovery: the 24 words, or the own code with its salt. A message when the words are wrong. */
+    private fun secretFor(code: String, salt: ByteArray?): Pair<ByteArray?, String?> {
+        if (salt != null) return ownSecret(code, salt) to null
+        return when (val parsed = RecoveryCode.parse(code)) {
+            is RecoveryCode.Parsed.Ok -> parsed.secret to null
+            is RecoveryCode.Parsed.WrongCount -> null to "There should be 24 words; you typed ${parsed.found}."
+            is RecoveryCode.Parsed.UnknownWord -> null to "Word ${parsed.position} (\"${parsed.word}\") isn't one of the recovery words. Check the spelling."
+            RecoveryCode.Parsed.BadCheck -> null to "These words don't add up. A word is wrong or out of order."
+        }
+    }
+
+    // ---- The copy on the family drive (8A part 2) ----
+
+    override val driveCopyOn: Boolean get() = SecuredKeys.driveCopyOn(activity)
+
+    override fun setDriveCopy(on: Boolean) {
+        SecuredKeys.setDriveCopyOn(activity, on)
+        if (on) syncSoon()
+    }
+
+    override fun driveStatus(): String? = SecuredKeys.status(activity)
+
+    override suspend fun copyToDriveNow(): String = withContext(Dispatchers.IO) {
+        if (store() == null) return@withContext "Set up the Secured folder first."
+        com.deepak.photovault.backup.BackupGraph.get(activity).runner.onMyDrive { fs, userId -> SecuredKeys.upload(activity, fs, userId) }
+    }
+
+    private var syncJob: kotlinx.coroutines.Job? = null
+
+    override fun syncSoon(onDone: (String) -> Unit) {
+        if (!driveCopyOn || store() == null) return
+        syncJob?.cancel()
+        syncJob = activity.lifecycleScope.launch {
+            kotlinx.coroutines.delay(2_500)
+            onDone(copyToDriveNow())
+        }
+    }
+
+    override suspend fun restoreFromDrive(code: String, newPin: String): String = withContext(Dispatchers.IO) {
+        com.deepak.photovault.backup.BackupGraph.get(activity).runner.onMyDrive { fs, userId ->
+            val blob = SecuredDriveCopy.recovery(fs, userId) ?: return@onMyDrive "There is no Secured folder copy on the family drive for you."
+            val lines = blob.decodeToString().lines()
+            val envelope = lines.getOrNull(1)?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
+                ?: return@onMyDrive "The copy on the drive is damaged."
+            val saltText = lines.getOrNull(2)?.takeIf { it.isNotBlank() && it != "-" }
+            val salt = saltText?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() ?: return@onMyDrive "The copy on the drive is damaged." }
+            val (secret, problem) = secretFor(code, salt)
+            if (secret == null) return@onMyDrive problem ?: "That doesn't open the Secured folder."
+            val opened = RecoveryEnvelope.unwrap(envelope, secret, context)
+                ?: return@onMyDrive if (salt == null) "Those words don't open your Secured folder copy." else "That code doesn't open your Secured folder copy."
+            val local = root()
+            if (local != null && !MessageDigest.isEqual(local.root, opened)) return@onMyDrive "This phone already has a different Secured folder."
+            if (local == null) {
+                val saved = runCatching {
+                    prefs.edit()
+                        .putString(ROOT, Base64.encodeToString(box.seal(opened), Base64.NO_WRAP))
+                        .putString(PIN, pinRecord(newPin))
+                        .putString(RECOVERY, Base64.encodeToString(envelope, Base64.NO_WRAP))
+                        .putString(CODE_SALT, saltText)
+                        .putInt(FAILED, 0)
+                        .putLong(UNTIL, 0L)
+                        .commit()
+                }.getOrDefault(false)
+                SecuredKeys.forget()
+                if (!saved || root() == null) return@onMyDrive "The key couldn't be kept on this phone. Nothing was changed."
+            }
+            val st = store() ?: return@onMyDrive "The key couldn't be kept on this phone."
+            val result = SecuredDriveCopy(fs, userId, st).download(File(activity.filesDir, "secured_dl"))
+            when {
+                result.total == 0 -> "Your Secured folder is back. There was nothing to bring home."
+                result.failed == 0 -> "Your Secured folder is back with ${result.restored} item(s)."
+                else -> "Brought back ${result.restored} item(s). ${result.failed} didn't pass the check and stay on the drive; try again later."
+            }
+        }
+    }
+
     override suspend fun changePin(oldPin: String, newPin: String): String? = withContext(Dispatchers.Default) {
         val tried = tryPin(oldPin)
         if (!tried.ok) {
@@ -388,5 +455,62 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         const val PIN_ITERATIONS = 150_000
         const val CODE_ITERATIONS = 600_000
         const val SHARE_KEEP_MS = 15 * 60 * 1000L
+    }
+}
+
+/**
+ * The Secured folder's key and files, for code that runs without the screen (the backup after it finishes, 8A part 2).
+ * One shared store, so the folder and the backup never write its list at the same time.
+ */
+object SecuredKeys {
+    private const val PREFS = "pixallery_secured"
+    private val box = SecretBox("pixallery_secured_root_v1")
+    private val keyContext = KeyContext("secured", "folder")
+
+    @Volatile private var cached: SecuredStore? = null
+
+    private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private fun root(context: Context): MemberKeys? =
+        prefs(context).getString("root", null)?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
+            ?.let { box.open(it) }?.takeIf { it.size == 32 }?.let { MemberKeys(it) }
+
+    @Synchronized
+    fun store(context: Context): SecuredStore? {
+        cached?.let { return it }
+        val keys = root(context) ?: return null
+        return SecuredStore(File(context.applicationContext.filesDir, "secured"), TinkVault(keys, keyContext)).also { cached = it }
+    }
+
+    /** The key changed (a new folder was made, or one came back from the drive). */
+    @Synchronized
+    fun forget() { cached = null }
+
+    /** The recovery as one small file for the drive: the key locked by the 24 words (or by the own code, with its salt). */
+    fun recoveryBlob(context: Context): ByteArray? {
+        val p = prefs(context)
+        val envelope = p.getString("recovery", null) ?: return null
+        return "v1\n$envelope\n${p.getString("code_salt", null) ?: "-"}".encodeToByteArray()
+    }
+
+    fun driveCopyOn(context: Context): Boolean = prefs(context).getBoolean("drive_copy", true)
+
+    fun setDriveCopyOn(context: Context, on: Boolean) { prefs(context).edit().putBoolean("drive_copy", on).apply() }
+
+    fun status(context: Context): String? = prefs(context).getString("drive_status", null)
+
+    /** Copies the folder to the drive and returns a line for the screen (also kept as the last status). */
+    suspend fun upload(context: Context, drive: com.deepak.photovault.core.drive.DriveFileSystem, userId: String): String {
+        val st = store(context) ?: return "Set up the Secured folder first."
+        val recovery = recoveryBlob(context) ?: return "The Secured folder's recovery is missing on this phone."
+        val result = SecuredDriveCopy(drive, userId, st).upload(recovery)
+        val time = java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+        val line = when {
+            result.failed > 0 -> "Copied to the family drive at $time, but ${result.failed} item(s) didn't go. They try again next time."
+            result.total == 1 -> "1 item is on the family drive (checked $time)."
+            else -> "${result.total} items are on the family drive (checked $time)."
+        }
+        prefs(context).edit().putString("drive_status", line).apply()
+        return line
     }
 }

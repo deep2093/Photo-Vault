@@ -204,9 +204,68 @@ class SecuredStore(private val dir: File, private val vault: PrivateVault, priva
         val gone = entries.filter { it.id in ids }
         if (gone.isEmpty()) return@withLock
         writeIndex(entries - gone.toSet())
+        // Remembered so the drive copy is deleted too at the next copy (8A part 2).
+        runCatching { File(dir, DELETED).appendText(gone.joinToString("") { it.id + "\n" }) }
         gone.forEach { e ->
             fileFor(ObjectKind.MEDIA, e.id)?.delete()
             fileFor(ObjectKind.THUMB, e.id)?.delete()
+        }
+    }
+
+    /** Items deleted (or moved out) on this phone whose drive copy still has to go. */
+    suspend fun pendingDeletes(): Set<String> = lock.withLock {
+        runCatching { File(dir, DELETED).readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet() }.getOrDefault(emptySet())
+    }
+
+    /** The drive copy of these is gone: forget them. */
+    suspend fun forgetDeletes(ids: Set<String>) = lock.withLock {
+        val file = File(dir, DELETED)
+        val left = runCatching { file.readLines().map { it.trim() }.filter { it.isNotEmpty() && it !in ids } }.getOrDefault(emptyList())
+        if (left.isEmpty()) file.delete() else file.writeText(left.joinToString("") { it + "\n" })
+    }
+
+    /** The list sealed with the folder's key, for the drive copy. */
+    fun seal(entries: List<SecuredEntry>): ByteArray =
+        vault.sealRecord(json.encodeToString(ListSerializer(SecuredEntry.serializer()), entries).encodeToByteArray(), PURPOSE)
+
+    /** A sealed list from the drive, or null when it isn't this folder's or was changed. */
+    fun open(sealed: ByteArray): List<SecuredEntry>? = runCatching {
+        val plain = vault.openRecord(sealed, PURPOSE) ?: return null
+        json.decodeFromString(ListSerializer(SecuredEntry.serializer()), plain.decodeToString())
+    }.getOrNull()
+
+    /** The encrypted file of an item on this phone ([thumb] for its small picture), or null. */
+    fun encryptedFile(id: String, thumb: Boolean): File? = fileFor(if (thumb) ObjectKind.THUMB else ObjectKind.MEDIA, id)
+
+    /**
+     * Takes in an item copied from the drive: [media] and [thumb] are its encrypted files. Kept only when the photo
+     * decrypts and matches the list's size and checksum; the files are then moved into the folder.
+     */
+    suspend fun adopt(entry: SecuredEntry, media: File, thumb: File): Boolean = lock.withLock {
+        val target = fileFor(ObjectKind.MEDIA, entry.id) ?: return@withLock false
+        val targetThumb = fileFor(ObjectKind.THUMB, entry.id) ?: return@withLock false
+        try {
+            val entries = readIndex()
+            if (entries.any { it.id == entry.id }) return@withLock true
+            val checker = newSha256()
+            var size = 0L
+            vault.decrypt(ObjectKind.MEDIA, entry.id, { sink -> feed(media, sink) }) { b, n ->
+                checker.update(b, 0, n)
+                size += n
+            }
+            if (size != entry.sizeBytes || checker.hex() != entry.sha256) return@withLock false
+            vault.decrypt(ObjectKind.THUMB, entry.id, { sink -> feed(thumb, sink) }) { _, _ -> }
+            dir.mkdirs()
+            if (!media.renameTo(target) || !thumb.renameTo(targetThumb)) {
+                target.delete(); targetThumb.delete()
+                return@withLock false
+            }
+            writeIndex(entries + entry)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -226,6 +285,7 @@ class SecuredStore(private val dir: File, private val vault: PrivateVault, priva
 
     private companion object {
         const val PURPOSE = "secured-index-v1"
+        const val DELETED = "deleted.txt"
         const val BUFFER = 64 * 1024
     }
 }
