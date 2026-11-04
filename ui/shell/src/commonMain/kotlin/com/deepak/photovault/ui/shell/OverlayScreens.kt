@@ -57,7 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Lock
 
-private fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
+internal fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
 
 /** An album page: a phone folder, Favourites or Videos, with the same grid and selection as Photos. */
 @Composable
@@ -343,7 +343,16 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val theme = LocalGlassTheme.current
     val zone = remember { TimeZone.currentSystemDefault() }
     var query by rememberSaveable { mutableStateOf("") }
-    val results = remember(query, gallery.items, gallery.favourites) { MediaSearch.filter(gallery.items, query, gallery.favourites, zone) }
+    // People's names count too (7A): "Mum" finds the photos Mum is in.
+    val named = remember(query, state.people.people, state.people.spots) { state.people.photosNamed(query) }
+    val results = remember(query, gallery.items, gallery.favourites, named) {
+        val found = MediaSearch.filter(gallery.items, query, gallery.favourites, zone)
+        if (named.isEmpty()) found else {
+            val ids = found.map { it.id }.toHashSet()
+            (found + gallery.items.filter { it.id in named && it.id !in ids }).sortedByDescending { it.takenAtMillis }
+        }
+    }
+    LaunchedEffect(Unit) { if (state.people.enabled) state.people.refresh() }
     val sections = remember(results) { Timeline.group(results, TimelineGrouping.MONTH, zone, today(zone)) }
     val focus = remember { FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current

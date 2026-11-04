@@ -29,6 +29,17 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
       - name: Verify preview keystore loads
         run: keytool -list -keystore .ci/preview-signing.p12 -storetype PKCS12 -storepass android
+      - name: Fetch the People face models (OpenCV Zoo, Apache 2.0 / MIT)
+        run: |
+          mkdir -p app/src/main/assets/faces
+          base=https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models
+          curl -fsSL --retry 3 -o app/src/main/assets/faces/face_detection_yunet_2023mar.onnx $base/face_detection_yunet/face_detection_yunet_2023mar.onnx
+          curl -fsSL --retry 3 -o app/src/main/assets/faces/face_recognition_sface_2021dec.onnx $base/face_recognition_sface/face_recognition_sface_2021dec.onnx
+          ls -l app/src/main/assets/faces
+          sha256sum app/src/main/assets/faces/*
+          # A Git LFS pointer instead of the model would be a few hundred bytes.
+          test $(stat -c %s app/src/main/assets/faces/face_detection_yunet_2023mar.onnx) -gt 100000
+          test $(stat -c %s app/src/main/assets/faces/face_recognition_sface_2021dec.onnx) -gt 1000000
       - name: Start a throwaway Samba share (real-drive tests)
         run: bash tools/start_test_share.sh
       - name: Unit tests (all modules)

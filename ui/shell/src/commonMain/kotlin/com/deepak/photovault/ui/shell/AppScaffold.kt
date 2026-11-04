@@ -446,6 +446,8 @@ private fun OverlayPage(
                         is Overlay.CoverPicker -> CoverPickerScreen(overlay, state, gallery)
                         is Overlay.CropCover -> CoverCropScreen(overlay, state, gallery)
                         Overlay.Secured -> SecuredFolderScreen(state)
+                        Overlay.People -> PeopleScreen(state, gallery)
+                        is Overlay.Person -> PersonScreen(overlay.personId, state, gallery, actions)
                         Overlay.HiddenAlbums -> HiddenAlbumsScreen(state, gallery)
                         is Overlay.Viewer -> Unit
                     }

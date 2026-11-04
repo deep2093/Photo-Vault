@@ -15,3 +15,7 @@
 -dontwarn org.slf4j.**
 -dontwarn javax.el.**
 -dontwarn org.ietf.jgss.**
+
+# OpenCV (People): Java classes are bound to native code by name.
+-keep class org.opencv.** { *; }
+-dontwarn org.opencv.**

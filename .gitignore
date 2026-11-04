@@ -5,3 +5,6 @@ local.properties
 *.iml
 *.apk
 .DS_Store
+
+# People face models: fetched by CI (see .github/workflows/android.yml)
+app/src/main/assets/faces/

@@ -278,6 +278,8 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.remote = remote.state
         state.encryption = com.deepak.photovault.ui.shell.EncryptionState(AndroidEncryption(this))
         state.secured = com.deepak.photovault.ui.shell.SecuredState(AndroidSecured(this))
+        state.people = com.deepak.photovault.ui.shell.PeopleState(com.deepak.photovault.faces.AndroidPeople(this))
+        com.deepak.photovault.faces.FaceScanWorker.schedule(this)
         // Going to another app locks the Secured folder again.
         lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
             override fun onStop(owner: androidx.lifecycle.LifecycleOwner) = state.secured.lock()

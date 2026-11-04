@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.VideoLibrary
@@ -350,19 +351,21 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 },
         ) {
             item(key = "places", span = { GridItemSpan(maxLineSpan) }) {
-                // Three equal tiles, same height, lined up (24 Oct). On tablets they stay small instead of stretching.
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                // Four tiles in two rows (5 Nov: People joined; three in a row cut their names short).
+                Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val tile = if (tablet) Modifier.width(200.dp) else Modifier.weight(1f)
-                    PlaceTile(
-                        Icons.Rounded.Delete, "Recently deleted",
-                        if (gallery.trashed.isEmpty()) "Empty" else "",
-                        tile,
-                    ) { state.open(Overlay.RecentlyDeleted) }
-                    PlaceTile(Icons.Rounded.Place, "Places", "Soon", tile, enabled = false) {}
-                    PlaceTile(Icons.Rounded.Lock, "Secured folder", if (!state.secured.setUp) "Set up" else if (state.secured.unlocked) "Unlocked" else "Locked", tile) { state.open(Overlay.Secured) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PlaceTile(Icons.Rounded.Face, "People", if (!state.people.enabled) "Off" else "", tile) { state.open(Overlay.People) }
+                        PlaceTile(Icons.Rounded.Lock, "Secured folder", if (!state.secured.setUp) "Set up" else if (state.secured.unlocked) "Unlocked" else "Locked", tile) { state.open(Overlay.Secured) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PlaceTile(
+                            Icons.Rounded.Delete, "Recently deleted",
+                            if (gallery.trashed.isEmpty()) "Empty" else "",
+                            tile,
+                        ) { state.open(Overlay.RecentlyDeleted) }
+                        PlaceTile(Icons.Rounded.Place, "Places", "Soon", tile, enabled = false) {}
+                    }
                 }
             }
             items(cards, key = { "card:${it.id}" }) { card ->

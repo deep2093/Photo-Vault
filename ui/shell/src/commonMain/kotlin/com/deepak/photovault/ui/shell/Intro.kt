@@ -100,13 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-05-1"
+    const val ID = "2026-11-05-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Secured folder on the family drive", "Your Secured folder now keeps an encrypted copy on the family drive. It is copied after each backup and whenever the folder changes. Nothing on the drive can be read, not even the names, without your recovery code."),
-        Change(ChangeKind.NEW, "Restore on a new phone", "On a new phone, open Albums > Secured folder and tap Restore from the family drive. Type your 24 words or your own code, choose a PIN, and everything comes back to its place."),
-        Change(ChangeKind.NEW, "Drive copy switch", "Inside the Secured folder, the cloud button shows when it was last copied, lets you copy now, or turn the drive copy off."),
-        Change(ChangeKind.CHANGED, "Delete for good and Move out", "These now remove the drive copy too, at the next copy."),
+        Change(ChangeKind.NEW, "People", "Albums > People finds faces in your photos and groups the same person together. It is off until you turn it on, works only on this phone, and looks at photos while the phone is charging (or now, if you tap Scan now)."),
+        Change(ChangeKind.NEW, "Name people and search", "Open a person to add their name, then search their name in Search. Giving two groups the same name puts them together."),
+        Change(ChangeKind.NEW, "Fix mistakes", "Press and hold people to merge them or hide them. Inside a person, select photos and tap \"Not this person\" to take them out for good."),
+        Change(ChangeKind.CHANGED, "Albums tiles", "People, Secured folder, Recently deleted and Places now sit in two rows of two."),
     )
 }
 

@@ -90,6 +90,12 @@ sealed interface Overlay {
     /** The Secured folder: set up, locked or open (Phase 8A, 1 Nov). */
     data object Secured : Overlay
 
+    /** Albums > People: faces grouped into people (Phase 7A, 5 Nov). */
+    data object People : Overlay
+
+    /** One person's photos. */
+    data class Person(val personId: Int) : Overlay
+
     /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
     data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
 
@@ -177,6 +183,7 @@ class ShellState(private val store: AppearanceStore) {
                 Overlay.RecentlyDeleted -> listOf("trash")
                 Overlay.DriveRecentlyDeleted -> listOf("drivetrash")
                 Overlay.Search -> listOf("search")
+                Overlay.People -> listOf("people")
                 else -> null
             }?.joinToString("\u001F")
         }
@@ -206,6 +213,7 @@ class ShellState(private val store: AppearanceStore) {
                 "trash" -> Overlay.RecentlyDeleted
                 "drivetrash" -> Overlay.DriveRecentlyDeleted
                 "search" -> Overlay.Search
+                "people" -> Overlay.People
                 else -> null
             }
             if (overlay != null) overlays.add(overlay)
@@ -267,7 +275,8 @@ class ShellState(private val store: AppearanceStore) {
     /** A back gesture moves the top page itself only when nothing smaller (a selection, the details) would close first. */
     val canDragBack: Boolean
         get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && !albumsSelectMode && overlays.lastOrNull().slidesSideways() &&
-            !(overlays.lastOrNull() is Overlay.Secured && (secured.viewing != null || secured.selected.isNotEmpty()))
+            !(overlays.lastOrNull() is Overlay.Secured && (secured.viewing != null || secured.selected.isNotEmpty())) &&
+            !(overlays.lastOrNull() == Overlay.People && people.selected.isNotEmpty())
 
     suspend fun dragBack(progress: Float, toRight: Boolean) {
         pageBackDir = if (toRight) 1 else -1
@@ -333,6 +342,10 @@ class ShellState(private val store: AppearanceStore) {
             secured.selected = emptySet()
             true
         }
+        overlays.lastOrNull() == Overlay.People && people.selected.isNotEmpty() -> {
+            people.selected = emptySet()
+            true
+        }
         // Choosing a cover uses the photo picks; back leaves the page in one go.
         overlays.lastOrNull() is Overlay.CoverPicker -> {
             selected = emptySet()
@@ -394,6 +407,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** The Secured folder's lock and key (Phase 8A). */
     var secured: SecuredState = SecuredState()
+
+    /** People: faces found on this phone (Phase 7A). */
+    var people: PeopleState = PeopleState()
 
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)
