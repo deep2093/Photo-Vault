@@ -43,8 +43,10 @@ object FaceLibrary {
     private fun dir(context: Context) = File(context.applicationContext.filesDir, "people").apply { mkdirs() }
     private fun oldFacesFile(context: Context) = File(dir(context), "faces.bin")
     private fun oldScannedFile(context: Context) = File(dir(context), "scanned.bin")
-    private fun facesFile(context: Context) = File(dir(context), "faces2.bin")
-    private fun scannedFile(context: Context) = File(dir(context), "scanned2.bin")
+    private fun midFacesFile(context: Context) = File(dir(context), "faces2.bin")
+    private fun midScannedFile(context: Context) = File(dir(context), "scanned2.bin")
+    private fun facesFile(context: Context) = File(dir(context), "faces3.bin")
+    private fun scannedFile(context: Context) = File(dir(context), "scanned3.bin")
     private fun peopleFile(context: Context) = File(dir(context), "people.json")
     fun thumbsDir(context: Context) = File(dir(context), "thumbs").apply { mkdirs() }
 
@@ -71,7 +73,8 @@ object FaceLibrary {
 
     // ---- Files ----
 
-    private fun readFaces(file: File, withQuality: Boolean): List<Face> {
+    /** [version] 1: no quality; 2: pose and sharpness; 3: also eye visibility (5 Nov). */
+    private fun readFaces(file: File, version: Int): List<Face> {
         if (!file.exists()) return emptyList()
         val out = mutableListOf<Face>()
         DataInputStream(file.inputStream().buffered()).use { input ->
@@ -80,11 +83,12 @@ object FaceLibrary {
                     val id = input.readInt()
                     val photo = input.readLong()
                     val box = FloatArray(4) { input.readFloat() }
-                    val frontal = if (withQuality) input.readFloat() else 1f
-                    val sharp = if (withQuality) input.readFloat() else Face.SHARP_DEFAULT
+                    val frontal = if (version >= 2) input.readFloat() else 1f
+                    val sharp = if (version >= 2) input.readFloat() else Face.SHARP_DEFAULT
+                    val eyes = if (version >= 3) input.readFloat() else 1f
                     val n = input.readShort().toInt()
                     val v = FloatArray(n) { input.readFloat() }
-                    out += Face(id, photo, box, v, frontal, sharp)
+                    out += Face(id, photo, box, v, frontal, sharp, eyes)
                 }
             } catch (_: EOFException) {
                 // The end (or a half-written last face after a crash, which is dropped).
@@ -93,8 +97,11 @@ object FaceLibrary {
         return out
     }
 
-    /** New faces, plus the faces found before 7A-2 while they are still needed. */
-    private fun allFaces(context: Context): List<Face> = readFaces(oldFacesFile(context), false) + readFaces(facesFile(context), true)
+    /** New faces, plus the faces found by earlier versions while they are still needed (until every photo is looked at again). */
+    private fun allFaces(context: Context): List<Face> =
+        readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2) + readFaces(facesFile(context), 3)
+
+    private fun olderFacesExist(context: Context) = oldFacesFile(context).exists() || midFacesFile(context).exists()
 
     private fun appendFaces(context: Context, faces: List<Face>) {
         if (faces.isEmpty()) return
@@ -105,6 +112,7 @@ object FaceLibrary {
                 f.box.forEach { out.writeFloat(it) }
                 out.writeFloat(f.frontal)
                 out.writeFloat(f.sharp)
+                out.writeFloat(f.eyes)
                 out.writeShort(f.vector.size)
                 f.vector.forEach { out.writeFloat(it) }
             }
@@ -201,10 +209,10 @@ object FaceLibrary {
             val saved = readPeople(context)
             PeopleSnapshot(
                 people = saved.people,
-                spots = faces.associate { it.id to FaceSpot(it.id, it.photoId, it.box, it.frontal, it.sharp) },
+                spots = faces.associate { it.id to FaceSpot(it.id, it.photoId, it.box, it.frontal, it.sharp, it.eyes) },
                 scanned = readScanned(scannedFile(context)).size,
                 questions = saved.questions,
-                lookingAgain = oldFacesFile(context).exists(),
+                lookingAgain = olderFacesExist(context),
             )
         }
     }
@@ -284,7 +292,7 @@ object FaceLibrary {
                 val bitmap = decode(context, item.uri, MAX_SIDE)
                 if (bitmap != null) {
                     try {
-                        engine.find(bitmap).forEach { f -> newFaces += Face(nextFace++, item.id, f.box, f.vector, f.frontal, f.sharp) }
+                        engine.find(bitmap).forEach { f -> newFaces += Face(nextFace++, item.id, f.box, f.vector, f.frontal, f.sharp, f.eyes) }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (_: Throwable) {
@@ -310,18 +318,16 @@ object FaceLibrary {
         }
     }
 
-    /** Every photo has been looked at again: the faces from before 7A-2 leave the people, and their files go. */
+    /** Every photo has been looked at again: faces from earlier versions leave the people, and their files go. */
     private suspend fun finishLookingAgain(context: Context) = lock.withLock {
         withContext(Dispatchers.IO) {
-            val old = oldFacesFile(context)
-            if (!old.exists()) return@withContext
-            val oldIds = readFaces(old, false).map { it.id }.toSet()
+            if (!olderFacesExist(context)) return@withContext
+            val oldIds = (readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2)).map { it.id }.toSet()
             val saved = readPeople(context)
             val people = saved.people.map { p -> p.copy(faces = p.faces - oldIds, notFaces = p.notFaces - oldIds) }
                 .filter { it.faces.isNotEmpty() || it.name != null }
             writePeople(context, people, saved.next, saved.different, saved.questions)
-            old.delete()
-            oldScannedFile(context).delete()
+            listOf(oldFacesFile(context), oldScannedFile(context), midFacesFile(context), midScannedFile(context)).forEach { it.delete() }
             oldIds.forEach { File(thumbsDir(context), "$it.jpg").delete() }
         }
     }

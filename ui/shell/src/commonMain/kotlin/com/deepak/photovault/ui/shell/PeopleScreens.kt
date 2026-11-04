@@ -306,6 +306,7 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
         return
     }
     val photoIds = remember(person, people.spots) { people.photosOf(person) }
+    val boxes = remember(person, people.spots) { people.boxesOf(person) }
     val items = remember(photoIds, gallery.items) { gallery.items.filter { it.id in photoIds } }
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
     var renaming by remember { mutableStateOf(false) }
@@ -339,6 +340,8 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
             sections, state, gallery, padding,
             onOpen = { item -> state.open(Overlay.Viewer(items.map { it.id }, item.id)) },
             topButton = true,
+            // Which face counted as this person, so a wrong group photo is easy to spot (5 Nov).
+            tileMark = { item -> boxes[item.id] },
         )
     }
     if (renaming) {

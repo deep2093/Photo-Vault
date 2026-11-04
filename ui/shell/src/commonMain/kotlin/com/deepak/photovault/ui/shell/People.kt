@@ -13,8 +13,21 @@ import kotlin.math.sqrt
  * [frontal] is 1 for a face looking straight at the camera and 0 for a side view; [sharp] is how crisp the face is
  * (7A-2; faces found before that count as front and sharp).
  */
-class Face(val id: Int, val photoId: Long, val box: FloatArray, val vector: FloatArray, val frontal: Float = 1f, val sharp: Float = SHARP_DEFAULT) {
+class Face(
+    val id: Int,
+    val photoId: Long,
+    val box: FloatArray,
+    val vector: FloatArray,
+    val frontal: Float = 1f,
+    val sharp: Float = SHARP_DEFAULT,
+    /** How visible the eyes are (eye area brightness against the cheeks); low means sunglasses (5 Nov). */
+    val eyes: Float = 1f,
+) {
     val turned: Boolean get() = frontal < FaceGrouping.TURNED
+    val eyesHidden: Boolean get() = eyes < FaceGrouping.EYES_HIDDEN
+
+    /** A face good enough to compare new faces with: facing the camera, sharp, eyes showing. */
+    val good: Boolean get() = !turned && !eyesHidden && sharp >= FaceGrouping.GOOD_SHARP
 
     companion object {
         const val SHARP_DEFAULT = 1000f
@@ -22,7 +35,7 @@ class Face(val id: Int, val photoId: Long, val box: FloatArray, val vector: Floa
 }
 
 /** Where a face is in its photo ([box] = left, top, width, height, each 0 to 1), for its small round picture. */
-class FaceSpot(val id: Int, val photoId: Long, val box: FloatArray, val frontal: Float = 1f, val sharp: Float = Face.SHARP_DEFAULT)
+class FaceSpot(val id: Int, val photoId: Long, val box: FloatArray, val frontal: Float = 1f, val sharp: Float = Face.SHARP_DEFAULT, val eyes: Float = 1f)
 
 /** Two groups that may be one person: People asks (7A-2). */
 data class SamePersonQuestion(val a: Int, val b: Int, val score: Float)
@@ -46,6 +59,16 @@ object FaceGrouping {
     /** SFace's own "same person" line is 0.363; a little stricter, because merging is easier than splitting. */
     const val SAME = 0.42f
 
+    /** Eyes hidden (dark glasses): such a face needs a closer match to join by itself (5 Nov). */
+    const val EYES_HIDDEN = 0.45f
+    const val SAME_HIDDEN = 0.50f
+
+    /** Sharp enough to be one of the faces new ones are compared with. */
+    const val GOOD_SHARP = 60f
+
+    /** A face must match this many of a person's faces (or the person's average), not just one (5 Nov). */
+    const val AGREE = 3
+
     /** Below this a face is turned too far to start a person of its own (7A-2): it can only join one. */
     const val TURNED = 0.35f
 
@@ -68,32 +91,73 @@ object FaceGrouping {
         return if (d == 0f) 0f else dot / d
     }
 
-    private class Group(val person: Person, val sum: FloatArray, val examples: MutableList<FloatArray>, val faces: MutableSet<Int>, val photos: MutableSet<Long>)
+    private class Group(
+        val person: Person,
+        val sum: FloatArray,
+        /** Sum of the good faces only: the person's average for matching. */
+        val goodSum: FloatArray,
+        var goodCount: Int,
+        val examples: MutableList<FloatArray>,
+        val faces: MutableSet<Int>,
+        val photos: MutableSet<Long>,
+    ) {
+        /** How well [v] matches: the average of good faces, or the [AGREE]th best of its example faces (5 Nov: one odd example used to be enough). */
+        fun score(v: FloatArray): Float {
+            val centre = cosine(v, if (goodCount > 0) goodSum else sum)
+            if (examples.isEmpty()) return centre
+            val k = minOf(AGREE, examples.size)
+            val top = FloatArray(k) { -2f }
+            for (e in examples) {
+                val c = cosine(v, e)
+                var i = k - 1
+                if (c <= top[i]) continue
+                while (i > 0 && top[i - 1] < c) { top[i] = top[i - 1]; i-- }
+                top[i] = c
+            }
+            return maxOf(centre, top[k - 1])
+        }
+
+        fun add(face: Face) {
+            faces += face.id
+            photos += face.photoId
+            for (i in sum.indices) sum[i] += face.vector[i]
+            if (face.good) {
+                for (i in goodSum.indices) goodSum[i] += face.vector[i]
+                goodCount++
+                // Keeps a spread of looks, not only the first ones (5 Nov).
+                if (examples.size < EXAMPLES) examples += face.vector else examples[goodCount % EXAMPLES] = face.vector
+            }
+        }
+    }
 
     /** Puts every face that isn't in a person yet into the right one, or a new one. Returns the people and the next free id. */
     fun group(faces: List<Face>, people: List<Person>, nextId: Int): Pair<List<Person>, Int> {
         val byId = faces.associateBy { it.id }
         val placed = people.flatMap { it.faces }.toHashSet()
+        val size = faces.firstOrNull()?.vector?.size ?: 0
         val groups = people.map { p ->
-            val vectors = p.faces.mapNotNull { byId[it]?.vector }
-            val sum = FloatArray(faces.firstOrNull()?.vector?.size ?: 0)
-            vectors.forEach { v -> for (i in sum.indices) sum[i] += v[i] }
-            Group(p, sum, spread(vectors, EXAMPLES).toMutableList(), p.faces.toMutableSet(), p.faces.mapNotNull { byId[it]?.photoId }.toMutableSet())
+            val mine = p.faces.mapNotNull { byId[it] }
+            val good = mine.filter { it.good }
+            val sum = FloatArray(size)
+            mine.forEach { f -> for (i in sum.indices) sum[i] += f.vector[i] }
+            val goodSum = FloatArray(size)
+            good.forEach { f -> for (i in goodSum.indices) goodSum[i] += f.vector[i] }
+            // Only good faces are compared with (blurred, turned or dark-glasses faces don't pull others in);
+            // a person with no good face at all uses what it has.
+            val examples = spread((good.ifEmpty { mine }).map { it.vector }, EXAMPLES).toMutableList()
+            Group(p, sum, goodSum, good.size, examples, p.faces.toMutableSet(), mine.map { it.photoId }.toMutableSet())
         }.toMutableList()
         var next = nextId
         // Front faces first, so a side view can join a person made in the same scan.
         for (face in faces.sortedWith(compareBy<Face> { it.turned }.thenBy { it.id })) {
             if (face.id in placed) continue
             var best: Group? = null
-            var bestScore = SAME - 1e-6f
+            val needed = if (face.eyesHidden) SAME_HIDDEN else SAME
+            var bestScore = needed - 1e-6f
             for (g in groups) {
                 // Two faces in one photo are never the same person (7A-2).
                 if (face.id in g.person.notFaces || g.faces.isEmpty() || face.photoId in g.photos) continue
-                var score = cosine(face.vector, g.sum)
-                for (e in g.examples) {
-                    val s = cosine(face.vector, e)
-                    if (s > score) score = s
-                }
+                val score = g.score(face.vector)
                 // Strictly better only: on a tie the older person (named, or merged by hand) keeps the face.
                 if (score > bestScore) {
                     bestScore = score
@@ -102,12 +166,8 @@ object FaceGrouping {
             }
             // A side view that matches nobody waits: side views made most of the extra groups of one person.
             if (best == null && face.turned) continue
-            val target = best ?: Group(Person(next++, emptySet()), FloatArray(face.vector.size), mutableListOf(), mutableSetOf(), mutableSetOf()).also { groups += it }
-            target.faces += face.id
-            target.photos += face.photoId
-            for (i in target.sum.indices) target.sum[i] += face.vector[i]
-            // Keeps a spread of looks, not only the first ones (5 Nov).
-            if (target.examples.size < EXAMPLES) target.examples += face.vector else target.examples[target.faces.size % EXAMPLES] = face.vector
+            val target = best ?: Group(Person(next++, emptySet()), FloatArray(size), FloatArray(size), 0, mutableListOf(), mutableSetOf(), mutableSetOf()).also { groups += it }
+            target.add(face)
             placed += face.id
         }
         return groups.filter { it.faces.isNotEmpty() }.map { it.person.copy(faces = it.faces.toSet()) } to next
@@ -146,7 +206,7 @@ object FaceGrouping {
         val byId = faces.associateBy { it.id }
         var current = people
         repeat(12) {
-            val vectors = current.map { p -> spread(p.faces.sorted().mapNotNull { byId[it]?.vector }, SAMPLE) }
+            val vectors = current.map { p -> sampleOf(p, byId) }
             val centres = vectors.map { centroid(it) }
             val pairs = mutableListOf<Triple<Int, Int, Float>>()
             for (i in current.indices) for (j in i + 1 until current.size) {
@@ -181,6 +241,13 @@ object FaceGrouping {
         return current
     }
 
+    /** The faces a group is judged by: its good faces when it has a few, otherwise all of them. */
+    private fun sampleOf(p: Person, byId: Map<Int, Face>): List<FloatArray> {
+        val mine = p.faces.sorted().mapNotNull { byId[it] }
+        val good = mine.filter { it.good }
+        return spread((if (good.size >= AGREE) good else mine).map { it.vector }, SAMPLE)
+    }
+
     private fun said(different: Set<Pair<Int, Int>>, a: Int, b: Int) = (minOf(a, b) to maxOf(a, b)) in different
 
     /** Both groups have a face in the same photos (more than a stray mistake): two different people. */
@@ -197,7 +264,7 @@ object FaceGrouping {
      */
     fun questions(faces: List<Face>, shown: List<Person>, different: Set<Pair<Int, Int>>, limit: Int = 30): List<SamePersonQuestion> {
         val byId = faces.associateBy { it.id }
-        val vectors = shown.map { p -> spread(p.faces.sorted().mapNotNull { byId[it]?.vector }, SAMPLE) }
+        val vectors = shown.map { p -> sampleOf(p, byId) }
         val centres = vectors.map { centroid(it) }
         val out = mutableListOf<SamePersonQuestion>()
         for (i in shown.indices) for (j in i + 1 until shown.size) {
@@ -314,12 +381,15 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
 
     fun photosOf(person: Person): Set<Long> = person.faces.mapNotNull { spots[it]?.photoId }.toSet()
 
+    /** Where [person]'s face is in each of their photos (to circle it in the grid, 5 Nov). */
+    fun boxesOf(person: Person): Map<Long, FloatArray> = person.faces.mapNotNull { spots[it] }.associate { it.photoId to it.box }
+
     /**
      * The face to show for a person (5 Nov): the biggest clear front face; when there is none, the biggest face.
      */
     fun coverOf(person: Person): FaceSpot? {
         val all = person.faces.mapNotNull { spots[it] }
-        val front = all.filter { it.frontal >= 0.7f && it.sharp >= 120f }
+        val front = all.filter { it.frontal >= 0.7f && it.sharp >= 120f && it.eyes >= FaceGrouping.EYES_HIDDEN }
         return (front.ifEmpty { all }).maxByOrNull { it.box[2] * it.box[3] }
     }
 

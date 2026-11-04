@@ -122,6 +122,8 @@ fun MediaGrid(
     onOpen: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
     tileLabel: TileLabel? = null,
+    /** A face to circle on a tile (inside a person: which face matched, 5 Nov): left, top, width, height, 0 to 1. */
+    tileMark: ((MediaItem) -> FloatArray?)? = null,
     header: (LazyGridScope.() -> Unit)? = null,
     headerItems: Int = if (header != null) 1 else 0,
     /** A section key to scroll to (coming from a month card); [onJumped] clears it once done. */
@@ -311,6 +313,7 @@ fun MediaGrid(
                         selecting = state.selecting,
                         selected = item.id in state.selected,
                         label = tileLabel?.invoke(item),
+                        mark = tileMark?.invoke(item),
                         onClick = { handler.onTap(item.id) },
                         onLongClick = { state.toggleSelected(item.id) },
                         // Photos glide to their new place when the grid changes size (instant with reduce motion).
@@ -514,8 +517,10 @@ private fun PhotoTile(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    mark: FloatArray? = null,
 ) {
     val theme = LocalGlassTheme.current
+    var shape by remember(item.id) { mutableStateOf(0f) }
     val adaptive = theme.adaptive != null
     val open = onClick
     val select = onLongClick
@@ -548,9 +553,27 @@ private fun PhotoTile(
             contentScale = ContentScale.Crop,
             onSuccess = { result ->
                 if (adaptive && item.id !in mainColors) mainColorOf(result.result.image)?.let { mainColors[item.id] = it }
+                val img = result.result.image
+                if (img.height > 0) shape = img.width.toFloat() / img.height
             },
             modifier = Modifier.fillMaxSize().scale(inset).clip(RoundedCornerShape(if (selected) 10.dp else 0.dp)),
         )
+        if (mark != null && shape > 0f) {
+            // The tile shows the middle of the photo, cropped to a square: place the circle the same way.
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize().scale(inset)) {
+                val side = size.width
+                val w = if (shape >= 1f) side * shape else side
+                val h = if (shape >= 1f) side else side / shape
+                val dx = (side - w) / 2f
+                val dy = (side - h) / 2f
+                val cx = dx + (mark[0] + mark[2] / 2f) * w
+                val cy = dy + (mark[1] + mark[3] / 2f) * h
+                val r = (maxOf(mark[2] * w, mark[3] * h) * 0.62f).coerceAtLeast(6.dp.toPx())
+                val centre = androidx.compose.ui.geometry.Offset(cx, cy)
+                drawCircle(Color.Black.copy(alpha = 0.45f), r, centre, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.5.dp.toPx()))
+                drawCircle(Color.White, r, centre, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.8.dp.toPx()))
+            }
+        }
         if (item.isVideo) {
             Text(
                 Timeline.duration(item.durationMillis),

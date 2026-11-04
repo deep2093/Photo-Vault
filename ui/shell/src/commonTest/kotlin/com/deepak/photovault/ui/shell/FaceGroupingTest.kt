@@ -136,4 +136,26 @@ class FaceGroupingTest {
         val newest = mapOf(1 to 100L, 2 to 900L)
         assertEquals(listOf(2, 1, 3), FaceGrouping.shown(listOf(old, recent, big), spots, newest = { newest[it.id] ?: 0L }).map { it.id })
     }
+
+    @Test
+    fun oneWrongFaceInAPersonNoLongerPullsInOthers() {
+        // Four faces of one person and one wrong face (plane 2) that slipped in earlier.
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f), face(3, 12, 0, 0.2f), face(4, 13, 0, 0.15f), face(5, 14, 2))
+        val person = Person(1, setOf(1, 2, 3, 4, 5))
+        val (after, _) = FaceGrouping.group(faces + face(6, 15, 2, 0.05f), listOf(person), 2)
+        // The new plane-2 face matches only the one wrong face, so it does not join.
+        assertTrue(after.first { it.id == 1 }.faces.none { it == 6 })
+    }
+
+    @Test
+    fun darkGlassesNeedACloserMatch() {
+        // cos(1.1) is about 0.45: enough for a normal face, not for one with the eyes hidden.
+        val base = face(1, 10, 0)
+        val normal = Face(2, 11, floatArrayOf(0f, 0f, 0.2f, 0.2f), vec(0, 1.1f))
+        val glasses = Face(3, 12, floatArrayOf(0f, 0f, 0.2f, 0.2f), vec(0, 1.1f), eyes = 0.2f)
+        val (a, _) = FaceGrouping.group(listOf(base, normal), emptyList(), 1)
+        assertEquals(1, a.size)
+        val (b, _) = FaceGrouping.group(listOf(base, glasses), emptyList(), 1)
+        assertEquals(2, b.size)
+    }
 }

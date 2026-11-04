@@ -100,7 +100,7 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-05-4"
+    const val ID = "2026-11-05-5"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.NEW, "Same person?", "When People isn't sure two groups are the same person, it asks you at the top of People with Yes, No and Not sure. Yes joins them and teaches it that look; No is remembered."),
@@ -110,6 +110,8 @@ object WhatsNew {
         Change(ChangeKind.CHANGED, "Order and Others", "Named people come first, whoever has the newest photo at the front. Unnamed people in only a few photos wait under Others at the bottom."),
         Change(ChangeKind.CHANGED, "Better round pictures", "Each person's picture is now their clearest front-facing face."),
         Change(ChangeKind.CHANGED, "Two faces in one photo", "Two faces in the same photo are never treated as the same person, so look-alikes stay apart."),
+        Change(ChangeKind.NEW, "See which face matched", "Inside a person, each photo has a small circle around the face that counted as them, so a wrong group photo is easy to spot and take out with Not this person."),
+        Change(ChangeKind.FIXED, "Group photos in the wrong person", "A face now has to match a person's average or several of their photos, not just one, and blurred, turned or dark-glasses faces no longer pull others in. Faces with dark glasses need a closer match to join by themselves."),
     )
 }
 

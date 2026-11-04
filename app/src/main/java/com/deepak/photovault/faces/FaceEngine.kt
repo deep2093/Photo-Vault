@@ -19,7 +19,7 @@ import kotlin.math.sqrt
  */
 class FaceEngine private constructor(private val finder: FaceDetectorYN, private val measurer: FaceRecognizerSF) {
     /** One face: where it is, its measurements, how much it faces the camera (0 side to 1 front) and how sharp it is. */
-    class Found(val box: FloatArray, val vector: FloatArray, val frontal: Float, val sharp: Float)
+    class Found(val box: FloatArray, val vector: FloatArray, val frontal: Float, val sharp: Float, val eyes: Float)
 
     fun find(bitmap: Bitmap): List<Found> {
         val rgba = Mat()
@@ -46,7 +46,7 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
                 val one = faces.row(i)
                 try {
                     measurer.alignCrop(bgr, one, aligned)
-                    val sharp = sharpness(aligned)
+                    val (sharp, eyes) = quality(aligned)
                     // Out of focus (a blurred face in the background): left out.
                     if (sharp < BLURRY) continue
                     measurer.feature(aligned, feature)
@@ -61,7 +61,7 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
                         (row[2] / w).coerceIn(0f, 1f),
                         (row[3] / h).coerceIn(0f, 1f),
                     )
-                    out += Found(box, v, frontal(row), sharp)
+                    out += Found(box, v, frontal(row), sharp, eyes)
                 } finally {
                     aligned.release()
                     feature.release()
@@ -76,8 +76,12 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
         }
     }
 
-    /** How crisp the 112 x 112 lined-up face is: the spread of its edges (variance of the Laplacian). */
-    private fun sharpness(aligned: Mat): Float {
+    /**
+     * How crisp the 112 x 112 lined-up face is (the spread of its edges, variance of the Laplacian), and how visible
+     * the eyes are: the eye areas' brightness against the cheeks below them (dark glasses make it low). In the lined-up
+     * face the eyes are always near (38, 52) and (74, 52).
+     */
+    private fun quality(aligned: Mat): Pair<Float, Float> {
         val gray = Mat()
         val edges = Mat()
         val mean = org.opencv.core.MatOfDouble()
@@ -87,7 +91,14 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
             Imgproc.Laplacian(gray, edges, org.opencv.core.CvType.CV_64F)
             org.opencv.core.Core.meanStdDev(edges, mean, std)
             val d = std.toArray().firstOrNull() ?: 0.0
-            return (d * d).toFloat()
+            fun area(x: Int, y: Int, w: Int, h: Int): Double {
+                val part = gray.submat(org.opencv.core.Rect(x, y, w, h))
+                return try { org.opencv.core.Core.mean(part).`val`[0] } finally { part.release() }
+            }
+            val eyes = (area(30, 46, 16, 12) + area(66, 46, 16, 12)) / 2
+            val cheeks = (area(28, 66, 18, 14) + area(66, 66, 18, 14)) / 2
+            val ratio = if (cheeks < 1.0) 1.0 else eyes / cheeks
+            return (d * d).toFloat() to ratio.toFloat()
         } finally {
             gray.release(); edges.release(); mean.release(); std.release()
         }
