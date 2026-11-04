@@ -59,7 +59,7 @@ object FaceGrouping {
             val vectors = p.faces.mapNotNull { byId[it]?.vector }
             val sum = FloatArray(faces.firstOrNull()?.vector?.size ?: 0)
             vectors.forEach { v -> for (i in sum.indices) sum[i] += v[i] }
-            Group(p, sum, vectors.takeLast(EXAMPLES).toMutableList(), p.faces.toMutableSet())
+            Group(p, sum, spread(vectors, EXAMPLES).toMutableList(), p.faces.toMutableSet())
         }.toMutableList()
         var next = nextId
         for (face in faces.sortedBy { it.id }) {
@@ -82,10 +82,78 @@ object FaceGrouping {
             val target = best ?: Group(Person(next++, emptySet()), FloatArray(face.vector.size), mutableListOf(), mutableSetOf()).also { groups += it }
             target.faces += face.id
             for (i in target.sum.indices) target.sum[i] += face.vector[i]
-            if (target.examples.size < EXAMPLES) target.examples += face.vector
+            // Keeps a spread of looks, not only the first ones (5 Nov).
+            if (target.examples.size < EXAMPLES) target.examples += face.vector else target.examples[target.faces.size % EXAMPLES] = face.vector
             placed += face.id
         }
         return groups.filter { it.faces.isNotEmpty() }.map { it.person.copy(faces = it.faces.toSet()) } to next
+    }
+
+    /** Up to [n] items spread evenly over [items] (so a group is judged by all its looks, not its first photos). */
+    fun <T> spread(items: List<T>, n: Int): List<T> = if (items.size <= n) items else List(n) { items[it * items.size / n] }
+
+    private fun centroid(vectors: List<FloatArray>): FloatArray {
+        val c = FloatArray(vectors.firstOrNull()?.size ?: 0)
+        vectors.forEach { v -> for (i in c.indices) c[i] += v[i] }
+        return c
+    }
+
+    /** How alike two groups are as a whole: the average likeness of their faces, many against many. */
+    fun linkage(a: List<FloatArray>, b: List<FloatArray>): Float {
+        if (a.isEmpty() || b.isEmpty()) return 0f
+        var total = 0f
+        for (x in a) for (y in b) total += cosine(x, y)
+        return total / (a.size * b.size)
+    }
+
+    /** Two groups this alike on average are one person (5 Nov: the same face had split into groups of 647 and 72). */
+    const val JOIN_GROUPS = 0.36f
+
+    /** Groups whose averages are further apart than this are not compared face by face (it is slow). */
+    private const val NEAR = 0.30f
+    private const val SAMPLE = 20
+
+    /**
+     * Joins groups that are clearly the same person. Grouping goes photo by photo, so one odd early photo could start
+     * a second group of someone that then kept growing; this compares whole groups afterwards. Two different names are
+     * never joined. The named (or bigger) group keeps its place.
+     */
+    fun joinGroups(faces: List<Face>, people: List<Person>): List<Person> {
+        val byId = faces.associateBy { it.id }
+        var current = people
+        repeat(12) {
+            val vectors = current.map { p -> spread(p.faces.sorted().mapNotNull { byId[it]?.vector }, SAMPLE) }
+            val centres = vectors.map { centroid(it) }
+            val pairs = mutableListOf<Triple<Int, Int, Float>>()
+            for (i in current.indices) for (j in i + 1 until current.size) {
+                val a = current[i]
+                val b = current[j]
+                if (a.name != null && b.name != null && !a.name.equals(b.name, ignoreCase = true)) continue
+                if (vectors[i].isEmpty() || vectors[j].isEmpty()) continue
+                if (cosine(centres[i], centres[j]) < NEAR) continue
+                val score = linkage(vectors[i], vectors[j])
+                if (score >= JOIN_GROUPS) pairs += Triple(i, j, score)
+            }
+            if (pairs.isEmpty()) return current
+            val used = HashSet<Int>()
+            val merged = mutableListOf<Person>()
+            for ((i, j, _) in pairs.sortedByDescending { it.third }) {
+                if (i in used || j in used) continue
+                used += i
+                used += j
+                val a = current[i]
+                val b = current[j]
+                val keep = when {
+                    a.name != null -> a
+                    b.name != null -> b
+                    a.faces.size >= b.faces.size -> a
+                    else -> b
+                }
+                merged += merge(keep, listOf(if (keep === a) b else a))
+            }
+            current = current.filterIndexed { k, _ -> k !in used } + merged
+        }
+        return current
     }
 
     /** [into] keeps its name (or takes the other's), and gets every face of [others]. */

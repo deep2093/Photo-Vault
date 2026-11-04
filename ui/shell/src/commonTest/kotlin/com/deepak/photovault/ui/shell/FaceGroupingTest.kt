@@ -71,4 +71,28 @@ class FaceGroupingTest {
         assertEquals(setOf(9), m.notFaces)
         assertNull(Person(4, emptySet()).name)
     }
+
+    @Test
+    fun groupsOfTheSamePersonAreJoinedAfterwards() {
+        // Two groups of the same face (made by an odd first photo) and one of someone else.
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.3f), face(3, 12, 0, 0.6f), face(4, 13, 0, 0.9f), face(5, 14, 5), face(6, 15, 5, 0.2f))
+        val a = Person(1, setOf(1, 2))
+        val b = Person(2, setOf(3, 4))
+        val other = Person(3, setOf(5, 6))
+        val joined = FaceGrouping.joinGroups(faces, listOf(a, b, other))
+        assertEquals(2, joined.size)
+        assertTrue(joined.any { it.faces == setOf(1, 2, 3, 4) })
+        assertTrue(joined.any { it.faces == setOf(5, 6) })
+    }
+
+    @Test
+    fun twoDifferentNamesAreNeverJoined() {
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f))
+        val joined = FaceGrouping.joinGroups(faces, listOf(Person(1, setOf(1), name = "Ravi"), Person(2, setOf(2), name = "Raj")))
+        assertEquals(2, joined.size)
+        // A named group and an unnamed one of the same face become one, keeping the name.
+        val one = FaceGrouping.joinGroups(faces, listOf(Person(1, setOf(1)), Person(2, setOf(2), name = "Raj")))
+        assertEquals(listOf("Raj"), one.map { it.name })
+        assertEquals(2, one.single().id)
+    }
 }

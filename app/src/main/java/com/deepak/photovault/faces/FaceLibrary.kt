@@ -152,8 +152,14 @@ object FaceLibrary {
     // ---- Reading and changing ----
 
     suspend fun load(context: Context): PeopleSnapshot = lock.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(Dispatchers.Default) {
             val faces = readFaces(context)
+            // Once, for people grouped before groups were compared with each other (5 Nov).
+            if (prefs(context).getInt("joined", 0) < JOIN_VERSION && peopleFile(context).exists()) {
+                val (people, next) = readPeople(context)
+                runCatching { writePeople(context, FaceGrouping.joinGroups(faces, people), next) }
+                prefs(context).edit().putInt("joined", JOIN_VERSION).apply()
+            }
             PeopleSnapshot(
                 people = readPeople(context).first,
                 spots = faces.associate { it.id to FaceSpot(it.id, it.photoId, it.box) },
@@ -190,7 +196,7 @@ object FaceLibrary {
             val newScanned = mutableListOf<Long>()
             var count = photos.count { it.id in done }
             progress.value = ScanProgress(count, photos.size, running = true)
-            suspend fun flush() {
+            suspend fun flush(join: Boolean) {
                 lock.withLock {
                     withContext(Dispatchers.IO) {
                         appendFaces(context, newFaces)
@@ -198,7 +204,8 @@ object FaceLibrary {
                         val all = readFaces(context)
                         val (people, next) = readPeople(context)
                         val (grouped, after) = FaceGrouping.group(all, people, next)
-                        writePeople(context, grouped, after)
+                        // Comparing whole groups is slower: done at the end of each turn, not every 40 photos.
+                        writePeople(context, if (join) FaceGrouping.joinGroups(all, grouped) else grouped, after)
                     }
                 }
                 newFaces.clear()
@@ -221,9 +228,9 @@ object FaceLibrary {
                 newScanned += item.id
                 count++
                 progress.value = ScanProgress(count, photos.size, running = true)
-                if (newScanned.size >= FLUSH_EVERY) flush()
+                if (newScanned.size >= FLUSH_EVERY) flush(join = false)
             }
-            if (enabled(context)) flush()
+            if (enabled(context)) flush(join = true)
             progress.value = ScanProgress(count, photos.size, running = false)
             todo.size > batch.size || (stopAsked && count < photos.size)
         } finally {
@@ -269,6 +276,7 @@ object FaceLibrary {
         }.let { if (it.config != Bitmap.Config.ARGB_8888) it.copy(Bitmap.Config.ARGB_8888, false) else it }
     }.getOrNull()
 
+    private const val JOIN_VERSION = 1
     private const val MAX_SIDE = 1280
     private const val FLUSH_EVERY = 40
 }
