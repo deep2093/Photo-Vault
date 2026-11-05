@@ -128,6 +128,8 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
     ) { padding ->
         LazyVerticalGrid(
             columns = GridCells.Adaptive(96.dp),
+            // Coming back from a person keeps the place on the page (5 Nov).
+            state = rememberSavedGridState("|people"),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = SCREEN_MARGIN, end = SCREEN_MARGIN, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
             horizontalArrangement = Arrangement.spacedBy(10.dp),

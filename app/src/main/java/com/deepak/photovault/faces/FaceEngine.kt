@@ -53,8 +53,22 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
                     val v = FloatArray(feature.cols() * feature.rows())
                     feature.get(0, 0, v)
                     val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
-                    if (norm == 0f) continue
-                    for (k in v.indices) v[k] /= norm
+                    // Mirror trick (5 Nov): measure the face flipped left-right too and add the two, which steadies
+                    // the measurement (a standard trick for this kind of model); fewer splits of one person.
+                    val flipped = Mat()
+                    val mirror = Mat()
+                    try {
+                        org.opencv.core.Core.flip(aligned, flipped, 1)
+                        measurer.feature(flipped, mirror)
+                        val m = FloatArray(mirror.cols() * mirror.rows())
+                        mirror.get(0, 0, m)
+                        if (m.size == v.size) for (k in v.indices) v[k] += m[k]
+                    } finally {
+                        flipped.release(); mirror.release()
+                    }
+                    val both = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+                    if (norm == 0f || both == 0f) continue
+                    for (k in v.indices) v[k] /= both
                     val box = floatArrayOf(
                         (row[0] / w).coerceIn(0f, 1f),
                         (row[1] / h).coerceIn(0f, 1f),

@@ -206,7 +206,8 @@ object FaceLibrary {
             grouped = again.first
             after = again.second
         }
-        val people = if (join) FaceGrouping.joinGroups(all, grouped, saved.different) else grouped
+        val joinAt = FaceGrouping.joinLine(scores(context, "no_scores"), scores(context, "yes_scores"))
+        val people = if (join) FaceGrouping.joinGroups(all, grouped, saved.different, joinAt) else grouped
         val questions = if (join) {
             val spots = all.associate { it.id to FaceSpot(it.id, it.photoId, it.box) }
             FaceGrouping.questions(all, FaceGrouping.shown(people.filter { !it.hidden }, spots), saved.different, floor = askFloor(context))
@@ -235,7 +236,7 @@ object FaceLibrary {
             val saved = readPeople(context)
             PeopleSnapshot(
                 people = saved.people,
-                spots = faces.associate { it.id to FaceSpot(it.id, it.photoId, it.box, it.frontal, it.sharp, it.eyes) },
+                spots = faces.associate { it.id to FaceSpot(it.id, it.photoId, it.box, it.frontal, it.sharp, it.eyes, it.strength) },
                 scanned = readScanned(scannedFile(context)).size,
                 questions = saved.questions,
                 lookingAgain = olderFacesExist(context),

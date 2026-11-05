@@ -199,4 +199,31 @@ class FaceGroupingTest {
         val looks = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f), face(3, 12, 0, 0.2f), face(5, 14, 6), face(6, 15, 6, 0.1f), face(7, 16, 6, 0.2f))
         assertEquals(6, FaceGrouping.selfCheck(looks, listOf(Person(2, setOf(1, 2, 3, 5, 6, 7)))).single().faces.size)
     }
+
+    @Test
+    fun aFaceLikeOneTakenOutDoesNotJoin() {
+        // Sisters: the group is mostly sister A (angle 0); sister B's face (angle 0.5) was taken out by hand.
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.05f), face(3, 12, 0, 0.1f), face(4, 13, 0, 0.5f))
+        val a = Person(1, setOf(1, 2, 3), notFaces = setOf(4))
+        // A new photo of sister B (angle 0.55) still scores over 0.42 against A, but looks more like the face taken out.
+        val (after, _) = FaceGrouping.group(faces + face(5, 14, 0, 0.55f), listOf(a), 2)
+        assertTrue(5 !in after.first { it.id == 1 }.faces)
+    }
+
+    @Test
+    fun yesAnswersBringTheJoinLineDown() {
+        assertEquals(FaceGrouping.JOIN_GROUPS, FaceGrouping.joinLine(emptyList(), listOf(0.41f, 0.42f)))
+        val line = FaceGrouping.joinLine(emptyList(), listOf(0.41f, 0.42f, 0.42f, 0.43f, 0.44f))
+        assertTrue(line < FaceGrouping.JOIN_GROUPS && line >= 0.40f)
+        // ...but never down to a pair answered No.
+        assertTrue(FaceGrouping.joinLine(listOf(0.43f), listOf(0.41f, 0.42f, 0.42f, 0.43f, 0.44f)) >= 0.45f)
+    }
+
+    @Test
+    fun theClearestFrontFaceIsTheCover() {
+        val side = FaceSpot(1, 10, floatArrayOf(0f, 0f, 0.4f, 0.4f), frontal = 0.4f, sharp = 400f)
+        val front = FaceSpot(2, 11, floatArrayOf(0f, 0f, 0.2f, 0.2f), frontal = 0.95f, sharp = 300f)
+        val blurry = FaceSpot(3, 12, floatArrayOf(0f, 0f, 0.3f, 0.3f), frontal = 0.95f, sharp = 40f)
+        assertEquals(2, listOf(side, front, blurry).maxByOrNull { FaceGrouping.coverScore(it) }!!.id)
+    }
 }

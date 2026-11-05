@@ -100,12 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-05-7"
+    const val ID = "2026-11-05-8"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Mixed groups of different people", "Faces the model can only measure poorly (blurred, eyes down or closed, odd light) no longer start or grow groups by themselves; they stay unsorted unless they clearly match someone."),
-        Change(ChangeKind.NEW, "Groups check themselves", "After each scan every group checks its own faces, and a face that doesn't look like the others is taken out and sorted again."),
-        Change(ChangeKind.CHANGED, "Stricter on blur and looking down", "Motion-blurred faces are left out, and faces looking down or up count as weak. People looks at your photos once more to apply this; names stay."),
+        Change(ChangeKind.NEW, "Learns who is NOT someone", "Photos you take out with Not this person teach People: a new face that looks more like those than like the person isn't added. This helps with sisters and look-alikes."),
+        Change(ChangeKind.CHANGED, "Steadier face measuring", "Each face is now measured twice (as is and mirrored) and the two are combined, so the same person splits into fewer groups. People looks at your photos once more for this; names stay."),
+        Change(ChangeKind.CHANGED, "Fewer splits of one person", "Big groups keep a face that fits them overall even when it looks a bit different, and your Yes answers lower the line for joining groups by themselves."),
+        Change(ChangeKind.CHANGED, "Best picture as the cover", "Each person's round picture is the clearest face looking straight at the camera; when there is none, the next best."),
+        Change(ChangeKind.FIXED, "People page jumps to the top", "Coming back from a person now keeps your place on the People page."),
     )
 }
 
