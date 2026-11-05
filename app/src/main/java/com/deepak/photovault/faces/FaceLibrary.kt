@@ -47,8 +47,12 @@ object FaceLibrary {
     private fun midScannedFile(context: Context) = File(dir(context), "scanned2.bin")
     private fun v3FacesFile(context: Context) = File(dir(context), "faces3.bin")
     private fun v3ScannedFile(context: Context) = File(dir(context), "scanned3.bin")
-    private fun facesFile(context: Context) = File(dir(context), "faces4.bin")
-    private fun scannedFile(context: Context) = File(dir(context), "scanned4.bin")
+    private fun v4FacesFile(context: Context) = File(dir(context), "faces4.bin")
+    private fun v4ScannedFile(context: Context) = File(dir(context), "scanned4.bin")
+
+    /** Same layout as version 4, but measured with the mirror trick (5 Nov), so every photo is looked at again. */
+    private fun facesFile(context: Context) = File(dir(context), "faces5.bin")
+    private fun scannedFile(context: Context) = File(dir(context), "scanned5.bin")
     private fun peopleFile(context: Context) = File(dir(context), "people.json")
     fun thumbsDir(context: Context) = File(dir(context), "thumbs").apply { mkdirs() }
 
@@ -113,9 +117,9 @@ object FaceLibrary {
 
     /** New faces, plus the faces found by earlier versions while they are still needed (until every photo is looked at again). */
     private fun allFaces(context: Context): List<Face> =
-        readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2) + readFaces(v3FacesFile(context), 3) + readFaces(facesFile(context), 4)
+        readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2) + readFaces(v3FacesFile(context), 3) + readFaces(v4FacesFile(context), 4) + readFaces(facesFile(context), 4)
 
-    private fun olderFacesExist(context: Context) = oldFacesFile(context).exists() || midFacesFile(context).exists() || v3FacesFile(context).exists()
+    private fun olderFacesExist(context: Context) = oldFacesFile(context).exists() || midFacesFile(context).exists() || v3FacesFile(context).exists() || v4FacesFile(context).exists()
 
     private fun appendFaces(context: Context, faces: List<Face>) {
         if (faces.isEmpty()) return
@@ -368,12 +372,12 @@ object FaceLibrary {
     private suspend fun finishLookingAgain(context: Context) = lock.withLock {
         withContext(Dispatchers.IO) {
             if (!olderFacesExist(context)) return@withContext
-            val oldIds = (readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2) + readFaces(v3FacesFile(context), 3)).map { it.id }.toSet()
+            val oldIds = (readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2) + readFaces(v3FacesFile(context), 3) + readFaces(v4FacesFile(context), 4)).map { it.id }.toSet()
             val saved = readPeople(context)
             val people = saved.people.map { p -> p.copy(faces = p.faces - oldIds, notFaces = p.notFaces - oldIds) }
                 .filter { it.faces.isNotEmpty() || it.name != null }
             writePeople(context, people, saved.next, saved.different, saved.questions)
-            listOf(oldFacesFile(context), oldScannedFile(context), midFacesFile(context), midScannedFile(context), v3FacesFile(context), v3ScannedFile(context)).forEach { it.delete() }
+            listOf(oldFacesFile(context), oldScannedFile(context), midFacesFile(context), midScannedFile(context), v3FacesFile(context), v3ScannedFile(context), v4FacesFile(context), v4ScannedFile(context)).forEach { it.delete() }
             oldIds.forEach { File(thumbsDir(context), "$it.jpg").delete() }
             rebuildUnnamed(context)
             prefs(context).edit().putInt("rebuilt", REBUILD_VERSION).apply()
