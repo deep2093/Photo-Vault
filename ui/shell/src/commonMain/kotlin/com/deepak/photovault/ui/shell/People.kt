@@ -236,7 +236,8 @@ object FaceGrouping {
                 if (face.id in g.person.notFaces || g.faces.isEmpty() || face.photoId in g.photos) continue
                 val score = g.score(face.vector)
                 // Looks more like someone taken out of this person than like the person: not them.
-                if (g.notThem.isNotEmpty() && g.notScore(face.vector) >= score) continue
+                // A tie still goes to the person (the face taken out may be a bad photo of them).
+                if (g.notThem.isNotEmpty() && g.notScore(face.vector) > score + 0.01f) continue
                 // Strictly better only: on a tie the older person (named, or merged by hand) keeps the face.
                 if (score > bestScore) {
                     bestScore = score
