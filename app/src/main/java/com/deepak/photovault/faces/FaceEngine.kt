@@ -17,7 +17,14 @@ import kotlin.math.sqrt
  * faces, SFace turns each into 128 numbers. Both models ship inside the app (Apache 2.0 / MIT, from OpenCV Zoo).
  * Not thread-safe: [FaceLibrary] uses one engine at a time.
  */
-class FaceEngine private constructor(private val finder: FaceDetectorYN, private val measurer: FaceRecognizerSF) {
+class FaceEngine private constructor(
+    private val finder: FaceDetectorYN,
+    private val measurer: FaceRecognizerSF,
+    /** AuraFace (the test model, 6 Nov), when chosen: measures faces instead of SFace. */
+    private val aura: org.tensorflow.lite.Interpreter?,
+) {
+    fun close() { runCatching { aura?.close() } }
+
     /** One face: where it is, its measurements, how much it faces the camera (0 side to 1 front) and how sharp it is. */
     class Found(val box: FloatArray, val vector: FloatArray, val frontal: Float, val sharp: Float, val eyes: Float, val strength: Float)
 
@@ -49,22 +56,31 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
                     val (sharp, eyes) = quality(aligned)
                     // Out of focus (a blurred face in the background): left out.
                     if (sharp < BLURRY) continue
-                    measurer.feature(aligned, feature)
-                    val v = FloatArray(feature.cols() * feature.rows())
-                    feature.get(0, 0, v)
-                    val norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
-                    // Mirror trick (5 Nov): measure the face flipped left-right too and add the two, which steadies
-                    // the measurement (a standard trick for this kind of model); fewer splits of one person.
-                    val flipped = Mat()
-                    val mirror = Mat()
-                    try {
-                        org.opencv.core.Core.flip(aligned, flipped, 1)
-                        measurer.feature(flipped, mirror)
-                        val m = FloatArray(mirror.cols() * mirror.rows())
-                        mirror.get(0, 0, m)
-                        if (m.size == v.size) for (k in v.indices) v[k] += m[k]
-                    } finally {
-                        flipped.release(); mirror.release()
+                    // Coloured light (6 Nov): even out the colour cast (purple and magenta stage lights) before measuring.
+                    neutralise(aligned)
+                    val v: FloatArray
+                    val norm: Float
+                    if (aura != null) {
+                        v = auraVector(aligned)
+                        norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+                    } else {
+                        measurer.feature(aligned, feature)
+                        v = FloatArray(feature.cols() * feature.rows())
+                        feature.get(0, 0, v)
+                        norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+                        // Mirror trick (5 Nov): measure the face flipped left-right too and add the two, which steadies
+                        // the measurement (a standard trick for this kind of model); fewer splits of one person.
+                        val flipped = Mat()
+                        val mirror = Mat()
+                        try {
+                            org.opencv.core.Core.flip(aligned, flipped, 1)
+                            measurer.feature(flipped, mirror)
+                            val m = FloatArray(mirror.cols() * mirror.rows())
+                            mirror.get(0, 0, m)
+                            if (m.size == v.size) for (k in v.indices) v[k] += m[k]
+                        } finally {
+                            flipped.release(); mirror.release()
+                        }
                     }
                     val both = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
                     if (norm == 0f || both == 0f) continue
@@ -88,6 +104,37 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
             bgr.release()
             faces.release()
         }
+    }
+
+    /**
+     * Gray-world colour balance (6 Nov): scales blue, green and red so each averages the same, which takes most of a
+     * coloured light's cast off the face. Gains are kept between 0.6 and 1.6 so a truly colourful face isn't wrecked.
+     */
+    private fun neutralise(aligned: Mat) {
+        val m = org.opencv.core.Core.mean(aligned).`val`
+        val avg = (m[0] + m[1] + m[2]) / 3.0
+        if (avg < 1.0) return
+        fun gain(c: Double) = if (c < 1.0) 1.0 else (avg / c).coerceIn(0.6, 1.6)
+        org.opencv.core.Core.multiply(aligned, org.opencv.core.Scalar(gain(m[0]), gain(m[1]), gain(m[2])), aligned)
+    }
+
+    /** AuraFace: the lined-up 112 x 112 face in RGB, scaled to -1..1, gives 512 numbers. */
+    private fun auraVector(aligned: Mat): FloatArray {
+        val bytes = ByteArray(112 * 112 * 3)
+        aligned.get(0, 0, bytes)
+        val input = java.nio.ByteBuffer.allocateDirect(4 * bytes.size).order(java.nio.ByteOrder.nativeOrder())
+        for (p in 0 until 112 * 112) {
+            val b = bytes[p * 3].toInt() and 0xff
+            val g = bytes[p * 3 + 1].toInt() and 0xff
+            val r = bytes[p * 3 + 2].toInt() and 0xff
+            input.putFloat((r - 127.5f) / 127.5f)
+            input.putFloat((g - 127.5f) / 127.5f)
+            input.putFloat((b - 127.5f) / 127.5f)
+        }
+        input.rewind()
+        val output = Array(1) { FloatArray(512) }
+        aura!!.run(input, output)
+        return output[0]
     }
 
     /**
@@ -152,8 +199,15 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
         private const val FINDER = "face_detection_yunet_2023mar.onnx"
         private const val MEASURER = "face_recognition_sface_2021dec.onnx"
 
-        /** Null when OpenCV or the models can't be loaded on this phone. */
-        fun create(context: Context): FaceEngine? = runCatching {
+        /** AuraFace v1 (fal.ai, Apache 2.0), int8 TFLite conversion; downloaded once when the test is turned on. */
+        const val AURA_FILE = "auraface_v1_glintr100_wi8.tflite"
+        const val AURA_URL = "https://huggingface.co/eungsang/auraface-v1-tflite/resolve/ac623dbbf0d4e883203f76a30c365bcc967fed3a/auraface_v1_glintr100_wi8.tflite"
+        const val AURA_SHA256 = "56c854e363b7ae99622deed87e27d95bda239b87dd145be565a71ed64d72ae46"
+
+        fun auraFile(context: Context) = File(context.filesDir, "people/models/$AURA_FILE")
+
+        /** Null when OpenCV or the models can't be loaded on this phone. [useAura]: measure with AuraFace (must be downloaded). */
+        fun create(context: Context, useAura: Boolean = false): FaceEngine? = runCatching {
             if (!OpenCVLoader.initLocal()) return null
             val dir = File(context.filesDir, "people/models").apply { mkdirs() }
             fun model(name: String): String {
@@ -165,7 +219,12 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
             }
             val finder = FaceDetectorYN.create(model(FINDER), "", Size(320.0, 320.0), 0.9f, 0.3f, 5000)
             val measurer = FaceRecognizerSF.create(model(MEASURER), "")
-            FaceEngine(finder, measurer)
+            val aura = if (useAura) {
+                val file = auraFile(context)
+                if (!file.exists()) return null
+                org.tensorflow.lite.Interpreter(file, org.tensorflow.lite.Interpreter.Options().setNumThreads(4))
+            } else null
+            FaceEngine(finder, measurer, aura)
         }.getOrNull()
     }
 }

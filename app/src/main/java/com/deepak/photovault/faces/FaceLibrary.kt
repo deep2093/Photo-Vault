@@ -40,19 +40,34 @@ object FaceLibrary {
 
     @Volatile private var stopAsked = false
 
-    private fun dir(context: Context) = File(context.applicationContext.filesDir, "people").apply { mkdirs() }
-    private fun oldFacesFile(context: Context) = File(dir(context), "faces.bin")
-    private fun oldScannedFile(context: Context) = File(dir(context), "scanned.bin")
-    private fun midFacesFile(context: Context) = File(dir(context), "faces2.bin")
-    private fun midScannedFile(context: Context) = File(dir(context), "scanned2.bin")
-    private fun v3FacesFile(context: Context) = File(dir(context), "faces3.bin")
-    private fun v3ScannedFile(context: Context) = File(dir(context), "scanned3.bin")
-    private fun v4FacesFile(context: Context) = File(dir(context), "faces4.bin")
-    private fun v4ScannedFile(context: Context) = File(dir(context), "scanned4.bin")
+    /** The test model (6 Nov): AuraFace keeps its own faces, people and names in people/aura. */
+    fun useAura(context: Context): Boolean = prefs(context).getString("model", "standard") == "aura"
 
-    /** Same layout as version 4, but measured with the mirror trick (5 Nov), so every photo is looked at again. */
-    private fun facesFile(context: Context) = File(dir(context), "faces5.bin")
-    private fun scannedFile(context: Context) = File(dir(context), "scanned5.bin")
+    fun setAura(context: Context, on: Boolean) { prefs(context).edit().putString("model", if (on) "aura" else "standard").apply() }
+
+    private fun dir(context: Context): File {
+        val aura = useAura(context)
+        // Each model scores on its own scale: the lines follow the model in use.
+        FaceGrouping.use(if (aura) com.deepak.photovault.ui.shell.FaceLines.AURA else com.deepak.photovault.ui.shell.FaceLines.SFACE)
+        val base = File(context.applicationContext.filesDir, "people")
+        return (if (aura) File(base, "aura") else base).apply { mkdirs() }
+    }
+
+    /** Settings that belong to one model's people. */
+    private fun key(context: Context, name: String) = if (useAura(context)) "aura_$name" else name
+
+    /** Faces found by earlier versions (file, list of photos looked at, layout version): anchors until looked at again. */
+    private val OLDER = listOf(
+        Triple("faces.bin", "scanned.bin", 1),
+        Triple("faces2.bin", "scanned2.bin", 2),
+        Triple("faces3.bin", "scanned3.bin", 3),
+        Triple("faces4.bin", "scanned4.bin", 4),
+        Triple("faces5.bin", "scanned5.bin", 4),
+    )
+
+    /** 6 Nov: colour cast evened out before measuring, so every photo is looked at once more. Same layout as version 4. */
+    private fun facesFile(context: Context) = File(dir(context), "faces6.bin")
+    private fun scannedFile(context: Context) = File(dir(context), "scanned6.bin")
     private fun peopleFile(context: Context) = File(dir(context), "people.json")
     fun thumbsDir(context: Context) = File(dir(context), "thumbs").apply { mkdirs() }
 
@@ -75,7 +90,7 @@ object FaceLibrary {
         prefs(context).edit().putString(key, list.joinToString(",")).apply()
     }
 
-    private fun askFloor(context: Context) = FaceGrouping.askFloor(scores(context, "no_scores"), scores(context, "yes_scores"))
+    private fun askFloor(context: Context) = FaceGrouping.askFloor(scores(context, key(context, "no_scores")), scores(context, key(context, "yes_scores")))
 
     /** Turning People off: every face, name and face picture on this phone goes. */
     suspend fun forgetAll(context: Context) = lock.withLock {
@@ -116,10 +131,11 @@ object FaceLibrary {
     }
 
     /** New faces, plus the faces found by earlier versions while they are still needed (until every photo is looked at again). */
-    private fun allFaces(context: Context): List<Face> =
-        readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2) + readFaces(v3FacesFile(context), 3) + readFaces(v4FacesFile(context), 4) + readFaces(facesFile(context), 4)
+    private fun olderFaces(context: Context): List<Face> = OLDER.flatMap { (f, _, v) -> readFaces(File(dir(context), f), v) }
 
-    private fun olderFacesExist(context: Context) = oldFacesFile(context).exists() || midFacesFile(context).exists() || v3FacesFile(context).exists() || v4FacesFile(context).exists()
+    private fun allFaces(context: Context): List<Face> = olderFaces(context) + readFaces(facesFile(context), 4)
+
+    private fun olderFacesExist(context: Context) = OLDER.any { File(dir(context), it.first).exists() }
 
     private fun appendFaces(context: Context, faces: List<Face>) {
         if (faces.isEmpty()) return
@@ -210,7 +226,7 @@ object FaceLibrary {
             grouped = again.first
             after = again.second
         }
-        val joinAt = FaceGrouping.joinLine(scores(context, "no_scores"), scores(context, "yes_scores"))
+        val joinAt = FaceGrouping.joinLine(scores(context, key(context, "no_scores")), scores(context, key(context, "yes_scores")))
         val people = if (join) FaceGrouping.joinGroups(all, grouped, saved.different, joinAt) else grouped
         val questions = if (join) {
             val spots = all.associate { it.id to FaceSpot(it.id, it.photoId, it.box) }
@@ -228,14 +244,14 @@ object FaceLibrary {
         withContext(Dispatchers.Default) {
             val faces = allFaces(context)
             // Once, for people grouped before groups were compared with each other (5 Nov).
-            if (prefs(context).getInt("joined", 0) < JOIN_VERSION && peopleFile(context).exists()) {
+            if (prefs(context).getInt(key(context, "joined"), 0) < JOIN_VERSION && peopleFile(context).exists()) {
                 runCatching { regroup(context, faces, join = true) }
-                prefs(context).edit().putInt("joined", JOIN_VERSION).apply()
+                prefs(context).edit().putInt(key(context, "joined"), JOIN_VERSION).apply()
             }
             // Once, when the stricter rules arrive and no look-again is pending (5 Nov).
-            if (prefs(context).getInt("rebuilt", 0) < REBUILD_VERSION && !olderFacesExist(context) && peopleFile(context).exists()) {
+            if (prefs(context).getInt(key(context, "rebuilt"), 0) < REBUILD_VERSION && !olderFacesExist(context) && peopleFile(context).exists()) {
                 runCatching { rebuildUnnamed(context) }
-                prefs(context).edit().putInt("rebuilt", REBUILD_VERSION).apply()
+                prefs(context).edit().putInt(key(context, "rebuilt"), REBUILD_VERSION).apply()
             }
             val saved = readPeople(context)
             PeopleSnapshot(
@@ -252,6 +268,58 @@ object FaceLibrary {
         withContext(Dispatchers.IO) {
             val saved = readPeople(context)
             writePeople(context, change(saved.people), saved.next, saved.different, saved.questions)
+        }
+    }
+
+    /**
+     * Downloads AuraFace once (6 Nov): about 66 MB, only on an unmetered network (Wi-Fi), checked against its known
+     * SHA-256 before it is used. Null when it worked, else the problem in plain words.
+     */
+    suspend fun downloadAura(context: Context, onProgress: (Float) -> Unit): String? = withContext(Dispatchers.IO) {
+        val file = FaceEngine.auraFile(context)
+        if (file.exists()) return@withContext null
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
+        if (caps == null || !caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)) {
+            return@withContext "Connect to Wi-Fi first: the test model is about 66 MB."
+        }
+        file.parentFile?.mkdirs()
+        val part = File(file.parentFile, file.name + ".part")
+        try {
+            val connection = java.net.URL(FaceEngine.AURA_URL).openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
+            connection.instanceFollowRedirects = true
+            if (connection.responseCode !in 200..299) return@withContext "The test model couldn't be downloaded (error ${connection.responseCode})."
+            val total = connection.contentLengthLong.takeIf { it > 0 } ?: 66_000_000L
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            var done = 0L
+            connection.inputStream.use { input ->
+                part.outputStream().use { out ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        out.write(buffer, 0, n)
+                        digest.update(buffer, 0, n)
+                        done += n
+                        onProgress((done.toFloat() / total).coerceIn(0f, 1f))
+                    }
+                }
+            }
+            val hex = digest.digest().joinToString("") { "%02x".format(it) }
+            if (hex != FaceEngine.AURA_SHA256) {
+                part.delete()
+                return@withContext "The downloaded model didn't pass its check, so it wasn't used."
+            }
+            if (!part.renameTo(file)) return@withContext "The test model couldn't be saved."
+            null
+        } catch (e: CancellationException) {
+            part.delete()
+            throw e
+        } catch (e: Exception) {
+            part.delete()
+            "The test model couldn't be downloaded. Check the Wi-Fi and try again."
         }
     }
 
@@ -285,7 +353,7 @@ object FaceLibrary {
     suspend fun answer(context: Context, q: SamePersonQuestion, same: Boolean) = lock.withLock {
         withContext(Dispatchers.IO) {
             val saved = readPeople(context)
-            addScore(context, if (same) "yes_scores" else "no_scores", q.score)
+            addScore(context, key(context, if (same) "yes_scores" else "no_scores"), q.score)
             val floor = askFloor(context)
             // Questions now under the (perhaps raised) line go too.
             val left = saved.questions.filterNot { (it.a == q.a && it.b == q.b) || it.score < floor }
@@ -324,7 +392,7 @@ object FaceLibrary {
         if (!scanLock.tryLock()) return@withContext true
         stopAsked = false
         try {
-            val engine = FaceEngine.create(context) ?: return@withContext false
+            val engine = FaceEngine.create(context, useAura(context)) ?: return@withContext false
             val photos = MediaStoreLibrary(context).loadAll().filter { !it.isVideo }.sortedByDescending { it.takenAtMillis }
             val done = lock.withLock { withContext(Dispatchers.IO) { readScanned(scannedFile(context)) } }
             val todo = photos.filter { it.id !in done }
@@ -371,6 +439,7 @@ object FaceLibrary {
                 if (count >= photos.size) finishLookingAgain(context)
             }
             progress.value = ScanProgress(count, photos.size, running = false)
+            engine.close()
             if (enabled(context)) maybeNotify(context, questions)
             todo.size > batch.size || (stopAsked && count < photos.size)
         } finally {
@@ -398,15 +467,15 @@ object FaceLibrary {
     private suspend fun finishLookingAgain(context: Context) = lock.withLock {
         withContext(Dispatchers.IO) {
             if (!olderFacesExist(context)) return@withContext
-            val oldIds = (readFaces(oldFacesFile(context), 1) + readFaces(midFacesFile(context), 2) + readFaces(v3FacesFile(context), 3) + readFaces(v4FacesFile(context), 4)).map { it.id }.toSet()
+            val oldIds = olderFaces(context).map { it.id }.toSet()
             val saved = readPeople(context)
             val people = saved.people.map { p -> p.copy(faces = p.faces - oldIds, notFaces = p.notFaces - oldIds) }
                 .filter { it.faces.isNotEmpty() || it.name != null }
             writePeople(context, people, saved.next, saved.different, saved.questions)
-            listOf(oldFacesFile(context), oldScannedFile(context), midFacesFile(context), midScannedFile(context), v3FacesFile(context), v3ScannedFile(context), v4FacesFile(context), v4ScannedFile(context)).forEach { it.delete() }
+            OLDER.forEach { (f, sc, _) -> File(dir(context), f).delete(); File(dir(context), sc).delete() }
             oldIds.forEach { File(thumbsDir(context), "$it.jpg").delete() }
             rebuildUnnamed(context)
-            prefs(context).edit().putInt("rebuilt", REBUILD_VERSION).apply()
+            prefs(context).edit().putInt(key(context, "rebuilt"), REBUILD_VERSION).apply()
         }
     }
 
@@ -415,8 +484,8 @@ object FaceLibrary {
         if (questions.isEmpty() || !askByNotification(context)) return
         val today = System.currentTimeMillis() / 86_400_000L
         val p = prefs(context)
-        if (p.getLong("notified_day", -1L) == today) return
-        if (PeopleNotice.show(context, questions.size)) p.edit().putLong("notified_day", today).apply()
+        if (p.getLong(key(context, "notified_day"), -1L) == today) return
+        if (PeopleNotice.show(context, questions.size)) p.edit().putLong(key(context, "notified_day"), today).apply()
     }
 
     /** A small square of one face for its round picture, made once and kept. */

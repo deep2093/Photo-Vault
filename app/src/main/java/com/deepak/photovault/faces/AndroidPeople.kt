@@ -22,6 +22,8 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
     override suspend fun setEnabled(on: Boolean) {
         FaceLibrary.setEnabled(app, on)
         if (on) {
+            // "Same person?" notifications are always on (6 Nov): ask for permission now if it was never given.
+            activity.requestNotifications()
             FaceScanWorker.schedule(app)
         } else {
             FaceScanWorker.cancel(app)
@@ -48,6 +50,17 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
     override suspend fun tidy() = FaceLibrary.tidy(app)
 
     override suspend fun answer(question: SamePersonQuestion, same: Boolean) = FaceLibrary.answer(app, question, same)
+
+    override fun usesTestModel(): Boolean = FaceLibrary.useAura(app)
+
+    override suspend fun setTestModel(on: Boolean, onProgress: (Float) -> Unit): String? {
+        if (on) {
+            FaceLibrary.downloadAura(app, onProgress)?.let { return it }
+        }
+        FaceLibrary.setAura(app, on)
+        FaceScanWorker.schedule(app)
+        return null
+    }
 
     override fun askByNotification(): Boolean = FaceLibrary.askByNotification(app)
 

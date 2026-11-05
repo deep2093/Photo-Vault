@@ -94,6 +94,7 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         all.partition { p -> p.name != null || people.photosOf(p).count { it in onPhone } >= FaceGrouping.OTHERS_BELOW }
     }
     var showOthers by remember { mutableStateOf(false) }
+    var naming by remember { mutableStateOf<Person?>(null) }
     val question = if (!showHidden) people.nextQuestion() else null
     val selecting = people.selected.isNotEmpty()
     // The place on the page lives in PeopleState (5 Nov): a person page scrolled to its end used to reset it.
@@ -116,6 +117,13 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
             if (selecting) {
                 GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { people.selected = emptySet() })
             } else if (people.enabled) {
+                // Scan sits in the top bar (6 Nov), left of show/hide.
+                val running = progress?.running == true
+                GlassIconButton(
+                    if (running) Icons.Rounded.Pause else Icons.Rounded.Refresh,
+                    if (running) "Pause looking for faces" else "Scan now",
+                    onClick = { if (running) platform.stopScan() else platform.scanNow() },
+                )
                 GlassIconButton(
                     if (showHidden) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
                     if (showHidden) "Show people" else "Show hidden people",
@@ -177,37 +185,48 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
             } else {
                 item(key = "status", span = { GridItemSpan(maxLineSpan) }) {
                     val p = progress
-                    // Compact (5 Nov): one line of progress with the button beside it, and the switch below.
+                    var downloading by remember { mutableStateOf<Float?>(null) }
+                    var problem by remember { mutableStateOf<String?>(null) }
                     GlassCard(Modifier.fillMaxWidth()) {
-                        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                when {
-                                    p == null -> "${people.scanned} photos looked at"
-                                    p.running -> "Looking: ${p.done} of ${p.total}"
-                                    p.done >= p.total -> "All ${p.total} photos looked at"
-                                    else -> "${p.done} of ${p.total} looked at"
-                                },
-                                color = theme.onGlass,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            val running = p?.running == true
-                            GlassIconButton(
-                                if (running) Icons.Rounded.Pause else Icons.Rounded.Refresh,
-                                if (running) "Pause" else "Scan now",
-                                onClick = { if (running) platform.stopScan() else platform.scanNow() },
-                            )
-                        }
-                        if (people.lookingAgain) Text(
-                            "Looking at every photo once more. Names stay.",
-                            color = theme.onGlassSecondary,
-                            style = MaterialTheme.typography.bodySmall,
+                        Text(
+                            when {
+                                p == null -> "${people.scanned} photos looked at"
+                                p.running -> "Looking for faces: ${p.done} of ${p.total}"
+                                p.done >= p.total -> "All ${p.total} photos looked at"
+                                else -> "${p.done} of ${p.total} looked at"
+                            },
+                            color = theme.onGlass,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
-                        var ask by remember { mutableStateOf(platform.askByNotification()) }
+                        if (people.lookingAgain) Text("Looking at every photo once more. Names stay.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+                        // The test model (6 Nov): its own people list, so the two can be compared.
                         com.deepak.photovault.designsystem.GlassSwitchRow(
-                            title = "Ask me by notification",
-                            checked = ask,
-                            onCheckedChange = { ask = it; platform.setAskByNotification(it) },
+                            title = "AuraFace test model",
+                            checked = people.testModel,
+                            onCheckedChange = { on ->
+                                if (downloading == null) scope.launch {
+                                    problem = null
+                                    if (on) downloading = 0f
+                                    val result = platform.setTestModel(on) { downloading = it }
+                                    downloading = null
+                                    if (result == null) {
+                                        people.testModel = on
+                                        people.selected = emptySet()
+                                        thumbs.clear()
+                                        people.resetScroll()
+                                        people.refresh()
+                                        platform.scanNow()
+                                    } else {
+                                        problem = result
+                                    }
+                                }
+                            },
+                            description = when {
+                                downloading != null -> "Downloading: ${((downloading ?: 0f) * 100).toInt()}%"
+                                problem != null -> problem
+                                people.testModel -> "On: a separate list made by AuraFace. Turn off to go back to your usual people."
+                                else -> "Try a second face model (66 MB, Wi-Fi). It keeps its own list; switch back any time."
+                            },
                         )
                     }
                 }
@@ -280,12 +299,13 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                         }
                         Text(
                             person.name ?: "Add a name",
+                            // Tapping "Add a name" opens the name box straight away (6 Nov).
+                            modifier = Modifier.padding(top = 6.dp).then(if (person.name == null && !selecting) Modifier.clickable { naming = person } else Modifier),
                             color = if (person.name != null) theme.onGlass else theme.onGlassSecondary,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (person.name != null) FontWeight.SemiBold else FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 6.dp),
                         )
                         Text(if (count == 1) "1 photo" else "$count photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
                     }
@@ -303,6 +323,12 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         }
     }
 
+    naming?.let { p ->
+        NameDialog(p, onDismiss = { naming = null }) { name ->
+            naming = null
+            scope.launch { people.rename(p.id, name) }
+        }
+    }
     if (confirmOff) {
         ConfirmDialog(
             title = "Turn off People?",
@@ -388,25 +414,9 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
         )
     }
     if (renaming) {
-        var name by remember { mutableStateOf(person.name.orEmpty()) }
-        GlassDialog(
-            title = if (person.name == null) "Add a name" else "Change the name",
-            onDismiss = { renaming = false },
-            buttons = {
-                GlassButton("Cancel", onClick = { renaming = false })
-                GlassButton("Save", primary = true, onClick = {
-                    renaming = false
-                    scope.launch { people.rename(person.id, name) }
-                })
-            },
-        ) {
-            GlassTextField(name, { name = it }, "Name")
-            Text(
-                "Using a name you already gave someone else puts them together as one person.",
-                color = LocalGlassTheme.current.onGlassSecondary,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 6.dp),
-            )
+        NameDialog(person, onDismiss = { renaming = false }) { name ->
+            renaming = false
+            scope.launch { people.rename(person.id, name) }
         }
     }
 }
@@ -478,5 +488,27 @@ private fun MoveToPersonDialog(people: PeopleState, fromId: Int, onDismiss: () -
                 }
             }
         }
+    }
+}
+
+/** Add or change a person's name. Using a name someone else already has puts the two together. */
+@Composable
+private fun NameDialog(person: Person, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var name by remember { mutableStateOf(person.name.orEmpty()) }
+    GlassDialog(
+        title = if (person.name == null) "Add a name" else "Change the name",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton("Cancel", onClick = onDismiss)
+            GlassButton("Save", primary = true, onClick = { onSave(name) })
+        },
+    ) {
+        GlassTextField(name, { name = it }, "Name")
+        Text(
+            "Using a name you already gave someone else puts them together as one person.",
+            color = LocalGlassTheme.current.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 6.dp),
+        )
     }
 }

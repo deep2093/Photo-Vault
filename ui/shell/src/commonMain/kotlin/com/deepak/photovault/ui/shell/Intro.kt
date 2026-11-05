@@ -100,16 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-05-9"
+    const val ID = "2026-11-06-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Learns your family's faces", "Once two or more people are named, People learns from their photos what tells your family apart, and uses it whenever a face could belong to two people (like sisters). Name your main family members to help it."),
-        Change(ChangeKind.NEW, "Move to…", "Inside a person, select photos and tap Move to another person to put them with the right person, or a new one. It learns from it both ways."),
-        Change(ChangeKind.CHANGED, "Look-alikes kept apart", "Someone you've separated a look-alike from (a sister, say) now needs a closer match before new faces join them by themselves."),
-        Change(ChangeKind.CHANGED, "Not this person sorts at once", "Photos you take out are sorted again straight away, not at the next scan."),
-        Change(ChangeKind.FIXED, "Same person? questions", "Questions use only clear faces, checked both ways, so very different people aren't asked about. The card is smaller and its faces line up."),
-        Change(ChangeKind.FIXED, "People page place", "Coming back from a person keeps your place on the People page, even after scrolling inside the person."),
-        Change(ChangeKind.CHANGED, "Smaller boxes", "The People status box is more compact, and the Turn on People button is only as wide as its words."),
+        Change(ChangeKind.NEW, "AuraFace test model", "In People, turn on the AuraFace test model to try a second, larger face model (66 MB, downloaded once on Wi-Fi). It makes its own list of people, so you can compare; turn it off to go back to your usual people and names."),
+        Change(ChangeKind.CHANGED, "Coloured light", "Faces are colour-balanced before they are measured, so purple and pink party lights confuse People less. People looks at your photos once more for this; names stay."),
+        Change(ChangeKind.NEW, "Tap Add a name", "Tapping Add a name under a face opens the name box straight away."),
+        Change(ChangeKind.CHANGED, "Scan button", "Scan now is in the top bar of People, next to show/hide."),
+        Change(ChangeKind.REMOVED, "Notification switch", "\"Same person?\" notifications are always on; People asks for permission when you turn it on."),
     )
 }
 

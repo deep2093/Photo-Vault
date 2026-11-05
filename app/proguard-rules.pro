@@ -19,3 +19,7 @@
 # OpenCV (People): Java classes are bound to native code by name.
 -keep class org.opencv.** { *; }
 -dontwarn org.opencv.**
+
+# TensorFlow Lite (People test model): native code finds these classes by name.
+-keep class org.tensorflow.lite.** { *; }
+-dontwarn org.tensorflow.lite.**

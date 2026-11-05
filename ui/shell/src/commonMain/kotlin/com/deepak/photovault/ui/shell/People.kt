@@ -63,13 +63,38 @@ data class Person(
  * names, merges and removals made by hand are never undone. A person is compared by the average of its faces and by a
  * few of its own faces, so a merged person (with and without sunglasses, say) matches both looks afterwards.
  */
+/**
+ * The likeness lines of one face model (6 Nov). Each model scores on its own scale, so each gets its own lines:
+ * SFace (the standard model, 128 numbers) and AuraFace (the test model, 512 numbers, ArcFace-style scores that run
+ * lower for the same person).
+ */
+class FaceLines(val same: Float, val sameHidden: Float, val ask: Float, val joinGroups: Float, val near: Float) {
+    companion object {
+        val SFACE = FaceLines(same = 0.42f, sameHidden = 0.50f, ask = 0.32f, joinGroups = 0.45f, near = 0.30f)
+
+        /** First tuning for AuraFace (ArcFace scale: same person usually 0.4+, different people under 0.2). */
+        val AURA = FaceLines(same = 0.36f, sameHidden = 0.44f, ask = 0.26f, joinGroups = 0.40f, near = 0.24f)
+    }
+}
+
 object FaceGrouping {
+    /** Switches every line to [lines] (the phone's chosen face model). */
+    fun use(lines: FaceLines) {
+        SAME = lines.same
+        SAME_HIDDEN = lines.sameHidden
+        ASK = lines.ask
+        JOIN_GROUPS = lines.joinGroups
+        NEAR = lines.near
+    }
+
     /** SFace's own "same person" line is 0.363; a little stricter, because merging is easier than splitting. */
-    const val SAME = 0.42f
+    var SAME = 0.42f
+        private set
 
     /** Eyes hidden (dark glasses): such a face needs a closer match to join by itself (5 Nov). */
     const val EYES_HIDDEN = 0.45f
-    const val SAME_HIDDEN = 0.50f
+    var SAME_HIDDEN = 0.50f
+        private set
 
     /** Sharp enough to be one of the faces new ones are compared with (raised from 60, 5 Nov). */
     const val GOOD_SHARP = 100f
@@ -171,7 +196,8 @@ object FaceGrouping {
      * Groups this alike, but not enough to join by themselves, become a "Same person?" question (7A-2). Raised from 0.24
      * on 5 Nov: in one family's photos completely different people (a man and a woman, a child and an adult) reached it.
      */
-    const val ASK = 0.32f
+    var ASK = 0.32f
+        private set
 
     /** Faces of one group must match faces of the other this many times, face to face, before anyone is asked. */
     const val EVIDENCE = 3
@@ -338,7 +364,8 @@ object FaceGrouping {
      * Two groups this alike on average are one person (5 Nov: the same face had split into groups of 647 and 72).
      * Raised from 0.36 the same day: two different bearded men of the same age had been joined.
      */
-    const val JOIN_GROUPS = 0.45f
+    var JOIN_GROUPS = 0.45f
+        private set
 
     /**
      * How many faces of [b] look like someone in [a] at the normal "same person" line. Two different people almost never
@@ -359,7 +386,7 @@ object FaceGrouping {
         val sorted = yesScores.sorted()
         var line = sorted[(sorted.size * 0.25f).toInt()]
         noScores.maxOrNull()?.let { line = maxOf(line, it + 0.02f) }
-        return line.coerceIn(0.40f, JOIN_GROUPS)
+        return line.coerceIn(JOIN_GROUPS - 0.05f, JOIN_GROUPS)
     }
 
     fun askFloor(noScores: List<Float>, yesScores: List<Float>): Float {
@@ -371,7 +398,7 @@ object FaceGrouping {
     }
 
     /** Groups whose averages are further apart than this are not compared face by face (it is slow). */
-    private const val NEAR = 0.30f
+    private var NEAR = 0.30f
     private const val SAMPLE = 20
 
     /**
@@ -587,9 +614,15 @@ interface PeoplePlatform {
     /** The answer to a "Same person?" question: Yes joins them, No is remembered so it is never asked again. */
     suspend fun answer(question: SamePersonQuestion, same: Boolean) = Unit
 
-    /** A notification when new "Same person?" questions are waiting (at most one a day). On by default. */
+    /** A notification when new "Same person?" questions are waiting (at most one a day). Always on (6 Nov). */
     fun askByNotification(): Boolean = true
     fun setAskByNotification(on: Boolean) = Unit
+
+    /** The AuraFace test model is in use (6 Nov): its own faces, people and names, kept apart from the standard ones. */
+    fun usesTestModel(): Boolean = false
+
+    /** Switches to (downloading once, on Wi-Fi) or away from the test model. Null when it worked, else the problem. */
+    suspend fun setTestModel(on: Boolean, onProgress: (Float) -> Unit): String? = "Not available on this device."
 }
 
 object NoPeople : PeoplePlatform
@@ -601,6 +634,7 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
     var spots by mutableStateOf<Map<Int, FaceSpot>>(emptyMap())
     var scanned by mutableStateOf(0)
     var questions by mutableStateOf<List<SamePersonQuestion>>(emptyList())
+    var testModel by mutableStateOf(platform.usesTestModel())
     var lookingAgain by mutableStateOf(false)
 
     /** Questions put off with "Not sure" (until the app is opened again). */

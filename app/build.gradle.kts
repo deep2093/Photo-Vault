@@ -138,6 +138,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     // People (7A): finds and measures faces on the phone (YuNet and SFace models, in assets/faces, fetched by CI).
     implementation("org.opencv:opencv:4.10.0")
+    // People test model (6 Nov): runs AuraFace (int8 TFLite, downloaded on request, not in the app).
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
 
     testImplementation("junit:junit:4.13.2")
 }
