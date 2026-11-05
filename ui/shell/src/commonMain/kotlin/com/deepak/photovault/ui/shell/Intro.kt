@@ -100,14 +100,16 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-05-8"
+    const val ID = "2026-11-05-9"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Learns who is NOT someone", "Photos you take out with Not this person teach People: a new face that looks more like those than like the person isn't added. This helps with sisters and look-alikes."),
-        Change(ChangeKind.CHANGED, "Steadier face measuring", "Each face is now measured twice (as is and mirrored) and the two are combined, so the same person splits into fewer groups. People looks at your photos once more for this; names stay."),
-        Change(ChangeKind.CHANGED, "Fewer splits of one person", "Big groups keep a face that fits them overall even when it looks a bit different, and your Yes answers lower the line for joining groups by themselves."),
-        Change(ChangeKind.CHANGED, "Best picture as the cover", "Each person's round picture is the clearest face looking straight at the camera; when there is none, the next best."),
-        Change(ChangeKind.FIXED, "People page jumps to the top", "Coming back from a person now keeps your place on the People page."),
+        Change(ChangeKind.NEW, "Learns your family's faces", "Once two or more people are named, People learns from their photos what tells your family apart, and uses it whenever a face could belong to two people (like sisters). Name your main family members to help it."),
+        Change(ChangeKind.NEW, "Move to…", "Inside a person, select photos and tap Move to another person to put them with the right person, or a new one. It learns from it both ways."),
+        Change(ChangeKind.CHANGED, "Look-alikes kept apart", "Someone you've separated a look-alike from (a sister, say) now needs a closer match before new faces join them by themselves."),
+        Change(ChangeKind.CHANGED, "Not this person sorts at once", "Photos you take out are sorted again straight away, not at the next scan."),
+        Change(ChangeKind.FIXED, "Same person? questions", "Questions use only clear faces, checked both ways, so very different people aren't asked about. The card is smaller and its faces line up."),
+        Change(ChangeKind.FIXED, "People page place", "Coming back from a person keeps your place on the People page, even after scrolling inside the person."),
+        Change(ChangeKind.CHANGED, "Smaller boxes", "The People status box is more compact, and the Turn on People button is only as wide as its words."),
     )
 }
 

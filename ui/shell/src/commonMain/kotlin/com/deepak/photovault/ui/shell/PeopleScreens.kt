@@ -2,12 +2,14 @@ package com.deepak.photovault.ui.shell
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,7 +24,10 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PersonRemove
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Visibility
@@ -91,6 +96,16 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
     var showOthers by remember { mutableStateOf(false) }
     val question = if (!showHidden) people.nextQuestion() else null
     val selecting = people.selected.isNotEmpty()
+    // The place on the page lives in PeopleState (5 Nov): a person page scrolled to its end used to reset it.
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState(people.scrollIndex, people.scrollOffset)
+    LaunchedEffect(grid) {
+        androidx.compose.runtime.snapshotFlow { grid.firstVisibleItemIndex to grid.firstVisibleItemScrollOffset }.collect { (i, o) ->
+            if (state.overlays.lastOrNull() == Overlay.People) {
+                people.scrollIndex = i
+                people.scrollOffset = o
+            }
+        }
+    }
 
     GlassScreen(
         title = if (selecting) "${people.selected.size} selected" else if (showHidden) "Hidden people" else "People",
@@ -129,7 +144,7 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(96.dp),
             // Coming back from a person keeps the place on the page (5 Nov).
-            state = rememberSavedGridState("|people"),
+            state = grid,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = SCREEN_MARGIN, end = SCREEN_MARGIN, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -148,6 +163,8 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     }
                 }
                 item(key = "on", span = { GridItemSpan(maxLineSpan) }) {
+                    // Only as wide as its words (5 Nov).
+                    Box(Modifier.fillMaxWidth()) {
                     GlassButton(if (platform.supported) "Turn on People" else "Not available on this device", primary = true, onClick = {
                         if (platform.supported) scope.launch {
                             platform.setEnabled(true)
@@ -155,36 +172,42 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                             people.refresh()
                         }
                     })
+                    }
                 }
             } else {
                 item(key = "status", span = { GridItemSpan(maxLineSpan) }) {
                     val p = progress
+                    // Compact (5 Nov): one line of progress with the button beside it, and the switch below.
                     GlassCard(Modifier.fillMaxWidth()) {
-                        Text(
-                            when {
-                                p == null -> "Looked at ${people.scanned} photos. More are looked at while the phone charges."
-                                p.running -> "Looking for faces: ${p.done} of ${p.total} photos."
-                                p.done >= p.total -> "All ${p.total} photos looked at."
-                                else -> "Looked at ${p.done} of ${p.total} photos. The rest are looked at while the phone charges."
-                            },
-                            color = theme.onGlass,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                when {
+                                    p == null -> "${people.scanned} photos looked at"
+                                    p.running -> "Looking: ${p.done} of ${p.total}"
+                                    p.done >= p.total -> "All ${p.total} photos looked at"
+                                    else -> "${p.done} of ${p.total} looked at"
+                                },
+                                color = theme.onGlass,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            val running = p?.running == true
+                            GlassIconButton(
+                                if (running) Icons.Rounded.Pause else Icons.Rounded.Refresh,
+                                if (running) "Pause" else "Scan now",
+                                onClick = { if (running) platform.stopScan() else platform.scanNow() },
+                            )
+                        }
                         if (people.lookingAgain) Text(
-                            "Looking at every photo once more to leave out blurred and background faces. Your names and merges stay.",
+                            "Looking at every photo once more. Names stay.",
                             color = theme.onGlassSecondary,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp),
                         )
-                        val running = p?.running == true
-                        GlassButton(if (running) "Pause" else "Scan now", onClick = { if (running) platform.stopScan() else platform.scanNow() }, modifier = Modifier.padding(top = 8.dp))
                         var ask by remember { mutableStateOf(platform.askByNotification()) }
                         com.deepak.photovault.designsystem.GlassSwitchRow(
                             title = "Ask me by notification",
                             checked = ask,
                             onCheckedChange = { ask = it; platform.setAskByNotification(it) },
-                            description = "When Pixallery isn't sure two faces are the same person (at most once a day).",
-                            modifier = Modifier.padding(top = 8.dp),
                         )
                     }
                 }
@@ -192,21 +215,25 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     item(key = "question", span = { GridItemSpan(maxLineSpan) }) {
                         val a = people.find(question.a)
                         val b = people.find(question.b)
+                        // Compact and centred (5 Nov): each face over its own count, the buttons under them.
                         GlassCard(Modifier.fillMaxWidth()) {
-                            Text("Same person?", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            androidx.compose.foundation.layout.Row(
-                                Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                            ) {
-                                listOfNotNull(a, b).forEach { p -> PersonCircle(people, p, thumbs, 96, onPhone) }
+                            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Same person?", color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                val left = people.questions.count { it !in people.skipped } - 1
+                                if (left > 0) Text("$left more", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
                             }
-                            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.foundation.layout.Row(
+                                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                listOfNotNull(a, b).forEach { p -> PersonCircle(people, p, thumbs, 72, onPhone) }
+                            }
+                            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
                                 GlassButton("Yes", primary = true, onClick = { scope.launch { people.answer(question, true) } })
                                 GlassButton("No", onClick = { scope.launch { people.answer(question, false) } })
                                 GlassButton("Not sure", onClick = { people.skipped = people.skipped + question })
                             }
-                            val left = people.questions.count { it !in people.skipped } - 1
-                            if (left > 0) Text("$left more to check", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 6.dp))
                         }
                     }
                 }
@@ -312,6 +339,7 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
     val items = remember(photoIds, gallery.items) { gallery.items.filter { it.id in photoIds } }
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
     var renaming by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf<Set<Long>?>(null) }
     val label = person.name ?: "this person"
     SelectableScreen(
         title = person.name ?: "Add a name",
@@ -331,6 +359,7 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
         },
         selectionActions = { selected ->
             GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selected) })
+            GlassIconButton(Icons.Rounded.SwapHoriz, "Move to another person", onClick = { moving = selected.map { it.id }.toSet() })
             GlassIconButton(Icons.Rounded.PersonRemove, "Not $label", onClick = {
                 val ids = selected.map { it.id }.toSet()
                 state.selected = emptySet()
@@ -344,6 +373,18 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
             topButton = true,
             // Which face counted as this person, so a wrong group photo is easy to spot (5 Nov).
             tileMark = { item -> boxes[item.id] },
+        )
+    }
+    moving?.let { photoIds ->
+        MoveToPersonDialog(
+            people = people,
+            fromId = person.id,
+            onDismiss = { moving = null },
+            onPick = { toId ->
+                moving = null
+                state.selected = emptySet()
+                scope.launch { people.moveTo(person.id, photoIds, toId) }
+            },
         )
     }
     if (renaming) {
@@ -390,6 +431,52 @@ internal fun PersonCircle(people: PeopleState, person: Person, thumbs: MutableMa
         if (onPhone != null) {
             val count = people.photosOf(person).count { it in onPhone }
             Text(person.name ?: (if (count == 1) "1 photo" else "$count photos"), color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+/** "Move to…" (5 Nov): every other person with their face, plus a new person. */
+@Composable
+private fun MoveToPersonDialog(people: PeopleState, fromId: Int, onDismiss: () -> Unit, onPick: (Int?) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val thumbs = remember { mutableStateMapOf<Int, ByteArray>() }
+    val others = remember(people.people, people.spots) {
+        FaceGrouping.shown(people.people.filter { it.id != fromId && !it.hidden }, people.spots)
+    }
+    GlassDialog(
+        title = "Move to",
+        onDismiss = onDismiss,
+        buttons = { GlassButton("Cancel", onClick = onDismiss) },
+    ) {
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
+            item(key = "new") {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).clickable { onPick(null) }.padding(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(theme.onGlass.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Face, null, tint = theme.accent)
+                    }
+                    Text("New person", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp))
+                }
+            }
+            items(others.size, key = { others[it].id }) { i ->
+                val p = others[i]
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).clickable { onPick(p.id) }.padding(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PersonCircle(people, p, thumbs, 44)
+                    Text(
+                        p.name ?: "${people.photosOf(p).size} photos",
+                        color = theme.onGlass,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
+            }
         }
     }
 }

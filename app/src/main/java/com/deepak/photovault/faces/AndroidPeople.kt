@@ -43,6 +43,10 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
 
     override suspend fun faceThumb(spot: FaceSpot): ByteArray? = FaceLibrary.faceThumb(app, spot)
 
+    override suspend fun move(fromId: Int, faceIds: Set<Int>, toId: Int?) = FaceLibrary.move(app, fromId, faceIds, toId)
+
+    override suspend fun tidy() = FaceLibrary.tidy(app)
+
     override suspend fun answer(question: SamePersonQuestion, same: Boolean) = FaceLibrary.answer(app, question, same)
 
     override fun askByNotification(): Boolean = FaceLibrary.askByNotification(app)

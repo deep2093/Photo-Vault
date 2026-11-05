@@ -355,7 +355,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val tile = if (tablet) Modifier.width(200.dp) else Modifier.weight(1f)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PlaceTile(Icons.Rounded.Face, "People", if (!state.people.enabled) "Off" else "", tile) { state.open(Overlay.People) }
+                        PlaceTile(Icons.Rounded.Face, "People", if (!state.people.enabled) "Off" else "", tile) { state.people.resetScroll(); state.open(Overlay.People) }
                         PlaceTile(Icons.Rounded.Lock, "Secured folder", if (!state.secured.setUp) "Set up" else if (state.secured.unlocked) "Unlocked" else "Locked", tile) { state.open(Overlay.Secured) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

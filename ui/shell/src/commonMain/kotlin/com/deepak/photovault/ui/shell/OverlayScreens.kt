@@ -443,7 +443,7 @@ private fun SearchPeopleRow(state: ShellState, gallery: GalleryState) {
                     .size(64.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(LocalGlassTheme.current.onGlass.copy(alpha = 0.1f))
-                    .clickable { state.open(Overlay.People) },
+                    .clickable { state.people.resetScroll(); state.open(Overlay.People) },
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
                 androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.MoreHoriz, "All people", tint = LocalGlassTheme.current.onGlass)

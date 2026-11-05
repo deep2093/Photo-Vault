@@ -255,6 +255,32 @@ object FaceLibrary {
         }
     }
 
+    /** Sorts faces that belong to nobody now, straight away (after "Not this person", 5 Nov). */
+    suspend fun tidy(context: Context) = lock.withLock {
+        withContext(Dispatchers.Default) { runCatching { regroup(context, allFaces(context), join = false) } }
+        Unit
+    }
+
+    /**
+     * "Move to…" (5 Nov): the faces leave [fromId] for good and go to [toId], or to a new person when null. The target
+     * forgets any earlier "not them" about these faces.
+     */
+    suspend fun move(context: Context, fromId: Int, faceIds: Set<Int>, toId: Int?) = lock.withLock {
+        withContext(Dispatchers.IO) {
+            val saved = readPeople(context)
+            var next = saved.next
+            val people = saved.people.map { p ->
+                when (p.id) {
+                    fromId -> FaceGrouping.remove(p, faceIds)
+                    toId -> p.copy(faces = p.faces + faceIds, notFaces = p.notFaces - faceIds)
+                    else -> p
+                }
+            }.toMutableList()
+            if (toId == null) people += Person(next++, faceIds)
+            writePeople(context, people.filter { it.faces.isNotEmpty() || it.name != null }, next, saved.different, saved.questions)
+        }
+    }
+
     /** "Same person?" answered: Yes joins the two, No is remembered. Either way the question goes. */
     suspend fun answer(context: Context, q: SamePersonQuestion, same: Boolean) = lock.withLock {
         withContext(Dispatchers.IO) {

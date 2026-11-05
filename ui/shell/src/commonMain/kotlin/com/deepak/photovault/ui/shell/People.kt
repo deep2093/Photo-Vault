@@ -126,6 +126,44 @@ object FaceGrouping {
     /** A face must match this many of a person's faces (or the person's average), not just one (5 Nov). */
     const val AGREE = 3
 
+    /** Two people both matching a face within this of each other: a close call, decided by the learnt measure. */
+    const val CLOSE_CALL = 0.08f
+
+    /**
+     * A measure learnt from the people you named (5 Nov, for sisters and look-alikes): it works out how much each
+     * person's own faces vary in each of the 128 numbers and scales those numbers down, so what differs BETWEEN
+     * people counts more (within-class whitening). Needs at least two named people with 8 good faces each. Used only
+     * to settle close calls, so the usual lines keep their meaning.
+     */
+    fun whitener(faces: List<Face>, people: List<Person>): Whitener? {
+        val byId = faces.associateBy { it.id }
+        val groups = people.filter { it.name != null }
+            .map { p -> p.faces.mapNotNull { byId[it] }.filter { it.good }.map { it.vector } }
+            .filter { it.size >= 8 }
+        if (groups.size < 2) return null
+        val d = groups.first().first().size
+        val cov = Array(d) { DoubleArray(d) }
+        var n = 0
+        for (g in groups) {
+            val mean = DoubleArray(d)
+            g.forEach { v -> for (i in 0 until d) mean[i] += v[i].toDouble() }
+            for (i in 0 until d) mean[i] /= g.size
+            for (v in g) {
+                for (i in 0 until d) {
+                    val di = v[i] - mean[i]
+                    for (j in 0..i) cov[i][j] += di * (v[j] - mean[j])
+                }
+                n++
+            }
+        }
+        var trace = 0.0
+        for (i in 0 until d) { for (j in 0..i) cov[i][j] /= n; trace += cov[i][i] }
+        val ridge = trace / d
+        // Half learnt, half plain: safe even with few named photos.
+        for (i in 0 until d) { for (j in 0..i) cov[i][j] *= 0.5; cov[i][i] += 0.5 * ridge }
+        return Whitener.cholesky(cov)
+    }
+
     /** Below this a face is turned too far to start a person of its own (7A-2): it can only join one. */
     const val TURNED = 0.35f
 
@@ -136,7 +174,7 @@ object FaceGrouping {
     const val ASK = 0.32f
 
     /** Faces of one group must match faces of the other this many times, face to face, before anyone is asked. */
-    const val EVIDENCE = 2
+    const val EVIDENCE = 3
 
     /** ...and this many before two groups join by themselves. */
     const val EVIDENCE_JOIN = 3
@@ -169,6 +207,16 @@ object FaceGrouping {
         /** Faces taken out of this person by hand or by its check: "not them" examples (5 Nov, the sisters). */
         val notThem: List<FloatArray> = emptyList(),
     ) {
+        /** A face taken out of this person looks a lot like them (a sister, say): new faces need a closer match. */
+        val lookalike: Boolean by lazy {
+            val centre = if (goodCount > 0) goodSum else sum
+            notThem.any { cosine(it, centre) >= SAME_HIDDEN }
+        }
+
+        private var white: FloatArray? = null
+
+        fun whiteCentre(w: Whitener): FloatArray = white ?: w.apply(if (goodCount > 0) goodSum else sum).also { white = it }
+
         /** How much [v] looks like a face that was taken out of this person. */
         fun notScore(v: FloatArray): Float {
             var best = -1f
@@ -209,6 +257,7 @@ object FaceGrouping {
     fun group(faces: List<Face>, people: List<Person>, nextId: Int): Pair<List<Person>, Int> {
         markWeak(faces)
         val byId = faces.associateBy { it.id }
+        val learnt = whitener(faces, people)
         val placed = people.flatMap { it.faces }.toHashSet()
         val size = faces.firstOrNull()?.vector?.size ?: 0
         val groups = people.map { p ->
@@ -231,6 +280,8 @@ object FaceGrouping {
             var best: Group? = null
             val needed = if (face.eyesHidden || face.weak) SAME_HIDDEN else SAME
             var bestScore = needed - 1e-6f
+            var runnerUp: Group? = null
+            var runnerScore = -2f
             for (g in groups) {
                 // Two faces in one photo are never the same person (7A-2).
                 if (face.id in g.person.notFaces || g.faces.isEmpty() || face.photoId in g.photos) continue
@@ -238,11 +289,23 @@ object FaceGrouping {
                 // Looks more like someone taken out of this person than like the person: not them.
                 // A tie still goes to the person (the face taken out may be a bad photo of them).
                 if (g.notThem.isNotEmpty() && g.notScore(face.vector) > score + 0.01f) continue
+                // Someone with a known look-alike (a sister taken out before) needs a closer match (5 Nov).
+                if (g.lookalike && score < SAME_HIDDEN) continue
                 // Strictly better only: on a tie the older person (named, or merged by hand) keeps the face.
                 if (score > bestScore) {
+                    if (best != null) { runnerUp = best; runnerScore = bestScore }
                     bestScore = score
                     best = g
+                } else if (score > runnerScore && score >= needed) {
+                    runnerUp = g
+                    runnerScore = score
                 }
+            }
+            // Two people both match closely (sisters): the family's own learnt measure decides (5 Nov).
+            val second = runnerUp
+            if (learnt != null && best != null && second != null && bestScore - runnerScore < CLOSE_CALL) {
+                val w = learnt.apply(face.vector)
+                if (cosine(w, second.whiteCentre(learnt)) > cosine(w, best.whiteCentre(learnt))) best = second
             }
             // A side view that matches nobody waits: side views made most of the extra groups of one person.
             // Weak measurements (5 Nov) wait too: they only join someone they clearly match.
@@ -358,6 +421,9 @@ object FaceGrouping {
         return current
     }
 
+    private fun goodOf(p: Person, byId: Map<Int, Face>): List<FloatArray> =
+        spread(p.faces.sorted().mapNotNull { byId[it] }.filter { it.good }.map { it.vector }, SAMPLE)
+
     /** The faces a group is judged by: its good faces when it has a few, otherwise all of them. */
     private fun sampleOf(p: Person, byId: Map<Int, Face>): List<FloatArray> {
         val mine = p.faces.sorted().mapNotNull { byId[it] }
@@ -394,9 +460,13 @@ object FaceGrouping {
             if (cosine(centres[i], centres[j]) < floor) continue
             val score = linkage(vectors[i], vectors[j])
             if (score < floor || score >= JOIN_GROUPS) continue
-            // Only with real evidence: a few faces must match face to face, not just look alike on average.
-            val need = minOf(EVIDENCE, vectors[i].size, vectors[j].size)
-            if (matches(vectors[i], vectors[j]) < need) continue
+            // Only with real evidence, from clear faces only and both ways (5 Nov: a man and a woman, both looking
+            // down, were asked about): a few faces must match face to face, not just look alike on average.
+            val ga = goodOf(a, byId)
+            val gb = goodOf(b, byId)
+            if (ga.size < 2 || gb.size < 2) continue
+            val need = minOf(EVIDENCE, ga.size, gb.size)
+            if (matches(ga, gb) < need || matches(gb, ga) < need) continue
             out += SamePersonQuestion(minOf(a.id, b.id), maxOf(a.id, b.id), score)
         }
         return out.sortedByDescending { it.score }.take(limit)
@@ -436,6 +506,44 @@ object FaceGrouping {
     const val OTHERS_BELOW = 4
 }
 
+/** Applies the learnt measure: solves L y = v for the lower-triangular [l] (y = L^-1 v), then scales to length 1. */
+class Whitener private constructor(private val l: Array<DoubleArray>) {
+    fun apply(v: FloatArray): FloatArray {
+        val d = l.size
+        val y = DoubleArray(d)
+        for (i in 0 until d) {
+            var s = v[i].toDouble()
+            for (j in 0 until i) s -= l[i][j] * y[j]
+            y[i] = s / l[i][i]
+        }
+        var norm = 0.0
+        for (x in y) norm += x * x
+        norm = kotlin.math.sqrt(norm)
+        return FloatArray(d) { if (norm == 0.0) 0f else (y[it] / norm).toFloat() }
+    }
+
+    companion object {
+        /** Cholesky split of a symmetric matrix given by its lower half; null when it isn't positive. */
+        fun cholesky(a: Array<DoubleArray>): Whitener? {
+            val d = a.size
+            val l = Array(d) { DoubleArray(d) }
+            for (i in 0 until d) {
+                for (j in 0..i) {
+                    var s = a[i][j]
+                    for (k in 0 until j) s -= l[i][k] * l[j][k]
+                    if (i == j) {
+                        if (s <= 1e-12) return null
+                        l[i][i] = kotlin.math.sqrt(s)
+                    } else {
+                        l[i][j] = s / l[j][j]
+                    }
+                }
+            }
+            return Whitener(l)
+        }
+    }
+}
+
 class PeopleSnapshot(
     val people: List<Person> = emptyList(),
     val spots: Map<Int, FaceSpot> = emptyMap(),
@@ -469,6 +577,12 @@ interface PeoplePlatform {
 
     /** A small square picture of one face, cut from its photo. */
     suspend fun faceThumb(spot: FaceSpot): ByteArray? = null
+
+    /** Moves faces from one person to another (or a new person when [toId] is null) and teaches both ways (5 Nov). */
+    suspend fun move(fromId: Int, faceIds: Set<Int>, toId: Int?) = Unit
+
+    /** Sorts faces that belong to nobody now (after "Not this person"), without waiting for the next scan. */
+    suspend fun tidy() = Unit
 
     /** The answer to a "Same person?" question: Yes joins them, No is remembered so it is never asked again. */
     suspend fun answer(question: SamePersonQuestion, same: Boolean) = Unit
@@ -558,10 +672,29 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
 
     suspend fun setHidden(ids: Set<Int>, hidden: Boolean) = change { list -> list.map { if (it.id in ids) it.copy(hidden = hidden) else it } }
 
-    /** "Not this person": the faces of [person] in these photos leave it for good. */
-    suspend fun removePhotos(personId: Int, photoIds: Set<Long>) = change { list ->
-        list.map { p ->
-            if (p.id != personId) p else FaceGrouping.remove(p, p.faces.filter { spots[it]?.photoId in photoIds }.toSet())
-        }.filter { it.faces.isNotEmpty() || it.name != null }
+    /** "Not this person": the faces of [person] in these photos leave it for good, and are sorted again straight away. */
+    suspend fun removePhotos(personId: Int, photoIds: Set<Long>) {
+        platform.edit { list ->
+            list.map { p ->
+                if (p.id != personId) p else FaceGrouping.remove(p, p.faces.filter { spots[it]?.photoId in photoIds }.toSet())
+            }.filter { it.faces.isNotEmpty() || it.name != null }
+        }
+        platform.tidy()
+        refresh()
     }
+
+    /** "Move to…": these photos' faces of [personId] go to [toId] (or a new person). */
+    suspend fun moveTo(personId: Int, photoIds: Set<Long>, toId: Int?) {
+        val person = find(personId) ?: return
+        val faces = person.faces.filter { spots[it]?.photoId in photoIds }.toSet()
+        if (faces.isEmpty()) return
+        platform.move(personId, faces, toId)
+        refresh()
+    }
+
+    /** Where the People page was scrolled to, kept here so coming back from a person always returns there (5 Nov). */
+    var scrollIndex by mutableStateOf(0)
+    var scrollOffset by mutableStateOf(0)
+
+    fun resetScroll() { scrollIndex = 0; scrollOffset = 0 }
 }

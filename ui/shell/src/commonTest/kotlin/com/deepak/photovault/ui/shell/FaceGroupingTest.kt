@@ -226,4 +226,30 @@ class FaceGroupingTest {
         val blurry = FaceSpot(3, 12, floatArrayOf(0f, 0f, 0.3f, 0.3f), frontal = 0.95f, sharp = 40f)
         assertEquals(2, listOf(side, front, blurry).maxByOrNull { FaceGrouping.coverScore(it) }!!.id)
     }
+
+    @Test
+    fun theLearntMeasureNeedsTwoNamedPeople() {
+        // Eight good faces each for two named people (planes 0 and 1), with some spread.
+        val a = (1..8).map { face(it, it.toLong(), 0, it * 0.03f) }
+        val b = (11..18).map { face(it, it.toLong(), 1, (it - 10) * 0.03f) }
+        val people = listOf(Person(1, a.map { it.id }.toSet(), name = "Asha"), Person(2, b.map { it.id }.toSet(), name = "Bina"))
+        val w = FaceGrouping.whitener(a + b, people)
+        assertTrue(w != null)
+        val v = w!!.apply(vec(0))
+        val length = kotlin.math.sqrt(v.sumOf { (it * it).toDouble() })
+        assertTrue(kotlin.math.abs(length - 1.0) < 1e-4)
+        assertTrue(FaceGrouping.whitener(a + b, listOf(people[0], people[1].copy(name = null))) == null)
+    }
+
+    @Test
+    fun someoneWithAKnownLookalikeNeedsACloserMatch() {
+        // Sister taken out at angle 0.6 (cos about 0.83 to the person): a known look-alike. A new face at angle 1.1
+        // (about 0.45: enough normally) doesn't join; one at angle 0.3 (0.96) still does.
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.02f), face(3, 12, 0, 0.6f))
+        val p = Person(1, setOf(1, 2), notFaces = setOf(3))
+        val (far, _) = FaceGrouping.group(faces + face(4, 13, 0, -1.1f), listOf(p), 2)
+        assertTrue(4 !in far.first { it.id == 1 }.faces)
+        val (near, _) = FaceGrouping.group(faces + face(5, 14, 0, -0.3f), listOf(p), 2)
+        assertTrue(5 in near.first { it.id == 1 }.faces)
+    }
 }
