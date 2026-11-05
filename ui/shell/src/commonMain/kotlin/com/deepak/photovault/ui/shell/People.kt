@@ -386,12 +386,6 @@ object FaceGrouping {
     /** A clearly different outfit at the same event: taken off the likeness (helps tell sisters apart at one party). */
     const val CLOTHES_OFF = 0.03f
 
-    /** Usually photographed with the same people: added to the likeness (small; never enough alone). */
-    const val TOGETHER_ON = 0.02f
-
-    /** "Usually": this share of a person's photos also show the companion. */
-    const val TOGETHER_SHARE = 0.25f
-
     private class Hint(val burst: Boolean, val bonus: Float) {
         companion object { val NONE = Hint(false, 0f) }
     }
@@ -406,13 +400,11 @@ object FaceGrouping {
         return if (union <= 0f) 0f else inter / union
     }
 
-    /** What the photos around a face say (6 Nov): bursts, clothes on the same day, and who is in the photo with them. */
+    /** What the photos around a face say (6 Nov): bursts and clothes on the same day. */
     private class Context(faces: List<Face>, groups: List<Group>) {
         private val timed = faces.filter { it.takenAt > 0L }.sortedBy { it.takenAt }
         private val times = LongArray(timed.size) { timed[it].takenAt }
-        private val byPhoto = faces.groupBy { it.photoId }
         private val home = HashMap<Int, Group>().apply { groups.forEach { g -> g.faces.forEach { put(it, g) } } }
-        private val together = HashMap<Pair<Group, Group>, Float>()
 
         fun placed(face: Face, g: Group) { home[face.id] = g }
 
@@ -446,17 +438,7 @@ object FaceGrouping {
             }
             var bonus = 0f
             if (sameClothes) bonus += CLOTHES_ON else if (sawEvent && !alikeAtEvent) bonus -= CLOTHES_OFF
-            if (bonus >= 0f && withUsual(face, g)) bonus += TOGETHER_ON
             return Hint(burst, bonus)
-        }
-
-        /** Someone else in this photo appears in at least [TOGETHER_SHARE] of [g]'s photos (and [g] has a few). */
-        private fun withUsual(face: Face, g: Group): Boolean {
-            if (g.photos.size < 8) return false
-            val companions = byPhoto[face.photoId].orEmpty().mapNotNull { if (it.id == face.id) null else home[it.id] }.filter { it !== g }.distinct()
-            return companions.any { c ->
-                together.getOrPut(g to c) { g.photos.count { it in c.photos }.toFloat() / g.photos.size } >= TOGETHER_SHARE
-            }
         }
     }
 
@@ -724,6 +706,9 @@ interface PeoplePlatform {
     fun scanNow() = Unit
 
     fun stopScan() = Unit
+
+    /** Clears a problem shown from the last scan (OK on the problem card). */
+    fun clearProblem() = Unit
 
     val progress: StateFlow<ScanProgress?> get() = MutableStateFlow(null)
 

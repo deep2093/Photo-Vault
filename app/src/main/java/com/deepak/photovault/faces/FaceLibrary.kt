@@ -457,7 +457,8 @@ object FaceLibrary {
             val model = useAura(context)
             val engine = FaceEngine.create(context, model)
             if (engine == null) {
-                progress.value = ScanProgress(0, 0, running = false, problem = if (model) "The AuraFace model couldn't start on this phone. Turn the test off and on to download it again." else "The face finder couldn't start on this phone.")
+                progress.value = ScanProgress(0, 0, running = false, problem = (if (model) "The AuraFace model couldn't start on this phone." else "The face finder couldn't start on this phone.") +
+                    (FaceEngine.lastError?.let { " The phone said: $it" } ?: ""))
                 return false
             }
             val photos = MediaStoreLibrary(context).loadAll().filter { !it.isVideo }.sortedByDescending { it.takenAtMillis }

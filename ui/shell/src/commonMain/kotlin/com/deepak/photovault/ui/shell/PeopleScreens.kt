@@ -24,7 +24,10 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.PersonRemove
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SwapHoriz
@@ -95,6 +98,31 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
     }
     var showOthers by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf<Person?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
+    // The AuraFace download and any problem live here now (6 Nov): no status box, only a card when something is wrong.
+    var downloading by remember { mutableStateOf<Float?>(null) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    val running = progress?.running == true
+    fun switchModel(on: Boolean) {
+        if (downloading != null) return
+        scope.launch {
+            problem = null
+            if (on) downloading = 0f
+            val result = platform.setTestModel(on) { downloading = it }
+            downloading = null
+            if (result == null) {
+                people.testModel = on
+                people.selected = emptySet()
+                people.skipped = emptySet()
+                thumbs.clear()
+                people.resetScroll()
+                people.refresh()
+                platform.scanNow()
+            } else {
+                problem = result
+            }
+        }
+    }
     val question = if (!showHidden) people.nextQuestion() else null
     val selecting = people.selected.isNotEmpty()
     // The place on the page lives in PeopleState (5 Nov): a person page scrolled to its end used to reset it.
@@ -110,26 +138,46 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
 
     GlassScreen(
         title = if (selecting) "${people.selected.size} selected" else if (showHidden) "Hidden people" else "People",
-        subtitle = if (selecting || !people.enabled) null else if (all.size == 1) "1 person" else "${all.size} people",
+        subtitle = when {
+            selecting || !people.enabled -> null
+            downloading != null -> "Downloading AuraFace: ${((downloading ?: 0f) * 100).toInt()}%"
+            else -> (if (all.size == 1) "1 person" else "${all.size} people") + if (people.testModel) " · AuraFace" else ""
+        },
         onBack = if (selecting) null else ({ if (showHidden) showHidden = false else state.back() }),
         pinned = selecting,
         actions = {
             if (selecting) {
                 GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { people.selected = emptySet() })
             } else if (people.enabled) {
-                // Scan sits in the top bar (6 Nov), left of show/hide.
-                val running = progress?.running == true
-                GlassIconButton(
-                    if (running) Icons.Rounded.Pause else Icons.Rounded.Refresh,
-                    if (running) "Pause looking for faces" else "Scan now",
-                    onClick = { if (running) platform.stopScan() else platform.scanNow() },
-                )
+                // Scan sits in the top bar (6 Nov); a ring around it fills as the scan (or the AuraFace download) goes.
+                val p = progress
+                val fraction = when {
+                    downloading != null -> downloading
+                    running && p != null && p.total > 0 -> p.done.toFloat() / p.total
+                    else -> null
+                }
+                Box(contentAlignment = Alignment.Center) {
+                    if (fraction != null) {
+                        val ring = theme.accent
+                        val track = theme.onGlass.copy(alpha = 0.12f)
+                        androidx.compose.foundation.Canvas(Modifier.size(38.dp)) {
+                            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            drawArc(track, 0f, 360f, false, style = stroke)
+                            drawArc(ring, -90f, 360f * fraction.coerceIn(0f, 1f), false, style = stroke)
+                        }
+                    }
+                    GlassIconButton(
+                        if (running) Icons.Rounded.Pause else Icons.Rounded.Refresh,
+                        if (running) "Pause looking for faces (${p?.done ?: 0} of ${p?.total ?: 0})" else "Scan now",
+                        onClick = { if (running) platform.stopScan() else platform.scanNow() },
+                    )
+                }
                 GlassIconButton(
                     if (showHidden) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
                     if (showHidden) "Show people" else "Show hidden people",
                     onClick = { showHidden = !showHidden },
                 )
-                GlassIconButton(Icons.Rounded.PowerSettingsNew, "Turn off People", onClick = { confirmOff = true })
+                GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { menuOpen = !menuOpen })
             }
         },
         bottomActions = if (!selecting) null else ({
@@ -148,6 +196,24 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                 },
             )
         }),
+        overlay = {
+            // A small menu (6 Nov): the AuraFace test and turning off.
+            GlassMenuLayer(menuOpen && people.enabled && !selecting, onDismiss = { menuOpen = false }) {
+                GlassMenuItem(
+                    Icons.Rounded.Science,
+                    "AuraFace test model",
+                    onClick = { menuOpen = false; switchModel(!people.testModel) },
+                    selected = people.testModel,
+                    trailing = if (people.testModel) Icons.Rounded.Check else null,
+                )
+                GlassMenuDivider()
+                GlassMenuItem(
+                    Icons.Rounded.PowerSettingsNew,
+                    if (people.testModel) "Turn off AuraFace test" else "Turn off People",
+                    onClick = { menuOpen = false; confirmOff = true },
+                )
+            }
+        },
     ) { padding ->
         LazyVerticalGrid(
             columns = GridCells.Adaptive(96.dp),
@@ -183,52 +249,16 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     }
                 }
             } else {
-                item(key = "status", span = { GridItemSpan(maxLineSpan) }) {
-                    val p = progress
-                    var downloading by remember { mutableStateOf<Float?>(null) }
-                    var problem by remember { mutableStateOf<String?>(null) }
-                    GlassCard(Modifier.fillMaxWidth()) {
-                        Text(
-                            when {
-                                p?.problem != null -> p?.problem.orEmpty()
-                                p == null -> "${people.scanned} photos looked at"
-                                p.running -> "Looking for faces: ${p.done} of ${p.total}"
-                                p.done >= p.total -> "All ${p.total} photos looked at"
-                                else -> "${p.done} of ${p.total} looked at"
-                            },
-                            color = theme.onGlass,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        if (people.lookingAgain) Text("Looking at every photo once more. Names stay.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
-                        // The test model (6 Nov): its own people list, so the two can be compared.
-                        com.deepak.photovault.designsystem.GlassSwitchRow(
-                            title = "AuraFace test model",
-                            checked = people.testModel,
-                            onCheckedChange = { on ->
-                                if (downloading == null) scope.launch {
-                                    problem = null
-                                    if (on) downloading = 0f
-                                    val result = platform.setTestModel(on) { downloading = it }
-                                    downloading = null
-                                    if (result == null) {
-                                        people.testModel = on
-                                        people.selected = emptySet()
-                                        thumbs.clear()
-                                        people.resetScroll()
-                                        people.refresh()
-                                        platform.scanNow()
-                                    } else {
-                                        problem = result
-                                    }
-                                }
-                            },
-                            description = when {
-                                downloading != null -> "Downloading: ${((downloading ?: 0f) * 100).toInt()}%"
-                                problem != null -> problem
-                                people.testModel -> "On: a separate list made by AuraFace. Turn off to go back to your usual people."
-                                else -> "Try a second face model (66 MB, Wi-Fi). It keeps its own list; switch back any time."
-                            },
-                        )
+                // Only when something is wrong (6 Nov): the scan progress is the ring on the scan button.
+                val trouble = problem ?: progress?.problem
+                if (trouble != null) {
+                    item(key = "problem", span = { GridItemSpan(maxLineSpan) }) {
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            Text(trouble, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+                            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.CenterEnd) {
+                                GlassButton("OK", onClick = { problem = null; platform.clearProblem() })
+                            }
+                        }
                     }
                 }
                 if (question != null && !selecting) {

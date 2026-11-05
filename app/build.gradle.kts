@@ -139,7 +139,8 @@ dependencies {
     // People (7A): finds and measures faces on the phone (YuNet and SFace models, in assets/faces, fetched by CI).
     implementation("org.opencv:opencv:4.10.0")
     // People test model (6 Nov): runs AuraFace (int8 TFLite, downloaded on request, not in the app).
-    implementation("org.tensorflow:tensorflow-lite:2.16.1")
+    // LiteRT (6 Nov): Google's newer TensorFlow Lite, same Interpreter, newer operations (AuraFace wouldn't load on 2.16).
+    implementation("com.google.ai.edge.litert:litert:1.4.0")
 
     testImplementation("junit:junit:4.13.2")
 }

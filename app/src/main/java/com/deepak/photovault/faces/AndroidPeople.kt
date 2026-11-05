@@ -47,6 +47,8 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
 
     override fun stopScan() = FaceLibrary.stop()
 
+    override fun clearProblem() { if (FaceLibrary.progress.value?.problem != null) FaceLibrary.progress.value = null }
+
     override val progress: StateFlow<ScanProgress?> get() = FaceLibrary.progress
 
     override suspend fun faceThumb(spot: FaceSpot): ByteArray? = FaceLibrary.faceThumb(app, spot)

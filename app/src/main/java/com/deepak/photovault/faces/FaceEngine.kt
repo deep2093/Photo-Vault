@@ -295,9 +295,14 @@ class FaceEngine private constructor(
 
         fun auraFile(context: Context) = File(context.filesDir, "people/models/$AURA_FILE")
 
+        /** Why the last [create] failed, in the phone's own words (6 Nov: shown so a failure can be fixed). */
+        @Volatile var lastError: String? = null
+            private set
+
         /** Null when OpenCV or the models can't be loaded on this phone. [useAura]: measure with AuraFace (must be downloaded). */
         fun create(context: Context, useAura: Boolean = false): FaceEngine? = runCatching {
-            if (!OpenCVLoader.initLocal()) return null
+            lastError = null
+            if (!OpenCVLoader.initLocal()) { lastError = "OpenCV didn't load"; return null }
             val dir = File(context.filesDir, "people/models").apply { mkdirs() }
             fun model(name: String): String {
                 val file = File(dir, name)
@@ -310,10 +315,10 @@ class FaceEngine private constructor(
             val measurer = FaceRecognizerSF.create(model(MEASURER), "")
             val aura = if (useAura) {
                 val file = auraFile(context)
-                if (!file.exists()) return null
+                if (!file.exists()) { lastError = "the model file is missing"; return null }
                 org.tensorflow.lite.Interpreter(file, org.tensorflow.lite.Interpreter.Options().setNumThreads(4))
             } else null
             FaceEngine(finder, measurer, aura)
-        }.getOrNull()
+        }.onFailure { e -> lastError = (e.message ?: e.javaClass.simpleName).take(300) }.getOrNull()
     }
 }
