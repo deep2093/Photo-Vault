@@ -22,12 +22,20 @@ class Face(
     val sharp: Float = SHARP_DEFAULT,
     /** How visible the eyes are (eye area brightness against the cheeks); low means sunglasses (5 Nov). */
     val eyes: Float = 1f,
+    /**
+     * The face model's own confidence: the length of its measurement before it is scaled to 1 (0 = not known, faces
+     * found before 5 Nov). Weak measurements of different people sit close together, which made "mystery groups".
+     */
+    val strength: Float = 0f,
 ) {
+    /** Set by [FaceGrouping.markWeak] from the whole library: this face's measurement is weak. */
+    var weak: Boolean = false
+
     val turned: Boolean get() = frontal < FaceGrouping.TURNED
     val eyesHidden: Boolean get() = eyes < FaceGrouping.EYES_HIDDEN
 
     /** A face good enough to compare new faces with: facing the camera, sharp, eyes showing. */
-    val good: Boolean get() = !turned && !eyesHidden && sharp >= FaceGrouping.GOOD_SHARP
+    val good: Boolean get() = !turned && !eyesHidden && !weak && sharp >= FaceGrouping.GOOD_SHARP
 
     companion object {
         const val SHARP_DEFAULT = 1000f
@@ -63,8 +71,49 @@ object FaceGrouping {
     const val EYES_HIDDEN = 0.45f
     const val SAME_HIDDEN = 0.50f
 
-    /** Sharp enough to be one of the faces new ones are compared with. */
-    const val GOOD_SHARP = 60f
+    /** Sharp enough to be one of the faces new ones are compared with (raised from 60, 5 Nov). */
+    const val GOOD_SHARP = 100f
+
+    /** A measurement weaker than this share of the library's middle one is weak (5 Nov, first guess). */
+    const val WEAK_SHARE = 0.75f
+
+    /**
+     * Marks weak faces: the model's confidence well under the middle of this library's faces. Done on the whole library
+     * so it fits the photos (light, cameras). Needs a few dozen faces with a known confidence first.
+     */
+    fun markWeak(faces: List<Face>) {
+        val known = faces.filter { it.strength > 0f }
+        if (known.size < 30) {
+            faces.forEach { it.weak = false }
+            return
+        }
+        val sorted = known.map { it.strength }.sorted()
+        val line = sorted[sorted.size / 2] * WEAK_SHARE
+        faces.forEach { it.weak = it.strength > 0f && it.strength < line }
+    }
+
+    /**
+     * Each group checks its own faces after a scan (5 Nov). In an unnamed group a face must look like at least two of
+     * the group's other faces (one, in a group of two); in a named group it must look at least a little like one of them.
+     * Faces that don't are taken out for good ([Person.notFaces]) and sorted again, so a mixed group can't keep growing.
+     */
+    fun selfCheck(faces: List<Face>, people: List<Person>): List<Person> {
+        val byId = faces.associateBy { it.id }
+        return people.map { p ->
+            val mine = p.faces.mapNotNull { byId[it] }
+            if (mine.size < 2) return@map p
+            val out = mine.filter { f ->
+                val others = mine.filter { it.id != f.id }
+                if (p.name != null) {
+                    others.none { cosine(f.vector, it.vector) >= ASK }
+                } else {
+                    val need = minOf(2, others.size)
+                    others.count { cosine(f.vector, it.vector) >= SAME } < need
+                }
+            }.map { it.id }.toSet()
+            if (out.isEmpty() || out.size == mine.size) p else remove(p, out)
+        }
+    }
 
     /** A face must match this many of a person's faces (or the person's average), not just one (5 Nov). */
     const val AGREE = 3
@@ -141,6 +190,7 @@ object FaceGrouping {
 
     /** Puts every face that isn't in a person yet into the right one, or a new one. Returns the people and the next free id. */
     fun group(faces: List<Face>, people: List<Person>, nextId: Int): Pair<List<Person>, Int> {
+        markWeak(faces)
         val byId = faces.associateBy { it.id }
         val placed = people.flatMap { it.faces }.toHashSet()
         val size = faces.firstOrNull()?.vector?.size ?: 0
@@ -161,7 +211,7 @@ object FaceGrouping {
         for (face in faces.sortedWith(compareBy<Face> { it.turned }.thenBy { it.id })) {
             if (face.id in placed) continue
             var best: Group? = null
-            val needed = if (face.eyesHidden) SAME_HIDDEN else SAME
+            val needed = if (face.eyesHidden || face.weak) SAME_HIDDEN else SAME
             var bestScore = needed - 1e-6f
             for (g in groups) {
                 // Two faces in one photo are never the same person (7A-2).
@@ -174,7 +224,8 @@ object FaceGrouping {
                 }
             }
             // A side view that matches nobody waits: side views made most of the extra groups of one person.
-            if (best == null && face.turned) continue
+            // Weak measurements (5 Nov) wait too: they only join someone they clearly match.
+            if (best == null && (face.turned || face.weak)) continue
             val target = best ?: Group(Person(next++, emptySet()), FloatArray(size), FloatArray(size), 0, mutableListOf(), mutableSetOf(), mutableSetOf()).also { groups += it }
             target.add(face)
             placed += face.id
@@ -233,6 +284,7 @@ object FaceGrouping {
      * never joined. The named (or bigger) group keeps its place.
      */
     fun joinGroups(faces: List<Face>, people: List<Person>, different: Set<Pair<Int, Int>> = emptySet()): List<Person> {
+        markWeak(faces)
         val byId = faces.associateBy { it.id }
         var current = people
         repeat(12) {
@@ -295,6 +347,7 @@ object FaceGrouping {
      * most alike first. Never two names, never a pair already answered No, never two groups in the same photos.
      */
     fun questions(faces: List<Face>, shown: List<Person>, different: Set<Pair<Int, Int>>, limit: Int = 30, floor: Float = ASK): List<SamePersonQuestion> {
+        markWeak(faces)
         val byId = faces.associateBy { it.id }
         val vectors = shown.map { p -> sampleOf(p, byId) }
         val centres = vectors.map { centroid(it) }

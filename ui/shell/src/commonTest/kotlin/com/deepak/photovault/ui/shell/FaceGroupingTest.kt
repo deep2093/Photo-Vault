@@ -176,4 +176,27 @@ class FaceGroupingTest {
         val (b, _) = FaceGrouping.group(listOf(base, glasses), emptyList(), 1)
         assertEquals(2, b.size)
     }
+
+    @Test
+    fun weakMeasurementsDoNotStartPeople() {
+        // 40 ordinary faces of one person, and two weak ones of someone else that match each other.
+        val strong = (1..40).map { Face(it, it.toLong(), floatArrayOf(0f, 0f, 0.2f, 0.2f), vec(0, it * 0.001f), strength = 20f) }
+        val weakA = Face(41, 41, floatArrayOf(0f, 0f, 0.2f, 0.2f), vec(7), strength = 8f)
+        val weakB = Face(42, 42, floatArrayOf(0f, 0f, 0.2f, 0.2f), vec(7, 0.05f), strength = 8f)
+        val (people, _) = FaceGrouping.group(strong + weakA + weakB, emptyList(), 1)
+        assertEquals(1, people.size)
+        assertTrue(people.none { 41 in it.faces || 42 in it.faces })
+    }
+
+    @Test
+    fun aGroupThrowsOutAFaceThatLooksLikeNoneOfTheOthers() {
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f), face(3, 12, 0, 0.2f), face(4, 13, 6))
+        val mixed = Person(1, setOf(1, 2, 3, 4))
+        val checked = FaceGrouping.selfCheck(faces, listOf(mixed)).single()
+        assertEquals(setOf(1, 2, 3), checked.faces)
+        assertTrue(4 in checked.notFaces)
+        // Two looks merged by hand (each look matches its own faces) stay together.
+        val looks = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f), face(3, 12, 0, 0.2f), face(5, 14, 6), face(6, 15, 6, 0.1f), face(7, 16, 6, 0.2f))
+        assertEquals(6, FaceGrouping.selfCheck(looks, listOf(Person(2, setOf(1, 2, 3, 5, 6, 7)))).single().faces.size)
+    }
 }

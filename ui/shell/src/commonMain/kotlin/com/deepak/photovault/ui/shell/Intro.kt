@@ -100,13 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-05-6"
+    const val ID = "2026-11-05-7"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Silly \"Same person?\" questions", "People no longer asks about clearly different people (a man and a woman, a child and an adult): it now asks only when several photos really match face to face."),
-        Change(ChangeKind.FIXED, "Look-alikes joined together", "Two groups now join by themselves only when they match very closely; anything less becomes a question."),
-        Change(ChangeKind.NEW, "Learns from your answers", "After a few No answers, People stops asking about pairs that alike, so the questions fit your family's photos."),
-        Change(ChangeKind.CHANGED, "Unnamed groups made again", "Once, unnamed groups are rebuilt with the new rules to undo old wrong joins. Named and hidden people and your No answers stay; give a name to any group you merged by hand so it stays together."),
+        Change(ChangeKind.FIXED, "Mixed groups of different people", "Faces the model can only measure poorly (blurred, eyes down or closed, odd light) no longer start or grow groups by themselves; they stay unsorted unless they clearly match someone."),
+        Change(ChangeKind.NEW, "Groups check themselves", "After each scan every group checks its own faces, and a face that doesn't look like the others is taken out and sorted again."),
+        Change(ChangeKind.CHANGED, "Stricter on blur and looking down", "Motion-blurred faces are left out, and faces looking down or up count as weak. People looks at your photos once more to apply this; names stay."),
     )
 }
 

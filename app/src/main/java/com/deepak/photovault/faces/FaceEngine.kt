@@ -19,7 +19,7 @@ import kotlin.math.sqrt
  */
 class FaceEngine private constructor(private val finder: FaceDetectorYN, private val measurer: FaceRecognizerSF) {
     /** One face: where it is, its measurements, how much it faces the camera (0 side to 1 front) and how sharp it is. */
-    class Found(val box: FloatArray, val vector: FloatArray, val frontal: Float, val sharp: Float, val eyes: Float)
+    class Found(val box: FloatArray, val vector: FloatArray, val frontal: Float, val sharp: Float, val eyes: Float, val strength: Float)
 
     fun find(bitmap: Bitmap): List<Found> {
         val rgba = Mat()
@@ -61,7 +61,7 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
                         (row[2] / w).coerceIn(0f, 1f),
                         (row[3] / h).coerceIn(0f, 1f),
                     )
-                    out += Found(box, v, frontal(row), sharp, eyes)
+                    out += Found(box, v, frontal(row), sharp, eyes, norm)
                 } finally {
                     aligned.release()
                     feature.release()
@@ -115,7 +115,16 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
         val off = kotlin.math.abs(row[8] - middle) / eyeGap
         // An eye gap far narrower than the face also means the head is turned.
         val narrow = (eyeGap / row[2]).coerceIn(0f, 0.45f) / 0.45f
-        return ((1f - (off / 0.5f).coerceIn(0f, 1f)) * (0.4f + 0.6f * narrow)).coerceIn(0f, 1f)
+        val sideways = ((1f - (off / 0.5f).coerceIn(0f, 1f)) * (0.4f + 0.6f * narrow)).coerceIn(0f, 1f)
+        // Looking down or up (5 Nov): where the nose tip sits between the eyes and the mouth. Facing the camera it is a
+        // little over half way; looking down it slides toward the mouth, looking up toward the eyes.
+        val eyesY = (row[5] + row[7]) / 2f
+        val mouthY = (row[11] + row[13]) / 2f
+        val span = mouthY - eyesY
+        if (span < 1f) return 0f
+        val r = (row[9] - eyesY) / span
+        val upDown = (1f - (kotlin.math.abs(r - 0.58f) / 0.22f)).coerceIn(0f, 1f)
+        return minOf(sideways, upDown)
     }
 
     companion object {
@@ -124,8 +133,8 @@ class FaceEngine private constructor(private val finder: FaceDetectorYN, private
         /** Faces under this share of the biggest face's width in the same photo are background faces. */
         const val BACKGROUND_SHARE = 0.33f
 
-        /** Below this sharpness a face is too blurred to count (first guess, to be tuned on real photos). */
-        const val BLURRY = 25f
+        /** Below this sharpness a face is too blurred to count (raised from 25 on 5 Nov: motion-blurred faces got in). */
+        const val BLURRY = 60f
         private const val FINDER = "face_detection_yunet_2023mar.onnx"
         private const val MEASURER = "face_recognition_sface_2021dec.onnx"
 
