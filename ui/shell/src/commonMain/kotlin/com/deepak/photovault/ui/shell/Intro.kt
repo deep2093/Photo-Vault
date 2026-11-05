@@ -100,18 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-05-5"
+    const val ID = "2026-11-05-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Same person?", "When People isn't sure two groups are the same person, it asks you at the top of People with Yes, No and Not sure. Yes joins them and teaches it that look; No is remembered."),
-        Change(ChangeKind.NEW, "Ask me by notification", "A quiet notification (at most once a day) when questions are waiting. On by default; switch it off in People."),
-        Change(ChangeKind.NEW, "People in Search", "Search shows round faces of the people in your photos before you type. Tap one to see their photos, or ... for everyone."),
-        Change(ChangeKind.CHANGED, "Fewer unwanted faces", "Blurred faces and small faces in the background are left out, and side views no longer start new people. People looks at your photos once more to tidy this up; your names and merges stay."),
-        Change(ChangeKind.CHANGED, "Order and Others", "Named people come first, whoever has the newest photo at the front. Unnamed people in only a few photos wait under Others at the bottom."),
-        Change(ChangeKind.CHANGED, "Better round pictures", "Each person's picture is now their clearest front-facing face."),
-        Change(ChangeKind.CHANGED, "Two faces in one photo", "Two faces in the same photo are never treated as the same person, so look-alikes stay apart."),
-        Change(ChangeKind.NEW, "See which face matched", "Inside a person, each photo has a small circle around the face that counted as them, so a wrong group photo is easy to spot and take out with Not this person."),
-        Change(ChangeKind.FIXED, "Group photos in the wrong person", "A face now has to match a person's average or several of their photos, not just one, and blurred, turned or dark-glasses faces no longer pull others in. Faces with dark glasses need a closer match to join by themselves."),
+        Change(ChangeKind.FIXED, "Silly \"Same person?\" questions", "People no longer asks about clearly different people (a man and a woman, a child and an adult): it now asks only when several photos really match face to face."),
+        Change(ChangeKind.FIXED, "Look-alikes joined together", "Two groups now join by themselves only when they match very closely; anything less becomes a question."),
+        Change(ChangeKind.NEW, "Learns from your answers", "After a few No answers, People stops asking about pairs that alike, so the questions fit your family's photos."),
+        Change(ChangeKind.CHANGED, "Unnamed groups made again", "Once, unnamed groups are rebuilt with the new rules to undo old wrong joins. Named and hidden people and your No answers stay; give a name to any group you merged by hand so it stays together."),
     )
 }
 

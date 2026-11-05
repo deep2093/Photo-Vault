@@ -60,6 +60,17 @@ object FaceLibrary {
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("pixallery_people", Context.MODE_PRIVATE)
 
+    /** Likeness of the questions answered No / Yes, so the line for asking fits this family's photos (5 Nov). */
+    private fun scores(context: Context, key: String): List<Float> =
+        prefs(context).getString(key, "").orEmpty().split(',').mapNotNull { it.toFloatOrNull() }
+
+    private fun addScore(context: Context, key: String, value: Float) {
+        val list = (scores(context, key) + value).takeLast(200)
+        prefs(context).edit().putString(key, list.joinToString(",")).apply()
+    }
+
+    private fun askFloor(context: Context) = FaceGrouping.askFloor(scores(context, "no_scores"), scores(context, "yes_scores"))
+
     /** Turning People off: every face, name and face picture on this phone goes. */
     suspend fun forgetAll(context: Context) = lock.withLock {
         withContext(Dispatchers.IO) {
@@ -188,7 +199,7 @@ object FaceLibrary {
         val people = if (join) FaceGrouping.joinGroups(all, grouped, saved.different) else grouped
         val questions = if (join) {
             val spots = all.associate { it.id to FaceSpot(it.id, it.photoId, it.box) }
-            FaceGrouping.questions(all, FaceGrouping.shown(people.filter { !it.hidden }, spots), saved.different)
+            FaceGrouping.questions(all, FaceGrouping.shown(people.filter { !it.hidden }, spots), saved.different, floor = askFloor(context))
         } else {
             saved.questions
         }
@@ -205,6 +216,11 @@ object FaceLibrary {
             if (prefs(context).getInt("joined", 0) < JOIN_VERSION && peopleFile(context).exists()) {
                 runCatching { regroup(context, faces, join = true) }
                 prefs(context).edit().putInt("joined", JOIN_VERSION).apply()
+            }
+            // Once, when the stricter rules arrive and no look-again is pending (5 Nov).
+            if (prefs(context).getInt("rebuilt", 0) < REBUILD_VERSION && !olderFacesExist(context) && peopleFile(context).exists()) {
+                runCatching { rebuildUnnamed(context) }
+                prefs(context).edit().putInt("rebuilt", REBUILD_VERSION).apply()
             }
             val saved = readPeople(context)
             PeopleSnapshot(
@@ -228,7 +244,10 @@ object FaceLibrary {
     suspend fun answer(context: Context, q: SamePersonQuestion, same: Boolean) = lock.withLock {
         withContext(Dispatchers.IO) {
             val saved = readPeople(context)
-            val left = saved.questions.filterNot { it.a == q.a && it.b == q.b }
+            addScore(context, if (same) "yes_scores" else "no_scores", q.score)
+            val floor = askFloor(context)
+            // Questions now under the (perhaps raised) line go too.
+            val left = saved.questions.filterNot { (it.a == q.a && it.b == q.b) || it.score < floor }
             if (same) {
                 val a = saved.people.firstOrNull { it.id == q.a }
                 val b = saved.people.firstOrNull { it.id == q.b }
@@ -318,6 +337,22 @@ object FaceLibrary {
         }
     }
 
+    /**
+     * Unnamed, unhidden groups are made again from scratch with the current rules (5 Nov: older, looser rules had joined
+     * different people). Named and hidden people, and "No" answers about them, stay. Under [lock].
+     */
+    private fun rebuildUnnamed(context: Context) {
+        val saved = readPeople(context)
+        val keep = saved.people.filter { it.name != null || it.hidden }
+        val keptIds = keep.map { it.id }.toSet()
+        writePeople(
+            context, keep, saved.next,
+            saved.different.filter { it.first in keptIds && it.second in keptIds }.toSet(),
+            emptyList(),
+        )
+        regroup(context, allFaces(context), join = true)
+    }
+
     /** Every photo has been looked at again: faces from earlier versions leave the people, and their files go. */
     private suspend fun finishLookingAgain(context: Context) = lock.withLock {
         withContext(Dispatchers.IO) {
@@ -329,6 +364,8 @@ object FaceLibrary {
             writePeople(context, people, saved.next, saved.different, saved.questions)
             listOf(oldFacesFile(context), oldScannedFile(context), midFacesFile(context), midScannedFile(context)).forEach { it.delete() }
             oldIds.forEach { File(thumbsDir(context), "$it.jpg").delete() }
+            rebuildUnnamed(context)
+            prefs(context).edit().putInt("rebuilt", REBUILD_VERSION).apply()
         }
     }
 
@@ -380,6 +417,7 @@ object FaceLibrary {
     }.getOrNull()
 
     private const val JOIN_VERSION = 1
+    private const val REBUILD_VERSION = 1
     private const val MAX_SIDE = 1280
     private const val FLUSH_EVERY = 40
 }

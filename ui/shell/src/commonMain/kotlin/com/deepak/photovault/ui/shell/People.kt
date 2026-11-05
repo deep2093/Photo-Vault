@@ -72,8 +72,17 @@ object FaceGrouping {
     /** Below this a face is turned too far to start a person of its own (7A-2): it can only join one. */
     const val TURNED = 0.35f
 
-    /** Groups this alike, but not enough to join by themselves, become a "Same person?" question (7A-2). */
-    const val ASK = 0.24f
+    /**
+     * Groups this alike, but not enough to join by themselves, become a "Same person?" question (7A-2). Raised from 0.24
+     * on 5 Nov: in one family's photos completely different people (a man and a woman, a child and an adult) reached it.
+     */
+    const val ASK = 0.32f
+
+    /** Faces of one group must match faces of the other this many times, face to face, before anyone is asked. */
+    const val EVIDENCE = 2
+
+    /** ...and this many before two groups join by themselves. */
+    const val EVIDENCE_JOIN = 3
 
     /** How many of a person's faces are compared as well as the average. */
     private const val EXAMPLES = 24
@@ -190,8 +199,29 @@ object FaceGrouping {
         return total / (a.size * b.size)
     }
 
-    /** Two groups this alike on average are one person (5 Nov: the same face had split into groups of 647 and 72). */
-    const val JOIN_GROUPS = 0.36f
+    /**
+     * Two groups this alike on average are one person (5 Nov: the same face had split into groups of 647 and 72).
+     * Raised from 0.36 the same day: two different bearded men of the same age had been joined.
+     */
+    const val JOIN_GROUPS = 0.45f
+
+    /**
+     * How many faces of [b] look like someone in [a] at the normal "same person" line. Two different people almost never
+     * have several such pairs; two looks of one person do.
+     */
+    fun matches(a: List<FloatArray>, b: List<FloatArray>): Int = b.count { y -> a.any { x -> cosine(x, y) >= SAME } }
+
+    /**
+     * The lowest likeness that is asked about, learnt from the answers (5 Nov): after several "No" answers the line moves
+     * above most of them, but never above a "Yes" and never up to the automatic join.
+     */
+    fun askFloor(noScores: List<Float>, yesScores: List<Float>): Float {
+        if (noScores.size < 5) return ASK
+        val sorted = noScores.sorted()
+        var line = sorted[(sorted.size * 0.8f).toInt().coerceAtMost(sorted.lastIndex)] + 0.01f
+        yesScores.minOrNull()?.let { line = minOf(line, it - 0.005f) }
+        return line.coerceIn(ASK, JOIN_GROUPS - 0.04f)
+    }
 
     /** Groups whose averages are further apart than this are not compared face by face (it is slow). */
     private const val NEAR = 0.30f
@@ -217,7 +247,9 @@ object FaceGrouping {
                 if (said(different, a.id, b.id) || sharePhotos(a, b, byId)) continue
                 if (cosine(centres[i], centres[j]) < NEAR) continue
                 val score = linkage(vectors[i], vectors[j])
-                if (score >= JOIN_GROUPS) pairs += Triple(i, j, score)
+                if (score < JOIN_GROUPS) continue
+                val need = minOf(EVIDENCE_JOIN, vectors[i].size, vectors[j].size)
+                if (matches(vectors[i], vectors[j]) >= need && matches(vectors[j], vectors[i]) >= minOf(1, need)) pairs += Triple(i, j, score)
             }
             if (pairs.isEmpty()) return current
             val used = HashSet<Int>()
@@ -262,7 +294,7 @@ object FaceGrouping {
      * "Same person?" questions (7A-2): pairs of [shown] groups that look alike but not enough to join by themselves,
      * most alike first. Never two names, never a pair already answered No, never two groups in the same photos.
      */
-    fun questions(faces: List<Face>, shown: List<Person>, different: Set<Pair<Int, Int>>, limit: Int = 30): List<SamePersonQuestion> {
+    fun questions(faces: List<Face>, shown: List<Person>, different: Set<Pair<Int, Int>>, limit: Int = 30, floor: Float = ASK): List<SamePersonQuestion> {
         val byId = faces.associateBy { it.id }
         val vectors = shown.map { p -> sampleOf(p, byId) }
         val centres = vectors.map { centroid(it) }
@@ -273,9 +305,13 @@ object FaceGrouping {
             if (a.name != null && b.name != null) continue
             if (vectors[i].isEmpty() || vectors[j].isEmpty()) continue
             if (said(different, a.id, b.id) || sharePhotos(a, b, byId)) continue
-            if (cosine(centres[i], centres[j]) < ASK) continue
+            if (cosine(centres[i], centres[j]) < floor) continue
             val score = linkage(vectors[i], vectors[j])
-            if (score >= ASK && score < JOIN_GROUPS) out += SamePersonQuestion(minOf(a.id, b.id), maxOf(a.id, b.id), score)
+            if (score < floor || score >= JOIN_GROUPS) continue
+            // Only with real evidence: a few faces must match face to face, not just look alike on average.
+            val need = minOf(EVIDENCE, vectors[i].size, vectors[j].size)
+            if (matches(vectors[i], vectors[j]) < need) continue
+            out += SamePersonQuestion(minOf(a.id, b.id), maxOf(a.id, b.id), score)
         }
         return out.sortedByDescending { it.score }.take(limit)
     }

@@ -115,9 +115,10 @@ class FaceGroupingTest {
 
     @Test
     fun closeGroupsBecomeAQuestionUntilAnswered() {
-        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f), face(3, 12, 0, 1.27f), face(4, 13, 0, 1.37f))
+        // About 0.41 alike on average, and two faces of b match a face of a face to face (at angles 1.0 and 1.05).
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.1f), face(3, 12, 0, 1.0f), face(4, 13, 0, 1.05f), face(5, 14, 0, 1.5f))
         val a = Person(1, setOf(1, 2))
-        val b = Person(2, setOf(3, 4))
+        val b = Person(2, setOf(3, 4, 5))
         // Not alike enough to join by themselves...
         assertEquals(2, FaceGrouping.joinGroups(faces, listOf(a, b)).size)
         // ...so People asks.
@@ -125,6 +126,23 @@ class FaceGroupingTest {
         assertEquals(listOf(1 to 2), asked.map { it.a to it.b })
         // After "No" it never asks again.
         assertTrue(FaceGrouping.questions(faces, listOf(a, b), setOf(1 to 2)).isEmpty())
+    }
+
+    @Test
+    fun alikeOnAverageButNoFaceMatchesIsNotAsked() {
+        // About 0.40 alike on average, but no single pair of faces reaches 0.42.
+        val faces = listOf(face(1, 10, 0), face(2, 11, 0, 0.02f), face(3, 12, 0, 1.16f), face(4, 13, 0, 1.18f))
+        val asked = FaceGrouping.questions(faces, listOf(Person(1, setOf(1, 2)), Person(2, setOf(3, 4))), emptySet())
+        assertTrue(asked.isEmpty())
+    }
+
+    @Test
+    fun noAnswersRaiseTheLine() {
+        assertEquals(FaceGrouping.ASK, FaceGrouping.askFloor(listOf(0.33f, 0.34f), emptyList()))
+        val raised = FaceGrouping.askFloor(listOf(0.33f, 0.34f, 0.35f, 0.36f, 0.38f), emptyList())
+        assertTrue(raised > 0.37f)
+        // Never above a "Yes".
+        assertTrue(FaceGrouping.askFloor(listOf(0.33f, 0.34f, 0.35f, 0.36f, 0.38f), listOf(0.35f)) < 0.35f)
     }
 
     @Test
