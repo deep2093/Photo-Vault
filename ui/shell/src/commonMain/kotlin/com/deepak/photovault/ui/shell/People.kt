@@ -27,6 +27,13 @@ class Face(
      * found before 5 Nov). Weak measurements of different people sit close together, which made "mystery groups".
      */
     val strength: Float = 0f,
+    /** When the photo was taken (0 = not known, faces found before 6 Nov): for bursts and same-day clothes. */
+    val takenAt: Long = 0L,
+    /**
+     * The colours of what the person wears just under the face (6 Nov): a small colour count, null when the photo
+     * shows too little of it. Only used to compare photos taken the same day.
+     */
+    val clothes: FloatArray? = null,
 ) {
     /** Set by [FaceGrouping.markWeak] from the whole library: this face's measurement is weak. */
     var weak: Boolean = false
@@ -134,7 +141,10 @@ object FaceGrouping {
             if (mine.size < 2) return@map p
             val out = mine.filter { f ->
                 val others = mine.filter { it.id != f.id }
-                if (p.name != null) {
+                if (burstPartner(f, others)) {
+                    // Joined through a burst (6 Nov): the photo next to it says it's them.
+                    false
+                } else if (p.name != null) {
                     others.none { cosine(f.vector, it.vector) >= ASK }
                 } else if (others.size >= 6 && cosine(f.vector, centre(others)) >= ASK) {
                     // A big group keeps a face that fits its average (an unusual look of the same person, 5 Nov).
@@ -300,6 +310,7 @@ object FaceGrouping {
             Group(p, sum, goodSum, good.size, examples, p.faces.toMutableSet(), mine.map { it.photoId }.toMutableSet(), notThem)
         }.toMutableList()
         var next = nextId
+        val context = Context(faces, groups)
         // Front faces first, so a side view can join a person made in the same scan.
         for (face in faces.sortedWith(compareBy<Face> { it.turned }.thenBy { it.id })) {
             if (face.id in placed) continue
@@ -308,15 +319,24 @@ object FaceGrouping {
             var bestScore = needed - 1e-6f
             var runnerUp: Group? = null
             var runnerScore = -2f
+            val around = context.around(face)
             for (g in groups) {
                 // Two faces in one photo are never the same person (7A-2).
                 if (face.id in g.person.notFaces || g.faces.isEmpty() || face.photoId in g.photos) continue
-                val score = g.score(face.vector)
+                val raw = g.score(face.vector)
                 // Looks more like someone taken out of this person than like the person: not them.
                 // A tie still goes to the person (the face taken out may be a bad photo of them).
-                if (g.notThem.isNotEmpty() && g.notScore(face.vector) > score + 0.01f) continue
-                // Someone with a known look-alike (a sister taken out before) needs a closer match (5 Nov).
-                if (g.lookalike && score < SAME_HIDDEN) continue
+                if (g.notThem.isNotEmpty() && g.notScore(face.vector) > raw + 0.01f) continue
+                // The photos around this one (6 Nov): a burst, the same clothes that day, who they are usually with.
+                val hint = if (raw >= ASK - CLOTHES_OFF) context.hint(face, g, around) else Hint.NONE
+                // Someone with a known look-alike (a sister taken out before) needs a closer match (5 Nov),
+                // unless the very same spot in a burst photo was already them.
+                if (g.lookalike && raw < SAME_HIDDEN && !(hint.burst && raw >= ASK)) continue
+                val score = when {
+                    hint.burst && raw >= ASK -> maxOf(raw, needed)
+                    raw >= ASK -> raw + hint.bonus
+                    else -> raw + minOf(0f, hint.bonus)
+                }
                 // Strictly better only: on a tie the older person (named, or merged by hand) keeps the face.
                 if (score > bestScore) {
                     if (best != null) { runnerUp = best; runnerScore = bestScore }
@@ -338,9 +358,111 @@ object FaceGrouping {
             if (best == null && (face.turned || face.weak)) continue
             val target = best ?: Group(Person(next++, emptySet()), FloatArray(size), FloatArray(size), 0, mutableListOf(), mutableSetOf(), mutableSetOf()).also { groups += it }
             target.add(face)
+            context.placed(face, target)
             placed += face.id
         }
         return groups.filter { it.faces.isNotEmpty() }.map { it.person.copy(faces = it.faces.toSet()) } to next
+    }
+
+    /** Photos taken this close together, with a face in the same spot, are a burst: the same person (6 Nov). */
+    const val BURST_MS = 3_000L
+
+    /** How much two face boxes must overlap (shared area over joint area) to be "the same spot". */
+    const val BURST_OVERLAP = 0.4f
+
+    /** Clothes are only compared between photos taken this close together (the same day out). */
+    const val DAY_MS = 12 * 3_600_000L
+
+    /** ...and count as "a different outfit at the same event" only this close together. */
+    const val EVENT_MS = 3 * 3_600_000L
+
+    /** Colour counts this alike are the same clothes; under [CLOTHES_DIFF] clearly different ones (first guesses). */
+    const val CLOTHES_SAME = 0.85f
+    const val CLOTHES_DIFF = 0.5f
+
+    /** Same clothes that day: added to the likeness. Never enough alone: only for faces already at the "ask" line. */
+    const val CLOTHES_ON = 0.04f
+
+    /** A clearly different outfit at the same event: taken off the likeness (helps tell sisters apart at one party). */
+    const val CLOTHES_OFF = 0.03f
+
+    /** Usually photographed with the same people: added to the likeness (small; never enough alone). */
+    const val TOGETHER_ON = 0.02f
+
+    /** "Usually": this share of a person's photos also show the companion. */
+    const val TOGETHER_SHARE = 0.25f
+
+    private class Hint(val burst: Boolean, val bonus: Float) {
+        companion object { val NONE = Hint(false, 0f) }
+    }
+
+    fun overlap(a: FloatArray, b: FloatArray): Float {
+        if (a.size < 4 || b.size < 4) return 0f
+        val w = minOf(a[0] + a[2], b[0] + b[2]) - maxOf(a[0], b[0])
+        val h = minOf(a[1] + a[3], b[1] + b[3]) - maxOf(a[1], b[1])
+        if (w <= 0f || h <= 0f) return 0f
+        val inter = w * h
+        val union = a[2] * a[3] + b[2] * b[3] - inter
+        return if (union <= 0f) 0f else inter / union
+    }
+
+    /** What the photos around a face say (6 Nov): bursts, clothes on the same day, and who is in the photo with them. */
+    private class Context(faces: List<Face>, groups: List<Group>) {
+        private val timed = faces.filter { it.takenAt > 0L }.sortedBy { it.takenAt }
+        private val times = LongArray(timed.size) { timed[it].takenAt }
+        private val byPhoto = faces.groupBy { it.photoId }
+        private val home = HashMap<Int, Group>().apply { groups.forEach { g -> g.faces.forEach { put(it, g) } } }
+        private val together = HashMap<Pair<Group, Group>, Float>()
+
+        fun placed(face: Face, g: Group) { home[face.id] = g }
+
+        /** Faces in other photos taken within a day of this one (the closest few hundred). */
+        fun around(face: Face): List<Face> {
+            if (face.takenAt <= 0L || timed.isEmpty()) return emptyList()
+            fun first(t: Long): Int { var lo = 0; var hi = times.size; while (lo < hi) { val m = (lo + hi) ushr 1; if (times[m] < t) lo = m + 1 else hi = m }; return lo }
+            var from = first(face.takenAt - DAY_MS)
+            var to = first(face.takenAt + DAY_MS + 1)
+            if (to - from > 400) { from = first(face.takenAt - EVENT_MS); to = first(face.takenAt + EVENT_MS + 1) }
+            if (to - from > 400) { val mid = first(face.takenAt); from = maxOf(from, mid - 200); to = minOf(to, mid + 200) }
+            return (from until to).map { timed[it] }.filter { it.photoId != face.photoId }
+        }
+
+        fun hint(face: Face, g: Group, around: List<Face>): Hint {
+            var burst = false
+            var sameClothes = false
+            var sawEvent = false
+            var alikeAtEvent = false
+            for (n in around) {
+                if (home[n.id] !== g) continue
+                val dt = kotlin.math.abs(n.takenAt - face.takenAt)
+                if (dt <= BURST_MS && overlap(n.box, face.box) >= BURST_OVERLAP) burst = true
+                val a = face.clothes
+                val b = n.clothes
+                if (a != null && b != null && a.size == b.size) {
+                    val c = cosine(a, b)
+                    if (c >= CLOTHES_SAME) sameClothes = true
+                    if (dt <= EVENT_MS) { sawEvent = true; if (c >= CLOTHES_DIFF) alikeAtEvent = true }
+                }
+            }
+            var bonus = 0f
+            if (sameClothes) bonus += CLOTHES_ON else if (sawEvent && !alikeAtEvent) bonus -= CLOTHES_OFF
+            if (bonus >= 0f && withUsual(face, g)) bonus += TOGETHER_ON
+            return Hint(burst, bonus)
+        }
+
+        /** Someone else in this photo appears in at least [TOGETHER_SHARE] of [g]'s photos (and [g] has a few). */
+        private fun withUsual(face: Face, g: Group): Boolean {
+            if (g.photos.size < 8) return false
+            val companions = byPhoto[face.photoId].orEmpty().mapNotNull { if (it.id == face.id) null else home[it.id] }.filter { it !== g }.distinct()
+            return companions.any { c ->
+                together.getOrPut(g to c) { g.photos.count { it in c.photos }.toFloat() / g.photos.size } >= TOGETHER_SHARE
+            }
+        }
+    }
+
+    /** True when [f] has a burst partner among [others]: the same spot within [BURST_MS]. */
+    private fun burstPartner(f: Face, others: List<Face>): Boolean = f.takenAt > 0L && others.any {
+        it.takenAt > 0L && kotlin.math.abs(it.takenAt - f.takenAt) <= BURST_MS && it.photoId != f.photoId && overlap(it.box, f.box) >= BURST_OVERLAP
     }
 
     /** Up to [n] items spread evenly over [items] (so a group is judged by all its looks, not its first photos). */
@@ -580,14 +702,17 @@ class PeopleSnapshot(
     val lookingAgain: Boolean = false,
 )
 
-class ScanProgress(val done: Int, val total: Int, val running: Boolean)
+class ScanProgress(val done: Int, val total: Int, val running: Boolean, val problem: String? = null)
 
 /** What the phone does for People: finds faces (on the phone only), keeps them, and scans while charging. */
 interface PeoplePlatform {
     val supported: Boolean get() = false
     fun isEnabled(): Boolean = false
 
-    /** Turning on starts scanning while charging; turning off deletes every face and name from this phone. */
+    /**
+     * Turning on starts scanning while charging. Turning off deletes the faces and names of the model in use only
+     * (6 Nov); turning off the test model goes back to the standard one, which stays on.
+     */
     suspend fun setEnabled(on: Boolean) = Unit
 
     suspend fun load(): PeopleSnapshot = PeopleSnapshot()

@@ -252,4 +252,53 @@ class FaceGroupingTest {
         val (near, _) = FaceGrouping.group(faces + face(5, 14, 0, -0.3f), listOf(p), 2)
         assertTrue(5 in near.first { it.id == 1 }.faces)
     }
+
+    private val box = floatArrayOf(0.4f, 0.2f, 0.2f, 0.2f)
+    private val t0 = 1_700_000_000_000L
+    private fun timed(id: Int, photo: Long, wobble: Float, at: Long, clothes: FloatArray? = null) =
+        Face(id, photo, box, vec(0, wobble), takenAt = at, clothes = clothes)
+
+    @Test
+    fun aBurstPhotoWithAFaceInTheSameSpotJoins() {
+        // Angle 1.2 (likeness about 0.36): not enough alone, but the photo 1.5 s later with a face in the same spot is them.
+        val p = Person(1, setOf(1))
+        val (burst, _) = FaceGrouping.group(listOf(timed(1, 10, 0f, t0), timed(2, 11, 1.2f, t0 + 1_500)), listOf(p), 2)
+        assertTrue(2 in burst.first { it.id == 1 }.faces)
+        // A minute later is not a burst.
+        val (later, _) = FaceGrouping.group(listOf(timed(1, 10, 0f, t0), timed(2, 11, 1.2f, t0 + 60_000)), listOf(p), 2)
+        assertTrue(2 !in later.first { it.id == 1 }.faces)
+    }
+
+    @Test
+    fun theSameClothesThatDayHelpAnAlmostMatch() {
+        val red = FloatArray(20).also { it[0] = 1f }
+        val p = Person(1, setOf(1))
+        // Angle 1.16 (about 0.40): just under the line; the same clothes two hours apart lift it over.
+        val (same, _) = FaceGrouping.group(listOf(timed(1, 10, 0f, t0, red), timed(2, 11, 1.16f, t0 + 7_200_000, red)), listOf(p), 2)
+        assertTrue(2 in same.first { it.id == 1 }.faces)
+        val (none, _) = FaceGrouping.group(listOf(timed(1, 10, 0f, t0), timed(2, 11, 1.16f, t0 + 7_200_000)), listOf(p), 2)
+        assertTrue(2 !in none.first { it.id == 1 }.faces)
+        // Clothes alone never join someone who doesn't look alike.
+        val (far, _) = FaceGrouping.group(listOf(timed(1, 10, 0f, t0, red), timed(2, 11, 1.4f, t0 + 7_200_000, red)), listOf(p), 2)
+        assertTrue(2 !in far.first { it.id == 1 }.faces)
+    }
+
+    @Test
+    fun aDifferentOutfitAtTheSameEventHoldsBackAJustMatch() {
+        val red = FloatArray(20).also { it[0] = 1f }
+        val blue = FloatArray(20).also { it[10] = 1f }
+        val p = Person(1, setOf(1))
+        // Angle 1.12 (about 0.44) joins on its own...
+        val (plain, _) = FaceGrouping.group(listOf(timed(1, 10, 0f, t0), timed(2, 11, 1.12f, t0 + 3_600_000)), listOf(p), 2)
+        assertTrue(2 in plain.first { it.id == 1 }.faces)
+        // ...but not wearing something clearly different an hour later at the same event.
+        val (other, _) = FaceGrouping.group(listOf(timed(1, 10, 0f, t0, red), timed(2, 11, 1.12f, t0 + 3_600_000, blue)), listOf(p), 2)
+        assertTrue(2 !in other.first { it.id == 1 }.faces)
+    }
+
+    @Test
+    fun boxesOverlap() {
+        assertTrue(FaceGrouping.overlap(box, box) > 0.99f)
+        assertEquals(0f, FaceGrouping.overlap(box, floatArrayOf(0f, 0f, 0.1f, 0.1f)))
+    }
 }

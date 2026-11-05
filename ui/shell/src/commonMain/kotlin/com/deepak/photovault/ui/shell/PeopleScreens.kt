@@ -190,6 +190,7 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     GlassCard(Modifier.fillMaxWidth()) {
                         Text(
                             when {
+                                p?.problem != null -> p?.problem.orEmpty()
                                 p == null -> "${people.scanned} photos looked at"
                                 p.running -> "Looking for faces: ${p.done} of ${p.total}"
                                 p.done >= p.total -> "All ${p.total} photos looked at"
@@ -331,16 +332,24 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
     }
     if (confirmOff) {
         ConfirmDialog(
-            title = "Turn off People?",
-            body = "All faces and names found on this phone are deleted. Your photos are not touched. You can turn it on again later, and the phone looks for faces again.",
+            // One model at a time (6 Nov): the other model's list stays.
+            title = if (people.testModel) "Turn off the AuraFace test?" else "Turn off People?",
+            body = if (people.testModel) {
+                "The faces and names AuraFace found are deleted, and your usual people come back. Your photos are not touched."
+            } else {
+                "The faces and names found on this phone are deleted. Your photos are not touched. You can turn it on again later, and the phone looks for faces again."
+            },
             confirm = "Turn off",
             onDismiss = { confirmOff = false },
             onConfirm = {
                 confirmOff = false
                 scope.launch {
                     platform.setEnabled(false)
-                    people.enabled = false
+                    people.enabled = platform.isEnabled()
+                    people.testModel = platform.usesTestModel()
                     people.selected = emptySet()
+                    people.skipped = emptySet()
+                    people.resetScroll()
                     thumbs.clear()
                     people.refresh()
                 }
@@ -395,7 +404,7 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
     ) { padding ->
         MediaGrid(
             sections, state, gallery, padding,
-            onOpen = { item -> state.open(Overlay.Viewer(items.map { it.id }, item.id)) },
+            onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
             topButton = true,
             // Which face counted as this person, so a wrong group photo is easy to spot (5 Nov).
             tileMark = { item -> boxes[item.id] },

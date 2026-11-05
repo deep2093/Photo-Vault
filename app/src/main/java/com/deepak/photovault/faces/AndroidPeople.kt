@@ -25,9 +25,15 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
             // "Same person?" notifications are always on (6 Nov): ask for permission now if it was never given.
             activity.requestNotifications()
             FaceScanWorker.schedule(app)
+        } else if (FaceLibrary.useAura(app)) {
+            // Off in the test model (6 Nov): only AuraFace's list goes, and the usual people come back.
+            FaceLibrary.forgetModel(app)
+            FaceLibrary.setEnabled(app, true)
+            FaceLibrary.switchModel(app, false)
+            FaceScanWorker.schedule(app)
         } else {
             FaceScanWorker.cancel(app)
-            FaceLibrary.forgetAll(app)
+            FaceLibrary.forgetModel(app)
         }
     }
 
@@ -57,7 +63,7 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
         if (on) {
             FaceLibrary.downloadAura(app, onProgress)?.let { return it }
         }
-        FaceLibrary.setAura(app, on)
+        FaceLibrary.switchModel(app, on)
         FaceScanWorker.schedule(app)
         return null
     }

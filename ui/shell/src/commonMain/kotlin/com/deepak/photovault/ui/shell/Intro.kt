@@ -100,14 +100,16 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-1"
+    const val ID = "2026-11-06-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "AuraFace test model", "In People, turn on the AuraFace test model to try a second, larger face model (66 MB, downloaded once on Wi-Fi). It makes its own list of people, so you can compare; turn it off to go back to your usual people and names."),
-        Change(ChangeKind.CHANGED, "Coloured light", "Faces are colour-balanced before they are measured, so purple and pink party lights confuse People less. People looks at your photos once more for this; names stay."),
-        Change(ChangeKind.NEW, "Tap Add a name", "Tapping Add a name under a face opens the name box straight away."),
-        Change(ChangeKind.CHANGED, "Scan button", "Scan now is in the top bar of People, next to show/hide."),
-        Change(ChangeKind.REMOVED, "Notification switch", "\"Same person?\" notifications are always on; People asks for permission when you turn it on."),
+        Change(ChangeKind.NEW, "Burst photos", "In People, photos taken a second or two apart with a face in the same spot count as the same person."),
+        Change(ChangeKind.NEW, "Clothes on the same day", "Wearing the same clothes on the same day helps a face that almost matches join the right person. A clearly different outfit at the same event holds it back."),
+        Change(ChangeKind.NEW, "Who you are with", "Being in a photo with the people someone is usually photographed with gives a small extra hint."),
+        Change(ChangeKind.CHANGED, "Dark faces and small faces", "Dark or backlit faces are brightened before they are measured, and big photos with small faces get a second, closer look. AuraFace now also measures each face flipped, as the standard model does. People looks at your photos once more for this; names stay."),
+        Change(ChangeKind.CHANGED, "Turning off", "Turning off People deletes only the list of the model you are in. Turning it off in the AuraFace test takes you back to your usual people."),
+        Change(ChangeKind.FIXED, "Scan button", "Tapping Scan while a scan was finishing sometimes did nothing. It now starts again straight after. Switching models waits for a running scan to stop."),
+        Change(ChangeKind.FIXED, "Photo strip in a person", "Opening a photo from a person's page now shows the strip in the same order as the page."),
     )
 }
 

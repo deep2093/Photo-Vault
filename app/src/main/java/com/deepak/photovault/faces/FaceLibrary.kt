@@ -63,11 +63,15 @@ object FaceLibrary {
         Triple("faces3.bin", "scanned3.bin", 3),
         Triple("faces4.bin", "scanned4.bin", 4),
         Triple("faces5.bin", "scanned5.bin", 4),
+        Triple("faces6.bin", "scanned6.bin", 4),
     )
 
-    /** 6 Nov: colour cast evened out before measuring, so every photo is looked at once more. Same layout as version 4. */
-    private fun facesFile(context: Context) = File(dir(context), "faces6.bin")
-    private fun scannedFile(context: Context) = File(dir(context), "scanned6.bin")
+    /**
+     * 6 Nov (second build): dark faces brightened, AuraFace's mirror trick, a bigger look for small faces, plus when each
+     * photo was taken and the clothes' colours. Every photo is looked at once more (layout version 5).
+     */
+    private fun facesFile(context: Context) = File(dir(context), "faces7.bin")
+    private fun scannedFile(context: Context) = File(dir(context), "scanned7.bin")
     private fun peopleFile(context: Context) = File(dir(context), "people.json")
     fun thumbsDir(context: Context) = File(dir(context), "thumbs").apply { mkdirs() }
 
@@ -92,20 +96,51 @@ object FaceLibrary {
 
     private fun askFloor(context: Context) = FaceGrouping.askFloor(scores(context, key(context, "no_scores")), scores(context, key(context, "yes_scores")))
 
-    /** Turning People off: every face, name and face picture on this phone goes. */
-    suspend fun forgetAll(context: Context) = lock.withLock {
-        withContext(Dispatchers.IO) {
-            stopAsked = true
-            File(context.applicationContext.filesDir, "people").listFiles()?.filter { it.name != "models" }?.forEach { it.deleteRecursively() }
-            progress.value = null
+    /**
+     * Turning People off (6 Nov: one model at a time): every face, name and face picture of the model in use goes; the
+     * other model's list stays. Waits for a running scan to stop first.
+     */
+    suspend fun forgetModel(context: Context) {
+        waitForScan()
+        lock.withLock {
+            withContext(Dispatchers.IO) {
+                val base = File(context.applicationContext.filesDir, "people")
+                if (useAura(context)) {
+                    File(base, "aura").deleteRecursively()
+                } else {
+                    base.listFiles()?.filter { it.name != "models" && it.name != "aura" }?.forEach { it.deleteRecursively() }
+                }
+                val p = prefs(context)
+                p.edit().apply { listOf("joined", "rebuilt", "no_scores", "yes_scores", "notified_day").forEach { remove(key(context, it)) } }.apply()
+                progress.value = null
+            }
         }
     }
 
-    fun stop() { stopAsked = true }
+    /** Switches model (6 Nov): a running scan stops first, so its faces are saved with the model that found them. */
+    suspend fun switchModel(context: Context, aura: Boolean) {
+        waitForScan()
+        setAura(context, aura)
+        progress.value = null
+    }
+
+    private suspend fun waitForScan() {
+        again = false
+        stopAsked = true
+        while (scanLock.isLocked) kotlinx.coroutines.delay(100)
+    }
+
+    fun stop() { again = false; stopAsked = true }
+
+    /** Scan was asked for while one was finishing (6 Nov: "Scan" sometimes did nothing): it runs again straight after. */
+    @Volatile private var again = false
 
     // ---- Files ----
 
-    /** [version] 1: no quality; 2: pose and sharpness; 3: also eye visibility; 4: also the model's confidence (5 Nov). */
+    /**
+     * [version] 1: no quality; 2: pose and sharpness; 3: also eye visibility; 4: also the model's confidence (5 Nov);
+     * 5: also when the photo was taken and the clothes' colours (6 Nov).
+     */
     private fun readFaces(file: File, version: Int): List<Face> {
         if (!file.exists()) return emptyList()
         val out = mutableListOf<Face>()
@@ -119,9 +154,14 @@ object FaceLibrary {
                     val sharp = if (version >= 2) input.readFloat() else Face.SHARP_DEFAULT
                     val eyes = if (version >= 3) input.readFloat() else 1f
                     val strength = if (version >= 4) input.readFloat() else 0f
+                    val taken = if (version >= 5) input.readLong() else 0L
+                    val clothes = if (version >= 5) {
+                        val c = input.readShort().toInt()
+                        if (c > 0) FloatArray(c) { input.readFloat() } else null
+                    } else null
                     val n = input.readShort().toInt()
                     val v = FloatArray(n) { input.readFloat() }
-                    out += Face(id, photo, box, v, frontal, sharp, eyes, strength)
+                    out += Face(id, photo, box, v, frontal, sharp, eyes, strength, taken, clothes)
                 }
             } catch (_: EOFException) {
                 // The end (or a half-written last face after a crash, which is dropped).
@@ -133,7 +173,7 @@ object FaceLibrary {
     /** New faces, plus the faces found by earlier versions while they are still needed (until every photo is looked at again). */
     private fun olderFaces(context: Context): List<Face> = OLDER.flatMap { (f, _, v) -> readFaces(File(dir(context), f), v) }
 
-    private fun allFaces(context: Context): List<Face> = olderFaces(context) + readFaces(facesFile(context), 4)
+    private fun allFaces(context: Context): List<Face> = olderFaces(context) + readFaces(facesFile(context), 5)
 
     private fun olderFacesExist(context: Context) = OLDER.any { File(dir(context), it.first).exists() }
 
@@ -148,6 +188,10 @@ object FaceLibrary {
                 out.writeFloat(f.sharp)
                 out.writeFloat(f.eyes)
                 out.writeFloat(f.strength)
+                out.writeLong(f.takenAt)
+                val c = f.clothes
+                out.writeShort(c?.size ?: 0)
+                c?.forEach { out.writeFloat(it) }
                 out.writeShort(f.vector.size)
                 f.vector.forEach { out.writeFloat(it) }
             }
@@ -389,10 +433,33 @@ object FaceLibrary {
      */
     suspend fun scan(context: Context, limit: Int = Int.MAX_VALUE): Boolean = withContext(Dispatchers.Default) {
         if (!enabled(context)) return@withContext false
-        if (!scanLock.tryLock()) return@withContext true
-        stopAsked = false
+        if (!scanLock.tryLock()) {
+            // One is running or finishing: it carries on (or runs once more) instead of this ask being lost.
+            stopAsked = false
+            again = true
+            return@withContext true
+        }
         try {
-            val engine = FaceEngine.create(context, useAura(context)) ?: return@withContext false
+            var more: Boolean
+            do {
+                again = false
+                stopAsked = false
+                more = scanOnce(context, limit)
+            } while (again && enabled(context))
+            more
+        } finally {
+            scanLock.unlock()
+        }
+    }
+
+    private suspend fun scanOnce(context: Context, limit: Int): Boolean {
+        return run {
+            val model = useAura(context)
+            val engine = FaceEngine.create(context, model)
+            if (engine == null) {
+                progress.value = ScanProgress(0, 0, running = false, problem = if (model) "The AuraFace model couldn't start on this phone. Turn the test off and on to download it again." else "The face finder couldn't start on this phone.")
+                return false
+            }
             val photos = MediaStoreLibrary(context).loadAll().filter { !it.isVideo }.sortedByDescending { it.takenAtMillis }
             val done = lock.withLock { withContext(Dispatchers.IO) { readScanned(scannedFile(context)) } }
             val todo = photos.filter { it.id !in done }
@@ -416,11 +483,28 @@ object FaceLibrary {
                 newScanned.clear()
             }
             for (item in batch) {
-                if (stopAsked || !enabled(context)) break
-                val bitmap = decode(context, item.uri, MAX_SIDE)
+                if (stopAsked || !enabled(context) || useAura(context) != model) break
+                var long = 0
+                val bitmap = decode(context, item.uri, MAX_SIDE) { long = it }
                 if (bitmap != null) {
                     try {
-                        engine.find(bitmap).forEach { f -> newFaces += Face(nextFace++, item.id, f.box, f.vector, f.frontal, f.sharp, f.eyes, f.strength) }
+                        var found = engine.find(bitmap)
+                        // Small faces (6 Nov): a big photo with faces too small at the usual size gets a second, bigger look.
+                        if (engine.smallSkipped > 0 && long > MAX_SIDE * 1.4f) {
+                            val big = decode(context, item.uri, BIG_SIDE)
+                            if (big != null) {
+                                try {
+                                    val closer = engine.find(big)
+                                    if (closer.size > found.size) found = closer
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (_: Throwable) {
+                                } finally {
+                                    big.recycle()
+                                }
+                            }
+                        }
+                        found.forEach { f -> newFaces += Face(nextFace++, item.id, f.box, f.vector, f.frontal, f.sharp, f.eyes, f.strength, item.takenAtMillis, f.clothes) }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (_: Throwable) {
@@ -434,16 +518,16 @@ object FaceLibrary {
                 progress.value = ScanProgress(count, photos.size, running = true)
                 if (newScanned.size >= FLUSH_EVERY) flush(join = false)
             }
-            if (enabled(context)) {
+            // Only saved under the model that found them (6 Nov).
+            val same = useAura(context) == model
+            if (enabled(context) && same) {
                 flush(join = true)
                 if (count >= photos.size) finishLookingAgain(context)
             }
-            progress.value = ScanProgress(count, photos.size, running = false)
+            if (same) progress.value = ScanProgress(count, photos.size, running = false)
             engine.close()
-            if (enabled(context)) maybeNotify(context, questions)
-            todo.size > batch.size || (stopAsked && count < photos.size)
-        } finally {
-            scanLock.unlock()
+            if (enabled(context) && same) maybeNotify(context, questions)
+            return todo.size > batch.size || (stopAsked && count < photos.size)
         }
     }
 
@@ -514,11 +598,12 @@ object FaceLibrary {
         }
     }
 
-    private fun decode(context: Context, uri: String, maxSide: Int): Bitmap? = runCatching {
+    private fun decode(context: Context, uri: String, maxSide: Int, onSize: (Int) -> Unit = {}): Bitmap? = runCatching {
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri))) { decoder, info, _ ->
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             decoder.isMutableRequired = false
             val long = maxOf(info.size.width, info.size.height).coerceAtLeast(1)
+            onSize(long)
             if (long > maxSide) {
                 val scale = maxSide.toFloat() / long
                 decoder.setTargetSize((info.size.width * scale).toInt().coerceAtLeast(1), (info.size.height * scale).toInt().coerceAtLeast(1))
@@ -529,5 +614,8 @@ object FaceLibrary {
     private const val JOIN_VERSION = 1
     private const val REBUILD_VERSION = 1
     private const val MAX_SIDE = 1280
+
+    /** The second, bigger look for small faces (6 Nov). */
+    private const val BIG_SIDE = 2560
     private const val FLUSH_EVERY = 40
 }

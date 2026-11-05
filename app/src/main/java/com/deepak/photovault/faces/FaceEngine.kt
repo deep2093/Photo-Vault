@@ -26,9 +26,14 @@ class FaceEngine private constructor(
     fun close() { runCatching { aura?.close() } }
 
     /** One face: where it is, its measurements, how much it faces the camera (0 side to 1 front) and how sharp it is. */
-    class Found(val box: FloatArray, val vector: FloatArray, val frontal: Float, val sharp: Float, val eyes: Float, val strength: Float)
+    class Found(val box: FloatArray, val vector: FloatArray, val frontal: Float, val sharp: Float, val eyes: Float, val strength: Float, val clothes: FloatArray?)
+
+    /** Faces in the last photo that were left out only for being too small (6 Nov): worth a bigger second look. */
+    var smallSkipped = 0
+        private set
 
     fun find(bitmap: Bitmap): List<Found> {
+        smallSkipped = 0
         val rgba = Mat()
         val bgr = Mat()
         val faces = Mat()
@@ -46,8 +51,11 @@ class FaceEngine private constructor(
             for (i in rows.indices) {
                 val row = rows[i]
                 // Faces smaller than this can't be told apart reliably; they are left out.
-                if (row[2] < MIN_FACE_PX || row[3] < MIN_FACE_PX) continue
                 if (row[2] < biggest * BACKGROUND_SHARE) continue
+                if (row[2] < MIN_FACE_PX || row[3] < MIN_FACE_PX) {
+                    if (row[2] >= SMALL_PX) smallSkipped++
+                    continue
+                }
                 val aligned = Mat()
                 val feature = Mat()
                 val one = faces.row(i)
@@ -58,11 +66,22 @@ class FaceEngine private constructor(
                     if (sharp < BLURRY) continue
                     // Coloured light (6 Nov): even out the colour cast (purple and magenta stage lights) before measuring.
                     neutralise(aligned)
+                    // Dark or backlit faces (6 Nov): brightened before measuring.
+                    brighten(aligned)
                     val v: FloatArray
                     val norm: Float
                     if (aura != null) {
                         v = auraVector(aligned)
                         norm = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+                        // Mirror trick for AuraFace too (6 Nov), as SFace has had since 5 Nov.
+                        val flipped = Mat()
+                        try {
+                            org.opencv.core.Core.flip(aligned, flipped, 1)
+                            val m = auraVector(flipped)
+                            for (k in v.indices) v[k] += m[k]
+                        } finally {
+                            flipped.release()
+                        }
                     } else {
                         measurer.feature(aligned, feature)
                         v = FloatArray(feature.cols() * feature.rows())
@@ -91,7 +110,7 @@ class FaceEngine private constructor(
                         (row[2] / w).coerceIn(0f, 1f),
                         (row[3] / h).coerceIn(0f, 1f),
                     )
-                    out += Found(box, v, frontal(row), sharp, eyes, norm)
+                    out += Found(box, v, frontal(row), sharp, eyes, norm, clothes(bgr, row))
                 } finally {
                     aligned.release()
                     feature.release()
@@ -116,6 +135,69 @@ class FaceEngine private constructor(
         if (avg < 1.0) return
         fun gain(c: Double) = if (c < 1.0) 1.0 else (avg / c).coerceIn(0.6, 1.6)
         org.opencv.core.Core.multiply(aligned, org.opencv.core.Scalar(gain(m[0]), gain(m[1]), gain(m[2])), aligned)
+    }
+
+    /**
+     * Brightens a dark face (6 Nov): when the lined-up face's average brightness is under [DARK], a curve lifts it to
+     * about [LIFT_TO]. Faces in normal light are left as they are.
+     */
+    private fun brighten(aligned: Mat) {
+        val gray = Mat()
+        try {
+            Imgproc.cvtColor(aligned, gray, Imgproc.COLOR_BGR2GRAY)
+            val mean = org.opencv.core.Core.mean(gray).`val`[0]
+            if (mean >= DARK || mean < 4.0) return
+            val gamma = kotlin.math.ln(LIFT_TO / 255.0) / kotlin.math.ln(mean / 255.0)
+            val table = Mat(1, 256, org.opencv.core.CvType.CV_8U)
+            try {
+                val bytes = ByteArray(256) { i -> (255.0 * Math.pow(i / 255.0, gamma)).toInt().coerceIn(0, 255).toByte() }
+                table.put(0, 0, bytes)
+                org.opencv.core.Core.LUT(aligned, table, aligned)
+            } finally {
+                table.release()
+            }
+        } finally {
+            gray.release()
+        }
+    }
+
+    /**
+     * What the person wears (6 Nov): a colour count (hue x saturation, plus how dark) of the area just under the face,
+     * about a face and a half deep and twice as wide. Square roots of the shares, so comparing two gives a likeness from
+     * 0 to 1. Null when too little of it is in the photo.
+     */
+    private fun clothes(bgr: Mat, row: FloatArray): FloatArray? {
+        val fw = row[2]
+        val fh = row[3]
+        val x0 = (row[0] - fw * 0.5f).toInt().coerceAtLeast(0)
+        val x1 = (row[0] + fw * 1.5f).toInt().coerceAtMost(bgr.cols())
+        val y0 = (row[1] + fh * 1.25f).toInt().coerceAtLeast(0)
+        val y1 = (row[1] + fh * 2.75f).toInt().coerceAtMost(bgr.rows())
+        val want = fw * 2f * fh * 1.5f
+        if (x1 - x0 < 8 || y1 - y0 < 8 || (x1 - x0) * (y1 - y0) < want * 0.4f) return null
+        val part = bgr.submat(org.opencv.core.Rect(x0, y0, x1 - x0, y1 - y0))
+        val small = Mat()
+        val hsv = Mat()
+        try {
+            Imgproc.resize(part, small, Size(32.0, 24.0), 0.0, 0.0, Imgproc.INTER_AREA)
+            Imgproc.cvtColor(small, hsv, Imgproc.COLOR_BGR2HSV)
+            val px = ByteArray(32 * 24 * 3)
+            hsv.get(0, 0, px)
+            // 8 hues x 2 strengths for coloured pixels, then 4 shades from black to white for grey ones.
+            val counts = FloatArray(8 * 2 + 4)
+            for (p in 0 until 32 * 24) {
+                val h = px[p * 3].toInt() and 0xff
+                val sat = px[p * 3 + 1].toInt() and 0xff
+                val v = px[p * 3 + 2].toInt() and 0xff
+                if (sat < 50 || v < 40) counts[16 + (v * 4 / 256).coerceIn(0, 3)]++
+                else counts[(h * 8 / 180).coerceIn(0, 7) * 2 + if (sat < 140) 0 else 1]++
+            }
+            val total = counts.sum()
+            if (total <= 0f) return null
+            return FloatArray(counts.size) { sqrt(counts[it] / total) }
+        } finally {
+            part.release(); small.release(); hsv.release()
+        }
     }
 
     /** AuraFace: the lined-up 112 x 112 face in RGB, scaled to -1..1, gives 512 numbers. */
@@ -190,6 +272,13 @@ class FaceEngine private constructor(
 
     companion object {
         const val MIN_FACE_PX = 36f
+
+        /** Faces at least this wide but under [MIN_FACE_PX] get a second, bigger look at the photo (6 Nov). */
+        const val SMALL_PX = 14f
+
+        /** A lined-up face darker than this on average is brightened to about [LIFT_TO] (0 black to 255 white). */
+        const val DARK = 80.0
+        const val LIFT_TO = 115.0
 
         /** Faces under this share of the biggest face's width in the same photo are background faces. */
         const val BACKGROUND_SHARE = 0.33f
