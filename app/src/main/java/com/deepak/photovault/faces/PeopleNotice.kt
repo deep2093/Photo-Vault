@@ -33,7 +33,7 @@ object PeopleNotice {
         )
         val title = if (count == 1) "1 person to check" else "$count people to check"
         val n = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(com.deepak.photovault.NotificationIcon.of(context))
             .setContentTitle(title)
             .setContentText("Pixallery isn't sure if some faces are the same person. Tap to answer.")
             .setAutoCancel(true)

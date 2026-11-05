@@ -100,13 +100,16 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-3"
+    const val ID = "2026-11-06-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Scan progress", "In People, a ring around the Scan button fills as faces are looked for. The box with the photo count is gone."),
-        Change(ChangeKind.CHANGED, "People menu", "The AuraFace test and Turn off are now in the menu (three dots) at the top of People."),
-        Change(ChangeKind.REMOVED, "Who you are with", "Being photographed with the same people no longer counts toward who someone is."),
-        Change(ChangeKind.FIXED, "AuraFace wouldn't start", "Pixallery now uses a newer face-model engine that should load AuraFace. If it still can't, People shows the phone's own reason."),
+        Change(ChangeKind.CHANGED, "People sorted all together", "After each scan, every face is sorted again all at once, so the order photos were looked at no longer matters. Named people, hidden people and anyone you changed by hand stay as they are."),
+        Change(ChangeKind.NEW, "A check for each named person", "Once someone is named in about 10 clear photos, People learns what sets them apart from the other people you named, which helps with look-alikes like sisters."),
+        Change(ChangeKind.NEW, "Daily face check", "Besides scanning while charging, People looks at a few new photos once a day."),
+        Change(ChangeKind.NEW, "Album shortcuts style", "Try three looks for People, Secured folder, Recently deleted and Places in Settings > About: Round icons, Rows or Pictures."),
+        Change(ChangeKind.CHANGED, "Notification icon", "The status bar icon now matches the app icon you picked."),
+        Change(ChangeKind.FIXED, "Scan button blinking", "The Pause/Scan button no longer blinks; a background scan waits its turn instead of restarting the running one."),
+        Change(ChangeKind.FIXED, "People top bar and menu", "The scan, show/hide and menu buttons are the same size with even gaps, and the People menu is as easy to read as the others."),
     )
 }
 

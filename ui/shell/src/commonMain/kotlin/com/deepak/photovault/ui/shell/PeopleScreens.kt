@@ -156,14 +156,13 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     running && p != null && p.total > 0 -> p.done.toFloat() / p.total
                     else -> null
                 }
-                Box(contentAlignment = Alignment.Center) {
+                // Always the same size as the buttons next to it (6 Nov); the ring is drawn inside it, only the filled part.
+                Box(Modifier.size(com.deepak.photovault.designsystem.MinTouchTarget), contentAlignment = Alignment.Center) {
                     if (fraction != null) {
                         val ring = theme.accent
-                        val track = theme.onGlass.copy(alpha = 0.12f)
-                        androidx.compose.foundation.Canvas(Modifier.size(38.dp)) {
-                            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                            drawArc(track, 0f, 360f, false, style = stroke)
-                            drawArc(ring, -90f, 360f * fraction.coerceIn(0f, 1f), false, style = stroke)
+                        androidx.compose.foundation.Canvas(Modifier.size(36.dp)) {
+                            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            drawArc(ring, -90f, 360f * fraction.coerceIn(0.02f, 1f), false, style = stroke)
                         }
                     }
                     GlassIconButton(
@@ -198,7 +197,7 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         }),
         overlay = {
             // A small menu (6 Nov): the AuraFace test and turning off.
-            GlassMenuLayer(menuOpen && people.enabled && !selecting, onDismiss = { menuOpen = false }) {
+            GlassMenuLayer(menuOpen && people.enabled && !selecting, onDismiss = { menuOpen = false }, solid = true) {
                 GlassMenuItem(
                     Icons.Rounded.Science,
                     "AuraFace test model",

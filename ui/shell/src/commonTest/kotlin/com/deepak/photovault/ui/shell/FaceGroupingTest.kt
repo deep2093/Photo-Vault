@@ -2,6 +2,7 @@ package com.deepak.photovault.ui.shell
 
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -300,5 +301,56 @@ class FaceGroupingTest {
     fun boxesOverlap() {
         assertTrue(FaceGrouping.overlap(box, box) > 0.99f)
         assertEquals(0f, FaceGrouping.overlap(box, floatArrayOf(0f, 0f, 0.1f, 0.1f)))
+    }
+
+    @Test
+    fun sortingAgainDoesNotDependOnTheOrderPhotosWereLookedAt() {
+        // Two people, faces given in two different orders: the same groups either way.
+        val faces = (0 until 6).map { face(it + 1, 100L + it, 0, (it % 3) * 0.15f) } + (0 until 6).map { face(it + 11, 200L + it, 1, (it % 3) * 0.15f) }
+        val a = FaceGrouping.closeTogether(faces).toSet()
+        val b = FaceGrouping.closeTogether(faces.reversed()).toSet()
+        assertEquals(a, b)
+        assertEquals(setOf((1..6).toSet(), (11..16).toSet()), a)
+    }
+
+    @Test
+    fun sortingAgainKeepsNamedAndHandChangedPeople() {
+        val faces = (0 until 4).map { face(it + 1, 100L + it, 0, it * 0.05f) } + (0 until 4).map { face(it + 11, 200L + it, 1, it * 0.05f) }
+        val mum = Person(1, setOf(1, 2), name = "Mum")
+        val (people, _) = FaceGrouping.resort(faces, listOf(mum), 5)
+        assertEquals(setOf(1, 2, 3, 4), people.first { it.name == "Mum" }.faces)
+        assertTrue(people.any { it.name == null && it.faces == (11..14).toSet() })
+    }
+
+    @Test
+    fun aClashInOnePhotoKeepsTheBetterFit() {
+        // Faces 1 and 2 share a photo; face 2 fits the others less: only face 1 stays in the group.
+        val faces = listOf(face(1, 10, 0), face(2, 10, 0, 0.6f), face(3, 11, 0, 0.05f), face(4, 12, 0, 0.1f))
+        val groups = FaceGrouping.closeTogether(faces)
+        assertTrue(groups.none { 1 in it && 2 in it })
+    }
+
+    @Test
+    fun eachNamedPersonLearnsWhatSetsThemApart() {
+        // Two sisters: almost the same face; number 5 tells them apart, other numbers wobble.
+        fun sister(sign: Float, seed: Int): FloatArray {
+            val v = FloatArray(128)
+            v[0] = 1f
+            v[5] = 0.25f * sign
+            v[10 + seed % 40] = 0.2f
+            v[60 + (seed * 7) % 40] = -0.15f
+            val n = sqrt(v.sumOf { (it * it).toDouble() }).toFloat()
+            return FloatArray(128) { v[it] / n }
+        }
+        val a = (0 until 14).map { Face(100 + it, 1000L + it, floatArrayOf(0.1f, 0.1f, 0.2f, 0.2f), sister(1f, it)) }
+        val b = (0 until 14).map { Face(200 + it, 2000L + it, floatArrayOf(0.1f, 0.1f, 0.2f, 0.2f), sister(-1f, it + 3)) }
+        val people = listOf(Person(1, a.map { it.id }.toSet(), name = "Priya"), Person(2, b.map { it.id }.toSet(), name = "Anjali"))
+        val check = FaceGrouping.personCheck(a + b, people)!!
+        val newA = sister(1f, 77)
+        val newB = sister(-1f, 91)
+        assertTrue(check.chance(1, newA) > check.chance(2, newA))
+        assertTrue(check.chance(2, newB) > check.chance(1, newB))
+        // Only one named person with enough faces: no check.
+        assertNull(FaceGrouping.personCheck(a, people.take(1)))
     }
 }

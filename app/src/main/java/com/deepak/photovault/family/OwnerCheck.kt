@@ -72,7 +72,7 @@ class OwnerCheckWorker(context: Context, params: WorkerParameters) : CoroutineWo
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(com.deepak.photovault.NotificationIcon.of(context))
             .setContentTitle(if (lines.size == 1) lines.first() else "${lines.size} family requests")
             .setContentText(if (lines.size == 1) "Open Family to answer." else lines.joinToString(" · "))
             .setStyle(NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n")))

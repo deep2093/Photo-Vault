@@ -43,7 +43,13 @@ import com.deepak.photovault.designsystem.glassRim
  * under the top bar, at the right.
  */
 @Composable
-internal fun BoxScope.GlassMenuLayer(expanded: Boolean, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun BoxScope.GlassMenuLayer(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    /** On pages opened on top (People), the glass can't blur the page under it, so the tint is firmer (6 Nov). */
+    solid: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     if (!expanded) return
     val insets = LocalScreenInsets.current
     Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null, onClick = onDismiss))
@@ -58,7 +64,7 @@ internal fun BoxScope.GlassMenuLayer(expanded: Boolean, onDismiss: () -> Unit, c
             .widthIn(min = 150.dp, max = 220.dp)
             .glassChrome(shape, elevation = 12.dp)
             // A firmer tint under the words (31 Oct: the plain glass was hard to read over photos); still the theme's own colour.
-            .background(LocalGlassTheme.current.glassFallback.copy(alpha = 0.82f), shape)
+            .background(LocalGlassTheme.current.glassFallback.copy(alpha = if (solid) 0.97f else 0.82f), shape)
             .padding(vertical = 4.dp),
         content = content,
     )

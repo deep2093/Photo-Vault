@@ -232,6 +232,7 @@ object FaceLibrary {
                     name = if (o.has("name") && !o.isNull("name")) o.getString("name") else null,
                     hidden = o.optBoolean("hidden", false),
                     notFaces = ints("not"),
+                    kept = o.optBoolean("kept", false),
                 )
             }
             val different = root.optJSONArray("different")?.let { a -> (0 until a.length()).map { val p = a.getJSONArray(it); p.getInt(0) to p.getInt(1) }.toSet() }.orEmpty()
@@ -251,6 +252,7 @@ object FaceLibrary {
                 if (p.name != null) put("name", p.name)
                 if (p.hidden) put("hidden", true)
                 if (p.notFaces.isNotEmpty()) put("not", JSONArray(p.notFaces.toList()))
+                if (p.kept) put("kept", true)
             })
         }
         val diff = JSONArray().apply { different.forEach { put(JSONArray(listOf(it.first, it.second))) } }
@@ -261,9 +263,15 @@ object FaceLibrary {
     }
 
     /** Groups new faces, joins groups of one person, and works out the questions. Under [lock]. */
-    private fun regroup(context: Context, all: List<Face>, join: Boolean): List<SamePersonQuestion> {
-        val saved = readPeople(context)
-        var (grouped, after) = FaceGrouping.group(all, saved.people, saved.next)
+    private fun regroup(context: Context, all: List<Face>, join: Boolean, resort: Boolean = false): List<SamePersonQuestion> {
+        var saved = readPeople(context)
+        if (resort) {
+            // Sorted again from scratch after a scan (6 Nov): only named, hidden and hand-changed people stay as they are.
+            val keep = saved.people.filter { it.name != null || it.hidden || it.kept }
+            val ids = keep.map { it.id }.toSet()
+            saved = Saved(keep, saved.next, saved.different.filter { it.first in ids && it.second in ids }.toSet(), emptyList())
+        }
+        var (grouped, after) = if (resort) FaceGrouping.resort(all, saved.people, saved.next) else FaceGrouping.group(all, saved.people, saved.next)
         if (join) {
             // Groups check their own faces; the ones taken out are sorted again (5 Nov).
             val again = FaceGrouping.group(all, FaceGrouping.selfCheck(all, grouped), after)
@@ -384,11 +392,11 @@ object FaceLibrary {
             val people = saved.people.map { p ->
                 when (p.id) {
                     fromId -> FaceGrouping.remove(p, faceIds)
-                    toId -> p.copy(faces = p.faces + faceIds, notFaces = p.notFaces - faceIds)
+                    toId -> p.copy(faces = p.faces + faceIds, notFaces = p.notFaces - faceIds, kept = true)
                     else -> p
                 }
             }.toMutableList()
-            if (toId == null) people += Person(next++, faceIds)
+            if (toId == null) people += Person(next++, faceIds, kept = true)
             writePeople(context, people.filter { it.faces.isNotEmpty() || it.name != null }, next, saved.different, saved.questions)
         }
     }
@@ -410,7 +418,7 @@ object FaceLibrary {
                 }
                 val keep = if (a.name != null || (b.name == null && a.faces.size >= b.faces.size)) a else b
                 val gone = if (keep === a) b else a
-                val merged = FaceGrouping.merge(keep, listOf(gone))
+                val merged = FaceGrouping.merge(keep, listOf(gone)).copy(kept = true)
                 // Questions about the person that was merged away now ask about the one that stayed.
                 val moved = left.map { x ->
                     val na = if (x.a == gone.id) keep.id else x.a
@@ -419,7 +427,9 @@ object FaceLibrary {
                 }.filter { it.a != it.b }.distinctBy { it.a to it.b }
                 writePeople(context, saved.people.filter { it.id != a.id && it.id != b.id } + merged, saved.next, saved.different, moved)
             } else {
-                writePeople(context, saved.people, saved.next, saved.different + (q.a to q.b), left)
+                // Both stay as they are when everything is sorted again (6 Nov), so the answer keeps meaning something.
+                val marked = saved.people.map { if (it.id == q.a || it.id == q.b) it.copy(kept = true) else it }
+                writePeople(context, marked, saved.next, saved.different + (q.a to q.b), left)
             }
         }
     }
@@ -431,13 +441,16 @@ object FaceLibrary {
      * Returns true when photos are left for next time. Only one scan runs at a time; [stop] ends it after the current
      * photo. When every photo has been looked at again, the faces from before 7A-2 are dropped.
      */
-    suspend fun scan(context: Context, limit: Int = Int.MAX_VALUE): Boolean = withContext(Dispatchers.Default) {
+    suspend fun scan(context: Context, limit: Int = Int.MAX_VALUE, fromButton: Boolean = false): Boolean = withContext(Dispatchers.Default) {
         if (!enabled(context)) return@withContext false
         if (!scanLock.tryLock()) {
-            // One is running or finishing: it carries on (or runs once more) instead of this ask being lost.
-            stopAsked = false
-            again = true
-            return@withContext true
+            // One is running or finishing. The Scan button makes it carry on (or run once more); a background turn
+            // just skips (6 Nov: it used to ask again and again, which made the button blink).
+            if (fromButton) {
+                stopAsked = false
+                again = true
+            }
+            return@withContext false
         }
         try {
             var more: Boolean
@@ -465,6 +478,13 @@ object FaceLibrary {
             val done = lock.withLock { withContext(Dispatchers.IO) { readScanned(scannedFile(context)) } }
             val todo = photos.filter { it.id !in done }
             val batch = todo.take(limit)
+            // Nothing new (6 Nov): ends quietly, without sorting every face again or flashing the button.
+            if (batch.isEmpty()) {
+                if (enabled(context) && olderFacesExist(context)) finishLookingAgain(context)
+                progress.value = progress.value?.takeIf { it.problem == null }?.let { ScanProgress(photos.size, photos.size, running = false) }
+                engine.close()
+                return false
+            }
             var nextFace = lock.withLock { withContext(Dispatchers.IO) { (allFaces(context).maxOfOrNull { it.id } ?: 0) + 1 } }
             val newFaces = mutableListOf<Face>()
             val newScanned = mutableListOf<Long>()
@@ -476,8 +496,9 @@ object FaceLibrary {
                     withContext(Dispatchers.IO) {
                         appendFaces(context, newFaces)
                         appendScanned(context, newScanned)
-                        // Comparing whole groups is slower: done at the end of each turn, not every 40 photos.
-                        questions = regroup(context, allFaces(context), join)
+                        // Comparing whole groups is slower: done at the end of each turn, not every 40 photos. At the
+                        // end every face is sorted again, all together (6 Nov).
+                        questions = regroup(context, allFaces(context), join, resort = join)
                     }
                 }
                 newFaces.clear()
@@ -537,15 +558,7 @@ object FaceLibrary {
      * different people). Named and hidden people, and "No" answers about them, stay. Under [lock].
      */
     private fun rebuildUnnamed(context: Context) {
-        val saved = readPeople(context)
-        val keep = saved.people.filter { it.name != null || it.hidden }
-        val keptIds = keep.map { it.id }.toSet()
-        writePeople(
-            context, keep, saved.next,
-            saved.different.filter { it.first in keptIds && it.second in keptIds }.toSet(),
-            emptyList(),
-        )
-        regroup(context, allFaces(context), join = true)
+        regroup(context, allFaces(context), join = true, resort = true)
     }
 
     /** Every photo has been looked at again: faces from earlier versions leave the people, and their files go. */

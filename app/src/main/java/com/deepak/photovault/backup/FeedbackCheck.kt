@@ -82,7 +82,7 @@ private object FeedbackNotifications {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(com.deepak.photovault.NotificationIcon.of(context))
             .setContentTitle(title)
             .setContentText(text)
             .setAutoCancel(true)

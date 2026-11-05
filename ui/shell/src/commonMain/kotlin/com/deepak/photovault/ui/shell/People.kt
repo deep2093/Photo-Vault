@@ -62,6 +62,11 @@ data class Person(
     val name: String? = null,
     val hidden: Boolean = false,
     val notFaces: Set<Int> = emptySet(),
+    /**
+     * Changed by hand (merged, a "Same person?" answer, photos moved or taken out; 6 Nov): kept as it is when the
+     * groups are sorted again from scratch after a scan, like named and hidden people.
+     */
+    val kept: Boolean = false,
 )
 
 /**
@@ -290,10 +295,11 @@ object FaceGrouping {
     }
 
     /** Puts every face that isn't in a person yet into the right one, or a new one. Returns the people and the next free id. */
-    fun group(faces: List<Face>, people: List<Person>, nextId: Int): Pair<List<Person>, Int> {
+    fun group(faces: List<Face>, people: List<Person>, nextId: Int, startNew: Boolean = true): Pair<List<Person>, Int> {
         markWeak(faces)
         val byId = faces.associateBy { it.id }
         val learnt = whitener(faces, people)
+        val check = personCheck(faces, people)
         val placed = people.flatMap { it.faces }.toHashSet()
         val size = faces.firstOrNull()?.vector?.size ?: 0
         val groups = people.map { p ->
@@ -320,6 +326,8 @@ object FaceGrouping {
             var runnerUp: Group? = null
             var runnerScore = -2f
             val around = context.around(face)
+            // Named people this face is at least a little like, for their own learnt check (6 Nov).
+            val namedNear = mutableListOf<Pair<Group, Float>>()
             for (g in groups) {
                 // Two faces in one photo are never the same person (7A-2).
                 if (face.id in g.person.notFaces || g.faces.isEmpty() || face.photoId in g.photos) continue
@@ -337,6 +345,7 @@ object FaceGrouping {
                     raw >= ASK -> raw + hint.bonus
                     else -> raw + minOf(0f, hint.bonus)
                 }
+                if (check != null && g.person.id in check.people && score >= ASK) namedNear += g to score
                 // Strictly better only: on a tie the older person (named, or merged by hand) keeps the face.
                 if (score > bestScore) {
                     if (best != null) { runnerUp = best; runnerScore = bestScore }
@@ -347,15 +356,32 @@ object FaceGrouping {
                     runnerScore = score
                 }
             }
+            // Each named person's own learnt check (6 Nov): between named people this face is like, the one whose check
+            // is surest wins, if it is nearly as alike; and a named person whose check clearly says "not them" is skipped.
+            var decided = false
+            val chosen = best
+            if (check != null && chosen != null && chosen.person.id in check.people) {
+                val mine = check.chance(chosen.person.id, face.vector)
+                val other = namedNear.filter { it.first !== chosen && it.second >= needed - CHECK_SLACK }
+                    .maxByOrNull { check.chance(it.first.person.id, face.vector) }
+                val theirs = other?.let { check.chance(it.first.person.id, face.vector) } ?: 0f
+                if (other != null && theirs >= CHECK_SURE && mine < CHECK_DOUBT) {
+                    best = other.first
+                    decided = true
+                } else if (mine < CHECK_NOT) {
+                    best = null
+                    decided = true
+                }
+            }
             // Two people both match closely (sisters): the family's own learnt measure decides (5 Nov).
             val second = runnerUp
-            if (learnt != null && best != null && second != null && bestScore - runnerScore < CLOSE_CALL) {
+            if (!decided && learnt != null && best != null && second != null && bestScore - runnerScore < CLOSE_CALL) {
                 val w = learnt.apply(face.vector)
                 if (cosine(w, second.whiteCentre(learnt)) > cosine(w, best.whiteCentre(learnt))) best = second
             }
             // A side view that matches nobody waits: side views made most of the extra groups of one person.
             // Weak measurements (5 Nov) wait too: they only join someone they clearly match.
-            if (best == null && (face.turned || face.weak)) continue
+            if (best == null && (face.turned || face.weak || !startNew)) continue
             val target = best ?: Group(Person(next++, emptySet()), FloatArray(size), FloatArray(size), 0, mutableListOf(), mutableSetOf(), mutableSetOf()).also { groups += it }
             target.add(face)
             context.placed(face, target)
@@ -445,6 +471,156 @@ object FaceGrouping {
     /** True when [f] has a burst partner among [others]: the same spot within [BURST_MS]. */
     private fun burstPartner(f: Face, others: List<Face>): Boolean = f.takenAt > 0L && others.any {
         it.takenAt > 0L && kotlin.math.abs(it.takenAt - f.takenAt) <= BURST_MS && it.photoId != f.photoId && overlap(it.box, f.box) >= BURST_OVERLAP
+    }
+
+    // ---- A learnt check for each named person (6 Nov) ----
+
+    /** Named people need this many clear faces before they get their own check. */
+    const val CHECK_MIN = 10
+    private const val CHECK_SAMPLES = 80
+    private const val CHECK_ROUNDS = 100
+
+    /** A rival named person wins when their check is at least this sure, and the first one's under [CHECK_DOUBT]. */
+    const val CHECK_SURE = 0.6f
+    const val CHECK_DOUBT = 0.4f
+
+    /** A named person whose check is under this for a face doesn't get it. */
+    const val CHECK_NOT = 0.1f
+
+    /** The rival only needs to be this close to the usual line. */
+    const val CHECK_SLACK = 0.06f
+
+    private var checkKey: String? = null
+    private var checkCache: PersonCheck? = null
+
+    /**
+     * Trains a small check for every named person with [CHECK_MIN] clear faces, when there are at least two: it learns
+     * which of the measurements tell this person apart from the other named people (logistic regression on the
+     * measurements, scaled per number). Kept until the named people change by 20 faces or more.
+     */
+    fun personCheck(faces: List<Face>, people: List<Person>): PersonCheck? {
+        val byId = faces.associateBy { it.id }
+        val named = people.filter { it.name != null }
+            .map { p -> p.id to spread(p.faces.sorted().mapNotNull { byId[it] }.filter { it.good }.map { it.vector }, CHECK_SAMPLES) }
+            .filter { it.second.size >= CHECK_MIN }
+        if (named.size < 2) return null
+        val key = named.joinToString(",") { "${it.first}:${it.second.size / 20}:${it.second.first().size}" }
+        if (key == checkKey) return checkCache
+        val d = named.first().second.first().size
+        val all = named.flatMap { it.second }
+        val mean = FloatArray(d)
+        all.forEach { v -> for (i in 0 until d) mean[i] += v[i] / all.size }
+        val scale = FloatArray(d)
+        all.forEach { v -> for (i in 0 until d) { val x = v[i] - mean[i]; scale[i] += x * x / all.size } }
+        // A floor from the average spread, so a number that hardly ever changes can't swing the check.
+        val floor = scale.average().toFloat() * 0.1f + 1e-9f
+        for (i in 0 until d) scale[i] = 1f / sqrt(scale[i] + floor)
+        val xs = all.map { v -> FloatArray(d) { (v[it] - mean[it]) * scale[it] } }
+        val owner = named.flatMap { (id, list) -> List(list.size) { id } }
+        val weights = HashMap<Int, FloatArray>()
+        val bias = HashMap<Int, Float>()
+        for ((id, list) in named) {
+            val pos = list.size.toFloat()
+            val neg = (all.size - list.size).toFloat()
+            val w = FloatArray(d)
+            var b = 0f
+            // A step size that stays steady for scaled measurements of this length.
+            val rate = 20f / d
+            repeat(CHECK_ROUNDS) {
+                val gw = FloatArray(d)
+                var gb = 0f
+                for (k in xs.indices) {
+                    val x = xs[k]
+                    var z = b
+                    for (i in 0 until d) z += w[i] * x[i]
+                    val p = 1f / (1f + kotlin.math.exp(-z))
+                    val y = if (owner[k] == id) 1f else 0f
+                    // Both sides count the same, however many faces each has.
+                    val weight = if (y == 1f) 0.5f / pos else 0.5f / neg
+                    val e = (p - y) * weight
+                    for (i in 0 until d) gw[i] += e * x[i]
+                    gb += e
+                }
+                for (i in 0 until d) w[i] -= rate * (gw[i] + 0.001f * w[i])
+                b -= 2f * gb
+            }
+            weights[id] = w
+            bias[id] = b
+        }
+        return PersonCheck(mean, scale, weights, bias).also { checkKey = key; checkCache = it }
+    }
+
+    // ---- Sorting every face again, all together (6 Nov) ----
+
+    /** How many closest faces each face looks at when the groups are sorted again. */
+    private const val NEIGHBOURS = 8
+
+    /** More free faces than this and the sort falls back to one-by-one (too slow on a phone). */
+    private const val RESORT_MAX = 8000
+
+    /**
+     * After a scan, the groups are made again from scratch so the order photos were looked at no longer matters:
+     * faces first join the people in [keep] (named, hidden or changed by hand); the rest form groups where faces are
+     * among each other's closest matches (both ways), so one odd photo can't pull a chain of others in; what is left is
+     * placed one by one as before.
+     */
+    fun resort(faces: List<Face>, keep: List<Person>, nextId: Int): Pair<List<Person>, Int> {
+        markWeak(faces)
+        val (withKept, after) = group(faces, keep, nextId, startNew = false)
+        val placed = withKept.flatMap { it.faces }.toHashSet()
+        val free = faces.filter { it.id !in placed }
+        var next = after
+        val clusters = closeTogether(free).map { Person(next++, it) }
+        return group(faces, withKept + clusters, next)
+    }
+
+    /** Groups of [faces] that are among each other's closest matches; same-photo clashes keep only the best fit. */
+    fun closeTogether(faces: List<Face>): List<Set<Int>> {
+        val n = faces.size
+        if (n < 2 || n > RESORT_MAX) return emptyList()
+        val top = Array(n) { IntArray(NEIGHBOURS) { -1 } }
+        val topScore = Array(n) { FloatArray(NEIGHBOURS) { -2f } }
+        fun offer(i: Int, j: Int, s: Float) {
+            val ts = topScore[i]
+            if (s <= ts[NEIGHBOURS - 1]) return
+            var k = NEIGHBOURS - 1
+            while (k > 0 && ts[k - 1] < s) { ts[k] = ts[k - 1]; top[i][k] = top[i][k - 1]; k-- }
+            ts[k] = s
+            top[i][k] = j
+        }
+        for (i in 0 until n) {
+            val a = faces[i]
+            for (j in i + 1 until n) {
+                val b = faces[j]
+                if (a.photoId == b.photoId) continue
+                var dot = 0f
+                val va = a.vector
+                val vb = b.vector
+                if (va.size != vb.size) continue
+                for (k in va.indices) dot += va[k] * vb[k]
+                val line = if (a.eyesHidden || b.eyesHidden || a.weak || b.weak) SAME_HIDDEN else SAME
+                if (dot < line) continue
+                offer(i, j, dot)
+                offer(j, i, dot)
+            }
+        }
+        val parent = IntArray(n) { it }
+        fun root(x: Int): Int { var r = x; while (parent[r] != r) { parent[r] = parent[parent[r]]; r = parent[r] }; return r }
+        for (i in 0 until n) for (j in top[i]) {
+            if (j < 0 || i !in top[j]) continue
+            val ri = root(i)
+            val rj = root(j)
+            if (ri != rj) parent[ri] = rj
+        }
+        val groups = (0 until n).groupBy { root(it) }.values.filter { it.size >= 2 }
+        return groups.map { members ->
+            // Two faces in one photo are never one person: the one that fits the others best stays.
+            members.groupBy { faces[it].photoId }.values.map { same ->
+                if (same.size == 1) same.first() else same.maxBy { i ->
+                    members.take(30).filter { it != i }.sumOf { cosine(faces[i].vector, faces[it].vector).toDouble() }
+                }
+            }.map { faces[it].id }.toSet()
+        }.filter { it.size >= 2 }
     }
 
     /** Up to [n] items spread evenly over [items] (so a group is judged by all its looks, not its first photos). */
@@ -609,10 +785,11 @@ object FaceGrouping {
         name = into.name ?: others.firstNotNullOfOrNull { it.name },
         hidden = into.hidden && others.all { it.hidden },
         notFaces = into.notFaces + others.flatMap { it.notFaces },
+        kept = into.kept || others.any { it.kept },
     )
 
     /** Takes [faceIds] out of [person] for good: they find another person (or start one) at the next grouping. */
-    fun remove(person: Person, faceIds: Set<Int>): Person = person.copy(faces = person.faces - faceIds, notFaces = person.notFaces + faceIds)
+    fun remove(person: Person, faceIds: Set<Int>): Person = person.copy(faces = person.faces - faceIds, notFaces = person.notFaces + faceIds, kept = true)
 
     /** People to show: named ones always, others once they appear in at least [minPhotos] photos. */
     fun shown(people: List<Person>, spots: Map<Int, FaceSpot>, minPhotos: Int = 2, newest: (Person) -> Long = { 0L }): List<Person> =
@@ -635,6 +812,19 @@ object FaceGrouping {
 
     /** Unnamed people in fewer photos than this sit under "Others", not among the family (7A-2). */
     const val OTHERS_BELOW = 4
+}
+
+/** Each named person's learnt check (6 Nov): how sure it is, 0 to 1, that a face is them. */
+class PersonCheck(private val mean: FloatArray, private val scale: FloatArray, private val weights: Map<Int, FloatArray>, private val bias: Map<Int, Float>) {
+    val people: Set<Int> get() = weights.keys
+
+    fun chance(personId: Int, v: FloatArray): Float {
+        val w = weights[personId] ?: return 0.5f
+        if (v.size != w.size) return 0.5f
+        var z = bias[personId] ?: 0f
+        for (i in v.indices) z += w[i] * (v[i] - mean[i]) * scale[i]
+        return 1f / (1f + kotlin.math.exp(-z))
+    }
 }
 
 /** Applies the learnt measure: solves L y = v for the lower-triangular [l] (y = L^-1 v), then scales to length 1. */
@@ -811,7 +1001,7 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
         val chosen = ids.mapNotNull { id -> list.firstOrNull { it.id == id } }
         if (chosen.size < 2) return@change list
         val into = chosen.firstOrNull { it.name != null } ?: chosen.first()
-        list.filter { it !in chosen } + FaceGrouping.merge(into, chosen - into)
+        list.filter { it !in chosen } + FaceGrouping.merge(into, chosen - into).copy(kept = true)
     }
 
     suspend fun setHidden(ids: Set<Int>, hidden: Boolean) = change { list -> list.map { if (it.id in ids) it.copy(hidden = hidden) else it } }

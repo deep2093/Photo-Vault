@@ -209,7 +209,7 @@ object BackupNotifications {
 
     private fun progressNotification(context: Context, title: String, done: Int?, total: Int?) =
         NotificationCompat.Builder(context, CHANNEL_PROGRESS)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(com.deepak.photovault.NotificationIcon.of(context))
             .setContentTitle(title)
             .setContentText(if (done != null && total != null && total > 0) "$done of $total" else null)
             .setProgress(total ?: 0, done ?: 0, total == null || total == 0)
@@ -247,7 +247,7 @@ object BackupNotifications {
     fun failed(context: Context, why: String) {
         if (!allowed(context)) return
         val n = NotificationCompat.Builder(context, CHANNEL_PROBLEMS)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(com.deepak.photovault.NotificationIcon.of(context))
             .setContentTitle("Backup didn't finish")
             .setContentText(why)
             .setStyle(NotificationCompat.BigTextStyle().bigText("$why\n\nIt was tried twice, an hour apart. It will try again at the next scheduled time."))

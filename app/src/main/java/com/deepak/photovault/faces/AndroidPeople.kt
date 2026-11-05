@@ -42,7 +42,7 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
     override suspend fun edit(change: (List<Person>) -> List<Person>) = FaceLibrary.edit(app, change)
 
     override fun scanNow() {
-        activity.lifecycleScope.launch { FaceLibrary.scan(app) }
+        activity.lifecycleScope.launch { FaceLibrary.scan(app, fromButton = true) }
     }
 
     override fun stopScan() = FaceLibrary.stop()
