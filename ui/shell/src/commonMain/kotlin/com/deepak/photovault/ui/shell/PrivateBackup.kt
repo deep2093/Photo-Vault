@@ -217,7 +217,7 @@ internal fun PrivateSetupScreen(state: ShellState, drive: DriveState, backup: Ba
                         Text("Check your words", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text("Type these words from your paper so we know you have them.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 4.dp))
                         checkAt.forEachIndexed { i, pos ->
-                            GlassTextField(typed[i], { typed[i] = it.trim().lowercase() }, "Word number $pos", modifier = Modifier.padding(top = 8.dp))
+                            GlassTextField(typed[i], { typed[i] = it.trim().lowercase() }, "Word number $pos", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.None, modifier = Modifier.padding(top = 8.dp))
                         }
                     }
                 }
@@ -285,7 +285,7 @@ internal fun RestoreKeysScreen(state: ShellState, drive: DriveState, backup: Bac
         item {
             GlassCard(Modifier.cardWidth()) {
                 Text("Type your 24 recovery words, in order.", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
-                GlassTextField(words, { words = it }, "24 words", placeholder = "word1 word2 word3 ...", modifier = Modifier.padding(top = 8.dp))
+                GlassTextField(words, { words = it }, "24 words", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.None, placeholder = "word1 word2 word3 ...", modifier = Modifier.padding(top = 8.dp))
             }
         }
         item { problem?.let { Text(it, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.cardWidth()) } }

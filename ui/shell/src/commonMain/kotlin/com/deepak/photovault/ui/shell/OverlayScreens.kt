@@ -388,7 +388,7 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = theme.onGlass),
                             cursorBrush = SolidColor(theme.accent),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences),
                             // Search on the keyboard closes it, so the results show in full (24 Oct).
                             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide() }),
                             modifier = Modifier.weight(1f).focusRequester(focus).semantics { contentDescription = "Search photos" },

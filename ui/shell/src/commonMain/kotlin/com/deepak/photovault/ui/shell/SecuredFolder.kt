@@ -349,7 +349,7 @@ private fun SecuredForgotScreen(state: ShellState, sec: SecuredState, onDone: ()
         item {
             GlassCard(Modifier.cardWidth()) {
                 Text("Type your recovery words or your own code", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                GlassTextField(code, { code = it }, "Recovery words or code", minLines = 3)
+                GlassTextField(code, { code = it }, "Recovery words or code", minLines = 3, capitals = androidx.compose.ui.text.input.KeyboardCapitalization.None)
             }
         }
         item {
@@ -555,7 +555,7 @@ private fun SecuredRestoreScreen(sec: SecuredState, onCancel: () -> Unit) {
             GlassCard(Modifier.cardWidth()) {
                 Text("Type your recovery words or your own code", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("The same ones you kept when you made the Secured folder on your old phone. Connect to the home Wi-Fi first.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 4.dp))
-                GlassTextField(code, { code = it }, "Recovery words or code", minLines = 3)
+                GlassTextField(code, { code = it }, "Recovery words or code", minLines = 3, capitals = androidx.compose.ui.text.input.KeyboardCapitalization.None)
             }
         }
         item {

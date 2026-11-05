@@ -100,16 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-4"
+    const val ID = "2026-11-06-5"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "People sorted all together", "After each scan, every face is sorted again all at once, so the order photos were looked at no longer matters. Named people, hidden people and anyone you changed by hand stay as they are."),
-        Change(ChangeKind.NEW, "A check for each named person", "Once someone is named in about 10 clear photos, People learns what sets them apart from the other people you named, which helps with look-alikes like sisters."),
-        Change(ChangeKind.NEW, "Daily face check", "Besides scanning while charging, People looks at a few new photos once a day."),
-        Change(ChangeKind.NEW, "Album shortcuts style", "Try three looks for People, Secured folder, Recently deleted and Places in Settings > About: Round icons, Rows or Pictures."),
-        Change(ChangeKind.CHANGED, "Notification icon", "The status bar icon now matches the app icon you picked."),
-        Change(ChangeKind.FIXED, "Scan button blinking", "The Pause/Scan button no longer blinks; a background scan waits its turn instead of restarting the running one."),
-        Change(ChangeKind.FIXED, "People top bar and menu", "The scan, show/hide and menu buttons are the same size with even gaps, and the People menu is as easy to read as the others."),
+        Change(ChangeKind.NEW, "This is me", "On a person's page, tap the person button to mark them as you. You come first in People, and searching \"me\" finds your photos."),
+        Change(ChangeKind.NEW, "Capital letters", "Typing boxes start with a capital letter (each word for names). Passwords, addresses and recovery words don't."),
+        Change(ChangeKind.FIXED, "People joined by mistake", "Sorting all faces together could join two different people through one look-alike photo. Groups now join only when many of their faces match, and faces a check took out of a group stay out."),
+        Change(ChangeKind.FIXED, "Headers on short pages", "The top bar only moves when the page really scrolls; on short pages it stays put."),
     )
 }
 

@@ -131,8 +131,8 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
             }
         }
         GlassTextField(host, { host = it.trim() }, "Address", placeholder = "192.168.1.1", keyboardType = KeyboardType.Uri)
-        GlassTextField(share, { share = it.trim() }, "Shared folder", placeholder = "usb or media")
-        GlassTextField(user, { user = it }, "Username", placeholder = "Leave empty for guest access")
+        GlassTextField(share, { share = it.trim() }, "Shared folder", placeholder = "usb or media", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.None)
+        GlassTextField(user, { user = it }, "Username", placeholder = "Leave empty for guest access", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.None)
         GlassTextField(password, { password = it }, "Password", password = true)
         GlassSwitchRow(
             "Remember password",
@@ -242,7 +242,7 @@ private fun CreateFamilyCard(drive: DriveState) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(vertical = 8.dp),
         )
-        GlassTextField(name, { name = it }, "Your name")
+        GlassTextField(name, { name = it }, "Your name", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.Words)
         // Always needed (23 Oct): it protects owner settings, and it is how a new or replacement phone of the
         // owner joins as the owner if the old phone is lost.
         GlassTextField(
@@ -303,7 +303,7 @@ private fun JoinCard(drive: DriveState, notJoined: Membership.NotJoined, removed
             household.members.forEach { m -> GlassChip(m.name, selected = existing == m.userId, onClick = { existing = m.userId }) }
         }
         if (existing == null) {
-            GlassTextField(name, { name = it }, "Your name")
+            GlassTextField(name, { name = it }, "Your name", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.Words)
         } else {
             Text("This phone will back up into ${household.member(existing!!)?.name}'s folder.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
             // A new or replacement phone of the owner (23 Oct): the owner PIN lets it in straight away.

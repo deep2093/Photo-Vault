@@ -100,12 +100,13 @@ fun GlassScreen(
     val reduceMotion = LocalGlassSettings.current.reduceMotion
     val connection = remember(hidePx) {
         object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // Follow the finger: content moving up hides the bar, moving down shows it. Nothing is consumed.
-                offset = (offset + available.y).coerceIn(-hidePx, 0f)
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                // Follow the page, not the finger (6 Nov): only what the page really scrolled moves the bar, so on a
+                // page too short to scroll the header never moves. Nothing is consumed.
+                offset = (offset + consumed.y).coerceIn(-hidePx, 0f)
                 if (chrome != null && source == NestedScrollSource.UserInput) {
-                    if (available.y < -CHROME_SCROLL_PX) chrome.hidden = true
-                    if (available.y > CHROME_SCROLL_PX) chrome.hidden = false
+                    if (consumed.y < -CHROME_SCROLL_PX) chrome.hidden = true
+                    if (consumed.y > CHROME_SCROLL_PX) chrome.hidden = false
                 }
                 return Offset.Zero
             }

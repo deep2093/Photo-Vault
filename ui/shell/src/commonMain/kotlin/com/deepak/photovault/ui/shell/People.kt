@@ -67,6 +67,8 @@ data class Person(
      * groups are sorted again from scratch after a scan, like named and hidden people.
      */
     val kept: Boolean = false,
+    /** This is the phone's owner ("This is me", 6 Nov): shown first, found by searching "me". Only one person. */
+    val me: Boolean = false,
 )
 
 /**
@@ -560,24 +562,36 @@ object FaceGrouping {
 
     /**
      * After a scan, the groups are made again from scratch so the order photos were looked at no longer matters:
-     * faces first join the people in [keep] (named, hidden or changed by hand); the rest form groups where faces are
-     * among each other's closest matches (both ways), so one odd photo can't pull a chain of others in; what is left is
-     * placed one by one as before.
+     * faces first join the people in [keep] (named, hidden or changed by hand); the rest are built up by
+     * [closeTogether]; what is left is placed one by one as before. [apart] are pairs of faces known not to be one
+     * person (faces an earlier check took out of a group, 6 Nov): they never end up together.
      */
-    fun resort(faces: List<Face>, keep: List<Person>, nextId: Int): Pair<List<Person>, Int> {
+    fun resort(faces: List<Face>, keep: List<Person>, nextId: Int, apart: Set<Pair<Int, Int>> = emptySet()): Pair<List<Person>, Int> {
         markWeak(faces)
         val (withKept, after) = group(faces, keep, nextId, startNew = false)
         val placed = withKept.flatMap { it.faces }.toHashSet()
         val free = faces.filter { it.id !in placed }
         var next = after
-        val clusters = closeTogether(free).map { Person(next++, it) }
+        val against = HashMap<Int, MutableSet<Int>>()
+        apart.forEach { (x, y) -> against.getOrPut(x) { HashSet() } += y; against.getOrPut(y) { HashSet() } += x }
+        val clusters = closeTogether(free, apart).map { members ->
+            // Faces known not to be this person can't join it later either.
+            Person(next++, members, notFaces = members.flatMap { against[it].orEmpty() }.toSet() - members)
+        }
         return group(faces, withKept + clusters, next)
     }
 
-    /** Groups of [faces] that are among each other's closest matches; same-photo clashes keep only the best fit. */
-    fun closeTogether(faces: List<Face>): List<Set<Int>> {
+    /**
+     * Builds groups bottom-up (6 Nov, second version): every face starts alone; two groups join only when their faces
+     * match on average at the same-person line AND several of their faces are among each other's closest matches (one
+     * from each side, at least [EVIDENCE_JOIN] or the smaller group's size). So one look-alike photo can't chain two
+     * people together, as the first version (one link was enough) did. Never two faces of one photo, never a pair in
+     * [apart]. Returns groups of 2 or more faces.
+     */
+    fun closeTogether(faces: List<Face>, apart: Set<Pair<Int, Int>> = emptySet()): List<Set<Int>> {
         val n = faces.size
         if (n < 2 || n > RESORT_MAX) return emptyList()
+        val d = faces.first().vector.size
         val top = Array(n) { IntArray(NEIGHBOURS) { -1 } }
         val topScore = Array(n) { FloatArray(NEIGHBOURS) { -2f } }
         fun offer(i: Int, j: Int, s: Float) {
@@ -592,35 +606,79 @@ object FaceGrouping {
             val a = faces[i]
             for (j in i + 1 until n) {
                 val b = faces[j]
-                if (a.photoId == b.photoId) continue
+                if (a.photoId == b.photoId || a.vector.size != d || b.vector.size != d) continue
                 var dot = 0f
                 val va = a.vector
                 val vb = b.vector
-                if (va.size != vb.size) continue
-                for (k in va.indices) dot += va[k] * vb[k]
+                for (k in 0 until d) dot += va[k] * vb[k]
                 val line = if (a.eyesHidden || b.eyesHidden || a.weak || b.weak) SAME_HIDDEN else SAME
                 if (dot < line) continue
                 offer(i, j, dot)
                 offer(j, i, dot)
             }
         }
-        val parent = IntArray(n) { it }
-        fun root(x: Int): Int { var r = x; while (parent[r] != r) { parent[r] = parent[parent[r]]; r = parent[r] }; return r }
-        for (i in 0 until n) for (j in top[i]) {
-            if (j < 0 || i !in top[j]) continue
-            val ri = root(i)
-            val rj = root(j)
-            if (ri != rj) parent[ri] = rj
+        // Links: pairs that are among each other's closest matches, both ways.
+        val links = ArrayList<Pair<Int, Int>>()
+        for (i in 0 until n) for (j in top[i]) if (j > i && i in top[j]) links += i to j
+        val index = faces.withIndex().associate { it.value.id to it.index }
+        val apartIdx = apart.mapNotNull { (x, y) -> val a = index[x]; val b = index[y]; if (a != null && b != null) a to b else null }
+        // Each group: its members, their sum (the average match of two groups is sumA . sumB / (|A| |B|)), its photos.
+        val owner = IntArray(n) { it }
+        val members = HashMap<Int, MutableList<Int>>().apply { for (i in 0 until n) put(i, mutableListOf(i)) }
+        val sums = HashMap<Int, FloatArray>().apply { for (i in 0 until n) put(i, faces[i].vector.copyOf()) }
+        val photos = HashMap<Int, MutableSet<Long>>().apply { for (i in 0 until n) put(i, mutableSetOf(faces[i].photoId)) }
+        for (round in 0 until 40) {
+            // Count the links between each pair of groups.
+            val between = HashMap<Long, Int>()
+            for ((i, j) in links) {
+                val a = owner[i]
+                val b = owner[j]
+                if (a == b) continue
+                val key = minOf(a, b).toLong() shl 32 or maxOf(a, b).toLong()
+                between[key] = (between[key] ?: 0) + 1
+            }
+            val blocked = HashSet<Long>()
+            for ((i, j) in apartIdx) {
+                val a = owner[i]
+                val b = owner[j]
+                if (a != b) blocked += minOf(a, b).toLong() shl 32 or maxOf(a, b).toLong()
+            }
+            val candidates = between.mapNotNull { (key, count) ->
+                if (key in blocked) return@mapNotNull null
+                val a = (key shr 32).toInt()
+                val b = (key and 0xffffffffL).toInt()
+                val ma = members.getValue(a)
+                val mb = members.getValue(b)
+                val need = minOf(EVIDENCE_JOIN, ma.size, mb.size)
+                if (count < need) return@mapNotNull null
+                if (photos.getValue(a).any { it in photos.getValue(b) }) return@mapNotNull null
+                val sa = sums.getValue(a)
+                val sb = sums.getValue(b)
+                var dot = 0f
+                for (k in 0 until d) dot += sa[k] * sb[k]
+                val average = dot / (ma.size * mb.size)
+                if (average < SAME) null else Triple(a, b, average)
+            }
+            if (candidates.isEmpty()) break
+            val used = HashSet<Int>()
+            for ((a, b, _) in candidates.sortedByDescending { it.third }) {
+                if (a in used || b in used) continue
+                used += a
+                used += b
+                val keep = if (members.getValue(a).size >= members.getValue(b).size) a else b
+                val gone = if (keep == a) b else a
+                members.getValue(gone).forEach { owner[it] = keep }
+                members.getValue(keep) += members.getValue(gone)
+                val sk = sums.getValue(keep)
+                val sg = sums.getValue(gone)
+                for (k in 0 until d) sk[k] += sg[k]
+                photos.getValue(keep) += photos.getValue(gone)
+                members.remove(gone)
+                sums.remove(gone)
+                photos.remove(gone)
+            }
         }
-        val groups = (0 until n).groupBy { root(it) }.values.filter { it.size >= 2 }
-        return groups.map { members ->
-            // Two faces in one photo are never one person: the one that fits the others best stays.
-            members.groupBy { faces[it].photoId }.values.map { same ->
-                if (same.size == 1) same.first() else same.maxBy { i ->
-                    members.take(30).filter { it != i }.sumOf { cosine(faces[i].vector, faces[it].vector).toDouble() }
-                }
-            }.map { faces[it].id }.toSet()
-        }.filter { it.size >= 2 }
+        return members.values.filter { it.size >= 2 }.map { list -> list.map { faces[it].id }.toSet() }
     }
 
     /** Up to [n] items spread evenly over [items] (so a group is judged by all its looks, not its first photos). */
@@ -786,6 +844,7 @@ object FaceGrouping {
         hidden = into.hidden && others.all { it.hidden },
         notFaces = into.notFaces + others.flatMap { it.notFaces },
         kept = into.kept || others.any { it.kept },
+        me = into.me || others.any { it.me },
     )
 
     /** Takes [faceIds] out of [person] for good: they find another person (or start one) at the next grouping. */
@@ -793,9 +852,9 @@ object FaceGrouping {
 
     /** People to show: named ones always, others once they appear in at least [minPhotos] photos. */
     fun shown(people: List<Person>, spots: Map<Int, FaceSpot>, minPhotos: Int = 2, newest: (Person) -> Long = { 0L }): List<Person> =
-        people.filter { p -> p.name != null || p.faces.mapNotNull { spots[it]?.photoId }.toSet().size >= minPhotos }
-            // Named people first, whoever has the newest photo at the front; then the rest by most photos (5 Nov).
-            .sortedWith(compareBy<Person> { it.name == null }.thenByDescending { if (it.name != null) newest(it) else 0L }.thenByDescending { it.faces.size })
+        people.filter { p -> p.me || p.name != null || p.faces.mapNotNull { spots[it]?.photoId }.toSet().size >= minPhotos }
+            // You first (6 Nov), then named people, whoever has the newest photo at the front; then the rest by most photos (5 Nov).
+            .sortedWith(compareBy<Person> { !it.me }.thenBy { it.name == null }.thenByDescending { if (it.name != null) newest(it) else 0L }.thenByDescending { it.faces.size })
 
     /**
      * How good a face is as a person's round picture (5 Nov): straight at the camera matters most, then sharp, eyes
@@ -976,7 +1035,8 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
     fun photosNamed(query: String): Set<Long> {
         val q = query.trim()
         if (q.length < 2) return emptySet()
-        return people.filter { !it.hidden && it.name?.contains(q, ignoreCase = true) == true }.flatMap { photosOf(it) }.toSet()
+        return people.filter { !it.hidden && (it.name?.contains(q, ignoreCase = true) == true || (it.me && q.equals("me", ignoreCase = true))) }
+            .flatMap { photosOf(it) }.toSet()
     }
 
     suspend fun change(edit: (List<Person>) -> List<Person>) {
@@ -1002,6 +1062,12 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
         if (chosen.size < 2) return@change list
         val into = chosen.firstOrNull { it.name != null } ?: chosen.first()
         list.filter { it !in chosen } + FaceGrouping.merge(into, chosen - into).copy(kept = true)
+    }
+
+    /** "This is me" (6 Nov): marks [id] as the phone's owner, or takes the mark off when it was already them. */
+    suspend fun setMe(id: Int) = change { list ->
+        val already = list.firstOrNull { it.id == id }?.me == true
+        list.map { it.copy(me = !already && it.id == id) }
     }
 
     suspend fun setHidden(ids: Set<Int>, hidden: Boolean) = change { list -> list.map { if (it.id in ids) it.copy(hidden = hidden) else it } }

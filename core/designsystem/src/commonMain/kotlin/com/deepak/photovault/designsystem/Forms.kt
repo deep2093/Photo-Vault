@@ -63,6 +63,11 @@ fun GlassTextField(
     onDone: (() -> Unit)? = null,
     /** More than 1 for a box that grows as you write (Send feedback). */
     minLines: Int = 1,
+    /**
+     * Capital letters as you type (6 Nov): the first letter of each sentence by default, each word for names, none for
+     * addresses, usernames and recovery words. Password and number boxes never get them.
+     */
+    capitals: androidx.compose.ui.text.input.KeyboardCapitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
 ) {
     val theme = LocalGlassTheme.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -93,6 +98,7 @@ fun GlassTextField(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = if (password && keyboardType == KeyboardType.Text) KeyboardType.Password else keyboardType,
                     autoCorrectEnabled = minLines > 1,
+                    capitalization = if (password || keyboardType != KeyboardType.Text) androidx.compose.ui.text.input.KeyboardCapitalization.None else capitals,
                     imeAction = if (minLines == 1) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
                 ),
                 keyboardActions = KeyboardActions(onDone = {

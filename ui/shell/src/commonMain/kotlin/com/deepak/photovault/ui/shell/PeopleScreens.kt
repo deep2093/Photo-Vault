@@ -24,7 +24,9 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Science
@@ -337,7 +339,7 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Text(if (count == 1) "1 photo" else "$count photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
+                        Text((if (person.me) "You · " else "") + if (count == 1) "1 photo" else "$count photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 if (others.isNotEmpty()) {
@@ -406,8 +408,8 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
     var moving by remember { mutableStateOf<Set<Long>?>(null) }
     val label = person.name ?: "this person"
     SelectableScreen(
-        title = person.name ?: "Add a name",
-        subtitle = if (items.size == 1) "1 photo" else "${items.size} photos",
+        title = person.name ?: if (person.me) "Me" else "Add a name",
+        subtitle = (if (person.me) "You · " else "") + if (items.size == 1) "1 photo" else "${items.size} photos",
         state = state,
         gallery = gallery,
         actions = actions,
@@ -415,6 +417,18 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
         selectAllItems = items,
         normalActions = {
             GlassIconButton(Icons.Rounded.Edit, if (person.name == null) "Add a name" else "Change the name", onClick = { renaming = true })
+            // "This is me" (6 Nov): filled when this person is you.
+            GlassIconButton(
+                if (person.me) Icons.Rounded.AccountCircle else Icons.Rounded.PersonOutline,
+                if (person.me) "This is me (tap to undo)" else "This is me",
+                onClick = {
+                    val becoming = !person.me
+                    scope.launch {
+                        people.setMe(person.id)
+                        actions.toast(if (becoming) "Marked as you. Search \"me\" to find your photos." else "No longer marked as you.")
+                    }
+                },
+            )
             GlassIconButton(
                 if (person.hidden) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
                 if (person.hidden) "Show this person again" else "Hide this person",
@@ -541,7 +555,7 @@ private fun NameDialog(person: Person, onDismiss: () -> Unit, onSave: (String) -
             GlassButton("Save", primary = true, onClick = { onSave(name) })
         },
     ) {
-        GlassTextField(name, { name = it }, "Name")
+        GlassTextField(name, { name = it }, "Name", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.Words)
         Text(
             "Using a name you already gave someone else puts them together as one person.",
             color = LocalGlassTheme.current.onGlassSecondary,

@@ -233,6 +233,7 @@ object FaceLibrary {
                     hidden = o.optBoolean("hidden", false),
                     notFaces = ints("not"),
                     kept = o.optBoolean("kept", false),
+                    me = o.optBoolean("me", false),
                 )
             }
             val different = root.optJSONArray("different")?.let { a -> (0 until a.length()).map { val p = a.getJSONArray(it); p.getInt(0) to p.getInt(1) }.toSet() }.orEmpty()
@@ -253,6 +254,7 @@ object FaceLibrary {
                 if (p.hidden) put("hidden", true)
                 if (p.notFaces.isNotEmpty()) put("not", JSONArray(p.notFaces.toList()))
                 if (p.kept) put("kept", true)
+                if (p.me) put("me", true)
             })
         }
         val diff = JSONArray().apply { different.forEach { put(JSONArray(listOf(it.first, it.second))) } }
@@ -265,13 +267,19 @@ object FaceLibrary {
     /** Groups new faces, joins groups of one person, and works out the questions. Under [lock]. */
     private fun regroup(context: Context, all: List<Face>, join: Boolean, resort: Boolean = false): List<SamePersonQuestion> {
         var saved = readPeople(context)
+        var apart = emptySet<Pair<Int, Int>>()
         if (resort) {
-            // Sorted again from scratch after a scan (6 Nov): only named, hidden and hand-changed people stay as they are.
-            val keep = saved.people.filter { it.name != null || it.hidden || it.kept }
+            // Sorted again from scratch after a scan (6 Nov): only named, hidden, hand-changed people and "me" stay as they are.
+            val keep = saved.people.filter { it.name != null || it.hidden || it.kept || it.me }
             val ids = keep.map { it.id }.toSet()
+            // What earlier checks learnt stays (6 Nov): a face taken out of a group is kept apart from that group's faces.
+            apart = saved.people.filter { it.id !in ids && it.notFaces.isNotEmpty() }.flatMap { p ->
+                val sample = FaceGrouping.spread(p.faces.sorted(), 6)
+                p.notFaces.flatMap { n -> sample.map { n to it } }
+            }.toSet()
             saved = Saved(keep, saved.next, saved.different.filter { it.first in ids && it.second in ids }.toSet(), emptyList())
         }
-        var (grouped, after) = if (resort) FaceGrouping.resort(all, saved.people, saved.next) else FaceGrouping.group(all, saved.people, saved.next)
+        var (grouped, after) = if (resort) FaceGrouping.resort(all, saved.people, saved.next, apart) else FaceGrouping.group(all, saved.people, saved.next)
         if (join) {
             // Groups check their own faces; the ones taken out are sorted again (5 Nov).
             val again = FaceGrouping.group(all, FaceGrouping.selfCheck(all, grouped), after)

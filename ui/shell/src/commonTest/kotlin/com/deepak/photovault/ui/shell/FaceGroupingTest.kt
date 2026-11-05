@@ -353,4 +353,29 @@ class FaceGroupingTest {
         // Only one named person with enough faces: no check.
         assertNull(FaceGrouping.personCheck(a, people.take(1)))
     }
+
+    @Test
+    fun oneLookAlikePhotoDoesNotChainTwoPeopleTogether() {
+        // Person A around angle 0, person B around angle 1.7 (not alike at all). One odd photo of each sits in between
+        // (angles 0.55 and 1.05) and they match each other: one link used to chain both people into one group.
+        val a = listOf(0f, 0.05f, 0.1f, 0.15f, 0.55f).mapIndexed { i, w -> face(i + 1, 100L + i, 0, w) }
+        val b = listOf(1.6f, 1.65f, 1.7f, 1.75f, 1.05f).mapIndexed { i, w -> face(i + 11, 200L + i, 0, w) }
+        val groups = FaceGrouping.closeTogether(a + b)
+        assertTrue(groups.none { g -> g.any { it in 1..4 } && g.any { it in 11..14 } })
+    }
+
+    @Test
+    fun facesKeptApartStayApart() {
+        val faces = (0 until 4).map { face(it + 1, 100L + it, 0, it * 0.05f) }
+        val groups = FaceGrouping.closeTogether(faces, apart = setOf(1 to 2))
+        assertTrue(groups.none { 1 in it && 2 in it })
+    }
+
+    @Test
+    fun youComeFirst() {
+        val spots = mapOf(1 to FaceSpot(1, 10, floatArrayOf()), 2 to FaceSpot(2, 11, floatArrayOf()), 3 to FaceSpot(3, 12, floatArrayOf()))
+        val mum = Person(1, setOf(1), name = "Mum")
+        val me = Person(2, setOf(2, 3), me = true)
+        assertEquals(listOf(2, 1), FaceGrouping.shown(listOf(mum, me), spots).map { it.id })
+    }
 }

@@ -111,7 +111,7 @@ internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Un
                 GlassButton("Invite someone", icon = Icons.Rounded.PersonAdd, onClick = { open = true }, modifier = Modifier.padding(top = 10.dp))
             }
             else -> {
-                GlassTextField(forName, { forName = it.take(40) }, "Who is it for? (optional)")
+                GlassTextField(forName, { forName = it.take(40) }, "Who is it for? (optional)", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.Words)
                 Text("Runs out after", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     VALID_FOR.forEachIndexed { i, (label, _) -> GlassChip(label, selected = validFor == i, onClick = { validFor = i }) }
@@ -208,7 +208,7 @@ internal fun InviteJoinCard(state: ShellState, drive: DriveState, onDone: () -> 
             val needsCode = Invite.needsCode(text.orEmpty())
             Text(if (needsCode) "Invite found. Type the code you were given, and your name." else "Invite found. It needs no code. Type your name.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
             if (needsCode) GlassTextField(code, { code = it.uppercase().take(12) }, "Code")
-            GlassTextField(name, { name = it.take(40) }, "Your name")
+            GlassTextField(name, { name = it.take(40) }, "Your name", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.Words)
         }
         error?.let { WarningNote(it) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 10.dp)) {
