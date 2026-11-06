@@ -296,6 +296,20 @@ object FaceGrouping {
         }
     }
 
+    private fun buildGroups(people: List<Person>, byId: Map<Int, Face>, size: Int): MutableList<Group> = people.map { p ->
+        val mine = p.faces.mapNotNull { byId[it] }
+        val good = mine.filter { it.good }
+        val sum = FloatArray(size)
+        mine.forEach { f -> for (i in sum.indices) sum[i] += f.vector[i] }
+        val goodSum = FloatArray(size)
+        good.forEach { f -> for (i in goodSum.indices) goodSum[i] += f.vector[i] }
+        // Only good faces are compared with (blurred, turned or dark-glasses faces don't pull others in);
+        // a person with no good face at all uses what it has.
+        val examples = spread((good.ifEmpty { mine }).map { it.vector }, EXAMPLES).toMutableList()
+        val notThem = spread(p.notFaces.sorted().mapNotNull { byId[it]?.vector }, EXAMPLES)
+        Group(p, sum, goodSum, good.size, examples, p.faces.toMutableSet(), mine.map { it.photoId }.toMutableSet(), notThem)
+    }.toMutableList()
+
     /** Puts every face that isn't in a person yet into the right one, or a new one. Returns the people and the next free id. */
     fun group(faces: List<Face>, people: List<Person>, nextId: Int, startNew: Boolean = true): Pair<List<Person>, Int> {
         markWeak(faces)
@@ -304,19 +318,7 @@ object FaceGrouping {
         val check = personCheck(faces, people)
         val placed = people.flatMap { it.faces }.toHashSet()
         val size = faces.firstOrNull()?.vector?.size ?: 0
-        val groups = people.map { p ->
-            val mine = p.faces.mapNotNull { byId[it] }
-            val good = mine.filter { it.good }
-            val sum = FloatArray(size)
-            mine.forEach { f -> for (i in sum.indices) sum[i] += f.vector[i] }
-            val goodSum = FloatArray(size)
-            good.forEach { f -> for (i in goodSum.indices) goodSum[i] += f.vector[i] }
-            // Only good faces are compared with (blurred, turned or dark-glasses faces don't pull others in);
-            // a person with no good face at all uses what it has.
-            val examples = spread((good.ifEmpty { mine }).map { it.vector }, EXAMPLES).toMutableList()
-            val notThem = spread(p.notFaces.sorted().mapNotNull { byId[it]?.vector }, EXAMPLES)
-            Group(p, sum, goodSum, good.size, examples, p.faces.toMutableSet(), mine.map { it.photoId }.toMutableSet(), notThem)
-        }.toMutableList()
+        val groups = buildGroups(people, byId, size)
         var next = nextId
         val context = Context(faces, groups)
         // Front faces first, so a side view can join a person made in the same scan.
@@ -383,7 +385,8 @@ object FaceGrouping {
             }
             // A side view that matches nobody waits: side views made most of the extra groups of one person.
             // Weak measurements (5 Nov) wait too: they only join someone they clearly match.
-            if (best == null && (face.turned || face.weak || !startNew)) continue
+            // Side, dark-glasses and weak faces never start someone (6 Nov): if they match no one well, they are asked about.
+            if (best == null && (face.turned || face.weak || face.eyesHidden || !startNew)) continue
             val target = best ?: Group(Person(next++, emptySet()), FloatArray(size), FloatArray(size), 0, mutableListOf(), mutableSetOf(), mutableSetOf()).also { groups += it }
             target.add(face)
             context.placed(face, target)
@@ -570,7 +573,9 @@ object FaceGrouping {
         markWeak(faces)
         val (withKept, after) = group(faces, keep, nextId, startNew = false)
         val placed = withKept.flatMap { it.faces }.toHashSet()
-        val free = faces.filter { it.id !in placed }
+        // Side, dark-glasses and weak faces don't build groups of their own (6 Nov: side views of one person had
+        // teamed up into a second group); they join someone later or are asked about.
+        val free = faces.filter { it.id !in placed && !it.turned && !it.weak && !it.eyesHidden }
         var next = after
         val against = HashMap<Int, MutableSet<Int>>()
         apart.forEach { (x, y) -> against.getOrPut(x) { HashSet() } += y; against.getOrPut(y) { HashSet() } += x }
@@ -679,6 +684,86 @@ object FaceGrouping {
             }
         }
         return members.values.filter { it.size >= 2 }.map { list -> list.map { faces[it].id }.toSet() }
+    }
+
+    // ---- Faces the app isn't sure about (6 Nov) ----
+
+    /** A group whose photos all fall within this span is a one-day group (an event: rangoli, a party). */
+    const val ONE_DAY_MS = 24 * 3_600_000L
+
+    /** One-day groups this small or smaller are asked about when they look like someone else. */
+    const val ONE_DAY_MAX_PHOTOS = 20
+
+    /** At most this many guesses are asked before the people grid opens. */
+    const val GUESSES = 2
+
+    /** Faces in a set shown in a question. */
+    const val SET_SAMPLES = 4
+
+    /**
+     * Finds the faces to ask about instead of grouping on a guess (6 Nov): side, dark-glasses and weak faces that
+     * joined no one, and small unnamed groups whose photos are all from one day (rangoli, paint, stage light) that look
+     * like someone else; those groups are taken apart. Faces are asked about in sets (a one-day group is one set;
+     * other faces with the same closest person on the same day share a set). Each set lists every person from the
+     * closest to the least; [UnsureSet.guesses] says how many of the first two are close enough (the ask line) to ask
+     * "Is this ...?". Sets with no close-enough person wait quietly. [parked] faces ("None of these") are left out.
+     * Returns the people (one-day groups taken apart) and the sets.
+     */
+    fun unsure(faces: List<Face>, all: List<Person>, parked: Set<Int>): Pair<List<Person>, List<UnsureSet>> {
+        // Faces put aside ("None of these") stay out of groups the app made itself.
+        val people = all.map { p ->
+            if (p.name == null && !p.kept && !p.me && !p.hidden && p.faces.any { it in parked }) p.copy(faces = p.faces - parked) else p
+        }.filter { it.faces.isNotEmpty() || it.name != null }
+        if (faces.isEmpty()) return people to emptyList()
+        markWeak(faces)
+        val byId = faces.associateBy { it.id }
+        val size = faces.first().vector.size
+        val visible = people.filter { !it.hidden }
+        val groups = buildGroups(visible, byId, size).filter { g -> g.person.name != null || g.photos.size >= 2 || g.person.me }
+        fun ranked(set: List<Face>, not: Int? = null): List<Pair<Int, Float>> {
+            val sample = spread(set, 10)
+            val notFor = set.map { it.id }.toSet()
+            val setPhotos = set.map { it.photoId }.toSet()
+            return groups.filter { g -> g.person.id != not && g.faces.isNotEmpty() && g.person.notFaces.none { it in notFor } && g.photos.none { it in setPhotos } }
+                .map { g -> g.person.id to sample.map { g.score(it.vector) }.average().toFloat() }
+                .sortedByDescending { it.second }
+                .take(60)
+        }
+        fun guesses(r: List<Pair<Int, Float>>) = r.take(GUESSES).count { it.second >= ASK }
+        val sets = mutableListOf<UnsureSet>()
+        // One-day groups that look like someone else are taken apart and asked about as one set.
+        val takenApart = HashSet<Int>()
+        for (p in people) {
+            if (p.name != null || p.kept || p.me || p.hidden) continue
+            val mine = p.faces.mapNotNull { byId[it] }
+            if (mine.size < 2 || mine.any { it.takenAt <= 0L }) continue
+            val photos = mine.map { it.photoId }.toSet()
+            if (photos.size > ONE_DAY_MAX_PHOTOS) continue
+            if (mine.maxOf { it.takenAt } - mine.minOf { it.takenAt } > ONE_DAY_MS) continue
+            if (mine.all { it.id in parked }) continue
+            val r = ranked(mine, not = p.id)
+            if (guesses(r) == 0) continue
+            takenApart += p.id
+            sets += UnsureSet(mine.map { it.id }, r, guesses(r))
+        }
+        // Single unsure faces, set together when they share their closest person and day.
+        val placed = people.filter { it.id !in takenApart }.flatMap { it.faces }.toHashSet()
+        val apartFaces = people.filter { it.id in takenApart }.flatMap { it.faces }.toHashSet()
+        val loose = faces.filter { it.id !in placed && it.id !in parked && it.id !in apartFaces && (it.turned || it.weak || it.eyesHidden) }
+        val byClosest = HashMap<Pair<Int, Long>, MutableList<Face>>()
+        for (f in loose) {
+            val r = ranked(listOf(f))
+            if (guesses(r) == 0) continue
+            val day = if (f.takenAt > 0L) f.takenAt / ONE_DAY_MS else -f.photoId
+            byClosest.getOrPut(r.first().first to day) { mutableListOf() } += f
+        }
+        for ((_, list) in byClosest) {
+            // Never two faces of one photo in a set.
+            val one = list.distinctBy { it.photoId }
+            val r = ranked(one)
+            if (guesses(r) > 0) sets += UnsureSet(one.map { it.id }, r, guesses(r))
+        }
+        return people.filter { it.id !in takenApart } to sets.sortedByDescending { it.faces.size }
     }
 
     /** Up to [n] items spread evenly over [items] (so a group is judged by all its looks, not its first photos). */
@@ -931,7 +1016,17 @@ class PeopleSnapshot(
     val questions: List<SamePersonQuestion> = emptyList(),
     /** True while the one-time "look again" (7A-2) hasn't finished: older faces are still in use. */
     val lookingAgain: Boolean = false,
+    /** Faces to ask about (6 Nov), and faces put aside with "None of these" (the Not sure list), in sets. */
+    val unsure: List<UnsureSet> = emptyList(),
+    val parked: List<List<Int>> = emptyList(),
 )
+
+/**
+ * Faces the app isn't sure about (6 Nov), asked about together: [ranked] is every person from the closest to the least
+ * (with likeness), [guesses] how many of the first ones may still be asked about ("Is this ...?") before the people
+ * grid opens.
+ */
+data class UnsureSet(val faces: List<Int>, val ranked: List<Pair<Int, Float>>, val guesses: Int)
 
 class ScanProgress(val done: Int, val total: Int, val running: Boolean, val problem: String? = null)
 
@@ -973,6 +1068,12 @@ interface PeoplePlatform {
     /** The answer to a "Same person?" question: Yes joins them, No is remembered so it is never asked again. */
     suspend fun answer(question: SamePersonQuestion, same: Boolean) = Unit
 
+    /**
+     * An unsure set answered (6 Nov). [personId] with [yes]: the faces join them (null: a new person). Not [yes]: "No"
+     * to [personId], remembered. [park]: "None of these", the faces go to the Not sure list.
+     */
+    suspend fun answerUnsure(set: UnsureSet, personId: Int?, yes: Boolean, park: Boolean = false) = Unit
+
     /** A notification when new "Same person?" questions are waiting (at most one a day). Always on (6 Nov). */
     fun askByNotification(): Boolean = true
     fun setAskByNotification(on: Boolean) = Unit
@@ -1009,6 +1110,21 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
         scanned = s.scanned
         questions = s.questions
         lookingAgain = s.lookingAgain
+        unsure = s.unsure
+        parked = s.parked
+    }
+
+    /** Faces to ask about and the Not sure list (6 Nov). */
+    var unsure by mutableStateOf<List<UnsureSet>>(emptyList())
+    var parked by mutableStateOf<List<List<Int>>>(emptyList())
+    var skippedUnsure by mutableStateOf<Set<Int>>(emptySet())
+
+    /** The next unsure set to ask about (by its first face), skipping ones put off. */
+    fun nextUnsure(): UnsureSet? = unsure.firstOrNull { it.faces.firstOrNull() !in skippedUnsure && it.guesses > 0 && it.ranked.firstOrNull()?.let { r -> find(r.first) } != null }
+
+    suspend fun answerUnsure(set: UnsureSet, personId: Int?, yes: Boolean, park: Boolean = false) {
+        platform.answerUnsure(set, personId, yes, park)
+        refresh()
     }
 
     /** The next question to show, skipping ones put off and ones whose people have gone. */

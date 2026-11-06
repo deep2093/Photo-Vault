@@ -8,6 +8,7 @@ import com.deepak.photovault.ui.shell.PeopleSnapshot
 import com.deepak.photovault.ui.shell.Person
 import com.deepak.photovault.ui.shell.SamePersonQuestion
 import com.deepak.photovault.ui.shell.ScanProgress
+import com.deepak.photovault.ui.shell.UnsureSet
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -46,6 +47,9 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
     }
 
     override fun stopScan() = FaceLibrary.stop()
+
+    override suspend fun answerUnsure(set: UnsureSet, personId: Int?, yes: Boolean, park: Boolean) =
+        FaceLibrary.answerUnsure(app, set, personId, yes, park)
 
     override fun clearProblem() { if (FaceLibrary.progress.value?.problem != null) FaceLibrary.progress.value = null }
 

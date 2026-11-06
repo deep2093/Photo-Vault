@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -126,6 +129,10 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         }
     }
     val question = if (!showHidden) people.nextQuestion() else null
+    // Faces the app isn't sure about (6 Nov): asked after the "Same person?" questions; [picking] opens the people grid.
+    val unsure = if (!showHidden && question == null) people.nextUnsure() else null
+    var picking by remember { mutableStateOf<UnsureSet?>(null) }
+    var pickingParked by remember { mutableStateOf(false) }
     val selecting = people.selected.isNotEmpty()
     // The place on the page lives in PeopleState (5 Nov): a person page scrolled to its end used to reset it.
     val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState(people.scrollIndex, people.scrollOffset)
@@ -288,6 +295,50 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                         }
                     }
                 }
+                if (unsure != null && !selecting) {
+                    item(key = "unsure", span = { GridItemSpan(maxLineSpan) }) {
+                        val guess = unsure.ranked.firstOrNull()?.let { people.find(it.first) }
+                        GlassCard(Modifier.fillMaxWidth()) {
+                            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    if (guess?.name != null) "Is this ${guess.name}?" else "Is this the same person?",
+                                    color = theme.onGlass,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                val photos = unsure.faces.size
+                                Text(if (photos == 1) "1 photo" else "$photos photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
+                            }
+                            androidx.compose.foundation.layout.Row(
+                                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SetFaces(people, unsure, thumbs, 52)
+                                Icon(Icons.Rounded.SwapHoriz, null, tint = theme.onGlassSecondary, modifier = Modifier.size(20.dp))
+                                if (guess != null) PersonCircle(people, guess, thumbs, 64, onPhone)
+                            }
+                            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+                                GlassButton("Yes", primary = true, onClick = { scope.launch { people.answerUnsure(unsure, guess?.id, true) } })
+                                GlassButton("No", onClick = {
+                                    val id = guess?.id ?: return@GlassButton
+                                    scope.launch {
+                                        people.answerUnsure(unsure, id, false)
+                                        // Last guess said No: the people grid, closest first (6 Nov).
+                                        if (unsure.guesses <= 1) {
+                                            picking = people.unsure.firstOrNull { s -> s.faces.any { it in unsure.faces } }
+                                                ?: unsure.copy(ranked = unsure.ranked.filter { it.first != id }, guesses = 0)
+                                            pickingParked = false
+                                        }
+                                    }
+                                })
+                                GlassButton("Choose", onClick = { picking = unsure; pickingParked = false })
+                                GlassButton("Skip", onClick = { unsure.faces.firstOrNull()?.let { people.skippedUnsure = people.skippedUnsure + it } })
+                            }
+                        }
+                    }
+                }
                 if (list.isEmpty()) {
                     item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                         Text(
@@ -342,6 +393,20 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                         Text((if (person.me) "You · " else "") + if (count == 1) "1 photo" else "$count photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
                     }
                 }
+                if (people.parked.isNotEmpty() && !showHidden && !selecting) {
+                    item(key = "notSure", span = { GridItemSpan(maxLineSpan) }) {
+                        // Faces put aside with "None of these" (6 Nov): sort them whenever you like.
+                        val count = people.parked.sumOf { it.size }
+                        GlassButton(
+                            "Not sure ($count)",
+                            onClick = {
+                                picking = UnsureSet(people.parked.first(), emptyList(), 0)
+                                pickingParked = true
+                            },
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
                 if (others.isNotEmpty()) {
                     item(key = "others", span = { GridItemSpan(maxLineSpan) }) {
                         GlassButton(
@@ -355,6 +420,23 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         }
     }
 
+    picking?.let { set ->
+        PickPersonDialog(
+            people = people,
+            set = set,
+            thumbs = thumbs,
+            noneLabel = if (pickingParked) "Leave for now" else "None of these",
+            onDismiss = { picking = null },
+            onPick = { id ->
+                picking = null
+                scope.launch { people.answerUnsure(set, id, yes = true) }
+            },
+            onNone = {
+                picking = null
+                if (!pickingParked) scope.launch { people.answerUnsure(set, null, yes = false, park = true) }
+            },
+        )
+    }
     naming?.let { p ->
         NameDialog(p, onDismiss = { naming = null }) { name ->
             naming = null
@@ -493,6 +575,83 @@ internal fun PersonCircle(people: PeopleState, person: Person, thumbs: MutableMa
         if (onPhone != null) {
             val count = people.photosOf(person).count { it in onPhone }
             Text(person.name ?: (if (count == 1) "1 photo" else "$count photos"), color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+/** A few faces of an unsure set, overlapping (6 Nov). */
+@Composable
+private fun SetFaces(people: PeopleState, set: UnsureSet, thumbs: MutableMap<Int, ByteArray>, sizeDp: Int) {
+    val theme = LocalGlassTheme.current
+    val shown = set.faces.mapNotNull { people.spots[it] }.take(FaceGrouping.SET_SAMPLES)
+    Box(Modifier.width((sizeDp + (sizeDp / 2) * (shown.size - 1).coerceAtLeast(0)).dp).height(sizeDp.dp)) {
+        shown.forEachIndexed { i, spot ->
+            LaunchedEffect(spot.id) { if (thumbs[spot.id] == null) people.platform.faceThumb(spot)?.let { thumbs[spot.id] = it } }
+            Box(
+                Modifier
+                    .offset(x = ((sizeDp / 2) * i).dp)
+                    .size(sizeDp.dp)
+                    .clip(CircleShape)
+                    .background(theme.onGlass.copy(alpha = 0.1f)),
+            ) {
+                thumbs[spot.id]?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+            }
+        }
+    }
+}
+
+/**
+ * "Who is this?" (6 Nov): a grid like the People page, the closest match first down to the least, plus a new person
+ * and "None of these".
+ */
+@Composable
+private fun PickPersonDialog(
+    people: PeopleState,
+    set: UnsureSet,
+    thumbs: MutableMap<Int, ByteArray>,
+    noneLabel: String,
+    onDismiss: () -> Unit,
+    onPick: (Int?) -> Unit,
+    onNone: () -> Unit,
+) {
+    val theme = LocalGlassTheme.current
+    val choices = remember(people.people, people.spots, set) {
+        val shown = FaceGrouping.shown(people.people.filter { !it.hidden }, people.spots)
+        val order = set.ranked.map { it.first }
+        val ranked = order.mapNotNull { id -> shown.firstOrNull { it.id == id } }
+        ranked + shown.filter { it.id !in order }
+    }
+    GlassDialog(
+        title = "Who is this?",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton(noneLabel, onClick = onNone)
+            GlassButton("Cancel", onClick = onDismiss)
+        },
+    ) {
+        Box(Modifier.fillMaxWidth().padding(bottom = 8.dp), contentAlignment = Alignment.Center) { SetFaces(people, set, thumbs, 48) }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(84.dp),
+            modifier = Modifier.heightIn(max = 420.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(choices, key = { it.id }) { p ->
+                Box(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).clickable { onPick(p.id) }.padding(4.dp), contentAlignment = Alignment.Center) {
+                    PersonCircle(people, p, thumbs, 60)
+                }
+            }
+            item(key = "new") {
+                Column(
+                    Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).clickable { onPick(null) }.padding(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(Modifier.size(60.dp).clip(CircleShape).background(theme.onGlass.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Face, null, tint = theme.accent)
+                    }
+                    Text("New person", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
         }
     }
 }

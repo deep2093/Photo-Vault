@@ -100,13 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-5"
+    const val ID = "2026-11-06-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "This is me", "On a person's page, tap the person button to mark them as you. You come first in People, and searching \"me\" finds your photos."),
-        Change(ChangeKind.NEW, "Capital letters", "Typing boxes start with a capital letter (each word for names). Passwords, addresses and recovery words don't."),
-        Change(ChangeKind.FIXED, "People joined by mistake", "Sorting all faces together could join two different people through one look-alike photo. Groups now join only when many of their faces match, and faces a check took out of a group stay out."),
-        Change(ChangeKind.FIXED, "Headers on short pages", "The top bar only moves when the page really scrolls; on short pages it stays put."),
+        Change(ChangeKind.NEW, "Is this Mum?", "When People isn't sure about faces (a side view, paint or rangoli colours, sunglasses, or a small group from one day), it asks you about the closest match instead of making a new group. Say No and it asks about the next closest; after that, pick the right person from a grid sorted from closest to least."),
+        Change(ChangeKind.NEW, "Not sure list", "Faces you answer \"None of these\" wait in Not sure at the bottom of People, to sort whenever you like."),
+        Change(ChangeKind.FIXED, "Side faces in their own group", "Side views of one person no longer make a second group of their own."),
     )
 }
 

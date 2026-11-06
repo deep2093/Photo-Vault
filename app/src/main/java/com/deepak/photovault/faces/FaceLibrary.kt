@@ -12,6 +12,7 @@ import com.deepak.photovault.ui.shell.PeopleSnapshot
 import com.deepak.photovault.ui.shell.Person
 import com.deepak.photovault.ui.shell.SamePersonQuestion
 import com.deepak.photovault.ui.shell.ScanProgress
+import com.deepak.photovault.ui.shell.UnsureSet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -215,7 +216,31 @@ object FaceLibrary {
         DataOutputStream(java.io.FileOutputStream(scannedFile(context), true).buffered()).use { out -> ids.forEach { out.writeLong(it) } }
     }
 
-    private class Saved(val people: List<Person>, val next: Int, val different: Set<Pair<Int, Int>>, val questions: List<SamePersonQuestion>)
+    private class Saved(
+        val people: List<Person>,
+        val next: Int,
+        val different: Set<Pair<Int, Int>>,
+        val questions: List<SamePersonQuestion>,
+        val unsure: List<UnsureSet> = emptyList(),
+        val parked: List<List<Int>> = emptyList(),
+    )
+
+    private fun readUnsure(root: JSONObject): List<UnsureSet> = root.optJSONArray("unsure")?.let { a ->
+        (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            val f = o.getJSONArray("faces")
+            val r = o.getJSONArray("ranked")
+            UnsureSet(
+                (0 until f.length()).map { f.getInt(it) },
+                (0 until r.length()).map { val x = r.getJSONArray(it); x.getInt(0) to x.getDouble(1).toFloat() },
+                o.optInt("guesses", 0),
+            )
+        }
+    }.orEmpty()
+
+    private fun readParked(root: JSONObject): List<List<Int>> = root.optJSONArray("parked")?.let { a ->
+        (0 until a.length()).map { i -> val f = a.getJSONArray(i); (0 until f.length()).map { f.getInt(it) } }
+    }.orEmpty()
 
     private fun readPeople(context: Context): Saved {
         val file = peopleFile(context)
@@ -240,11 +265,34 @@ object FaceLibrary {
             val questions = root.optJSONArray("questions")?.let { a ->
                 (0 until a.length()).map { val q = a.getJSONArray(it); SamePersonQuestion(q.getInt(0), q.getInt(1), q.getDouble(2).toFloat()) }
             }.orEmpty()
-            Saved(list, root.optInt("next", (list.maxOfOrNull { it.id } ?: 0) + 1), different, questions)
+            Saved(list, root.optInt("next", (list.maxOfOrNull { it.id } ?: 0) + 1), different, questions, readUnsure(root), readParked(root))
         }.getOrDefault(Saved(emptyList(), 1, emptySet(), emptyList()))
     }
 
-    private fun writePeople(context: Context, people: List<Person>, next: Int, different: Set<Pair<Int, Int>>, questions: List<SamePersonQuestion>) {
+    /** [unsure] and [parked] null: kept as they are in the file. */
+    private fun writePeople(
+        context: Context,
+        people: List<Person>,
+        next: Int,
+        different: Set<Pair<Int, Int>>,
+        questions: List<SamePersonQuestion>,
+        unsure: List<UnsureSet>? = null,
+        parked: List<List<Int>>? = null,
+    ) {
+        val old = if (unsure == null || parked == null) readPeople(context) else null
+        val sets = unsure ?: old!!.unsure
+        val aside = parked ?: old!!.parked
+        // Faces now in a person no longer wait in a set.
+        val inPeople = people.flatMap { it.faces }.toHashSet()
+        val keptSets = sets.map { s -> s.copy(faces = s.faces.filter { it !in inPeople }) }.filter { it.faces.isNotEmpty() }
+        val keptAside = aside.map { s -> s.filter { it !in inPeople } }.filter { it.isNotEmpty() }
+        val unsureJson = JSONArray().apply {
+            keptSets.forEach { s ->
+                put(JSONObject().put("faces", JSONArray(s.faces)).put("guesses", s.guesses)
+                    .put("ranked", JSONArray().apply { s.ranked.forEach { put(JSONArray().put(it.first).put(it.second.toDouble())) } }))
+            }
+        }
+        val parkedJson = JSONArray().apply { keptAside.forEach { put(JSONArray(it)) } }
         val arr = JSONArray()
         people.forEach { p ->
             arr.put(JSONObject().apply {
@@ -260,7 +308,10 @@ object FaceLibrary {
         val diff = JSONArray().apply { different.forEach { put(JSONArray(listOf(it.first, it.second))) } }
         val asks = JSONArray().apply { questions.forEach { put(JSONArray().put(it.a).put(it.b).put(it.score.toDouble())) } }
         val tmp = File(dir(context), "people.json.tmp")
-        tmp.writeText(JSONObject().put("people", arr).put("next", next).put("different", diff).put("questions", asks).toString())
+        tmp.writeText(
+            JSONObject().put("people", arr).put("next", next).put("different", diff).put("questions", asks)
+                .put("unsure", unsureJson).put("parked", parkedJson).toString(),
+        )
         if (!tmp.renameTo(peopleFile(context))) throw java.io.IOException("People couldn't be saved")
     }
 
@@ -287,14 +338,22 @@ object FaceLibrary {
             after = again.second
         }
         val joinAt = FaceGrouping.joinLine(scores(context, key(context, "no_scores")), scores(context, key(context, "yes_scores")))
-        val people = if (join) FaceGrouping.joinGroups(all, grouped, saved.different, joinAt) else grouped
+        var people = if (join) FaceGrouping.joinGroups(all, grouped, saved.different, joinAt) else grouped
+        // Faces the app isn't sure about are asked about, not grouped on a guess (6 Nov).
+        val parked = readPeople(context).parked
+        var unsure: List<UnsureSet>? = null
+        if (join) {
+            val (left, sets) = FaceGrouping.unsure(all, people, parked.flatten().toHashSet())
+            people = left
+            unsure = sets
+        }
         val questions = if (join) {
             val spots = all.associate { it.id to FaceSpot(it.id, it.photoId, it.box) }
             FaceGrouping.questions(all, FaceGrouping.shown(people.filter { !it.hidden }, spots), saved.different, floor = askFloor(context))
         } else {
             saved.questions
         }
-        writePeople(context, people, after, saved.different, questions)
+        writePeople(context, people, after, saved.different, questions, unsure, parked)
         return questions
     }
 
@@ -320,6 +379,8 @@ object FaceLibrary {
                 scanned = readScanned(scannedFile(context)).size,
                 questions = saved.questions,
                 lookingAgain = olderFacesExist(context),
+                unsure = saved.unsure,
+                parked = saved.parked,
             )
         }
     }
@@ -406,6 +467,46 @@ object FaceLibrary {
             }.toMutableList()
             if (toId == null) people += Person(next++, faceIds, kept = true)
             writePeople(context, people.filter { it.faces.isNotEmpty() || it.name != null }, next, saved.different, saved.questions)
+        }
+    }
+
+    /**
+     * An unsure set answered (6 Nov). Yes (or picked from the grid): the faces join that person, or a new one when
+     * [personId] is null, and teach it (kept). No: that person won't get these faces and isn't asked about again; the set
+     * moves on to the next guess. [park]: "None of these", the faces go to the Not sure list.
+     */
+    suspend fun answerUnsure(context: Context, set: UnsureSet, personId: Int?, yes: Boolean, park: Boolean) = lock.withLock {
+        withContext(Dispatchers.IO) {
+            val saved = readPeople(context)
+            val ids = set.faces.toSet()
+            val sameSet: (UnsureSet) -> Boolean = { s -> s.faces.any { it in ids } }
+            var next = saved.next
+            var people = saved.people
+            var sets = saved.unsure
+            var parked = saved.parked.map { s -> s.filter { it !in ids } }.filter { it.isNotEmpty() }
+            when {
+                park -> {
+                    sets = sets.filterNot(sameSet)
+                    parked = parked + listOf(set.faces)
+                }
+                yes -> {
+                    // Out of wherever they were (a set taken apart may still be listed), into the chosen person.
+                    people = people.map { p -> if (p.faces.any { it in ids } && p.id != personId) p.copy(faces = p.faces - ids) else p }
+                    people = if (personId != null && people.any { it.id == personId }) {
+                        people.map { p -> if (p.id == personId) p.copy(faces = p.faces + ids, notFaces = p.notFaces - ids, kept = true) else p }
+                    } else {
+                        people + Person(next++, ids, kept = true)
+                    }
+                    sets = sets.filterNot(sameSet)
+                }
+                personId != null -> {
+                    people = people.map { p -> if (p.id == personId) p.copy(notFaces = p.notFaces + ids, kept = true) else p }
+                    sets = sets.map { s ->
+                        if (!sameSet(s)) s else s.copy(ranked = s.ranked.filter { it.first != personId }, guesses = (s.guesses - 1).coerceAtLeast(0))
+                    }
+                }
+            }
+            writePeople(context, people.filter { it.faces.isNotEmpty() || it.name != null }, next, saved.different, saved.questions, sets, parked)
         }
     }
 

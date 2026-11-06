@@ -378,4 +378,41 @@ class FaceGroupingTest {
         val me = Person(2, setOf(2, 3), me = true)
         assertEquals(listOf(2, 1), FaceGrouping.shown(listOf(mum, me), spots).map { it.id })
     }
+
+    private fun at(id: Int, photo: Long, plane: Int, wobble: Float, day: Long, frontal: Float = 1f) =
+        Face(id, photo, floatArrayOf(0.1f, 0.1f, 0.2f, 0.2f), vec(plane, wobble), frontal = frontal, takenAt = t0 + day * 86_400_000L)
+
+    @Test
+    fun aOneDayGroupThatLooksLikeSomeoneIsAskedAbout() {
+        // Mum over many days; a small group from one day (rangoli) at angle 1.0 (likeness about 0.54) is taken apart
+        // and asked about as one set, Mum first.
+        val mumFaces = (0 until 4).map { at(it + 1, 100L + it, 0, it * 0.05f, it.toLong() * 30) }
+        val day = listOf(at(5, 200, 0, 1.0f, 400), at(6, 201, 0, 1.05f, 400))
+        val mum = Person(1, setOf(1, 2, 3, 4), name = "Mum")
+        val party = Person(2, setOf(5, 6))
+        val (people, sets) = FaceGrouping.unsure(mumFaces + day, listOf(mum, party), emptySet())
+        assertTrue(people.none { it.id == 2 })
+        assertEquals(listOf(5, 6), sets.single().faces)
+        assertEquals(1, sets.single().ranked.first().first)
+        assertTrue(sets.single().guesses >= 1)
+    }
+
+    @Test
+    fun aSideFaceThatJoinedNoOneIsAskedAbout() {
+        val mumFaces = (0 until 4).map { at(it + 1, 100L + it, 0, it * 0.05f, it.toLong() * 30) }
+        val side = at(7, 300, 0, 1.0f, 500, frontal = 0.1f)
+        val mum = Person(1, setOf(1, 2, 3, 4), name = "Mum")
+        val (_, sets) = FaceGrouping.unsure(mumFaces + side, listOf(mum), emptySet())
+        assertEquals(listOf(7), sets.single().faces)
+        // Put aside ("None of these"): not asked again.
+        val (_, none) = FaceGrouping.unsure(mumFaces + side, listOf(mum), setOf(7))
+        assertTrue(none.isEmpty())
+    }
+
+    @Test
+    fun sideFacesDoNotMakeAGroupOfTheirOwn() {
+        val side = (0 until 4).map { at(20 + it, 400L + it, 1, it * 0.02f, 1, frontal = 0.1f) }
+        val (people, _) = FaceGrouping.resort(side, emptyList(), 1)
+        assertTrue(people.none { p -> p.faces.any { it in 20..23 } })
+    }
 }
