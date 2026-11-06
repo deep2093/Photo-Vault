@@ -279,6 +279,8 @@ fun SelectableScreen(
     selectAllItems: List<MediaItem>? = null,
     /** Where the grid draws each photo, for the delete animation; the screen's [MediaGrid] fills it in. */
     tileSpots: TileSpots = remember { TileSpots() },
+    /** In place of the title while not selecting (Search's box, 7 Nov). */
+    titleContent: (@Composable () -> Unit)? = null,
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) {
     val selectedItems = state.selected.mapNotNull(gallery::find)
@@ -297,6 +299,7 @@ fun SelectableScreen(
         subtitle = if (state.selecting) null else subtitle,
         onBack = if (state.selecting) null else onBack,
         pinned = state.selecting,
+        titleContent = if (state.selecting) null else titleContent,
         floatingActions = floatingActions,
         floatingStartActions = floatingStartActions,
         actions = {

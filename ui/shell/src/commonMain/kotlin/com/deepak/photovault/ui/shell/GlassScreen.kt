@@ -88,6 +88,8 @@ fun GlassScreen(
     bottomActions: (@Composable RowScope.() -> Unit)? = null,
     /** Drawn last, above the bars (a menu opened from the top bar), in the same glass. */
     overlay: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
+    /** In place of the title and subtitle (Search: the search box sits in the bar, 7 Nov). */
+    titleContent: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     // Photos and Albums: scrolling down tucks the pills and the navigation bar away; scrolling up brings them back.
@@ -188,6 +190,7 @@ fun GlassScreen(
             subtitle = subtitle,
             onBack = onBack,
             actions = actions,
+            titleContent = titleContent,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset { androidx.compose.ui.unit.IntOffset(0, offset.toInt()) }
@@ -231,6 +234,7 @@ private fun GlassTopBar(
     onBack: (() -> Unit)?,
     actions: @Composable RowScope.() -> Unit,
     modifier: Modifier,
+    titleContent: (@Composable () -> Unit)? = null,
 ) {
     val theme = LocalGlassTheme.current
     Row(
@@ -245,7 +249,9 @@ private fun GlassTopBar(
         if (onBack != null) {
             GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onClick = onBack)
         }
-        Column(Modifier.weight(1f)) {
+        if (titleContent != null) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { titleContent() }
+        } else Column(Modifier.weight(1f)) {
             // Plain text, no shadow: in lens glass any shadow here drew a pale band across the whole bar (25 Oct).
             Text(
                 title,

@@ -345,7 +345,10 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val zone = remember { TimeZone.currentSystemDefault() }
     var query by rememberSaveable { mutableStateOf("") }
     // People's names count too (7A): "Mum" finds the photos Mum is in.
-    val named = remember(query, state.people.people, state.people.spots) { state.people.photosNamed(query) }
+    val named = remember(query, state.people.people, state.people.spots, state.places.photos) {
+        // Places count too (7B-1): "Melbourne" or "India" finds photos taken there.
+        state.people.photosNamed(query) + state.places.photosMatching(query)
+    }
     val results = remember(query, gallery.items, gallery.favourites, named) {
         val found = MediaSearch.filter(gallery.items, query, gallery.favourites, zone)
         if (named.isEmpty()) found else {
@@ -353,7 +356,10 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             (found + gallery.items.filter { it.id in named && it.id !in ids }).sortedByDescending { it.takenAtMillis }
         }
     }
-    LaunchedEffect(Unit) { if (state.people.enabled) state.people.refresh() }
+    LaunchedEffect(Unit) {
+        if (state.people.enabled) state.people.refresh()
+        state.places.refresh()
+    }
     val sections = remember(results) { Timeline.group(results, TimelineGrouping.MONTH, zone, today(zone)) }
     val focus = remember { FocusRequester() }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -361,51 +367,53 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     SelectableScreen(
         title = "Search",
         selectAllItems = results,
-        subtitle = if (query.isBlank()) "Try \"videos\", \"october\", \"2025\" or an album" else "${results.size} found",
+        subtitle = null,
         state = state,
         gallery = gallery,
         actions = actions,
         onBack = { state.back() },
+        // The search box sits in the top bar (7 Nov); the short hint is inside it.
+        titleContent = {
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = theme.onGlass),
+                    cursorBrush = SolidColor(theme.accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences),
+                    // Search on the keyboard closes it, so the results show in full (24 Oct).
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide() }),
+                    modifier = Modifier.weight(1f).focusRequester(focus).semantics { contentDescription = "Search photos" },
+                    decorationBox = { inner ->
+                        androidx.compose.foundation.layout.Box {
+                            if (query.isEmpty()) {
+                                Text(
+                                    "Names, places, months, years, albums",
+                                    color = theme.onGlassSecondary,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                if (query.isNotEmpty()) {
+                    Text("${results.size}", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 6.dp))
+                    GlassIconButton(Icons.Rounded.Close, "Clear search", onClick = { query = "" })
+                }
+            }
+        },
     ) { padding ->
         MediaGrid(
             sections, state, gallery, padding,
             onOpen = { item -> state.open(Overlay.Viewer(results.map { it.id }, item.id)) },
             header = {
-                item(key = "query", span = { GridItemSpan(maxLineSpan) }) {
-                    androidx.compose.foundation.layout.Column {
-                    androidx.compose.foundation.layout.Row(
-                        Modifier
-                            .padding(horizontal = SCREEN_MARGIN)
-                            .fillMaxWidth()
-                            .heightIn(min = 52.dp)
-                            .glassPanel(RoundedCornerShape(26.dp))
-                            .padding(start = 20.dp, end = 4.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        BasicTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = theme.onGlass),
-                            cursorBrush = SolidColor(theme.accent),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences),
-                            // Search on the keyboard closes it, so the results show in full (24 Oct).
-                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide() }),
-                            modifier = Modifier.weight(1f).focusRequester(focus).semantics { contentDescription = "Search photos" },
-                            decorationBox = { inner ->
-                                androidx.compose.foundation.layout.Box {
-                                    if (query.isEmpty()) {
-                                        Text("Search your photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyLarge)
-                                    }
-                                    inner()
-                                }
-                            },
-                        )
-                        if (query.isNotEmpty()) GlassIconButton(Icons.Rounded.Close, "Clear search", onClick = { query = "" })
-                    }
-                    // People to tap before typing, like Google Photos (5 Nov).
-                    if (query.isBlank()) SearchPeopleRow(state, gallery)
-                    }
+                // People to tap before typing, like Google Photos (5 Nov).
+                if (query.isBlank()) {
+                    item(key = "people", span = { GridItemSpan(maxLineSpan) }) { SearchPeopleRow(state, gallery) }
                 }
             },
         )
@@ -413,40 +421,44 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
 }
 
 
-/** Search, before anything is typed: round faces of the people in your photos, and "..." for all of them. */
+/**
+ * Search, before anything is typed: the five people with the most photos (7 Nov), sized so they fit in one row, and
+ * "..." as the sixth, which opens everyone to pick from.
+ */
 @Composable
 private fun SearchPeopleRow(state: ShellState, gallery: GalleryState) {
     val people = state.people
     if (!people.enabled) return
     val onPhone = remember(gallery.items) { gallery.items.map { it.id }.toHashSet() }
-    val takenAt = remember(gallery.items) { gallery.items.associate { it.id to it.takenAtMillis } }
     val shown = remember(people.people, people.spots, onPhone) {
-        FaceGrouping.shown(people.people.filter { !it.hidden }, people.spots, newest = { p -> people.photosOf(p).maxOfOrNull { takenAt[it] ?: 0L } ?: 0L })
-            .filter { p -> p.name != null || people.photosOf(p).count { it in onPhone } >= FaceGrouping.OTHERS_BELOW }
-            .take(12)
+        FaceGrouping.shown(people.people.filter { !it.hidden }, people.spots)
+            .map { p -> p to people.photosOf(p).count { it in onPhone } }
+            .filter { (p, n) -> p.name != null || n >= FaceGrouping.OTHERS_BELOW }
+            .sortedByDescending { it.second }
+            .take(5)
+            .map { it.first }
     }
     if (shown.isEmpty()) return
     val thumbs = remember { androidx.compose.runtime.mutableStateMapOf<Int, ByteArray>() }
-    androidx.compose.foundation.lazy.LazyRow(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SCREEN_MARGIN),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-    ) {
-        items(shown, key = { it.id }) { p ->
-            androidx.compose.foundation.layout.Box(Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable { state.open(Overlay.Person(p.id)) }) {
-                PersonCircle(people, p, thumbs, 64)
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = SCREEN_MARGIN, vertical = 4.dp)) {
+        // Six spots across the width; circles no bigger than 52 dp.
+        val gap = 10.dp
+        val size = minOf(52.dp, (maxWidth - gap * 5) / 6)
+        androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(gap)) {
+            shown.forEach { p ->
+                androidx.compose.foundation.layout.Box(Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable { state.open(Overlay.Person(p.id)) }) {
+                    PersonCircle(people, p, thumbs, size.value.toInt())
+                }
             }
-        }
-        item(key = "more") {
             androidx.compose.foundation.layout.Box(
                 Modifier
-                    .size(64.dp)
+                    .size(size)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(LocalGlassTheme.current.onGlass.copy(alpha = 0.1f))
                     .clickable { state.people.resetScroll(); state.open(Overlay.People) },
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
-                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.MoreHoriz, "All people", tint = LocalGlassTheme.current.onGlass)
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.MoreHoriz, "Everyone", tint = LocalGlassTheme.current.onGlass)
             }
         }
     }

@@ -280,6 +280,9 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.encryption = com.deepak.photovault.ui.shell.EncryptionState(AndroidEncryption(this))
         state.secured = com.deepak.photovault.ui.shell.SecuredState(AndroidSecured(this))
         state.people = com.deepak.photovault.ui.shell.PeopleState(com.deepak.photovault.faces.AndroidPeople(this))
+        // Places (7B-1): where photos were taken, read quietly in the background once Android allows it.
+        state.places = com.deepak.photovault.ui.shell.PlacesState(com.deepak.photovault.places.AndroidPlaces(this))
+        state.places.platform.readNow()
         com.deepak.photovault.faces.FaceScanWorker.schedule(this)
         // Going to another app locks the Secured folder again.
         lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {

@@ -8,3 +8,4 @@ local.properties
 
 # People face models: fetched by CI (see .github/workflows/android.yml)
 app/src/main/assets/faces/
+app/src/main/assets/places/

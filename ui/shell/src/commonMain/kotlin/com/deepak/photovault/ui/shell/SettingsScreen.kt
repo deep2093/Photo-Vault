@@ -35,6 +35,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.ViewDay
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
@@ -380,18 +381,28 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.PersonAdd, "Invites", "Done")
         InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Open with Pixallery", "Done")
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Done")
-        InfoRow(Icons.Rounded.Place, "Places and people", "Phase 7")
-        InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
+        InfoRow(Icons.Rounded.Lock, "Secured folder", "Done")
+        InfoRow(Icons.Rounded.Groups, "People", "Done")
+        // What comes next (7 Nov).
+        InfoRow(Icons.Rounded.Place, "Places", "Phase 7B")
+        InfoRow(Icons.Rounded.Schedule, "On this day and tags", "Phase 7C")
+        InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Phase 7D")
+        InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10")
+        InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Phase 10A")
+        InfoRow(Icons.Rounded.Folder, "Editor and duplicates", "Phase 11")
+        InfoRow(Icons.Rounded.Schedule, "Smoothness and foldables", "Phase 12")
+        InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Release", "Phase 13")
         // Credits for the face models (6 Nov). AuraFace's licence asks for the notice and credit.
         Text(
-            "Face models",
+            "Credits",
             color = LocalGlassTheme.current.onGlass,
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
             "People uses YuNet and SFace from OpenCV (Apache License 2.0). The AuraFace test model is AuraFace v1 by fal.ai, " +
-                "used under the Apache License 2.0.",
+                "used under the Apache License 2.0. Place names come from GeoNames (geonames.org), under the Creative Commons " +
+                "Attribution 4.0 licence.",
             color = LocalGlassTheme.current.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
         )

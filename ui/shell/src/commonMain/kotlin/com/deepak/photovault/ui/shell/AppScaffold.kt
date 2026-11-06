@@ -480,6 +480,8 @@ private fun OverlayPage(
                         Overlay.Secured -> SecuredFolderScreen(state)
                         Overlay.People -> PeopleScreen(state, gallery)
                         is Overlay.Person -> PersonScreen(overlay.personId, state, gallery, actions)
+                        Overlay.Places -> PlacesScreen(state, gallery)
+                        is Overlay.Place -> PlaceScreen(overlay.key, state, gallery, actions)
                         Overlay.HiddenAlbums -> HiddenAlbumsScreen(state, gallery)
                         is Overlay.Viewer -> Unit
                     }

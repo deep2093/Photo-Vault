@@ -96,6 +96,12 @@ sealed interface Overlay {
     /** One person's photos. */
     data class Person(val personId: Int) : Overlay
 
+    /** Albums > Places: towns and cities photos were taken in (Phase 7B-1, 7 Nov). */
+    data object Places : Overlay
+
+    /** One place's photos; [key] is [Place.key]. */
+    data class Place(val key: String) : Overlay
+
     /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
     data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
 
@@ -184,6 +190,7 @@ class ShellState(private val store: AppearanceStore) {
                 Overlay.DriveRecentlyDeleted -> listOf("drivetrash")
                 Overlay.Search -> listOf("search")
                 Overlay.People -> listOf("people")
+                Overlay.Places -> listOf("places")
                 else -> null
             }?.joinToString("\u001F")
         }
@@ -214,6 +221,7 @@ class ShellState(private val store: AppearanceStore) {
                 "drivetrash" -> Overlay.DriveRecentlyDeleted
                 "search" -> Overlay.Search
                 "people" -> Overlay.People
+                "places" -> Overlay.Places
                 else -> null
             }
             if (overlay != null) overlays.add(overlay)
@@ -413,6 +421,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** People: faces found on this phone (Phase 7A). */
     var people: PeopleState = PeopleState()
+
+    /** Places: where photos were taken (Phase 7B-1). */
+    var places: PlacesState = PlacesState()
 
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)

@@ -359,7 +359,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                         Icons.Rounded.Delete, "Recently deleted",
                         when (gallery.trashed.size) { 0 -> "Empty"; 1 -> "1 item"; else -> "${gallery.trashed.size} items" },
                     ) { state.open(Overlay.RecentlyDeleted) },
-                    Shortcut(Icons.Rounded.Place, "Places", "Coming soon", enabled = false) {},
+                    Shortcut(Icons.Rounded.Place, "Places", "Where photos were taken") { state.open(Overlay.Places) },
                 )
                 // Rows (6 Nov, Deepak picked them from the three looks tried).
                 Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)) { RowShortcuts(shortcuts, tablet) }

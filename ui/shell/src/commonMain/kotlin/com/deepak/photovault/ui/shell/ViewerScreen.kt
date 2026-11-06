@@ -254,6 +254,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 item = current,
                 source = gallery.detailsSource,
                 actions = actions,
+                places = state.places,
                 bottomInset = system.calculateBottomPadding(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -532,6 +533,7 @@ private fun DetailsPanel(
     actions: MediaActions,
     bottomInset: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
+    places: PlacesState = PlacesState(),
 ) {
     val details by produceState<MediaDetails?>(null, item.id) { value = source.details(item) }
     val white = Color(0xFFF5F5F7)
@@ -603,16 +605,22 @@ private fun DetailsPanel(
         if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
         Spacer(Modifier.height(12.dp))
-        LocationRow(d, item, actions, white, grey)
+        LocationRow(d, item, actions, white, grey, places)
     }
 }
 
 /** One compact row: where the photo was taken, with Open in Maps. */
 @Composable
-private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions, white: Color, grey: Color) {
+private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions, white: Color, grey: Color, places: PlacesState) {
     val lat = d?.latitude
     val lon = d?.longitude
     val shape = RoundedCornerShape(16.dp)
+    // The town or city (7B-1), and the street address only when asked for (the phone's own lookup), remembered.
+    val place = places.photos[item.id]?.place
+    var address by remember(item.id) { mutableStateOf<String?>(null) }
+    var asked by remember(item.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { if (!places.loaded) places.refresh() }
     when {
         d == null -> Unit
         lat != null && lon != null -> Row(
@@ -625,14 +633,30 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
         ) {
             Icon(Icons.Rounded.Place, null, tint = white, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
-            Text(
-                DetailsFormat.coordinates(lat, lon),
-                color = white,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+                if (place != null) {
+                    Text(place.label, color = white, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(
+                    DetailsFormat.coordinates(lat, lon),
+                    color = if (place != null) grey else white,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                when {
+                    address != null -> Text(address.orEmpty(), color = grey, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    places.platform.supported -> Text(
+                        if (asked) "Looking…" else "Show address",
+                        color = Color(0xFF8AB4FF),
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clickable(enabled = !asked, role = Role.Button) {
+                            asked = true
+                            scope.launch { address = places.platform.address(lat, lon) ?: "No address found" }
+                        }.padding(vertical = 4.dp),
+                    )
+                }
+            }
             Text(
                 "Open in Maps",
                 color = Color(0xFF8AB4FF),

@@ -100,14 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-10"
+    const val ID = "2026-11-07-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Going back", "Pages now always slide back out to the right, also with the back swipe from either edge."),
-        Change(ChangeKind.FIXED, "Quick taps after a back swipe", "Once you let go of the back swipe, the page stops taking taps, so tapping the next person or album opens it straight away."),
-        Change(ChangeKind.NEW, "Choose a person's picture", "On a person's page, select one photo and tap the picture button: their face in it becomes their round picture."),
-        Change(ChangeKind.CHANGED, "Better automatic pictures", "People's round pictures now prefer photos where they are on their own, close enough, sharp and facing the camera."),
-        Change(ChangeKind.CHANGED, "This is me", "Once someone is marked as you, the This is me button only shows on that person until you take it off."),
+        Change(ChangeKind.NEW, "Places", "Albums > Places shows the towns and cities your photos were taken in, each with its photos. Places are worked out on this phone from the photo's own location; nothing is looked up online. The map comes next."),
+        Change(ChangeKind.NEW, "Search by place", "Type a town, state or country in Search to find photos taken there."),
+        Change(ChangeKind.NEW, "Place in photo details", "Details now show the town or city, and Show address finds the street address when you tap it."),
+        Change(ChangeKind.CHANGED, "Search", "The search box sits in the top bar, and the five people with the most photos fit in one row, with … for everyone else."),
+        Change(ChangeKind.CHANGED, "About", "Shows what's done and what comes next."),
     )
 }
 
