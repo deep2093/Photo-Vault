@@ -93,7 +93,13 @@ class BackupEngine(
                         when {
                             used + prepared.sizeBytes > limitBytes -> Outcome.Stop(FailureReason.SPACE_LIMIT_FULL)
                             free - prepared.sizeBytes < DRIVE_MARGIN_BYTES -> Outcome.Stop(FailureReason.DRIVE_FULL)
-                            else -> backUpOne(item, prepared)
+                            else -> backUpOne(item, prepared).let { o ->
+                                // Where it was taken goes with it (7B), for Places once it leaves the phone.
+                                if (o is Outcome.Saved) {
+                                    val at = runCatching { reader.location(item) }.getOrNull()
+                                    if (at != null) Outcome.Saved(o.record.copy(latitude = at.first, longitude = at.second)) else o
+                                } else o
+                            }
                         }
                     }
                     if (outcome !is Outcome.Stop) processed++

@@ -25,6 +25,12 @@ data class BackupRecord(
     val album: String? = null,
     /** True for a Private person's backup (Phase 4B): [drivePath] is an encrypted object; [sha256] is of the plain bytes. */
     val encrypted: Boolean = false,
+    /**
+     * Where the photo was taken (7B, 7 Nov), so Places can show it after it leaves the phone. Null when unknown or for
+     * older backups. For a Private person the whole record is sealed, so this is too.
+     */
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 ) {
     val fileName: String get() = if (encrypted) originalName else drivePath.substringAfterLast('/')
 }
@@ -65,6 +71,9 @@ interface MediaReader {
 
     /** A small JPEG of the photo or video for Private backups, whose files can't show a preview on the drive. Null when none can be made. */
     suspend fun thumbnail(item: MediaItem): ByteArray? = null
+
+    /** Where the photo was taken (latitude, longitude), or null (7B). */
+    suspend fun location(item: MediaItem): Pair<Double, Double>? = null
 }
 
 /** What this phone already knows is backed up. Android: a file in the app's private storage. */

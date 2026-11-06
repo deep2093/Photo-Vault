@@ -384,7 +384,7 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Done")
         InfoRow(Icons.Rounded.Groups, "People", "Done")
         // What comes next (7 Nov).
-        InfoRow(Icons.Rounded.Place, "Places", "Phase 7B")
+        InfoRow(Icons.Rounded.Place, "Places", "Done")
         InfoRow(Icons.Rounded.Schedule, "On this day and tags", "Phase 7C")
         InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Phase 7D")
         InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10")

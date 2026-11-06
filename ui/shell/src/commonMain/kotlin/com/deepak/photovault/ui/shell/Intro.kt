@@ -100,14 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-07-4"
+    const val ID = "2026-11-07-5"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Places map start", "Places opens on where your newest photo was taken, zoomed in, instead of the whole world."),
-        Change(ChangeKind.CHANGED, "Photos here", "The sheet starts as a small bar; drag it up to see the photos."),
-        Change(ChangeKind.CHANGED, "Better place names", "Places now knows towns of 1,000 people or more, so a country photo is named after its own town; inside big cities it is still the city."),
-        Change(ChangeKind.CHANGED, "Address in details", "Photo details show the full address by themselves; it's found once and remembered."),
-        Change(ChangeKind.CHANGED, "People order", "People are sorted by how many photos they are in, in both models (you stay first when marked)."),
+        Change(ChangeKind.NEW, "Drive photos on the map", "Backups now save where each photo was taken, so photos that are only on the family drive still show in Places. Photos backed up before this update don't have it."),
+        Change(ChangeKind.CHANGED, "About", "Places is done."),
     )
 }
 

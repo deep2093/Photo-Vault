@@ -36,6 +36,8 @@ class BackupEngineTest {
                 PreparedFile(BytesSource(bytes), item.displayName, item.mimeType, bytes.size.toLong(), compressed = false)
             }
         }
+
+        override suspend fun location(item: MediaItem): Pair<Double, Double>? = if (item.id == 7L) -37.81 to 144.96 else null
     }
 
     private fun photo(id: Long, name: String, size: Int = 5000, taken: Long = OCT_15, album: String = "Camera", video: Boolean = false): MediaItem {
@@ -52,6 +54,16 @@ class BackupEngineTest {
 
     private suspend fun run(engine: BackupEngine, items: List<MediaItem>, limit: Long = 100 * GB, settings: BackupSettings = BackupSettings()) =
         engine.run(items, settings, limit, BackupTrigger.MANUAL)
+
+    @Test
+    fun whereAPhotoWasTakenIsSavedWithItsBackup() = runTest {
+        val index = MemoryBackupIndex()
+        run(engine(index), listOf(photo(7, "IMG_7.jpg"), photo(8, "IMG_8.jpg")))
+        val seven = index.records.single { it.originalName == "IMG_7.jpg" }
+        assertEquals(-37.81, seven.latitude)
+        assertEquals(144.96, seven.longitude)
+        assertEquals(null, index.records.single { it.originalName == "IMG_8.jpg" }.latitude)
+    }
 
     @Test
     fun backsUpVerifiedIntoYearAndMonthFoldersAndRecordsIt() = runTest {

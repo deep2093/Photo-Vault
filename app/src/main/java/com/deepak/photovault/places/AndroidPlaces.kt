@@ -155,6 +155,16 @@ internal object PlacesLibrary {
                 val place = named.getOrPut(key) { CityFinder.find(context, at.first, at.second) }
                 photos[id] = PhotoPlace(at.first, at.second, place)
             }
+            // Drive-only photos (7B): where they were taken, saved with their backup.
+            runCatching { com.deepak.photovault.faces.FaceSources.driveRecords(context) }.getOrDefault(emptyList()).forEach { r ->
+                val la = r.latitude
+                val lo = r.longitude
+                if (la == null || lo == null) return@forEach
+                val id = com.deepak.photovault.core.backup.DriveTimeline.idOf(r.drivePath)
+                if (id in photos) return@forEach
+                val key = Math.round(la * 200) * 100_000L + Math.round(lo * 200)
+                photos[id] = PhotoPlace(la, lo, named.getOrPut(key) { CityFinder.find(context, la, lo) })
+            }
             PlacesSnapshot(photos, reading = progress.value != null)
         }
     }
@@ -191,7 +201,8 @@ internal object PlacesLibrary {
         }
     }
 
-    private fun locate(context: Context, uri: Uri, video: Boolean): Pair<Double, Double>? = runCatching {
+    /** Where a photo or video was taken (backups save it too, 7B). Needs Android's photo-location permission. */
+    fun locate(context: Context, uri: Uri, video: Boolean): Pair<Double, Double>? = runCatching {
         val original = runCatching { MediaStore.setRequireOriginal(uri) }.getOrDefault(uri)
         if (video) {
             val r = MediaMetadataRetriever()

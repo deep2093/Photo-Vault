@@ -59,6 +59,11 @@ class AndroidMediaReader(context: Context) : MediaReader {
         PreparedFile(StreamSource(input), item.displayName, item.mimeType.ifEmpty { "application/octet-stream" }, item.sizeBytes, compressed = false)
     }
 
+    /** Where it was taken (7B): saved with the backup so Places can show it after it leaves the phone. */
+    override suspend fun location(item: MediaItem): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+        com.deepak.photovault.places.PlacesLibrary.locate(context, Uri.parse(item.uri), item.isVideo)
+    }
+
     /** A 512-pixel JPEG (photos and videos) for a Private backup's encrypted thumbnail. Null if the system can't make one. */
     override suspend fun thumbnail(item: MediaItem): ByteArray? = withContext(Dispatchers.IO) {
         runCatching {
