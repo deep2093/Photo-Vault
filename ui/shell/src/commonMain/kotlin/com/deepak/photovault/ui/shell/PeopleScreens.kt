@@ -613,8 +613,8 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
         selectAllItems = items,
         normalActions = {
             GlassIconButton(Icons.Rounded.Edit, if (person.name == null) "Add a name" else "Change the name", onClick = { renaming = true })
-            // "This is me" (6 Nov): filled when this person is you.
-            GlassIconButton(
+            // "This is me" (6 Nov): filled when this person is you; only offered on others once you've taken it off.
+            if (person.me || people.people.none { it.me }) GlassIconButton(
                 if (person.me) Icons.Rounded.AccountCircle else Icons.Rounded.PersonOutline,
                 if (person.me) "This is me (tap to undo)" else "This is me",
                 onClick = {
@@ -635,6 +635,15 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
         },
         selectionActions = { selected ->
             GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selected) })
+            // One photo picked: its face becomes the round picture (6 Nov), cut around the face automatically.
+            if (selected.size == 1) GlassIconButton(Icons.Rounded.AccountCircle, "Use as ${person.name ?: "this person"}'s picture", onClick = {
+                val photo = selected.first().id
+                state.selected = emptySet()
+                scope.launch {
+                    people.setCover(person.id, photo)
+                    actions.toast("Picture changed.")
+                }
+            })
             GlassIconButton(Icons.Rounded.SwapHoriz, "Move to another person", onClick = { moving = selected.map { it.id }.toSet() })
             GlassIconButton(Icons.Rounded.PersonRemove, "Not $label", onClick = {
                 val ids = selected.map { it.id }.toSet()

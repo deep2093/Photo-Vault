@@ -100,13 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-9"
+    const val ID = "2026-11-06-10"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Pages slide from the right", "Pages now slide in from the right and go back out to the right, with the same smooth movement."),
-        Change(ChangeKind.FIXED, "Quick taps after going back", "Tapping something while a page is still sliding away now opens what you tapped, instead of the page that was leaving."),
-        Change(ChangeKind.FIXED, "Scan stopping when warm", "Looking for faces only pauses when the phone is really hot, not just warm from use while charging."),
-        Change(ChangeKind.REMOVED, "Album shortcut styles", "Albums keeps the Rows look; the choice in Settings > About is gone."),
+        Change(ChangeKind.FIXED, "Going back", "Pages now always slide back out to the right, also with the back swipe from either edge."),
+        Change(ChangeKind.FIXED, "Quick taps after a back swipe", "Once you let go of the back swipe, the page stops taking taps, so tapping the next person or album opens it straight away."),
+        Change(ChangeKind.NEW, "Choose a person's picture", "On a person's page, select one photo and tap the picture button: their face in it becomes their round picture."),
+        Change(ChangeKind.CHANGED, "Better automatic pictures", "People's round pictures now prefer photos where they are on their own, close enough, sharp and facing the camera."),
+        Change(ChangeKind.CHANGED, "This is me", "Once someone is marked as you, the This is me button only shows on that person until you take it off."),
     )
 }
 

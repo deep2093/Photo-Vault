@@ -461,4 +461,13 @@ class FaceGroupingTest {
         val apart = FaceGrouping.joinGroups(a + b, listOf(blocked, named))
         assertEquals(2, apart.size)
     }
+
+    @Test
+    fun aPictureOnTheirOwnMakesTheBetterCover() {
+        val face = FaceSpot(1, 10, floatArrayOf(0.4f, 0.3f, 0.2f, 0.2f), frontal = 1f, sharp = 300f)
+        assertTrue(FaceGrouping.coverScore(face, facesInPhoto = 1) > FaceGrouping.coverScore(face, facesInPhoto = 3))
+        // A tiny face far away loses to a nearer one.
+        val far = FaceSpot(2, 11, floatArrayOf(0.4f, 0.3f, 0.03f, 0.03f), frontal = 1f, sharp = 300f)
+        assertTrue(FaceGrouping.coverScore(face) > FaceGrouping.coverScore(far))
+    }
 }

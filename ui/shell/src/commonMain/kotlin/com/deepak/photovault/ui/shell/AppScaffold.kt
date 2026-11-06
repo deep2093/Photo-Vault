@@ -297,13 +297,26 @@ private fun OverlayHost(
         // The page the back gesture already moved away is removed at once; the rest slide.
         val skip = state.pageBackSkip
         state.pageBackSkip = false
+        val commit = state.pageBackCommit
+        state.pageBackCommit = false
         val live = entries.filter { !it.closing }
         var same = 0
         while (same < live.size && same < wanted.size && live[same].overlay == wanted[same]) same++
-        live.drop(same).forEach { entry ->
+        val leaving = live.drop(same)
+        leaving.forEachIndexed { i, entry ->
             entry.closing = true
             if (skip || reduceMotion) {
                 entries.remove(entry)
+            } else if (commit && i == leaving.lastIndex && entry.overlay.slidesSideways()) {
+                // Let go by the back gesture: carries on from where the finger left it, always out to the right.
+                val from = (1f - state.pageBack.value).coerceIn(0f, 1f)
+                entry.slide?.cancel()
+                entry.p.snapTo(from)
+                state.pageBack.snapTo(0f)
+                entry.slide = scope.launch {
+                    entry.p.animateTo(0f, tween((PAGE_MS * from).toInt().coerceAtLeast(60), easing = PageEasing))
+                    entries.remove(entry)
+                }
             } else {
                 entry.slide?.cancel()
                 entry.slide = scope.launch {
@@ -358,7 +371,8 @@ private fun OverlayHost(
                                 if (sideways) {
                                     val top = entries.lastOrNull { !it.closing }
                                     val own = (1f - entry.p.value) * width
-                                    val pulled = if (entry === top) state.pageBackDir * state.pageBack.value * width else 0f
+                                    // The finger always pulls the page out to the right (6 Nov), whichever edge it starts from.
+                                    val pulled = if (entry === top) state.pageBack.value * width else 0f
                                     val drift = -coverAbove(entries, state, entries.indexOf(entry)) * width / DRIFT_DIVISOR
                                     translationX = own + pulled + drift
                                 } else {

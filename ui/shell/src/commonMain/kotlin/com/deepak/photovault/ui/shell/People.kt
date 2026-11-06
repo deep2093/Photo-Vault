@@ -74,6 +74,8 @@ data class Person(
      * them keep joining them, which is what keeps them out of sight.
      */
     val blocked: Boolean = false,
+    /** The face picked by hand as the round picture (6 Nov); null: the best one is picked automatically. */
+    val cover: Int? = null,
 )
 
 /**
@@ -959,6 +961,7 @@ object FaceGrouping {
         kept = into.kept || others.any { it.kept },
         me = into.me || others.any { it.me },
         blocked = into.blocked || others.any { it.blocked },
+        cover = into.cover ?: others.firstNotNullOfOrNull { it.cover },
     )
 
     /** Takes [faceIds] out of [person] for good: they find another person (or start one) at the next grouping. */
@@ -974,13 +977,22 @@ object FaceGrouping {
      * How good a face is as a person's round picture (5 Nov): straight at the camera matters most, then sharp, eyes
      * showing, a confident measurement and a decent size. The best one wins; the next best when it is missing.
      */
-    fun coverScore(f: FaceSpot): Float {
+    fun coverScore(f: FaceSpot, facesInPhoto: Int = 1): Float {
         val facing = f.frontal * f.frontal
         val sharp = (f.sharp / 300f).coerceIn(0.2f, 1f)
         val eyes = if (f.eyes < EYES_HIDDEN) 0.3f else 1f
         val confident = if (f.strength > 0f) (f.strength / 20f).coerceIn(0.5f, 1f) else 1f
-        val size = kotlin.math.sqrt((f.box[2] * f.box[3]).coerceAtLeast(0f)).coerceIn(0.05f, 0.5f)
-        return facing * sharp * eyes * confident * (0.6f + size)
+        val side = if (f.box.size >= 4) kotlin.math.sqrt((f.box[2] * f.box[3]).coerceAtLeast(0f)) else 0.1f
+        val size = side.coerceIn(0.05f, 0.5f)
+        // Not too far away (6 Nov): a tiny face in a wide shot makes a poor round picture.
+        val near = if (side < 0.06f) 0.5f else 1f
+        // On their own in the photo is best (6 Nov), then with one other person, then a group.
+        val alone = when {
+            facesInPhoto <= 1 -> 1f
+            facesInPhoto == 2 -> 0.55f
+            else -> 0.4f
+        }
+        return facing * sharp * eyes * confident * near * alone * (0.6f + size)
     }
 
     /** Unnamed people in fewer photos than this sit under "Others", not among the family (7A-2). */
@@ -1185,7 +1197,34 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
     /**
      * The face to show for a person (5 Nov): the biggest clear front face; when there is none, the biggest face.
      */
-    fun coverOf(person: Person): FaceSpot? = person.faces.mapNotNull { spots[it] }.maxByOrNull { FaceGrouping.coverScore(it) }
+    fun coverOf(person: Person): FaceSpot? {
+        person.cover?.let { id -> if (id in person.faces) spots[id]?.let { return it } }
+        val counts = facesPerPhoto()
+        return person.faces.mapNotNull { spots[it] }.maxByOrNull { FaceGrouping.coverScore(it, counts[it.photoId] ?: 1) }
+    }
+
+    private var countedFrom: Map<Int, FaceSpot>? = null
+    private var counted: Map<Long, Int> = emptyMap()
+
+    /** How many faces each photo has (kept until the faces change). */
+    private fun facesPerPhoto(): Map<Long, Int> {
+        val now = spots
+        if (countedFrom !== now) {
+            counted = now.values.groupingBy { it.photoId }.eachCount()
+            countedFrom = now
+        }
+        return counted
+    }
+
+    /** The round picture picked by hand (6 Nov): the person's face in [photoId]. */
+    suspend fun setCover(personId: Int, photoId: Long) = change { list ->
+        list.map { p ->
+            if (p.id != personId) p else {
+                val face = p.faces.firstOrNull { spots[it]?.photoId == photoId }
+                if (face == null) p else p.copy(cover = face, kept = true)
+            }
+        }
+    }
 
     /** Photos of every named person whose name contains [query] (Search, 7A). */
     fun photosNamed(query: String): Set<Long> {

@@ -269,6 +269,12 @@ class ShellState(private val store: AppearanceStore) {
     /** Set for the one moment when the page that was just pulled away is removed, so it is not slid out again. */
     var pageBackSkip: Boolean = false
 
+    /**
+     * The back gesture was let go past the point of no return (6 Nov): the page host turns the pulled page into a
+     * closing one at once (so it takes no more taps) and slides it the rest of the way from where the finger left it.
+     */
+    var pageBackCommit: Boolean = false
+
     /** How far the first open page covers the section underneath (0 to 1). Set by the page host, read while drawing. */
     var sectionCover: () -> Float = { 0f }
 
@@ -289,12 +295,9 @@ class ShellState(private val store: AppearanceStore) {
             back() // no finger-following (old Android, three-button navigation): the normal animation
             return
         }
-        pageBack.animateTo(1f, tween((BACK_SETTLE_MS * (1f - pageBack.value)).toInt().coerceAtLeast(60), easing = PageEasing))
-        pageBackSkip = true
-        back() // the page host removes the page and puts the pull back to 0 in the same frame
-        repeat(4) { withFrameNanos { } }
-        if (pageBack.value > 0f) pageBack.snapTo(0f)
-        pageBackSkip = false
+        // The page leaves at once (6 Nov): taps go to the page underneath while it finishes sliding away.
+        pageBackCommit = true
+        back()
     }
 
     /** The gesture was cancelled: the page slides back where it was. */

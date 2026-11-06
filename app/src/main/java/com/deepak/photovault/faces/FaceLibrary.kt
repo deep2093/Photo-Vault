@@ -444,6 +444,7 @@ object FaceLibrary {
                     kept = o.optBoolean("kept", false),
                     me = o.optBoolean("me", false),
                     blocked = o.optBoolean("blocked", false),
+                    cover = if (o.has("cover")) o.getInt("cover") else null,
                 )
             }
             val different = root.optJSONArray("different")?.let { a -> (0 until a.length()).map { val p = a.getJSONArray(it); p.getInt(0) to p.getInt(1) }.toSet() }.orEmpty()
@@ -489,6 +490,7 @@ object FaceLibrary {
                 if (p.kept) put("kept", true)
                 if (p.me) put("me", true)
                 if (p.blocked) put("blocked", true)
+                p.cover?.let { put("cover", it) }
             })
         }
         val diff = JSONArray().apply { different.forEach { put(JSONArray(listOf(it.first, it.second))) } }
