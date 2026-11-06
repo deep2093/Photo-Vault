@@ -15,6 +15,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.datetime.toLocalDateTime
 import androidx.compose.foundation.layout.Box
@@ -52,8 +56,11 @@ import kotlinx.datetime.TimeZone
 /**
  * Albums > Places (7B-2, 7 Nov): a map with your photos on it (like Apple Photos and Samsung Gallery). Zoomed far out,
  * one bubble per country; then towns and cities; closer in, photos near each other. Tap a bubble to zoom in, or, when it
- * can't split any more, to see its photos. A sheet at the bottom shows the photos in view and your trips; drag it up to
- * see them all.
+ * can't split any more, to see its photos. A sheet at the bottom shows the photos in view and your trips; it can be
+ * pulled down to a small bar, or up to see them all.
+ *
+ * Smooth (7 Nov fixes): bubbles are grouped again only when the map stops moving; while it moves they just follow the
+ * map, which only moves them on screen (no rebuilding).
  */
 @Composable
 fun PlacesScreen(state: ShellState, gallery: GalleryState) {
@@ -74,18 +81,13 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
     val trips = remember(points) { Trips.find(points) }
     val zone = remember { TimeZone.currentSystemDefault() }
     val controller = remember { MapController() }
-    var view by remember { mutableStateOf<MapViewport?>(null) }
+    // [live] follows every frame of movement (only moves bubbles); [settled] is where the map stopped (groups them).
+    val live = remember { mutableStateOf<MapViewport?>(null) }
+    var settled by remember { mutableStateOf<MapViewport?>(null) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val cellPx = with(density) { 72.dp.toPx() }
-    val bubbles = remember(view, points) { view?.let { MapClusters.bubbles(points, it, cellPx) }.orEmpty() }
-    val inView = remember(view, points) { view?.let { v -> points.filter { v.contains(it.lat, it.lon) }.sortedByDescending { it.takenAt }.map { it.id } }.orEmpty() }
-    // Where the map opens: a spot from photo details, else where it was left, else over the most photos.
-    val start = remember {
-        places.focus?.also { places.focus = null } ?: places.lastView ?: points.groupBy { it.place?.country }.maxByOrNull { it.value.size }?.value?.let { list ->
-            MapStart(list.sumOf { it.lat } / list.size, list.sumOf { it.lon } / list.size, 3.5)
-        } ?: MapStart(0.0, 0.0, 1.0)
-    }
-    var expanded by remember { mutableStateOf(false) }
+    val bubbles = remember(settled, points) { settled?.let { MapClusters.bubbles(points, it, cellPx) }.orEmpty() }
+    val inView = remember(settled, points) { settled?.let { v -> points.filter { v.contains(it.lat, it.lon) }.sortedByDescending { it.takenAt }.map { it.id } }.orEmpty() }
     GlassScreen(
         title = "Places",
         subtitle = when {
@@ -96,28 +98,45 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
         onBack = { state.back() },
         pinned = true,
     ) { padding ->
-        Box(Modifier.fillMaxSize()) {
-            PhotoMap(
-                modifier = Modifier.fillMaxSize(),
-                dark = theme.isDark,
-                start = start,
-                interactive = true,
-                controller = controller,
-                onViewport = { v ->
-                    view = v
-                    places.lastView = MapStart((v.north + v.south) / 2, (v.west + v.east) / 2, v.zoom)
-                },
-            )
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+            val screenHeight = maxHeight
+            // The map waits for the photos, so it opens on your newest photo (zoomed in), not somewhere empty.
+            if (places.loaded) {
+                val start = remember {
+                    places.focus?.also { places.focus = null }
+                        ?: points.maxByOrNull { it.takenAt }?.let { MapStart(it.lat, it.lon, 11.0) }
+                        ?: MapStart(0.0, 0.0, 1.5)
+                }
+                PhotoMap(
+                    modifier = Modifier.fillMaxSize(),
+                    dark = false,
+                    start = start,
+                    interactive = true,
+                    controller = controller,
+                    onViewport = { v, idle ->
+                        live.value = v
+                        if (idle || settled == null) settled = v
+                    },
+                )
+            }
             // The bubbles, drawn over the map where their photos are.
-            val thumbPx = with(density) { 56.dp.toPx() }
+            val bubbleSize = 54.dp
+            val half = with(density) { (bubbleSize / 2).toPx() }
             bubbles.forEach { b ->
                 androidx.compose.runtime.key(b.key) {
                     val item = shown[b.cover]
                     Column(
                         Modifier
-                            .offset { androidx.compose.ui.unit.IntOffset((b.at.x - thumbPx / 2).toInt(), (b.at.y - thumbPx / 2).toInt()) }
-                            .clickable {
-                                val zoom = view?.zoom ?: 0.0
+                            .offset {
+                                // Read while placing only: the map moving just shifts the bubble.
+                                val at = live.value?.toScreen(b.lat, b.lon) ?: b.at
+                                androidx.compose.ui.unit.IntOffset((at.x - half).toInt(), (at.y - half).toInt())
+                            }
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                val zoom = settled?.zoom ?: 0.0
                                 if (b.ids.size > 1 && zoom < 16.5) {
                                     controller.fly(b.lat, b.lon, MapClusters.zoomInto(b, zoom))
                                 } else {
@@ -129,8 +148,8 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
                         Box {
                             Box(
                                 Modifier
-                                    .size(56.dp)
-                                    .shadow(6.dp, androidx.compose.foundation.shape.CircleShape)
+                                    .size(bubbleSize)
+                                    .shadow(8.dp, androidx.compose.foundation.shape.CircleShape)
                                     .clip(androidx.compose.foundation.shape.CircleShape)
                                     .background(androidx.compose.ui.graphics.Color.White)
                                     .padding(3.dp)
@@ -153,7 +172,8 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
                                         .align(androidx.compose.ui.Alignment.TopEnd)
-                                        .offset(x = 6.dp, y = (-4).dp)
+                                        .offset(x = 8.dp, y = (-4).dp)
+                                        .shadow(3.dp, RoundedCornerShape(10.dp))
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(theme.accent)
                                         .padding(horizontal = 6.dp, vertical = 1.dp),
@@ -163,15 +183,16 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
                         if (b.label != null) {
                             Text(
                                 b.label,
-                                color = androidx.compose.ui.graphics.Color.White,
+                                color = androidx.compose.ui.graphics.Color(0xFF1C1C1E),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 modifier = Modifier
-                                    .padding(top = 3.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
-                                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                                    .padding(top = 4.dp)
+                                    .shadow(3.dp, RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(androidx.compose.ui.graphics.Color.White)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
                             )
                         }
                     }
@@ -195,8 +216,7 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
                 inView = inView,
                 trips = trips,
                 zone = zone,
-                expanded = expanded,
-                onExpand = { expanded = it },
+                screenHeight = screenHeight,
                 bottomPadding = padding.calculateBottomPadding(),
                 modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
             )
@@ -205,8 +225,9 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
 }
 
 /**
- * The sheet under the map (7B-2): "N photos in this area" and a strip of them; trips; drag up (or tap) for every
- * photo in view in a grid.
+ * The sheet under the map (7B-2; 7 Nov: drag it). Three resting heights: a small bar (just the title, so the map is
+ * free), the middle (a strip of the photos in view and your trips), and almost the whole screen (every photo in view).
+ * It follows the finger and settles with a soft spring; only its position changes while moving, so it stays smooth.
  */
 @Composable
 private fun PlacesSheet(
@@ -215,63 +236,98 @@ private fun PlacesSheet(
     inView: List<Long>,
     trips: List<Trip>,
     zone: TimeZone,
-    expanded: Boolean,
-    onExpand: (Boolean) -> Unit,
+    screenHeight: androidx.compose.ui.unit.Dp,
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier,
 ) {
     val theme = LocalGlassTheme.current
-    var drag by remember { mutableStateOf(0f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val full = screenHeight * 0.78f
+    val small = 64.dp + bottomPadding
+    val middle = (if (trips.isEmpty()) 190.dp else 360.dp) + bottomPadding
+    val fullPx = with(density) { full.toPx() }
+    val stops = listOf(with(density) { small.toPx() }, with(density) { middle.toPx() }, fullPx)
+    // How much of the sheet shows, in pixels.
+    val shownPx = remember { androidx.compose.animation.core.Animatable(stops[1]) }
+    LaunchedEffect(stops[1]) { if (!shownPx.isRunning && shownPx.value != stops[0] && shownPx.value != fullPx) shownPx.snapTo(stops[1]) }
+    fun settle(velocity: Float) {
+        val now = shownPx.value
+        // A flick goes on to the next stop in its direction; otherwise the nearest stop.
+        val target = when {
+            velocity < -800f -> stops.firstOrNull { it > now + 1f } ?: stops.last()
+            velocity > 800f -> stops.lastOrNull { it < now - 1f } ?: stops.first()
+            else -> stops.minBy { kotlin.math.abs(it - now) }
+        }
+        scope.launch {
+            shownPx.animateTo(target, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 380f), initialVelocity = -velocity)
+        }
+    }
+    val drag = androidx.compose.foundation.gestures.rememberDraggableState { delta ->
+        scope.launch { shownPx.snapTo((shownPx.value - delta).coerceIn(stops.first(), stops.last())) }
+    }
+    val grab = Modifier.draggable(
+        drag,
+        androidx.compose.foundation.gestures.Orientation.Vertical,
+        onDragStopped = { v -> settle(v) },
+    )
     Column(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .glassPanel(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-            .pointerInput(expanded) {
-                detectVerticalDragGestures(
-                    onDragEnd = {
-                        if (drag < -40f) onExpand(true) else if (drag > 40f) onExpand(false)
-                        drag = 0f
-                    },
-                    onDragCancel = { drag = 0f },
-                ) { _, dy -> drag += dy }
-            }
-            .padding(top = 8.dp, bottom = bottomPadding + 8.dp),
+            .height(full)
+            .graphicsLayer { translationY = fullPx - shownPx.value }
+            .padding(horizontal = 6.dp)
+            .shadow(16.dp, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            // Solid, so photos and words are easy to see over the map.
+            .background(if (theme.isDark) androidx.compose.ui.graphics.Color(0xFF1C1C1F) else androidx.compose.ui.graphics.Color(0xFFFAFAFC)),
     ) {
-        Box(
-            Modifier
-                .align(androidx.compose.ui.Alignment.CenterHorizontally)
-                .size(width = 36.dp, height = 4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(theme.onGlassSecondary.copy(alpha = 0.5f)),
-        )
-        Row(
-            Modifier.fillMaxWidth().clickable { onExpand(!expanded) }.padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            Text(
-                if (inView.size == 1) "1 photo in this area" else "${inView.size} photos in this area",
-                color = theme.onGlass,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
+        Column(grab) {
+            Box(
+                Modifier
+                    .padding(top = 10.dp)
+                    .align(androidx.compose.ui.Alignment.CenterHorizontally)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(theme.onGlassSecondary.copy(alpha = 0.45f)),
             )
-            Text(if (expanded) "Less" else "All", color = theme.accent, style = MaterialTheme.typography.labelLarge)
-        }
-        if (!expanded) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (inView.size == 1) "1 photo here" else "${inView.size} photos here",
+                    color = theme.onGlass,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (inView.isNotEmpty()) {
+                    Text(
+                        "See all",
+                        color = theme.accent,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { state.open(Overlay.Photos("Photos here", inView)) }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                    )
+                }
+            }
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(inView.take(40), key = { it }) { id ->
                     val item = shown[id] ?: return@items
                     coil3.compose.AsyncImage(
-                        model = Thumb(item.uri, item.isVideo, 160),
+                        model = Thumb(item.uri, item.isVideo, 256),
                         contentDescription = null,
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(92.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable { state.open(Overlay.Viewer(inView, id)) },
                     )
                 }
@@ -280,9 +336,9 @@ private fun PlacesSheet(
                 Text(
                     "Trips",
                     color = theme.onGlass,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp),
+                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
                 )
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
@@ -293,11 +349,11 @@ private fun PlacesSheet(
                         val cover = shown[trip.ids.first()]
                         Column(
                             Modifier
-                                .width(132.dp)
+                                .width(150.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .clickable { state.open(Overlay.Photos(title, trip.ids)) },
                         ) {
-                            Box(Modifier.size(132.dp, 88.dp).clip(RoundedCornerShape(14.dp))) {
+                            Box(Modifier.size(150.dp, 100.dp).clip(RoundedCornerShape(16.dp))) {
                                 if (cover != null) {
                                     coil3.compose.AsyncImage(
                                         model = Thumb(cover.uri, cover.isVideo, 256),
@@ -307,32 +363,39 @@ private fun PlacesSheet(
                                     )
                                 }
                             }
-                            Text(title, color = theme.onGlass, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                            Text("${trip.ids.size} photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall)
+                            Text(title, color = theme.onGlass, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                            Text("${trip.ids.size} photos", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
             }
-        } else {
-            // Every photo in view, newest first.
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(96.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp).padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                items(inView, key = { it }) { id ->
-                    val item = shown[id] ?: return@items
-                    coil3.compose.AsyncImage(
-                        model = Thumb(item.uri, item.isVideo, 256),
-                        contentDescription = null,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { state.open(Overlay.Viewer(inView, id)) },
-                    )
-                }
+            Text(
+                "All photos here",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
+            )
+        }
+        // Every photo in view, newest first (seen when the sheet is pulled up).
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(96.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp),
+            contentPadding = PaddingValues(bottom = bottomPadding + 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            items(inView, key = { it }) { id ->
+                val item = shown[id] ?: return@items
+                coil3.compose.AsyncImage(
+                    model = Thumb(item.uri, item.isVideo, 256),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { state.open(Overlay.Viewer(inView, id)) },
+                )
             }
         }
     }

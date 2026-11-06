@@ -110,6 +110,8 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
     var problem by remember { mutableStateOf<String?>(null) }
     val running = progress?.running == true
     var showBlocked by remember { mutableStateOf(false) }
+    var choosingCover by remember { mutableStateOf<Int?>(null) }
+    var confirmBlock by remember { mutableStateOf<Set<Int>?>(null) }
     var cutShort by remember { mutableStateOf(false) }
     // A scan that Android stopped (6 Nov): said once, the next time People opens.
     LaunchedEffect(people.enabled, people.testModel) { if (platform.scanCutShort()) cutShort = true }
@@ -224,6 +226,13 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     scope.launch { people.setHidden(ids, !showHidden) }
                 },
             )
+            // One person held (7 Nov): change their round picture from a grid of their faces.
+            if (people.selected.size == 1) GlassIconButton(Icons.Rounded.AccountCircle, "Change picture", onClick = {
+                choosingCover = people.selected.first()
+                people.selected = emptySet()
+            })
+            // Block from here (7 Nov), not from the person's page.
+            GlassIconButton(Icons.Rounded.Block, "Block", onClick = { confirmBlock = people.selected })
         }),
         overlay = {
             // A small menu (6 Nov): the AuraFace test and turning off.
@@ -540,9 +549,68 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
             },
         )
     }
+    confirmBlock?.let { ids ->
+        val one = ids.singleOrNull()?.let { people.find(it) }
+        ConfirmDialog(
+            title = if (one != null) "Block ${one.name ?: "this person"}?" else "Block ${ids.size} people?",
+            body = "They won't show in People, search or questions, and new photos of them are left out. Your photos are not touched. You can unblock them from the menu.",
+            confirm = "Block",
+            onDismiss = { confirmBlock = null },
+            onConfirm = {
+                confirmBlock = null
+                people.selected = emptySet()
+                scope.launch { people.setBlocked(ids, true) }
+            },
+        )
+    }
+    choosingCover?.let { id ->
+        val person = people.find(id)
+        if (person == null) {
+            choosingCover = null
+        } else {
+            PickCoverDialog(people, person, thumbs, onDismiss = { choosingCover = null }) { face ->
+                choosingCover = null
+                scope.launch { people.setCoverFace(person.id, face) }
+            }
+        }
+    }
     if (showBlocked) {
         BlockedDialog(people, thumbs, onDismiss = { showBlocked = false }) { id ->
             scope.launch { people.setBlocked(setOf(id), false) }
+        }
+    }
+}
+
+/** "Change picture" (7 Nov): every face of the person, the best first; the one tapped becomes the round picture. */
+@Composable
+private fun PickCoverDialog(people: PeopleState, person: Person, thumbs: MutableMap<Int, ByteArray>, onDismiss: () -> Unit, onPick: (Int) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val faces = remember(person, people.spots) {
+        person.faces.mapNotNull { people.spots[it] }.sortedByDescending { FaceGrouping.coverScore(it) }.take(120)
+    }
+    GlassDialog(
+        title = "Choose a picture",
+        onDismiss = onDismiss,
+        buttons = { GlassButton("Cancel", onClick = onDismiss) },
+    ) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(72.dp),
+            modifier = Modifier.heightIn(max = 420.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(faces, key = { it.id }) { spot ->
+                LaunchedEffect(spot.id) { if (thumbs[spot.id] == null) people.platform.faceThumb(spot)?.let { thumbs[spot.id] = it } }
+                Box(
+                    Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(theme.onGlass.copy(alpha = 0.1f))
+                        .clickable { onPick(spot.id) },
+                ) {
+                    thumbs[spot.id]?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                }
+            }
         }
     }
 }
@@ -630,20 +698,9 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
                 if (person.hidden) "Show this person again" else "Hide this person",
                 onClick = { scope.launch { people.setHidden(setOf(person.id), !person.hidden) } },
             )
-            // Block (6 Nov): gone from People, search and questions; undo from the People menu.
-            GlassIconButton(Icons.Rounded.Block, "Block this person", onClick = { blocking = true })
         },
         selectionActions = { selected ->
             GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selected) })
-            // One photo picked: its face becomes the round picture (6 Nov), cut around the face automatically.
-            if (selected.size == 1) GlassIconButton(Icons.Rounded.AccountCircle, "Use as ${person.name ?: "this person"}'s picture", onClick = {
-                val photo = selected.first().id
-                state.selected = emptySet()
-                scope.launch {
-                    people.setCover(person.id, photo)
-                    actions.toast("Picture changed.")
-                }
-            })
             GlassIconButton(Icons.Rounded.SwapHoriz, "Move to another person", onClick = { moving = selected.map { it.id }.toSet() })
             GlassIconButton(Icons.Rounded.PersonRemove, "Not $label", onClick = {
                 val ids = selected.map { it.id }.toSet()
@@ -846,6 +903,14 @@ private fun MoveToPersonDialog(people: PeopleState, fromId: Int, onDismiss: () -
 @Composable
 private fun NameDialog(person: Person, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var name by remember { mutableStateOf(person.name.orEmpty()) }
+    // The keyboard opens with the box (7 Nov): no extra tap on the name field.
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(150)
+        runCatching { focus.requestFocus() }
+        keyboard?.show()
+    }
     GlassDialog(
         title = if (person.name == null) "Add a name" else "Change the name",
         onDismiss = onDismiss,
@@ -854,7 +919,7 @@ private fun NameDialog(person: Person, onDismiss: () -> Unit, onSave: (String) -
             GlassButton("Save", primary = true, onClick = { onSave(name) })
         },
     ) {
-        GlassTextField(name, { name = it }, "Name", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.Words)
+        GlassTextField(name, { name = it }, "Name", capitals = androidx.compose.ui.text.input.KeyboardCapitalization.Words, focus = focus)
         Text(
             "Using a name you already gave someone else puts them together as one person.",
             color = LocalGlassTheme.current.onGlassSecondary,

@@ -21,9 +21,8 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.offline.OfflineManager
 
-/** OpenFreeMap's styles (free, no key): Liberty in light themes, Dark in dark ones. */
+/** OpenFreeMap's coloured Liberty style (free, no key). */
 private const val LIGHT_STYLE = "https://tiles.openfreemap.org/styles/liberty"
-private const val DARK_STYLE = "https://tiles.openfreemap.org/styles/dark"
 
 /** Map squares already seen are kept on the phone, up to about 100 MB. */
 private const val CACHE_BYTES = 100L * 1024 * 1024
@@ -52,7 +51,7 @@ actual fun PhotoMap(
     start: MapStart?,
     interactive: Boolean,
     controller: MapController?,
-    onViewport: (MapViewport) -> Unit,
+    onViewport: (MapViewport, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     @Suppress("DEPRECATION")
@@ -83,11 +82,12 @@ actual fun PhotoMap(
             runCatching { view.onDestroy() }
         }
     }
-    DisposableEffect(view, dark) {
+    DisposableEffect(view) {
         var map: MapLibreMap? = null
         view.getMapAsync { m ->
             map = m
-            m.setStyle(if (dark) DARK_STYLE else LIGHT_STYLE)
+            // The coloured map only (7 Nov: the dark one looked bad).
+            m.setStyle(LIGHT_STYLE)
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.isCompassEnabled = interactive
             m.uiSettings.isRotateGesturesEnabled = false
@@ -96,7 +96,7 @@ actual fun PhotoMap(
             if (start != null && m.cameraPosition.zoom < 0.5) {
                 m.cameraPosition = CameraPosition.Builder().target(LatLng(start.lat, start.lon)).zoom(start.zoom).build()
             }
-            fun send() {
+            fun send(idle: Boolean) {
                 val region = m.projection.visibleRegion.latLngBounds
                 val w = view.width.toFloat()
                 val h = view.height.toFloat()
@@ -114,12 +114,13 @@ actual fun PhotoMap(
                             if (p.x < -200 || p.y < -200 || p.x > w + 200 || p.y > h + 200) null else Offset(p.x, p.y)
                         },
                     ),
+                    idle,
                 )
             }
-            m.addOnCameraMoveListener { send() }
-            m.addOnCameraIdleListener { send() }
-            view.addOnDidFinishLoadingStyleListener { send() }
-            view.post { send() }
+            m.addOnCameraMoveListener { send(false) }
+            m.addOnCameraIdleListener { send(true) }
+            view.addOnDidFinishLoadingStyleListener { send(true) }
+            view.post { send(true) }
             controller?.flyTo = { lat, lon, zoom ->
                 m.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), zoom), 600)
             }

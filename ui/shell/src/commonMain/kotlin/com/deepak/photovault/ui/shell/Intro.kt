@@ -100,13 +100,15 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-07-2"
+    const val ID = "2026-11-07-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Places map", "Albums > Places is now a map with your photos on it. Zoomed out you see countries, then towns, then photos close together. Tap a bubble to zoom in, or to see its photos when it can't split any more."),
-        Change(ChangeKind.NEW, "Photos in this area", "The sheet under the map shows the photos you can see; drag it up or tap All to see them all."),
-        Change(ChangeKind.NEW, "Trips", "Photos taken far from home over a few days show as trips, like \"Sydney, March 2026\"."),
-        Change(ChangeKind.NEW, "Small map in details", "A photo's details show a small map of where it was taken; tap it to open the Places map there."),
+        Change(ChangeKind.CHANGED, "Places map", "Opens on your newest photos, zoomed in. Moving the map is smoother, the bubbles have clearer labels, and the map is always the coloured one."),
+        Change(ChangeKind.CHANGED, "Photos here", "The sheet under the map can be dragged down to a small bar, to the middle, or up to see every photo, and settles smoothly. Bigger, clearer photos, and See all opens them as a page."),
+        Change(ChangeKind.FIXED, "Trips", "Home is where most of your last year's photos are, so your own town no longer shows as trips."),
+        Change(ChangeKind.CHANGED, "Small map in details", "Now the day map, not dark."),
+        Change(ChangeKind.CHANGED, "Albums order", "Places, People, Secured folder, then Recently deleted."),
+        Change(ChangeKind.CHANGED, "People", "Hold a person to change their picture or block them from the bottom bar; the buttons inside a person's page are gone. Add a name opens the keyboard straight away."),
     )
 }
 

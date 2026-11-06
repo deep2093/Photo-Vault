@@ -41,7 +41,7 @@ data class MapStart(val lat: Double, val lon: Double, val zoom: Double)
 
 /**
  * The map itself. [interactive] false: a still map (the photo details' small map). [onViewport] is called as the map
- * moves.
+ * moves (idle false) and once more when it stops (idle true). [dark] is ignored (7 Nov: the coloured map only).
  */
 @Composable
 expect fun PhotoMap(
@@ -50,7 +50,7 @@ expect fun PhotoMap(
     start: MapStart?,
     interactive: Boolean,
     controller: MapController?,
-    onViewport: (MapViewport) -> Unit,
+    onViewport: (MapViewport, Boolean) -> Unit,
 )
 
 /** A photo on the map. */
@@ -111,6 +111,8 @@ object Trips {
     /** A gap longer than this between away photos starts a new trip. */
     const val GAP_MS = 2 * 86_400_000L
 
+    const val YEAR_MS = 365 * 86_400_000L
+
     /** Fewer photos than this away is not a trip. */
     const val MIN_PHOTOS = 5
 
@@ -122,7 +124,11 @@ object Trips {
     fun find(points: List<MapPoint>): List<Trip> {
         val placed = points.filter { it.place != null }
         if (placed.isEmpty()) return emptyList()
-        val homeKey = placed.groupingBy { it.place!!.key }.eachCount().maxBy { it.value }.key
+        // Home is where you are now (7 Nov): the most photographed town of your last year of photos, not of all time
+        // (someone who moved countries had their new home shown as trips).
+        val newest = placed.maxOf { it.takenAt }
+        val recent = placed.filter { it.takenAt >= newest - YEAR_MS }
+        val homeKey = recent.groupingBy { it.place!!.key }.eachCount().maxBy { it.value }.key
         val home = placed.filter { it.place!!.key == homeKey }
         val homeLat = home.sumOf { it.lat } / home.size
         val homeLon = home.sumOf { it.lon } / home.size

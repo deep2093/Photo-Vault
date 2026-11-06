@@ -352,14 +352,15 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         ) {
             item(key = "places", span = { GridItemSpan(maxLineSpan) }) {
                 // People, Secured folder, Recently deleted and Places, in the look picked in Settings > About (6 Nov).
+                // Places first, then People, Secured folder, Recently deleted (7 Nov).
                 val shortcuts = listOf(
+                    Shortcut(Icons.Rounded.Place, "Places", "On a map") { state.open(Overlay.Places) },
                     Shortcut(Icons.Rounded.Face, "People", if (!state.people.enabled) "Off" else "On") { state.people.resetScroll(); state.open(Overlay.People) },
                     Shortcut(Icons.Rounded.Lock, "Secured folder", if (!state.secured.setUp) "Set up" else if (state.secured.unlocked) "Unlocked" else "Locked") { state.open(Overlay.Secured) },
                     Shortcut(
                         Icons.Rounded.Delete, "Recently deleted",
                         when (gallery.trashed.size) { 0 -> "Empty"; 1 -> "1 item"; else -> "${gallery.trashed.size} items" },
                     ) { state.open(Overlay.RecentlyDeleted) },
-                    Shortcut(Icons.Rounded.Place, "Places", "Where photos were taken") { state.open(Overlay.Places) },
                 )
                 // Rows (6 Nov, Deepak picked them from the three looks tried).
                 Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)) { RowShortcuts(shortcuts, tablet) }

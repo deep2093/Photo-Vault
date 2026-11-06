@@ -1216,6 +1216,11 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
         return counted
     }
 
+    /** The round picture picked by hand from their faces (7 Nov). */
+    suspend fun setCoverFace(personId: Int, faceId: Int) = change { list ->
+        list.map { p -> if (p.id == personId && faceId in p.faces) p.copy(cover = faceId, kept = true) else p }
+    }
+
     /** The round picture picked by hand (6 Nov): the person's face in [photoId]. */
     suspend fun setCover(personId: Int, photoId: Long) = change { list ->
         list.map { p ->

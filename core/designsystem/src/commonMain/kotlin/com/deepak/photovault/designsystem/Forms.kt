@@ -34,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
@@ -68,6 +69,8 @@ fun GlassTextField(
      * addresses, usernames and recovery words. Password and number boxes never get them.
      */
     capitals: androidx.compose.ui.text.input.KeyboardCapitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
+    /** Given: the box takes the focus (and the keyboard opens) when asked (7 Nov: "Add a name"). */
+    focus: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     val theme = LocalGlassTheme.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -105,7 +108,9 @@ fun GlassTextField(
                     keyboard?.hide()
                     onDone?.invoke()
                 }),
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
+                modifier = Modifier.fillMaxWidth()
+                    .then(if (focus != null) Modifier.focusRequester(focus) else Modifier)
+                    .semantics { contentDescription = label },
             )
         }
         if (supporting != null) {

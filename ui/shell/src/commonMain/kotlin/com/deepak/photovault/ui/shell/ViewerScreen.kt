@@ -624,11 +624,11 @@ private fun DetailsPanel(
                 androidx.compose.runtime.key(item.id) {
                     PhotoMap(
                         modifier = Modifier.fillMaxSize(),
-                        dark = true,
+                        dark = false,
                         start = MapStart(mapLat, mapLon, 13.0),
                         interactive = false,
                         controller = null,
-                        onViewport = {},
+                        onViewport = { _, _ -> },
                     )
                 }
                 Box(
