@@ -11,6 +11,7 @@ import com.deepak.photovault.designsystem.PageEasing
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.animation.core.animateFloat
@@ -267,8 +268,11 @@ private class PageEntry(val overlay: Overlay, shown: Float) {
 
 /**
  * Pages opened on top. Every page except the photo viewer slides in across the screen like a sliding door (24 Oct):
- * it comes from the left edge and goes back out to the left, while the page under it drifts the same way, more
- * slowly, and darkens. The photo viewer grows in and out.
+ * it comes in from the right edge and goes back out to the right (6 Nov: was the left), while the page under it drifts
+ * the same way, more slowly, and darkens. The photo viewer grows in and out.
+ *
+ * A closing page is only a picture of itself while it slides away (6 Nov): its last frame is kept and drawn, and the
+ * page itself is gone, so a tap during the slide reaches the page underneath instead of the one leaving.
  *
  * Each page has its own animation value and is taken away in the very frame it finishes. (Before, the pages were
  * switched by AnimatedContent and a one-frame flash of the whole page showed after it had gone: seen in the 24 Oct
@@ -334,6 +338,7 @@ private fun OverlayHost(
     Box(Modifier.fillMaxSize()) {
         entries.forEachIndexed { index, entry ->
             key(entry) {
+                val picture = androidx.compose.ui.graphics.rememberGraphicsLayer()
                 // A page fully covered by another is not built (as before), except the one a finger is uncovering.
                 val covered by remember(entry) {
                     derivedStateOf {
@@ -352,9 +357,9 @@ private fun OverlayHost(
                                 val width = size.width
                                 if (sideways) {
                                     val top = entries.lastOrNull { !it.closing }
-                                    val own = -(1f - entry.p.value) * width
+                                    val own = (1f - entry.p.value) * width
                                     val pulled = if (entry === top) state.pageBackDir * state.pageBack.value * width else 0f
-                                    val drift = coverAbove(entries, state, entries.indexOf(entry)) * width / DRIFT_DIVISOR
+                                    val drift = -coverAbove(entries, state, entries.indexOf(entry)) * width / DRIFT_DIVISOR
                                     translationX = own + pulled + drift
                                 } else {
                                     val scale = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * entry.p.value
@@ -365,16 +370,29 @@ private fun OverlayHost(
                             }
                             .dimmedBy { if (sideways) coverAbove(entries, state, entries.indexOf(entry)) * PAGE_DIM else 0f },
                     ) {
-                        OverlayPage(entry.overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                        if (!entry.closing) {
+                            // Drawn through a picture that is kept, so the closing slide can show it without the page.
+                            Box(
+                                Modifier.fillMaxSize().drawWithContent {
+                                    picture.record { this@drawWithContent.drawContent() }
+                                    drawLayer(picture)
+                                },
+                            ) {
+                                OverlayPage(entry.overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                            }
+                        } else {
+                            // Leaving: only its last picture, which takes no taps.
+                            Box(Modifier.fillMaxSize().drawBehind { drawLayer(picture) })
+                        }
                         if (sideways) {
-                            // A soft shadow runs down the page's leading edge.
+                            // A soft shadow runs down the page's leading edge (its left side now).
                             Box(
                                 Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .offset(x = PAGE_SHADOW_WIDTH)
+                                    .align(Alignment.CenterStart)
+                                    .offset(x = -PAGE_SHADOW_WIDTH)
                                     .width(PAGE_SHADOW_WIDTH)
                                     .fillMaxHeight()
-                                    .background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent))),
+                                    .background(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.22f)))),
                             )
                         }
                     }
@@ -503,7 +521,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { translationX = state.sectionCover() * size.width / DRIFT_DIVISOR }
+                    .graphicsLayer { translationX = -state.sectionCover() * size.width / DRIFT_DIVISOR }
                     .dimmedBy { state.sectionCover() * PAGE_DIM },
             ) {
                 // Lens glass (experimental): the sections are also recorded so the bar can look through them.

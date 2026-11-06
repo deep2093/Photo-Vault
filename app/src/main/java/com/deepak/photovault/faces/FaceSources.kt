@@ -100,10 +100,10 @@ internal object FaceSources {
         return runCatching { !com.deepak.photovault.core.vpn.WireGuardManager.get(context).isActive() }.getOrDefault(true)
     }
 
-    /** The phone is warm (Android's own thermal status, moderate or worse): scans pause (6 Nov). */
+    /** The phone is warm (Android's own thermal status, severe or worse, when the phone itself starts slowing down; 6 Nov: moderate stopped scans while the phone was simply in use on charge): scans pause (6 Nov). */
     fun warm(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < 29) return false
         val pm = context.getSystemService(PowerManager::class.java) ?: return false
-        return pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
+        return pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE
     }
 }

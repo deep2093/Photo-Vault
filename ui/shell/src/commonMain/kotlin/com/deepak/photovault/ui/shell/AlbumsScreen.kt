@@ -361,13 +361,8 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     ) { state.open(Overlay.RecentlyDeleted) },
                     Shortcut(Icons.Rounded.Place, "Places", "Coming soon", enabled = false) {},
                 )
-                Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-                    when (state.appearance.shortcutStyle) {
-                        ShortcutStyle.ROUND -> RoundShortcuts(shortcuts)
-                        ShortcutStyle.PICTURES -> PictureShortcuts(shortcuts, state, gallery, tablet)
-                        else -> RowShortcuts(shortcuts, tablet)
-                    }
-                }
+                // Rows (6 Nov, Deepak picked them from the three looks tried).
+                Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)) { RowShortcuts(shortcuts, tablet) }
             }
             items(cards, key = { "card:${it.id}" }) { card ->
                 AlbumCard(
@@ -537,38 +532,6 @@ internal fun CoverMosaic(photos: List<MediaItem>, modifier: Modifier = Modifier,
 
 private class Shortcut(val icon: ImageVector, val title: String, val detail: String, val enabled: Boolean = true, val onClick: () -> Unit)
 
-/** A: four round glass icons in one row, the name under each (6 Nov). */
-@Composable
-private fun RoundShortcuts(items: List<Shortcut>) {
-    val theme = LocalGlassTheme.current
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        items.forEach { item ->
-            Column(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable(enabled = item.enabled, role = Role.Button, onClick = item.onClick)
-                    .semantics(mergeDescendants = true) { contentDescription = "${item.title}, ${item.detail}" }
-                    .padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(Modifier.size(56.dp).glassPanel(CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(item.icon, null, tint = if (item.enabled) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(26.dp))
-                }
-                Text(
-                    item.title,
-                    color = if (item.enabled) theme.onGlass else theme.onGlassSecondary,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-                Text(item.detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
 
 /** B: one glass card, two by two; icon on the left, name and a detail line on the right (6 Nov). */
 @Composable
@@ -605,69 +568,6 @@ private fun RowShortcuts(items: List<Shortcut>, tablet: Boolean) {
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(item.detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** C: picture tiles: faces for People, the latest deleted photo, a lock, a pin (6 Nov). */
-@Composable
-private fun PictureShortcuts(items: List<Shortcut>, state: ShellState, gallery: GalleryState, tablet: Boolean) {
-    val theme = LocalGlassTheme.current
-    val people = state.people
-    LaunchedEffect(people.enabled) { if (people.enabled && people.people.isEmpty()) people.refresh() }
-    val faces = remember(people.people, people.spots) {
-        FaceGrouping.shown(people.people.filter { !it.hidden }, people.spots).take(3).mapNotNull { people.coverOf(it) }
-    }
-    val thumbs = remember { androidx.compose.runtime.mutableStateMapOf<Int, ByteArray>() }
-    faces.forEach { f ->
-        LaunchedEffect(f.id) { if (thumbs[f.id] == null) people.platform.faceThumb(f)?.let { thumbs[f.id] = it } }
-    }
-    val deleted = gallery.trashed.firstOrNull()?.item
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items.chunked(2).forEachIndexed { row, pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEachIndexed { col, item ->
-                    val index = row * 2 + col
-                    Box(
-                        (if (tablet) Modifier.width(200.dp) else Modifier.weight(1f))
-                            .height(96.dp)
-                            .glassPanel(GlassCardShape)
-                            .clickable(enabled = item.enabled, role = Role.Button, onClick = item.onClick)
-                            .semantics(mergeDescendants = true) { contentDescription = "${item.title}, ${item.detail}" },
-                    ) {
-                        // The picture, top right.
-                        Box(Modifier.align(Alignment.TopEnd).padding(10.dp)) {
-                            when {
-                                index == 0 && faces.isNotEmpty() -> Box(Modifier.width((38 + 24 * (faces.size - 1)).dp).height(38.dp)) {
-                                    faces.forEachIndexed { i, f ->
-                                        Box(Modifier.offset(x = (24 * i).dp).size(38.dp).clip(CircleShape).background(theme.onGlass.copy(alpha = 0.1f))) {
-                                            thumbs[f.id]?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-                                        }
-                                    }
-                                }
-                                index == 2 && deleted != null -> AsyncImage(
-                                    model = Thumb(deleted.uri, deleted.isVideo, 128),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).graphicsLayer { alpha = 0.55f },
-                                )
-                                else -> Icon(item.icon, null, tint = if (item.enabled) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(32.dp))
-                            }
-                        }
-                        Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp, vertical = 10.dp)) {
-                            Text(
-                                item.title,
-                                color = if (item.enabled) theme.onGlass else theme.onGlassSecondary,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(item.detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                         }
                     }
                 }

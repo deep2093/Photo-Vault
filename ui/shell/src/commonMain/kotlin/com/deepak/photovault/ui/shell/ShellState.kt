@@ -69,16 +69,7 @@ data class AppearanceSettings(
     val pinBottomBar: Boolean = false,
     /** Check the family drive by itself when the app opens and once an hour while it is on screen (28 Oct). */
     val autoDriveCheck: Boolean = true,
-    /** How Albums shows People, Secured folder, Recently deleted and Places (6 Nov, to try): see [ShortcutStyle]. */
-    val shortcutStyle: Int = ShortcutStyle.ROWS,
 )
-
-/** The three looks for the Albums shortcuts, picked in Settings > About to try (6 Nov). */
-object ShortcutStyle {
-    const val ROUND = 0
-    const val ROWS = 1
-    const val PICTURES = 2
-}
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
 interface AppearanceStore {

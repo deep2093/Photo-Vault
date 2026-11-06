@@ -866,7 +866,6 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         blurStep = prefs.getInt("blur_step", 3),
         autoDriveCheck = prefs.getBoolean("auto_drive_check", true),
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
-        shortcutStyle = prefs.getInt("shortcut_style", AppearanceSettings().shortcutStyle),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -880,7 +879,6 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putInt("blur_step", settings.blurStep)
             .putBoolean("auto_drive_check", settings.autoDriveCheck)
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
-            .putInt("shortcut_style", settings.shortcutStyle)
             .apply()
     }
 }

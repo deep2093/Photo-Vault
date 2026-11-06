@@ -100,16 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-8"
+    const val ID = "2026-11-06-9"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "People in drive photos", "Photos that are only on the family drive are looked at too, from their small previews, on your home Wi-Fi. A person's page shows phone and drive photos in one timeline, and a photo in both places counts once."),
-        Change(ChangeKind.NEW, "Safe copy on the drive", "Your names and faces are kept on the family drive, encrypted with your Secured folder's key, so a new phone can carry on instead of starting again."),
-        Change(ChangeKind.NEW, "Block faces", "Block someone from their page and they disappear from People, search and questions. Unblock them from the menu in People."),
-        Change(ChangeKind.CHANGED, "Tidier scanning", "Deleted photos leave People (a photo still on the drive keeps its faces), exact duplicates count once, hidden albums and Secured folder photos are never looked at, and the charging scan waits until the phone isn't in use and pauses when it gets warm."),
-        Change(ChangeKind.CHANGED, "AuraFace has its own setup", "Turning on People starts only the usual model. Try AuraFace from the menu; turning off one list no longer hides the other."),
-        Change(ChangeKind.NEW, "Scan stopped early", "If your phone stops a scan to save battery, People tells you next time and opens the setting that lets it finish."),
-        Change(ChangeKind.NEW, "Credits", "Settings > About now lists the face models People uses."),
+        Change(ChangeKind.CHANGED, "Pages slide from the right", "Pages now slide in from the right and go back out to the right, with the same smooth movement."),
+        Change(ChangeKind.FIXED, "Quick taps after going back", "Tapping something while a page is still sliding away now opens what you tapped, instead of the page that was leaving."),
+        Change(ChangeKind.FIXED, "Scan stopping when warm", "Looking for faces only pauses when the phone is really hot, not just warm from use while charging."),
+        Change(ChangeKind.REMOVED, "Album shortcut styles", "Albums keeps the Rows look; the choice in Settings > About is gone."),
     )
 }
 

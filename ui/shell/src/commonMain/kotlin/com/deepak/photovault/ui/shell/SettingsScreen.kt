@@ -395,26 +395,6 @@ private fun AboutSection(state: ShellState) {
             color = LocalGlassTheme.current.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
-        // To try (6 Nov): three looks for the shortcuts at the top of Albums.
-        Text(
-            "Album shortcuts style",
-            color = LocalGlassTheme.current.onGlass,
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(top = 12.dp),
-        )
-        Text(
-            "How People, Secured folder, Recently deleted and Places look at the top of Albums. Try each one.",
-            color = LocalGlassTheme.current.onGlassSecondary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        androidx.compose.foundation.layout.Row(
-            Modifier.padding(top = 8.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-        ) {
-            listOf(ShortcutStyle.ROUND to "Round icons", ShortcutStyle.ROWS to "Rows", ShortcutStyle.PICTURES to "Pictures").forEach { (id, label) ->
-                com.deepak.photovault.designsystem.GlassChip(label, state.appearance.shortcutStyle == id, onClick = { state.updateAppearance { it.copy(shortcutStyle = id) } })
-            }
-        }
     }
 }
 
