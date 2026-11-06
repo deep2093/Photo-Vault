@@ -100,14 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-07-1"
+    const val ID = "2026-11-07-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Places", "Albums > Places shows the towns and cities your photos were taken in, each with its photos. Places are worked out on this phone from the photo's own location; nothing is looked up online. The map comes next."),
-        Change(ChangeKind.NEW, "Search by place", "Type a town, state or country in Search to find photos taken there."),
-        Change(ChangeKind.NEW, "Place in photo details", "Details now show the town or city, and Show address finds the street address when you tap it."),
-        Change(ChangeKind.CHANGED, "Search", "The search box sits in the top bar, and the five people with the most photos fit in one row, with … for everyone else."),
-        Change(ChangeKind.CHANGED, "About", "Shows what's done and what comes next."),
+        Change(ChangeKind.NEW, "Places map", "Albums > Places is now a map with your photos on it. Zoomed out you see countries, then towns, then photos close together. Tap a bubble to zoom in, or to see its photos when it can't split any more."),
+        Change(ChangeKind.NEW, "Photos in this area", "The sheet under the map shows the photos you can see; drag it up or tap All to see them all."),
+        Change(ChangeKind.NEW, "Trips", "Photos taken far from home over a few days show as trips, like \"Sydney, March 2026\"."),
+        Change(ChangeKind.NEW, "Small map in details", "A photo's details show a small map of where it was taken; tap it to open the Places map there."),
     )
 }
 

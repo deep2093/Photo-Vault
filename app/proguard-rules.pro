@@ -25,3 +25,6 @@
 -dontwarn org.tensorflow.lite.**
 -keep class com.google.ai.edge.litert.** { *; }
 -dontwarn com.google.ai.edge.litert.**
+# The Places map (MapLibre, 7B-2).
+-keep class org.maplibre.** { *; }
+-dontwarn org.maplibre.**

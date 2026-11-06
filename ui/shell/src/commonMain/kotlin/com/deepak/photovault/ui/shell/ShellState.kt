@@ -102,6 +102,9 @@ sealed interface Overlay {
     /** One place's photos; [key] is [Place.key]. */
     data class Place(val key: String) : Overlay
 
+    /** A set of photos with a title (Places: a bubble on the map, the photos in view, a trip; 7B-2). */
+    data class Photos(val title: String, val ids: List<Long>) : Overlay
+
     /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
     data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
 

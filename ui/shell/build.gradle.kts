@@ -29,6 +29,8 @@ kotlin {
             implementation("androidx.core:core-ktx:1.15.0")
             // The small preview picture inside a JPEG, for fast cloud thumbnails.
             implementation("androidx.exifinterface:exifinterface:1.3.7")
+            // The Places map (7B-2): MapLibre draws OpenStreetMap data from OpenFreeMap (free, no key).
+            implementation("org.maplibre.gl:android-sdk:11.7.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

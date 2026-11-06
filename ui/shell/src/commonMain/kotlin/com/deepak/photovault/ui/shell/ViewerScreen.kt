@@ -255,6 +255,11 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 source = gallery.detailsSource,
                 actions = actions,
                 places = state.places,
+                onOpenMap = { lat, lon ->
+                    // The small map was tapped (7B-2): Places opens there.
+                    state.places.focus = MapStart(lat, lon, 14.0)
+                    state.open(Overlay.Places)
+                },
                 bottomInset = system.calculateBottomPadding(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -534,6 +539,7 @@ private fun DetailsPanel(
     bottomInset: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
     places: PlacesState = PlacesState(),
+    onOpenMap: (Double, Double) -> Unit = { _, _ -> },
 ) {
     val details by produceState<MediaDetails?>(null, item.id) { value = source.details(item) }
     val white = Color(0xFFF5F5F7)
@@ -605,6 +611,40 @@ private fun DetailsPanel(
         if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
         Spacer(Modifier.height(12.dp))
+        val mapLat = d?.latitude
+        val mapLon = d?.longitude
+        if (mapLat != null && mapLon != null && places.platform.supported) {
+            // A small map with the spot (7B-2); tap it for the Places map.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+            ) {
+                androidx.compose.runtime.key(item.id) {
+                    PhotoMap(
+                        modifier = Modifier.fillMaxSize(),
+                        dark = true,
+                        start = MapStart(mapLat, mapLon, 13.0),
+                        interactive = false,
+                        controller = null,
+                        onViewport = {},
+                    )
+                }
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .size(16.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color.White)
+                        .padding(3.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color(0xFF3B82F6)),
+                )
+                Box(Modifier.fillMaxSize().clickable(role = Role.Button) { onOpenMap(mapLat, mapLon) })
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         LocationRow(d, item, actions, white, grey, places)
     }
 }
