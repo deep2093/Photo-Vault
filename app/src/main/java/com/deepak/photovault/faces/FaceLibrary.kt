@@ -46,6 +46,73 @@ object FaceLibrary {
 
     fun setAura(context: Context, on: Boolean) { prefs(context).edit().putString("model", if (on) "aura" else "standard").apply() }
 
+    private fun dirFor(context: Context, aura: Boolean): File {
+        val base = File(context.applicationContext.filesDir, "people")
+        return if (aura) File(base, "aura") else base
+    }
+
+    // ---- The encrypted copy on the drive (7A-3, 6 Nov) ----
+
+    private const val COPY_FILES = 3
+
+    /** One model's names, faces and photo keys as one file for the drive (sealed by [PeopleDriveCopy]); null when empty. */
+    suspend fun exportCopy(context: Context, aura: Boolean): ByteArray? = lock.withLock {
+        withContext(Dispatchers.IO) {
+            val d = dirFor(context, aura)
+            val files = listOf(File(d, "people.json"), File(d, "faces7.bin"), File(d, "keys7.txt"))
+            if (!files[0].exists() || !files[1].exists()) return@withContext null
+            val out = java.io.ByteArrayOutputStream()
+            DataOutputStream(out).use { data ->
+                data.writeInt(COPY_FILES)
+                files.forEach { f ->
+                    val bytes = if (f.exists()) f.readBytes() else ByteArray(0)
+                    data.writeInt(bytes.size)
+                    data.write(bytes)
+                }
+            }
+            out.toByteArray()
+        }
+    }
+
+    /**
+     * This phone has had People on with this model before (6 Nov): the drive copy is only brought back on a phone that
+     * never had it, so turning off and on again (to start fresh) really starts fresh.
+     */
+    fun everUsed(context: Context): Boolean = prefs(context).getBoolean(key(context, "ever"), false)
+
+    fun markUsed(context: Context) { prefs(context).edit().putBoolean(key(context, "ever"), true).apply() }
+
+    /** True when the model in use has no names or faces on this phone yet (a new phone, or turned on again). */
+    fun emptyHere(context: Context): Boolean = !File(dir(context), "people.json").exists() && !File(dir(context), "faces7.bin").exists()
+
+    /**
+     * Brings a copy from the drive into the model in use (a new phone): names and faces come back, and each face finds its
+     * photo here by the photo's name, size and time (on this phone, or on the drive). Faces whose photo isn't here go.
+     */
+    suspend fun importCopy(context: Context, bytes: ByteArray): Boolean {
+        val photos = FaceSources.load(context)
+        return lock.withLock {
+            withContext(Dispatchers.IO) {
+                if (!emptyHere(context)) return@withContext false
+                val parts = runCatching {
+                    DataInputStream(bytes.inputStream()).use { data ->
+                        val n = data.readInt()
+                        List(n) { ByteArray(data.readInt()).also { data.readFully(it) } }
+                    }
+                }.getOrNull() ?: return@withContext false
+                if (parts.size < COPY_FILES) return@withContext false
+                val d = dir(context).apply { mkdirs() }
+                File(d, "people.json").writeBytes(parts[0])
+                File(d, "faces7.bin").writeBytes(parts[1])
+                File(d, "keys7.txt").writeBytes(parts[2])
+                // Every photo of the old phone counts as looked at; the tidy-up below moves them onto this phone's photos.
+                writeAllScanned(context, readKeys(context).keys)
+                runCatching { tidyMissing(context, photos) }
+                true
+            }
+        }
+    }
+
     private fun dir(context: Context): File {
         val aura = useAura(context)
         // Each model scores on its own scale: the lines follow the model in use.
@@ -76,9 +143,29 @@ object FaceLibrary {
     private fun peopleFile(context: Context) = File(dir(context), "people.json")
     fun thumbsDir(context: Context) = File(dir(context), "thumbs").apply { mkdirs() }
 
-    fun enabled(context: Context): Boolean = prefs(context).getBoolean("on", false)
+    /**
+     * On or off for the model in use (6 Nov): the usual list and AuraFace's list are turned on and off separately.
+     * AuraFace's list counts as on when it already had faces before this setting existed.
+     */
+    fun enabled(context: Context): Boolean {
+        val p = prefs(context)
+        if (!useAura(context)) return p.getBoolean("on", false)
+        if (p.contains("aura_on")) return p.getBoolean("aura_on", false)
+        return File(context.applicationContext.filesDir, "people/aura/people.json").exists()
+    }
 
-    fun setEnabled(context: Context, on: Boolean) { prefs(context).edit().putBoolean("on", on).apply() }
+    fun setEnabled(context: Context, on: Boolean) { prefs(context).edit().putBoolean(if (useAura(context)) "aura_on" else "on", on).apply() }
+
+    /** A scan started and hasn't finished: still true later when Android stopped the app mid-scan (6 Nov). */
+    fun scanCutShort(context: Context): Boolean = prefs(context).getBoolean(key(context, "scan_open"), false) && !scanLock.isLocked && enabled(context)
+
+    fun clearCutShort(context: Context) { prefs(context).edit().putBoolean(key(context, "scan_open"), false).apply() }
+
+    private fun markScanOpen(context: Context, open: Boolean) { prefs(context).edit().putBoolean(key(context, "scan_open"), open).apply() }
+
+    /** The last scan stopped because the phone was warm (the charging scan tries again later). */
+    @Volatile var stoppedWarm = false
+        private set
 
     fun askByNotification(context: Context): Boolean = prefs(context).getBoolean("ask_notify", true)
 
@@ -112,7 +199,7 @@ object FaceLibrary {
                     base.listFiles()?.filter { it.name != "models" && it.name != "aura" }?.forEach { it.deleteRecursively() }
                 }
                 val p = prefs(context)
-                p.edit().apply { listOf("joined", "rebuilt", "no_scores", "yes_scores", "notified_day").forEach { remove(key(context, it)) } }.apply()
+                p.edit().apply { listOf("joined", "rebuilt", "no_scores", "yes_scores", "notified_day", "scan_open").forEach { remove(key(context, it)) } }.apply()
                 progress.value = null
             }
         }
@@ -202,6 +289,100 @@ object FaceLibrary {
         }
     }
 
+    /** Each looked-at photo's lasting key (name, size, time), so faces follow a photo to the drive or a new phone (6 Nov). */
+    private fun keysFile(context: Context) = File(dir(context), "keys7.txt")
+
+    private fun readKeys(context: Context): MutableMap<Long, String> {
+        val out = HashMap<Long, String>()
+        val file = keysFile(context)
+        if (!file.exists()) return out
+        file.forEachLine { line ->
+            val tab = line.indexOf('\t')
+            if (tab > 0) line.substring(0, tab).toLongOrNull()?.let { out[it] = line.substring(tab + 1) }
+        }
+        return out
+    }
+
+    private fun appendKeys(context: Context, keys: Map<Long, String>) {
+        if (keys.isEmpty()) return
+        keysFile(context).appendText(keys.entries.joinToString("") { "${it.key}\t${it.value}\n" })
+    }
+
+    private fun writeKeys(context: Context, keys: Map<Long, String>) {
+        val tmp = File(dir(context), "keys7.txt.tmp")
+        tmp.writeText(keys.entries.joinToString("") { "${it.key}\t${it.value}\n" })
+        tmp.renameTo(keysFile(context))
+    }
+
+    private fun writeAllFaces(context: Context, faces: List<Face>) {
+        val target = facesFile(context)
+        val tmp = File(dir(context), target.name + ".tmp")
+        tmp.delete()
+        val real = target
+        // appendFaces writes to the faces file: write the new set beside it, then swap.
+        target.renameTo(File(dir(context), target.name + ".old"))
+        try {
+            appendFaces(context, faces)
+            File(dir(context), target.name + ".old").delete()
+        } catch (e: Throwable) {
+            real.delete()
+            File(dir(context), target.name + ".old").renameTo(real)
+            throw e
+        }
+    }
+
+    private fun writeAllScanned(context: Context, ids: Collection<Long>) {
+        val file = scannedFile(context)
+        val tmp = File(dir(context), file.name + ".tmp")
+        DataOutputStream(java.io.FileOutputStream(tmp).buffered()).use { out -> ids.forEach { out.writeLong(it) } }
+        tmp.renameTo(file)
+    }
+
+    /**
+     * Photos that are gone (6 Nov): deleted, moved to the Secured folder, or now in a hidden album. A photo that is still
+     * on the drive (deleted from the phone after its backup) keeps its faces and names: they move over to the drive copy.
+     * Anything else leaves People. Not while an older look-again is running, and never when the phone's library came back
+     * empty (no access). Under [lock].
+     */
+    private fun tidyMissing(context: Context, photos: FaceSources.Photos) {
+        if (!photos.trusted || olderFacesExist(context)) return
+        val valid = photos.all.map { it.id }.toHashSet()
+        val faces = readFaces(facesFile(context), 5)
+        val scanned = readScanned(scannedFile(context))
+        val goneFaces = faces.filter { it.photoId !in valid }
+        val goneScanned = scanned.filter { it !in valid }
+        if (goneFaces.isEmpty() && goneScanned.isEmpty()) return
+        val keys = readKeys(context)
+        val stillScanned = scanned.filter { it in valid }.toHashSet()
+        val moved = HashMap<Long, Long>()
+        for (old in (goneFaces.map { it.photoId } + goneScanned).toSet()) {
+            val target = keys[old]?.let { photos.byKey[it] } ?: continue
+            if (target in stillScanned || target in moved.values) continue
+            moved[old] = target
+        }
+        val kept = mutableListOf<Face>()
+        val dropped = HashSet<Int>()
+        for (f in faces) {
+            when {
+                f.photoId in valid -> kept += f
+                moved[f.photoId] != null -> kept += Face(f.id, moved.getValue(f.photoId), f.box, f.vector, f.frontal, f.sharp, f.eyes, f.strength, f.takenAt, f.clothes)
+                else -> dropped += f.id
+            }
+        }
+        writeAllFaces(context, kept)
+        writeAllScanned(context, stillScanned + moved.values)
+        writeKeys(context, keys.filterKeys { it in valid } + moved.values.associateWith { photos.keys[it].orEmpty() })
+        if (dropped.isNotEmpty()) {
+            val saved = readPeople(context)
+            val people = saved.people.map { p -> p.copy(faces = p.faces - dropped, notFaces = p.notFaces - dropped) }
+                .filter { it.faces.isNotEmpty() || it.name != null }
+            val sets = saved.unsure.map { s -> s.copy(faces = s.faces.filter { it !in dropped }) }.filter { it.faces.isNotEmpty() }
+            val parked = saved.parked.map { s -> s.filter { it !in dropped } }.filter { it.isNotEmpty() }
+            writePeople(context, people, saved.next, saved.different, saved.questions, sets, parked)
+            dropped.forEach { File(thumbsDir(context), "$it.jpg").delete() }
+        }
+    }
+
     private fun readScanned(file: File): MutableSet<Long> {
         val out = HashSet<Long>()
         if (!file.exists()) return out
@@ -262,6 +443,7 @@ object FaceLibrary {
                     notFaces = ints("not"),
                     kept = o.optBoolean("kept", false),
                     me = o.optBoolean("me", false),
+                    blocked = o.optBoolean("blocked", false),
                 )
             }
             val different = root.optJSONArray("different")?.let { a -> (0 until a.length()).map { val p = a.getJSONArray(it); p.getInt(0) to p.getInt(1) }.toSet() }.orEmpty()
@@ -306,6 +488,7 @@ object FaceLibrary {
                 if (p.notFaces.isNotEmpty()) put("not", JSONArray(p.notFaces.toList()))
                 if (p.kept) put("kept", true)
                 if (p.me) put("me", true)
+                if (p.blocked) put("blocked", true)
             })
         }
         val diff = JSONArray().apply { different.forEach { put(JSONArray(listOf(it.first, it.second))) } }
@@ -324,7 +507,7 @@ object FaceLibrary {
         var apart = emptySet<Pair<Int, Int>>()
         if (resort) {
             // Sorted again from scratch after a scan (6 Nov): only named, hidden, hand-changed people and "me" stay as they are.
-            val keep = saved.people.filter { it.name != null || it.hidden || it.kept || it.me }
+            val keep = saved.people.filter { it.name != null || it.hidden || it.kept || it.me || it.blocked }
             val ids = keep.map { it.id }.toSet()
             // What earlier checks learnt stays (6 Nov): a face taken out of a group is kept apart from that group's faces.
             apart = saved.people.filter { it.id !in ids && it.notFaces.isNotEmpty() }.flatMap { p ->
@@ -586,7 +769,13 @@ object FaceLibrary {
                     (FaceEngine.lastError?.let { " The phone said: $it" } ?: ""))
                 return false
             }
-            val photos = MediaStoreLibrary(context).loadAll().filter { !it.isVideo }.sortedByDescending { it.takenAtMillis }
+            stoppedWarm = false
+            val source = FaceSources.load(context)
+            // Gone photos leave People first; photos still on the drive keep their faces (6 Nov).
+            lock.withLock { withContext(Dispatchers.IO) { runCatching { tidyMissing(context, source) } } }
+            // Drive-only photos: from their small previews, only on the home Wi-Fi and once the app has the drive (6 Nov).
+            var driveOk = source.drive.isNotEmpty() && com.deepak.photovault.ui.shell.DriveMedia.ready() && FaceSources.onHomeWifi(context)
+            val photos = source.phone + (if (driveOk) source.drive else emptyList())
             val done = lock.withLock { withContext(Dispatchers.IO) { readScanned(scannedFile(context)) } }
             val todo = photos.filter { it.id !in done }
             val batch = todo.take(limit)
@@ -597,9 +786,12 @@ object FaceLibrary {
                 engine.close()
                 return false
             }
+            markScanOpen(context, true)
             var nextFace = lock.withLock { withContext(Dispatchers.IO) { (allFaces(context).maxOfOrNull { it.id } ?: 0) + 1 } }
             val newFaces = mutableListOf<Face>()
             val newScanned = mutableListOf<Long>()
+            val newKeys = HashMap<Long, String>()
+            var driveFails = 0
             var count = photos.count { it.id in done }
             progress.value = ScanProgress(count, photos.size, running = true)
             var questions: List<SamePersonQuestion> = emptyList()
@@ -608,6 +800,7 @@ object FaceLibrary {
                     withContext(Dispatchers.IO) {
                         appendFaces(context, newFaces)
                         appendScanned(context, newScanned)
+                        appendKeys(context, newKeys)
                         // Comparing whole groups is slower: done at the end of each turn, not every 40 photos. At the
                         // end every face is sorted again, all together (6 Nov).
                         questions = regroup(context, allFaces(context), join, resort = join)
@@ -615,16 +808,37 @@ object FaceLibrary {
                 }
                 newFaces.clear()
                 newScanned.clear()
+                newKeys.clear()
             }
-            for (item in batch) {
+            for ((index, item) in batch.withIndex()) {
                 if (stopAsked || !enabled(context) || useAura(context) != model) break
+                // A warm phone pauses the scan (6 Nov); the charging scan tries again later.
+                if (index % 10 == 0 && FaceSources.warm(context)) {
+                    stoppedWarm = true
+                    break
+                }
+                val drivePath = com.deepak.photovault.core.backup.DriveTimeline.pathOf(item.uri)
+                if (drivePath != null && !driveOk) continue
                 var long = 0
-                val bitmap = decode(context, item.uri, MAX_SIDE) { long = it }
+                val bitmap = if (drivePath != null) {
+                    // The drive's small preview (512 px): enough for faces of a fair size; fetched once and kept.
+                    runCatching { com.deepak.photovault.ui.shell.DriveMedia.thumbnail(drivePath, DRIVE_PREVIEW_PX) }.getOrNull()
+                        ?.let { if (it.config != Bitmap.Config.ARGB_8888) it.copy(Bitmap.Config.ARGB_8888, false) else it }
+                } else {
+                    decode(context, item.uri, MAX_SIDE) { long = it }
+                }
+                if (drivePath != null && bitmap == null) {
+                    // Couldn't be read now: not counted as looked at, so it is tried again later. A few in a row: the
+                    // drive is out of reach, the rest wait.
+                    if (++driveFails >= 5) driveOk = false
+                    continue
+                }
+                if (drivePath != null) driveFails = 0
                 if (bitmap != null) {
                     try {
                         var found = engine.find(bitmap)
                         // Small faces (6 Nov): a big photo with faces too small at the usual size gets a second, bigger look.
-                        if (engine.smallSkipped > 0 && long > MAX_SIDE * 1.4f) {
+                        if (drivePath == null && engine.smallSkipped > 0 && long > MAX_SIDE * 1.4f) {
                             val big = decode(context, item.uri, BIG_SIDE)
                             if (big != null) {
                                 try {
@@ -648,6 +862,7 @@ object FaceLibrary {
                     }
                 }
                 newScanned += item.id
+                source.keys[item.id]?.let { newKeys[item.id] = it }
                 count++
                 progress.value = ScanProgress(count, photos.size, running = true)
                 if (newScanned.size >= FLUSH_EVERY) flush(join = false)
@@ -658,7 +873,13 @@ object FaceLibrary {
                 flush(join = true)
                 if (count >= photos.size) finishLookingAgain(context)
             }
-            if (same) progress.value = ScanProgress(count, photos.size, running = false)
+            if (same) {
+                progress.value = ScanProgress(
+                    count, photos.size, running = false,
+                    problem = if (stoppedWarm) "Paused because the phone is warm. Looking for faces carries on later." else null,
+                )
+            }
+            markScanOpen(context, false)
             engine.close()
             if (enabled(context) && same) maybeNotify(context, questions)
             return todo.size > batch.size || (stopAsked && count < photos.size)
@@ -702,8 +923,15 @@ object FaceLibrary {
     suspend fun faceThumb(context: Context, spot: FaceSpot): ByteArray? = withContext(Dispatchers.IO) {
         val file = File(thumbsDir(context), "${spot.id}.jpg")
         if (file.exists()) return@withContext file.readBytes()
-        val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, spot.photoId)
-        val bitmap = decode(context, uri.toString(), 1024) ?: return@withContext null
+        val bitmap = if (spot.photoId < 0L) {
+            // A drive-only photo (6 Nov): its kept preview.
+            val path = FaceSources.drivePath(context, spot.photoId) ?: return@withContext null
+            com.deepak.photovault.ui.shell.DriveMedia.thumbnail(path, DRIVE_PREVIEW_PX)?.let { if (it.isMutable || it.config == Bitmap.Config.ARGB_8888) it else it.copy(Bitmap.Config.ARGB_8888, false) }
+                ?: return@withContext null
+        } else {
+            val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, spot.photoId)
+            decode(context, uri.toString(), 1024) ?: return@withContext null
+        }
         try {
             val w = bitmap.width
             val h = bitmap.height
@@ -744,4 +972,7 @@ object FaceLibrary {
     /** The second, bigger look for small faces (6 Nov). */
     private const val BIG_SIDE = 2560
     private const val FLUSH_EVERY = 40
+
+    /** Drive-only photos are looked at from their small preview (the same one the timeline shows). */
+    private const val DRIVE_PREVIEW_PX = 512
 }

@@ -37,6 +37,8 @@ class FaceScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
         } finally {
             if (isStopped) FaceLibrary.stop()
         }
+        // Warm phone (6 Nov): tried again at the next idle time (idle jobs can't set their own back-off).
+        if (FaceLibrary.stoppedWarm && !daily) return Result.retry()
         // The daily look only takes the newest photos; anything bigger waits for the charger.
         if (more && !isStopped) schedule(applicationContext, replace = !daily)
         return Result.success()
@@ -129,8 +131,9 @@ class FaceScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
         fun schedule(context: Context, replace: Boolean = false) {
             if (!FaceLibrary.enabled(context)) return
+            // Charging, and the phone not in use (6 Nov): it mostly runs overnight.
             val request = OneTimeWorkRequestBuilder<FaceScanWorker>()
-                .setConstraints(Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build())
+                .setConstraints(Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).setRequiresDeviceIdle(true).build())
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 NAME,

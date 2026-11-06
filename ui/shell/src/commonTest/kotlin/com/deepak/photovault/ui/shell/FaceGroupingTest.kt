@@ -439,4 +439,26 @@ class FaceGroupingTest {
         assertTrue(people.any { it.id == 2 })
         assertTrue(sets.isEmpty())
     }
+
+    @Test
+    fun blockedPeopleAreNeverShown() {
+        val spots = mapOf(1 to FaceSpot(1, 10, floatArrayOf()), 2 to FaceSpot(2, 11, floatArrayOf()), 3 to FaceSpot(3, 12, floatArrayOf()))
+        val stranger = Person(1, setOf(1, 2), blocked = true)
+        val mum = Person(2, setOf(3), name = "Mum")
+        assertEquals(listOf(2), FaceGrouping.shown(listOf(stranger, mum), spots).map { it.id })
+    }
+
+    @Test
+    fun aBlockedPersonTakesInTheirOwnUnnamedGroupButNeverSomeoneNamed() {
+        val a = (0 until 3).map { face(it + 1, 100L + it, 0, it * 0.05f) }
+        val b = (0 until 3).map { face(it + 11, 200L + it, 0, it * 0.05f + 0.02f) }
+        val blocked = Person(1, setOf(1, 2, 3), blocked = true)
+        val unnamed = Person(2, setOf(11, 12, 13))
+        val joined = FaceGrouping.joinGroups(a + b, listOf(blocked, unnamed))
+        assertEquals(1, joined.size)
+        assertTrue(joined.single().blocked)
+        val named = Person(2, setOf(11, 12, 13), name = "Mum")
+        val apart = FaceGrouping.joinGroups(a + b, listOf(blocked, named))
+        assertEquals(2, apart.size)
+    }
 }

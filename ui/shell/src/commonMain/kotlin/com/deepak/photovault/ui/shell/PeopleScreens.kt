@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.MoreVert
@@ -108,19 +109,38 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
     var downloading by remember { mutableStateOf<Float?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     val running = progress?.running == true
+    var showBlocked by remember { mutableStateOf(false) }
+    var cutShort by remember { mutableStateOf(false) }
+    // A scan that Android stopped (6 Nov): said once, the next time People opens.
+    LaunchedEffect(people.enabled, people.testModel) { if (platform.scanCutShort()) cutShort = true }
+    fun afterSwitch(on: Boolean) {
+        people.testModel = on
+        people.enabled = platform.isEnabled()
+        people.selected = emptySet()
+        people.skipped = emptySet()
+        people.skippedUnsure = emptySet()
+        thumbs.clear()
+        people.resetScroll()
+    }
+    // Switching only changes which list is shown (6 Nov); AuraFace has its own setup and never starts by itself.
     fun switchModel(on: Boolean) {
         if (downloading != null) return
         scope.launch {
             problem = null
-            if (on) downloading = 0f
-            val result = platform.setTestModel(on) { downloading = it }
+            platform.setTestModel(on) { }
+            afterSwitch(on)
+            people.refresh()
+        }
+    }
+    fun setUpAura() {
+        if (downloading != null) return
+        scope.launch {
+            problem = null
+            downloading = 0f
+            val result = platform.setUpTestModel { downloading = it }
             downloading = null
             if (result == null) {
-                people.testModel = on
-                people.selected = emptySet()
-                people.skipped = emptySet()
-                thumbs.clear()
-                people.resetScroll()
+                afterSwitch(true)
                 people.refresh()
                 platform.scanNow()
             } else {
@@ -185,8 +205,9 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     if (showHidden) "Show people" else "Show hidden people",
                     onClick = { showHidden = !showHidden },
                 )
-                GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { menuOpen = !menuOpen })
             }
+            // The menu is there even when this list is off (6 Nov), so the other model's list can always be reached.
+            if (!selecting) GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { menuOpen = !menuOpen })
         },
         bottomActions = if (!selecting) null else ({
             if (people.selected.size >= 2) GlassIconButton(Icons.Rounded.CallMerge, "Merge into one person", onClick = {
@@ -206,7 +227,7 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         }),
         overlay = {
             // A small menu (6 Nov): the AuraFace test and turning off.
-            GlassMenuLayer(menuOpen && people.enabled && !selecting, onDismiss = { menuOpen = false }, solid = true) {
+            GlassMenuLayer(menuOpen && !selecting, onDismiss = { menuOpen = false }, solid = true) {
                 GlassMenuItem(
                     Icons.Rounded.Science,
                     "AuraFace test model",
@@ -214,12 +235,18 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                     selected = people.testModel,
                     trailing = if (people.testModel) Icons.Rounded.Check else null,
                 )
-                GlassMenuDivider()
-                GlassMenuItem(
-                    Icons.Rounded.PowerSettingsNew,
-                    if (people.testModel) "Turn off AuraFace test" else "Turn off People",
-                    onClick = { menuOpen = false; confirmOff = true },
-                )
+                if (people.enabled) {
+                    val blockedCount = people.people.count { it.blocked }
+                    if (blockedCount > 0) {
+                        GlassMenuItem(Icons.Rounded.Block, "Blocked people ($blockedCount)", onClick = { menuOpen = false; showBlocked = true })
+                    }
+                    GlassMenuDivider()
+                    GlassMenuItem(
+                        Icons.Rounded.PowerSettingsNew,
+                        if (people.testModel) "Turn off AuraFace test" else "Turn off People",
+                        onClick = { menuOpen = false; confirmOff = true },
+                    )
+                }
             }
         },
     ) { padding ->
@@ -234,26 +261,56 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
         ) {
             if (!people.enabled) {
                 item(key = "off", span = { GridItemSpan(maxLineSpan) }) {
+                    // Short and plain (6 Nov): where it runs, that it can be wrong, and the first scan while charging.
                     GlassCard(Modifier.fillMaxWidth()) {
-                        Text("Find people in your photos", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        listOf(
-                            "Pixallery looks for faces on this phone and groups the same person together. Then you can name them and search by name.",
-                            "Everything stays on this phone. No face, picture or name is sent anywhere.",
-                            "It scans while the phone is charging, so it doesn't use your battery. You can also scan now.",
-                            "Turning it off later deletes all face data from this phone.",
-                        ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
+                        if (people.testModel) {
+                            Text("Try AuraFace", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            listOf(
+                                "AuraFace is a second face model you can try. It makes its own list, with its own names; your usual people stay as they are.",
+                                "It downloads once (about 66 MB, on Wi-Fi only).",
+                                "It is slower than the usual model and may make more or fewer mistakes. Have a look through the people it finds.",
+                                "Best started while charging: the first look takes a while, uses battery and the phone may get a bit warm.",
+                                "Everything stays on this phone.",
+                            ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
+                        } else {
+                            Text("Find people in your photos", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            listOf(
+                                "Pixallery finds faces in your photos and puts the same person together, so you can name them and search by name.",
+                                "It all happens on this phone. No face, photo or name is sent anywhere.",
+                                "It can get some faces wrong, so have a look through your people afterwards.",
+                                "The first look takes a while. It is best done while charging: it uses battery and the phone may get a bit warm.",
+                                "Turning it off later deletes its face data from this phone.",
+                            ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
+                        }
                     }
                 }
                 item(key = "on", span = { GridItemSpan(maxLineSpan) }) {
                     // Only as wide as its words (5 Nov).
                     Box(Modifier.fillMaxWidth()) {
-                    GlassButton(if (platform.supported) "Turn on People" else "Not available on this device", primary = true, onClick = {
-                        if (platform.supported) scope.launch {
-                            platform.setEnabled(true)
-                            people.enabled = true
-                            people.refresh()
+                        val label = when {
+                            !platform.supported -> "Not available on this device"
+                            people.testModel && downloading != null -> "Downloading: ${((downloading ?: 0f) * 100).toInt()}%"
+                            people.testModel -> "Set up AuraFace"
+                            else -> "Turn on People"
                         }
-                    })
+                        GlassButton(label, primary = true, onClick = {
+                            if (!platform.supported) return@GlassButton
+                            if (people.testModel) {
+                                setUpAura()
+                            } else {
+                                scope.launch {
+                                    platform.setEnabled(true)
+                                    people.enabled = true
+                                    people.refresh()
+                                }
+                            }
+                        })
+                    }
+                }
+                val trouble = problem
+                if (trouble != null) {
+                    item(key = "offProblem", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(trouble, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             } else {
@@ -450,7 +507,7 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
             body = if (people.testModel) {
                 "The faces and names AuraFace found are deleted, and your usual people come back. Your photos are not touched."
             } else {
-                "The faces and names found on this phone are deleted. Your photos are not touched. You can turn it on again later, and the phone looks for faces again."
+                "The faces and names of your usual list are deleted from this phone (the AuraFace list stays). Your photos are not touched. You can turn it on again later."
             },
             confirm = "Turn off",
             onDismiss = { confirmOff = false },
@@ -468,6 +525,62 @@ fun PeopleScreen(state: ShellState, gallery: GalleryState) {
                 }
             },
         )
+    }
+    if (cutShort) {
+        // Generic for every phone brand (6 Nov): the app's own settings page, where battery use is set.
+        ConfirmDialog(
+            title = "Looking for faces stopped early",
+            body = "Your phone stopped Pixallery while it was looking for faces, probably to save battery. To let it finish, open Pixallery's settings, then Battery, and choose Unrestricted (or turn off battery optimisation). Then tap Scan again.",
+            confirm = "Open settings",
+            onDismiss = { cutShort = false; platform.clearCutShort() },
+            onConfirm = {
+                cutShort = false
+                platform.clearCutShort()
+                platform.openBatterySettings()
+            },
+        )
+    }
+    if (showBlocked) {
+        BlockedDialog(people, thumbs, onDismiss = { showBlocked = false }) { id ->
+            scope.launch { people.setBlocked(setOf(id), false) }
+        }
+    }
+}
+
+/** Blocked people (6 Nov): each with Unblock. */
+@Composable
+private fun BlockedDialog(people: PeopleState, thumbs: MutableMap<Int, ByteArray>, onDismiss: () -> Unit, onUnblock: (Int) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val blocked = people.people.filter { it.blocked }
+    GlassDialog(
+        title = "Blocked people",
+        onDismiss = onDismiss,
+        buttons = { GlassButton("Done", onClick = onDismiss) },
+    ) {
+        Text(
+            "Blocked people don't show in People, search or questions, and new photos of them are left out.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        if (blocked.isEmpty()) Text("No one is blocked.", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
+            items(blocked.size, key = { blocked[it].id }) { i ->
+                val p = blocked[i]
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PersonCircle(people, p, thumbs, 44)
+                    Text(
+                        p.name ?: "${people.photosOf(p).size} photos",
+                        color = theme.onGlass,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 12.dp).weight(1f),
+                    )
+                    GlassButton("Unblock", onClick = { onUnblock(p.id) })
+                }
+            }
+        }
     }
 }
 
@@ -488,6 +601,7 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
     val sections = remember(items) { Timeline.group(items, TimelineGrouping.MONTH, zone, today(zone)) }
     var renaming by remember { mutableStateOf(false) }
     var moving by remember { mutableStateOf<Set<Long>?>(null) }
+    var blocking by remember { mutableStateOf(false) }
     val label = person.name ?: "this person"
     SelectableScreen(
         title = person.name ?: if (person.me) "Me" else "Add a name",
@@ -516,6 +630,8 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
                 if (person.hidden) "Show this person again" else "Hide this person",
                 onClick = { scope.launch { people.setHidden(setOf(person.id), !person.hidden) } },
             )
+            // Block (6 Nov): gone from People, search and questions; undo from the People menu.
+            GlassIconButton(Icons.Rounded.Block, "Block this person", onClick = { blocking = true })
         },
         selectionActions = { selected ->
             GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(selected) })
@@ -544,6 +660,21 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
                 moving = null
                 state.selected = emptySet()
                 scope.launch { people.moveTo(person.id, photoIds, toId) }
+            },
+        )
+    }
+    if (blocking) {
+        ConfirmDialog(
+            title = "Block ${person.name ?: "this person"}?",
+            body = "They won't show in People, search or questions, and new photos of them are left out. Your photos are not touched. You can unblock them from the menu in People.",
+            confirm = "Block",
+            onDismiss = { blocking = false },
+            onConfirm = {
+                blocking = false
+                scope.launch {
+                    people.setBlocked(setOf(person.id), true)
+                    state.back()
+                }
             },
         )
     }

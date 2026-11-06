@@ -100,11 +100,16 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-7"
+    const val ID = "2026-11-06-8"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Strange \"Is this…?\" questions", "People only asks when its guess clearly stands out from everyone else, compares with each person's usual face, leaves correct one-day groups alone and skips faces it can't measure well. Your No answers raise the bar too."),
-        Change(ChangeKind.CHANGED, "Scan keeps going with the screen off", "Tapping Scan in People now shows a notification with progress and a Pause button, so the scan carries on when the screen turns off."),
+        Change(ChangeKind.NEW, "People in drive photos", "Photos that are only on the family drive are looked at too, from their small previews, on your home Wi-Fi. A person's page shows phone and drive photos in one timeline, and a photo in both places counts once."),
+        Change(ChangeKind.NEW, "Safe copy on the drive", "Your names and faces are kept on the family drive, encrypted with your Secured folder's key, so a new phone can carry on instead of starting again."),
+        Change(ChangeKind.NEW, "Block faces", "Block someone from their page and they disappear from People, search and questions. Unblock them from the menu in People."),
+        Change(ChangeKind.CHANGED, "Tidier scanning", "Deleted photos leave People (a photo still on the drive keeps its faces), exact duplicates count once, hidden albums and Secured folder photos are never looked at, and the charging scan waits until the phone isn't in use and pauses when it gets warm."),
+        Change(ChangeKind.CHANGED, "AuraFace has its own setup", "Turning on People starts only the usual model. Try AuraFace from the menu; turning off one list no longer hides the other."),
+        Change(ChangeKind.NEW, "Scan stopped early", "If your phone stops a scan to save battery, People tells you next time and opens the setting that lets it finish."),
+        Change(ChangeKind.NEW, "Credits", "Settings > About now lists the face models People uses."),
     )
 }
 

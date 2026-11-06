@@ -382,6 +382,19 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.Schedule, "Free up space", "Done")
         InfoRow(Icons.Rounded.Place, "Places and people", "Phase 7")
         InfoRow(Icons.Rounded.Lock, "Secured folder", "Phase 8")
+        // Credits for the face models (6 Nov). AuraFace's licence asks for the notice and credit.
+        Text(
+            "Face models",
+            color = LocalGlassTheme.current.onGlass,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Text(
+            "People uses YuNet and SFace from OpenCV (Apache License 2.0). The AuraFace test model is AuraFace v1 by fal.ai, " +
+                "used under the Apache License 2.0.",
+            color = LocalGlassTheme.current.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
         // To try (6 Nov): three looks for the shortcuts at the top of Albums.
         Text(
             "Album shortcuts style",

@@ -25,6 +25,9 @@ object DriveMedia {
     /** A few downloads at once; more only slows the router down. */
     private val gate = Semaphore(3)
 
+    /** True once the app has given a way to read the drive (the app was opened since the phone started). */
+    fun ready(): Boolean = reader != null
+
     fun install(context: Context, read: suspend (String, (ByteArray, Int) -> Unit) -> Boolean) {
         reader = read
         originals = File(context.applicationContext.cacheDir, "drive-originals").apply { mkdirs() }

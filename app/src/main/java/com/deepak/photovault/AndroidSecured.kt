@@ -482,6 +482,13 @@ object SecuredKeys {
         return SecuredStore(File(context.applicationContext.filesDir, "secured"), TinkVault(keys, keyContext)).also { cached = it }
     }
 
+    /**
+     * The key for People's encrypted copy on the drive (7A-3, 6 Nov): made from the Secured folder's key, so a new phone
+     * that brings the Secured folder back (24 words or own code) can open it too. Null when the folder isn't set up.
+     */
+    fun peopleVault(context: Context): com.deepak.photovault.core.backup.PrivateVault? =
+        root(context)?.let { TinkVault(it, KeyContext("people", "copy")) }
+
     /** The key changed (a new folder was made, or one came back from the drive). */
     @Synchronized
     fun forget() { cached = null }

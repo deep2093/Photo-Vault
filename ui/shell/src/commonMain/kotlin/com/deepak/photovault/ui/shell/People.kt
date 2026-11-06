@@ -69,6 +69,11 @@ data class Person(
     val kept: Boolean = false,
     /** This is the phone's owner ("This is me", 6 Nov): shown first, found by searching "me". Only one person. */
     val me: Boolean = false,
+    /**
+     * Blocked (6 Nov): never shown in People, search or questions. The person's faces stay together so new photos of
+     * them keep joining them, which is what keeps them out of sight.
+     */
+    val blocked: Boolean = false,
 )
 
 /**
@@ -722,13 +727,13 @@ object FaceGrouping {
         val line = maxOf(ASK, floor)
         // Faces put aside ("None of these") stay out of groups the app made itself.
         val people = all.map { p ->
-            if (p.name == null && !p.kept && !p.me && !p.hidden && p.faces.any { it in parked }) p.copy(faces = p.faces - parked) else p
+            if (p.name == null && !p.kept && !p.me && !p.hidden && !p.blocked && p.faces.any { it in parked }) p.copy(faces = p.faces - parked) else p
         }.filter { it.faces.isNotEmpty() || it.name != null }
         if (faces.isEmpty()) return people to emptyList()
         markWeak(faces)
         val byId = faces.associateBy { it.id }
         val size = faces.first().vector.size
-        val visible = people.filter { !it.hidden }
+        val visible = people.filter { !it.hidden && !it.blocked }
         val groups = buildGroups(visible, byId, size).filter { g -> g.person.name != null || g.photos.size >= 2 || g.person.me }
         fun ranked(set: List<Face>, not: Int? = null): List<Pair<Int, Float>> {
             val sample = spread(set, 10)
@@ -751,7 +756,7 @@ object FaceGrouping {
         // One-day groups that look like someone else are taken apart and asked about as one set.
         val takenApart = HashSet<Int>()
         for (p in people) {
-            if (p.name != null || p.kept || p.me || p.hidden) continue
+            if (p.name != null || p.kept || p.me || p.hidden || p.blocked) continue
             val mine = p.faces.mapNotNull { byId[it] }
             if (mine.size < 2 || mine.any { it.takenAt <= 0L }) continue
             val photos = mine.map { it.photoId }.toSet()
@@ -860,6 +865,8 @@ object FaceGrouping {
                 val a = current[i]
                 val b = current[j]
                 if (a.name != null && b.name != null && !a.name.equals(b.name, ignoreCase = true)) continue
+                // A blocked person only takes in unnamed groups; never someone named, never another blocked person.
+                if ((a.blocked || b.blocked) && (a.name != null || b.name != null || (a.blocked && b.blocked))) continue
                 if (vectors[i].isEmpty() || vectors[j].isEmpty()) continue
                 if (said(different, a.id, b.id) || sharePhotos(a, b, byId)) continue
                 if (cosine(centres[i], centres[j]) < NEAR) continue
@@ -878,6 +885,8 @@ object FaceGrouping {
                 val a = current[i]
                 val b = current[j]
                 val keep = when {
+                    a.blocked -> a
+                    b.blocked -> b
                     a.name != null -> a
                     b.name != null -> b
                     a.faces.size >= b.faces.size -> a
@@ -949,6 +958,7 @@ object FaceGrouping {
         notFaces = into.notFaces + others.flatMap { it.notFaces },
         kept = into.kept || others.any { it.kept },
         me = into.me || others.any { it.me },
+        blocked = into.blocked || others.any { it.blocked },
     )
 
     /** Takes [faceIds] out of [person] for good: they find another person (or start one) at the next grouping. */
@@ -956,7 +966,7 @@ object FaceGrouping {
 
     /** People to show: named ones always, others once they appear in at least [minPhotos] photos. */
     fun shown(people: List<Person>, spots: Map<Int, FaceSpot>, minPhotos: Int = 2, newest: (Person) -> Long = { 0L }): List<Person> =
-        people.filter { p -> p.me || p.name != null || p.faces.mapNotNull { spots[it]?.photoId }.toSet().size >= minPhotos }
+        people.filter { p -> !p.blocked && (p.me || p.name != null || p.faces.mapNotNull { spots[it]?.photoId }.toSet().size >= minPhotos) }
             // You first (6 Nov), then named people, whoever has the newest photo at the front; then the rest by most photos (5 Nov).
             .sortedWith(compareBy<Person> { !it.me }.thenBy { it.name == null }.thenByDescending { if (it.name != null) newest(it) else 0L }.thenByDescending { it.faces.size })
 
@@ -1093,6 +1103,17 @@ interface PeoplePlatform {
      */
     suspend fun answerUnsure(set: UnsureSet, personId: Int?, yes: Boolean, park: Boolean = false) = Unit
 
+    /** AuraFace's first-time setup (6 Nov): downloads it if needed and turns its list on. A problem, or null. */
+    suspend fun setUpTestModel(onProgress: (Float) -> Unit): String? = "Not available on this device."
+
+    /** True when the last scan was cut short (Android stopped the app) and nothing is scanning now (6 Nov). */
+    fun scanCutShort(): Boolean = false
+
+    fun clearCutShort() = Unit
+
+    /** Opens the phone's own settings for this app, where battery use ("don't put to sleep") is set. */
+    fun openBatterySettings() = Unit
+
     /** A notification when new "Same person?" questions are waiting (at most one a day). Always on (6 Nov). */
     fun askByNotification(): Boolean = true
     fun setAskByNotification(on: Boolean) = Unit
@@ -1170,7 +1191,7 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
     fun photosNamed(query: String): Set<Long> {
         val q = query.trim()
         if (q.length < 2) return emptySet()
-        return people.filter { !it.hidden && (it.name?.contains(q, ignoreCase = true) == true || (it.me && q.equals("me", ignoreCase = true))) }
+        return people.filter { !it.hidden && !it.blocked && (it.name?.contains(q, ignoreCase = true) == true || (it.me && q.equals("me", ignoreCase = true))) }
             .flatMap { photosOf(it) }.toSet()
     }
 
@@ -1198,6 +1219,9 @@ class PeopleState(val platform: PeoplePlatform = NoPeople) {
         val into = chosen.firstOrNull { it.name != null } ?: chosen.first()
         list.filter { it !in chosen } + FaceGrouping.merge(into, chosen - into).copy(kept = true)
     }
+
+    /** Blocks or unblocks people (6 Nov). */
+    suspend fun setBlocked(ids: Set<Int>, blocked: Boolean) = change { list -> list.map { if (it.id in ids) it.copy(blocked = blocked, me = it.me && !blocked) else it } }
 
     /** "This is me" (6 Nov): marks [id] as the phone's owner, or takes the mark off when it was already them. */
     suspend fun setMe(id: Int) = change { list ->

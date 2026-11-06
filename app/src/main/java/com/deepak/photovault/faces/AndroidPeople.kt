@@ -21,20 +21,57 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
     override fun isEnabled(): Boolean = FaceLibrary.enabled(app)
 
     override suspend fun setEnabled(on: Boolean) {
-        FaceLibrary.setEnabled(app, on)
         if (on) {
+            FaceLibrary.setEnabled(app, true)
             // "Same person?" notifications are always on (6 Nov): ask for permission now if it was never given.
             activity.requestNotifications()
+            bringBackFromDrive()
             FaceScanWorker.schedule(app)
         } else if (FaceLibrary.useAura(app)) {
-            // Off in the test model (6 Nov): only AuraFace's list goes, and the usual people come back.
+            // Off in the test model (6 Nov): only AuraFace's list goes, and the usual list comes back as it was.
             FaceLibrary.forgetModel(app)
-            FaceLibrary.setEnabled(app, true)
+            FaceLibrary.setEnabled(app, false)
             FaceLibrary.switchModel(app, false)
-            FaceScanWorker.schedule(app)
+            if (FaceLibrary.enabled(app)) FaceScanWorker.schedule(app)
         } else {
+            // Off in the usual list: only its faces and names go; AuraFace's list stays (6 Nov).
             FaceScanWorker.cancel(app)
             FaceLibrary.forgetModel(app)
+            FaceLibrary.setEnabled(app, false)
+        }
+    }
+
+    /** A new phone (7A-3): names and faces come back from the family drive's encrypted copy, if there is one. */
+    private suspend fun bringBackFromDrive() {
+        if (FaceLibrary.everUsed(app)) return
+        FaceLibrary.markUsed(app)
+        if (!FaceLibrary.emptyHere(app)) return
+        runCatching {
+            com.deepak.photovault.backup.BackupGraph.get(activity).runner.onMyDrive { fs, userId ->
+                PeopleDriveCopy.restore(app, fs, userId).orEmpty()
+            }
+        }
+    }
+
+    override suspend fun setUpTestModel(onProgress: (Float) -> Unit): String? {
+        FaceLibrary.downloadAura(app, onProgress)?.let { return it }
+        FaceLibrary.switchModel(app, true)
+        FaceLibrary.setEnabled(app, true)
+        bringBackFromDrive()
+        FaceScanWorker.schedule(app)
+        return null
+    }
+
+    override fun scanCutShort(): Boolean = FaceLibrary.scanCutShort(app)
+
+    override fun clearCutShort() = FaceLibrary.clearCutShort(app)
+
+    override fun openBatterySettings() {
+        runCatching {
+            activity.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.fromParts("package", app.packageName, null)),
+            )
         }
     }
 
@@ -66,12 +103,10 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
 
     override fun usesTestModel(): Boolean = FaceLibrary.useAura(app)
 
+    /** Only switches which list is shown (6 Nov): AuraFace never starts by itself; it has its own setup. */
     override suspend fun setTestModel(on: Boolean, onProgress: (Float) -> Unit): String? {
-        if (on) {
-            FaceLibrary.downloadAura(app, onProgress)?.let { return it }
-        }
         FaceLibrary.switchModel(app, on)
-        FaceScanWorker.schedule(app)
+        if (FaceLibrary.enabled(app)) FaceScanWorker.schedule(app)
         return null
     }
 

@@ -221,6 +221,13 @@ class BackupRunner(
                 } catch (_: Throwable) {
                 }
             }
+            // People's encrypted copy (names and faces, 7A-3) goes up too. Never fails the backup.
+            try {
+                com.deepak.photovault.faces.PeopleDriveCopy.upload(context, fs, joined.me.userId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+            }
             return result
         }
     }
