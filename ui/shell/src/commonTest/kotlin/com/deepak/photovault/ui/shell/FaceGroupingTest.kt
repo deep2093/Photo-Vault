@@ -174,8 +174,9 @@ class FaceGroupingTest {
         val glasses = Face(3, 12, floatArrayOf(0f, 0f, 0.2f, 0.2f), vec(0, 1.1f), eyes = 0.2f)
         val (a, _) = FaceGrouping.group(listOf(base, normal), emptyList(), 1)
         assertEquals(1, a.size)
+        // Not joined, and (6 Nov) not a person of its own either: it is asked about instead.
         val (b, _) = FaceGrouping.group(listOf(base, glasses), emptyList(), 1)
-        assertEquals(2, b.size)
+        assertEquals(listOf(setOf(1)), b.map { it.faces })
     }
 
     @Test
