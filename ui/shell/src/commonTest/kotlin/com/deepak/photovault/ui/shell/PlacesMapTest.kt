@@ -40,7 +40,7 @@ class PlacesMapTest {
 
     @Test
     fun closeInPhotosNearEachOtherShareABubble() {
-        val b = MapClusters.bubbles(points, world(12.0), 72f)
+        val b = MapClusters.bubbles(points, world(12.0), 5f)
         // Melbourne's two photos are a few pixels apart on this screen: one bubble, no label.
         assertTrue(b.any { it.ids.toSet() == setOf(1L, 2L) && it.label == null })
     }
