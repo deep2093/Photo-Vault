@@ -58,6 +58,11 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- "Pause" on the People scan notification (6 Nov). -->
+        <receiver
+            android:name=".faces.FaceScanPauseReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

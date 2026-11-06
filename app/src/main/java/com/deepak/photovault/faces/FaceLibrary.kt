@@ -125,6 +125,9 @@ object FaceLibrary {
         progress.value = null
     }
 
+    /** The Scan button (6 Nov): a background scan that is running stops first, so the shown scan takes over. */
+    suspend fun takeOver() = waitForScan()
+
     private suspend fun waitForScan() {
         again = false
         stopAsked = true
@@ -343,7 +346,7 @@ object FaceLibrary {
         val parked = readPeople(context).parked
         var unsure: List<UnsureSet>? = null
         if (join) {
-            val (left, sets) = FaceGrouping.unsure(all, people, parked.flatten().toHashSet())
+            val (left, sets) = FaceGrouping.unsure(all, people, parked.flatten().toHashSet(), floor = askFloor(context))
             people = left
             unsure = sets
         }

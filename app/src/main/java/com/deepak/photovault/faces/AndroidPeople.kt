@@ -43,7 +43,8 @@ class AndroidPeople(private val activity: MainActivity) : PeoplePlatform {
     override suspend fun edit(change: (List<Person>) -> List<Person>) = FaceLibrary.edit(app, change)
 
     override fun scanNow() {
-        activity.lifecycleScope.launch { FaceLibrary.scan(app, fromButton = true) }
+        // Shown as a notification while it runs (6 Nov), so it carries on with the screen off.
+        FaceScanWorker.scanNow(app)
     }
 
     override fun stopScan() = FaceLibrary.stop()

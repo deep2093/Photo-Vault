@@ -416,4 +416,27 @@ class FaceGroupingTest {
         val (people, _) = FaceGrouping.resort(side, emptyList(), 1)
         assertTrue(people.none { p -> p.faces.any { it in 20..23 } })
     }
+
+    @Test
+    fun aGuessThatDoesNotStandOutIsNotAsked() {
+        // A side face halfway between Mum (plane 0) and Dad (plane 1): about 0.7 like both, so neither stands out.
+        val mumFaces = (0 until 4).map { at(it + 1, 100L + it, 0, it * 0.02f, it.toLong() * 30) }
+        val dadFaces = (0 until 4).map { at(it + 11, 150L + it, 1, it * 0.02f, it.toLong() * 30) }
+        val middle = FloatArray(128).also { it[0] = 0.7071f; it[2] = 0.7071f }
+        val side = Face(7, 300, floatArrayOf(0.1f, 0.1f, 0.2f, 0.2f), middle, frontal = 0.1f, takenAt = t0)
+        val people = listOf(Person(1, (1..4).toSet(), name = "Mum"), Person(2, (11..14).toSet(), name = "Dad"))
+        val (_, sets) = FaceGrouping.unsure(mumFaces + dadFaces + side, people, emptySet())
+        assertTrue(sets.isEmpty())
+    }
+
+    @Test
+    fun aOneDayGroupOnlyLooselyLikeSomeoneStays() {
+        // A one-day group at angle 1.2 from Mum (about 0.36: fair, but far from a sure match) is left alone.
+        val mumFaces = (0 until 4).map { at(it + 1, 100L + it, 0, it * 0.02f, it.toLong() * 30) }
+        val day = listOf(at(5, 200, 0, 1.2f, 400), at(6, 201, 0, 1.22f, 400))
+        val party = Person(2, setOf(5, 6))
+        val (people, sets) = FaceGrouping.unsure(mumFaces + day, listOf(Person(1, (1..4).toSet(), name = "Mum"), party), emptySet())
+        assertTrue(people.any { it.id == 2 })
+        assertTrue(sets.isEmpty())
+    }
 }

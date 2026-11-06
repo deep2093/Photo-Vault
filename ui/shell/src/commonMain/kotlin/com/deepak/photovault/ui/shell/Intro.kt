@@ -100,12 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-06-6"
+    const val ID = "2026-11-06-7"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Is this Mum?", "When People isn't sure about faces (a side view, paint or rangoli colours, sunglasses, or a small group from one day), it asks you about the closest match instead of making a new group. Say No and it asks about the next closest; after that, pick the right person from a grid sorted from closest to least."),
-        Change(ChangeKind.NEW, "Not sure list", "Faces you answer \"None of these\" wait in Not sure at the bottom of People, to sort whenever you like."),
-        Change(ChangeKind.FIXED, "Side faces in their own group", "Side views of one person no longer make a second group of their own."),
+        Change(ChangeKind.FIXED, "Strange \"Is this…?\" questions", "People only asks when its guess clearly stands out from everyone else, compares with each person's usual face, leaves correct one-day groups alone and skips faces it can't measure well. Your No answers raise the bar too."),
+        Change(ChangeKind.CHANGED, "Scan keeps going with the screen off", "Tapping Scan in People now shows a notification with progress and a Pause button, so the scan carries on when the screen turns off."),
     )
 }
 
