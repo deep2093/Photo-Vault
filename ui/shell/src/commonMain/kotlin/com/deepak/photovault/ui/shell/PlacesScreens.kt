@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.core.media.TimelineGrouping
 import com.deepak.photovault.designsystem.GlassButton
