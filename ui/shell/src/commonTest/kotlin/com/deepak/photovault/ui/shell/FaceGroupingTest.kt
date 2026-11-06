@@ -431,9 +431,9 @@ class FaceGroupingTest {
 
     @Test
     fun aOneDayGroupOnlyLooselyLikeSomeoneStays() {
-        // A one-day group at angle 1.2 from Mum (about 0.36: fair, but far from a sure match) is left alone.
+        // A one-day group at angle 1.25 from Mum (about 0.34: fair, but far from a sure match) is left alone.
         val mumFaces = (0 until 4).map { at(it + 1, 100L + it, 0, it * 0.02f, it.toLong() * 30) }
-        val day = listOf(at(5, 200, 0, 1.2f, 400), at(6, 201, 0, 1.22f, 400))
+        val day = listOf(at(5, 200, 0, 1.24f, 400), at(6, 201, 0, 1.26f, 400))
         val party = Person(2, setOf(5, 6))
         val (people, sets) = FaceGrouping.unsure(mumFaces + day, listOf(Person(1, (1..4).toSet(), name = "Mum"), party), emptySet())
         assertTrue(people.any { it.id == 2 })
