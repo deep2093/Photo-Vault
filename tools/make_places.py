@@ -1,6 +1,6 @@
 """Builds app/src/main/assets/places/cities.tsv from GeoNames (CC BY 4.0) for Places (7B-1).
 
-Inputs (downloaded by CI): cities15000.txt, admin1CodesASCII.txt, countryInfo.txt.
+Inputs (downloaded by CI): cities1000.txt, admin1CodesASCII.txt, countryInfo.txt.
 Output, one city per line: name, region, country, latitude, longitude, population.
 """
 import sys
@@ -44,5 +44,5 @@ with open(cities, encoding="utf-8") as f, open(out, "w", encoding="utf-8") as o:
         ]) + "\n")
         rows += 1
 print("cities:", rows)
-if rows < 20000:
+if rows < 100000:
     sys.exit("too few cities")

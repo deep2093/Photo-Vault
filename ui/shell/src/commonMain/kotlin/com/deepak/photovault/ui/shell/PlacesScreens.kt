@@ -249,8 +249,8 @@ private fun PlacesSheet(
     val fullPx = with(density) { full.toPx() }
     val stops = listOf(with(density) { small.toPx() }, with(density) { middle.toPx() }, fullPx)
     // How much of the sheet shows, in pixels.
-    val shownPx = remember { androidx.compose.animation.core.Animatable(stops[1]) }
-    LaunchedEffect(stops[1]) { if (!shownPx.isRunning && shownPx.value != stops[0] && shownPx.value != fullPx) shownPx.snapTo(stops[1]) }
+    // Starts as the small bar (7 Nov), so the map is free; drag it up for the photos.
+    val shownPx = remember { androidx.compose.animation.core.Animatable(stops[0]) }
     fun settle(velocity: Float) {
         val now = shownPx.value
         // A flick goes on to the next stop in its direction; otherwise the nearest stop.

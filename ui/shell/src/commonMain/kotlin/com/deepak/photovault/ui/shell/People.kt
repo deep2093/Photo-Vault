@@ -970,8 +970,14 @@ object FaceGrouping {
     /** People to show: named ones always, others once they appear in at least [minPhotos] photos. */
     fun shown(people: List<Person>, spots: Map<Int, FaceSpot>, minPhotos: Int = 2, newest: (Person) -> Long = { 0L }): List<Person> =
         people.filter { p -> !p.blocked && (p.me || p.name != null || p.faces.mapNotNull { spots[it]?.photoId }.toSet().size >= minPhotos) }
-            // You first (6 Nov), then named people, whoever has the newest photo at the front; then the rest by most photos (5 Nov).
-            .sortedWith(compareBy<Person> { !it.me }.thenBy { it.name == null }.thenByDescending { if (it.name != null) newest(it) else 0L }.thenByDescending { it.faces.size })
+            // You first (6 Nov), then everyone by how many photos they are in (7 Nov, both models); on a tie, named
+            // people first, the one with the newest photo at the front.
+            .sortedWith(
+                compareBy<Person> { !it.me }
+                    .thenByDescending { p -> p.faces.mapNotNull { spots[it]?.photoId }.toSet().size }
+                    .thenBy { it.name == null }
+                    .thenByDescending { if (it.name != null) newest(it) else 0L },
+            )
 
     /**
      * How good a face is as a person's round picture (5 Nov): straight at the camera matters most, then sharp, eyes

@@ -44,11 +44,11 @@ jobs:
         run: |
           mkdir -p app/src/main/assets/places /tmp/geonames
           g=https://download.geonames.org/export/dump
-          curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o /tmp/geonames/cities15000.zip $g/cities15000.zip
+          curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o /tmp/geonames/cities1000.zip $g/cities1000.zip
           curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o /tmp/geonames/admin1CodesASCII.txt $g/admin1CodesASCII.txt
           curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o /tmp/geonames/countryInfo.txt $g/countryInfo.txt
-          unzip -o -q /tmp/geonames/cities15000.zip -d /tmp/geonames
-          python3 tools/make_places.py /tmp/geonames/cities15000.txt /tmp/geonames/admin1CodesASCII.txt /tmp/geonames/countryInfo.txt app/src/main/assets/places/cities.tsv
+          unzip -o -q /tmp/geonames/cities1000.zip -d /tmp/geonames
+          python3 tools/make_places.py /tmp/geonames/cities1000.txt /tmp/geonames/admin1CodesASCII.txt /tmp/geonames/countryInfo.txt app/src/main/assets/places/cities.tsv
           ls -l app/src/main/assets/places
       - name: Start a throwaway Samba share (real-drive tests)
         run: bash tools/start_test_share.sh

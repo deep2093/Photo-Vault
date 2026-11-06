@@ -661,6 +661,13 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
     var asked by remember(item.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { if (!places.loaded) places.refresh() }
+    // The exact address shows by itself (7 Nov), from the phone's address lookup, remembered once found.
+    LaunchedEffect(item.id, lat, lon) {
+        if (lat != null && lon != null && places.platform.supported) {
+            asked = true
+            address = places.platform.address(lat, lon)
+        }
+    }
     when {
         d == null -> Unit
         lat != null && lon != null -> Row(
@@ -684,17 +691,8 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                when {
-                    address != null -> Text(address.orEmpty(), color = grey, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    places.platform.supported -> Text(
-                        if (asked) "Looking…" else "Show address",
-                        color = Color(0xFF8AB4FF),
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.clickable(enabled = !asked, role = Role.Button) {
-                            asked = true
-                            scope.launch { address = places.platform.address(lat, lon) ?: "No address found" }
-                        }.padding(vertical = 4.dp),
-                    )
+                if (address != null) {
+                    Text(address.orEmpty(), color = white, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
                 }
             }
             Text(

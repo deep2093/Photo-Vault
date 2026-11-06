@@ -84,16 +84,23 @@ actual fun PhotoMap(
     }
     DisposableEffect(view) {
         var map: MapLibreMap? = null
+        var positioned = false
         view.getMapAsync { m ->
             map = m
-            // The coloured map only (7 Nov: the dark one looked bad).
-            m.setStyle(LIGHT_STYLE)
+            // The coloured map only (7 Nov: the dark one looked bad). The start spot is set once the style has
+            // loaded: the style's own default spot (the whole world) would otherwise win.
+            m.setStyle(LIGHT_STYLE) {
+                if (start != null && !positioned) {
+                    positioned = true
+                    m.cameraPosition = CameraPosition.Builder().target(LatLng(start.lat, start.lon)).zoom(start.zoom).build()
+                }
+            }
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.isCompassEnabled = interactive
             m.uiSettings.isRotateGesturesEnabled = false
             m.uiSettings.isTiltGesturesEnabled = false
             if (!interactive) m.uiSettings.setAllGesturesEnabled(false)
-            if (start != null && m.cameraPosition.zoom < 0.5) {
+            if (start != null && !positioned) {
                 m.cameraPosition = CameraPosition.Builder().target(LatLng(start.lat, start.lon)).zoom(start.zoom).build()
             }
             fun send(idle: Boolean) {

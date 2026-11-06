@@ -50,7 +50,7 @@ class AndroidPlaces(private val activity: MainActivity) : PlacesPlatform {
     override suspend fun address(latitude: Double, longitude: Double): String? = PlacesLibrary.address(app, latitude, longitude)
 }
 
-/** The town or city nearest to a spot, from GeoNames' list of places with 15,000 people or more (in the app). */
+/** The town or city for a spot, from GeoNames' list of places with 1,000 people or more (in the app; 7 Nov: was 15,000). */
 internal object CityFinder {
     private class City(val name: String, val region: String, val country: String, val lat: Double, val lon: Double, val people: Long)
 
@@ -88,8 +88,9 @@ internal object CityFinder {
     }
 
     /**
-     * The place a photo belongs to: the biggest city within 25 km (so suburbs count as their city, as most people
-     * would say "Melbourne"), else the nearest town within 150 km, else none (out at sea).
+     * The place a photo belongs to (7 Nov, finer): inside a big city's area (300,000 people or more within 25 km) the
+     * city, so suburbs count as "Melbourne"; elsewhere the nearest town within 30 km, so a country photo gets its own
+     * town instead of a far bigger one; else the nearest within 150 km; else none (out at sea).
      */
     fun find(context: Context, lat: Double, lon: Double): Place? {
         val g = load(context)
@@ -97,8 +98,9 @@ internal object CityFinder {
         for (dy in -2..2) for (dx in -2..2) {
             g[cell(lat + dy, lon + dx)]?.forEach { c -> near += c to km(lat, lon, c.lat, c.lon) }
         }
-        val close = near.filter { it.second <= 25.0 }.maxByOrNull { it.first.people }
-        val pick = close ?: near.filter { it.second <= 150.0 }.minByOrNull { it.second }
+        val metro = near.filter { it.second <= 25.0 && it.first.people >= 300_000 }.maxByOrNull { it.first.people }
+        val town = near.filter { it.second <= 30.0 }.minByOrNull { it.second }
+        val pick = metro ?: town ?: near.filter { it.second <= 150.0 }.minByOrNull { it.second }
         return pick?.first?.let { Place(it.name, it.region, it.country) }
     }
 }
@@ -145,8 +147,13 @@ internal object PlacesLibrary {
         withContext(Dispatchers.IO) {
             val rows = readAll(context)
             val photos = HashMap<Long, PhotoPlace>()
+            // Photos a few hundred metres apart share one look-up.
+            val named = HashMap<Long, Place?>()
             rows.forEach { (id, at) ->
-                if (!at.first.isNaN()) photos[id] = PhotoPlace(at.first, at.second, CityFinder.find(context, at.first, at.second))
+                if (at.first.isNaN()) return@forEach
+                val key = Math.round(at.first * 200) * 100_000L + Math.round(at.second * 200)
+                val place = named.getOrPut(key) { CityFinder.find(context, at.first, at.second) }
+                photos[id] = PhotoPlace(at.first, at.second, place)
             }
             PlacesSnapshot(photos, reading = progress.value != null)
         }

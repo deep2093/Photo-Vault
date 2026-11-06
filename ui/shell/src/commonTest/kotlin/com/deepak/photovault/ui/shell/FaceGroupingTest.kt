@@ -59,7 +59,8 @@ class FaceGroupingTest {
         val oneShot = Person(1, setOf(1, 2)) // two faces, same photo
         val twoShots = Person(2, setOf(3, 4))
         val named = Person(3, emptySet(), name = "Dad")
-        assertEquals(listOf(3, 2), FaceGrouping.shown(listOf(oneShot, twoShots, named), spots).map { it.id })
+        // Most photos first (7 Nov): the named person with none comes after.
+        assertEquals(listOf(2, 3), FaceGrouping.shown(listOf(oneShot, twoShots, named), spots).map { it.id })
     }
 
     @Test

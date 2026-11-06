@@ -100,15 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-07-3"
+    const val ID = "2026-11-07-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Places map", "Opens on your newest photos, zoomed in. Moving the map is smoother, the bubbles have clearer labels, and the map is always the coloured one."),
-        Change(ChangeKind.CHANGED, "Photos here", "The sheet under the map can be dragged down to a small bar, to the middle, or up to see every photo, and settles smoothly. Bigger, clearer photos, and See all opens them as a page."),
-        Change(ChangeKind.FIXED, "Trips", "Home is where most of your last year's photos are, so your own town no longer shows as trips."),
-        Change(ChangeKind.CHANGED, "Small map in details", "Now the day map, not dark."),
-        Change(ChangeKind.CHANGED, "Albums order", "Places, People, Secured folder, then Recently deleted."),
-        Change(ChangeKind.CHANGED, "People", "Hold a person to change their picture or block them from the bottom bar; the buttons inside a person's page are gone. Add a name opens the keyboard straight away."),
+        Change(ChangeKind.FIXED, "Places map start", "Places opens on where your newest photo was taken, zoomed in, instead of the whole world."),
+        Change(ChangeKind.CHANGED, "Photos here", "The sheet starts as a small bar; drag it up to see the photos."),
+        Change(ChangeKind.CHANGED, "Better place names", "Places now knows towns of 1,000 people or more, so a country photo is named after its own town; inside big cities it is still the city."),
+        Change(ChangeKind.CHANGED, "Address in details", "Photo details show the full address by themselves; it's found once and remembered."),
+        Change(ChangeKind.CHANGED, "People order", "People are sorted by how many photos they are in, in both models (you stay first when marked)."),
     )
 }
 
