@@ -114,6 +114,11 @@ data class BackupSettings(
     val privacy: BackupPrivacy = BackupPrivacy.UNSET,
     /** Free up space (29 Oct): 0 = Off (default); otherwise a phone copy may go to Recently deleted this many days after its backup, once checked again. */
     val freeUpDays: Int = 0,
+    /**
+     * Switched from Private to Normal and asked for the private backups to become normal pictures too (7 Nov). The
+     * converting itself comes in Phase 10A; until then this only remembers the choice.
+     */
+    val convertPrivateToNormal: Boolean = false,
 )
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */

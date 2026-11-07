@@ -72,6 +72,7 @@ class BackupGraph private constructor(context: Context) {
         BackupNotifications.createChannels(app)
         scope.launch { runCatching { BackupScheduler.ensureScheduled(app, settings.load()) } }
         runCatching { FeedbackCheck.schedule(app) }
+        runCatching { com.deepak.photovault.MemoriesNotice.schedule(app) }
     }
 
     companion object {

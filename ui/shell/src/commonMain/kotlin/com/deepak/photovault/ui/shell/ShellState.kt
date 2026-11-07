@@ -69,6 +69,8 @@ data class AppearanceSettings(
     val pinBottomBar: Boolean = false,
     /** Check the family drive by itself when the app opens and once an hour while it is on screen (28 Oct). */
     val autoDriveCheck: Boolean = true,
+    /** A morning notification when there are photos from this day in earlier years (7C-1, 7 Nov). */
+    val memoriesNotice: Boolean = true,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */

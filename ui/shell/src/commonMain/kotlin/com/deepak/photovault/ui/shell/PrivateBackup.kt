@@ -75,6 +75,7 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
                     "Photos are scrambled on your phone before they leave it. Nobody with the drive password, a computer or the family owner can open them.",
                     "You get 24 recovery words. If you lose your phone AND the words, the backup can't be opened by anyone.",
                     "Photos open only inside Pixallery, not straight from the drive.",
+                    "Back to Normal later? New photos are saved normally, and you choose whether your private ones stay private or become normal pictures.",
                 ),
                 onClick = {
                     // Already have the key on this phone: nothing to set up, just use it.
@@ -89,17 +90,35 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
             onDismiss = { confirmNormal = false },
             buttons = {
                 GlassButton("Cancel", onClick = { confirmNormal = false })
-                GlassButton("Switch to Normal", primary = true, onClick = {
+                GlassButton("Keep them private", onClick = {
                     confirmNormal = false
-                    backup.update { it.copy(privacy = BackupPrivacy.NORMAL) }
+                    backup.update { it.copy(privacy = BackupPrivacy.NORMAL, convertPrivateToNormal = false) }
+                    state.back()
+                })
+                GlassButton("Make them normal", primary = true, onClick = {
+                    confirmNormal = false
+                    backup.update { it.copy(privacy = BackupPrivacy.NORMAL, convertPrivateToNormal = true) }
                     state.back()
                 })
             },
         ) {
+            // Short and plain (7 Nov): what changes, and the choice for the photos already backed up privately.
             Text(
-                "New backups will be saved as ordinary pictures that anyone with the drive can see. Backups already kept private stay private. Your recovery words keep working for those.",
+                "New backups will be ordinary pictures that anyone with the drive can see.",
                 color = theme.onGlass,
                 style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Your photos already backed up privately: keep them private (your recovery words still open them), or make them normal pictures too.",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                "Making them normal comes in a later update. Pixallery remembers your choice and does it then, on home Wi-Fi while charging.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
     }

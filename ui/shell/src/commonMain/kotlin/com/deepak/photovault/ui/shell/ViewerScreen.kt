@@ -96,6 +96,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -246,7 +247,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                         },
                     )
                 } else {
-                    ZoomablePhoto(item, onTap = onTap)
+                    ZoomablePhoto(item, isCurrent = page == pager.currentPage, onTap = onTap)
                 }
             }
 
@@ -732,14 +733,24 @@ private fun fullDate(item: MediaItem): String {
 
 /** Pinch to zoom (up to 6x), drag while zoomed, double-tap to zoom in or out, tap to toggle bars. */
 @Composable
-private fun ZoomablePhoto(item: MediaItem, onTap: () -> Unit) {
+private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scale = remember(item.id) { Animatable(1f) }
     val offset = remember(item.id) { Animatable(Offset.Zero, Offset.VectorConverter) }
     val context = LocalPlatformContext.current
+    // A photo that is no longer the one shown goes back to normal size (7 Nov: picking another photo from the strip
+    // while zoomed showed it under the still-zoomed one).
+    LaunchedEffect(isCurrent) {
+        if (!isCurrent && (scale.value != 1f || offset.value != Offset.Zero)) {
+            scale.snapTo(1f)
+            offset.snapTo(Offset.Zero)
+        }
+    }
     Box(
         Modifier
             .fillMaxSize()
+            // A zoomed photo never draws outside its own page, over the photos next to it.
+            .clipToBounds()
             .pointerInput(item.id) {
                 detectTapGestures(
                     onTap = { onTap() },

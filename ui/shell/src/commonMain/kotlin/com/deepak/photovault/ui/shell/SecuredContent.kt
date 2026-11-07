@@ -65,6 +65,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -606,7 +607,8 @@ private fun SecuredViewer(
                     onStarted = { if (isCurrent) { videoStarted = true; barsVisible = true } },
                 )
             } else {
-                SecuredPhotoPage(item.id, platform, onTap = onTap, onZoom = { zoomed = it })
+                val isCurrent = page == pager.currentPage
+                SecuredPhotoPage(item.id, platform, isCurrent, onTap = onTap, onZoom = { if (isCurrent) zoomed = it })
             }
         }
         AnimatedVisibility(
@@ -648,11 +650,18 @@ private fun SecuredViewer(
 }
 
 @Composable
-private fun SecuredPhotoPage(id: String, platform: SecuredPlatform, onTap: () -> Unit, onZoom: (Boolean) -> Unit) {
+private fun SecuredPhotoPage(id: String, platform: SecuredPlatform, isCurrent: Boolean, onTap: () -> Unit, onZoom: (Boolean) -> Unit) {
     var bytes by remember(id) { mutableStateOf<ByteArray?>(null) }
     var scale by remember(id) { mutableFloatStateOf(1f) }
     var offset by remember(id) { mutableStateOf(Offset.Zero) }
     var size by remember { mutableStateOf(IntSize.Zero) }
+    // Back to normal size when another photo is shown (7 Nov), so it never covers the next one or blocks swiping.
+    LaunchedEffect(isCurrent) {
+        if (!isCurrent && scale != 1f) {
+            scale = 1f
+            offset = Offset.Zero
+        }
+    }
     LaunchedEffect(id) { bytes = platform.photo(id) }
     DisposableEffect(id) { onDispose { onZoom(false) } }
     fun keepInside(o: Offset, s: Float): Offset {
@@ -664,6 +673,7 @@ private fun SecuredPhotoPage(id: String, platform: SecuredPlatform, onTap: () ->
     Box(
         Modifier
             .fillMaxSize()
+            .clipToBounds()
             .onSizeChanged { size = it }
             .pointerInput(id) {
                 detectTapGestures(

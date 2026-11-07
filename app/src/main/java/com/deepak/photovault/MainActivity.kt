@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         const val EXTRA_OPEN_BACKUP = "open_backup"
         const val EXTRA_OPEN_FAMILY = "open_family"
         const val EXTRA_OPEN_PEOPLE = "open_people"
+        const val EXTRA_OPEN_MEMORIES = "open_memories"
 
         /** The opening animation has played in this run of the app. */
         private var introPlayed = false
@@ -431,6 +432,11 @@ class MainActivity : ComponentActivity(), MediaActions {
             shell.overlays.clear()
             shell.destination = Destination.ALBUMS
             shell.open(Overlay.People)
+        }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_MEMORIES, false) == true) {
+            // On this day (7C-1): the memories row sits at the top of Photos.
+            shell.overlays.clear()
+            shell.destination = Destination.PHOTOS
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_BACKUP, false) == true) {
             shell.overlays.clear()
@@ -869,6 +875,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         blurStep = prefs.getInt("blur_step", 3),
         autoDriveCheck = prefs.getBoolean("auto_drive_check", true),
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
+        memoriesNotice = prefs.getBoolean("memories_notice", true),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -882,6 +889,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putInt("blur_step", settings.blurStep)
             .putBoolean("auto_drive_check", settings.autoDriveCheck)
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
+            .putBoolean("memories_notice", settings.memoriesNotice)
             .apply()
     }
 }
