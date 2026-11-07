@@ -483,6 +483,9 @@ private fun OverlayPage(
                         Overlay.Places -> PlacesScreen(state, gallery)
                         is Overlay.Place -> PlaceScreen(overlay.key, state, gallery, actions)
                         is Overlay.Photos -> PhotoSetScreen(overlay.title, overlay.ids, state, gallery, actions)
+                        Overlay.Memories -> MemoriesScreen(state, gallery)
+                        Overlay.Tags -> TagsScreen(state, gallery)
+                        is Overlay.Tag -> TagScreen(overlay.name, state, gallery, actions)
                         Overlay.HiddenAlbums -> HiddenAlbumsScreen(state, gallery)
                         is Overlay.Viewer -> Unit
                     }

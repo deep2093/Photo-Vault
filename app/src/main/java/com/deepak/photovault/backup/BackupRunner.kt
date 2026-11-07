@@ -228,6 +228,13 @@ class BackupRunner(
                 throw e
             } catch (_: Throwable) {
             }
+            // Tags' encrypted copy (7C-2), only when they changed. Never fails the backup either.
+            try {
+                com.deepak.photovault.TagsDriveCopy.upload(context, fs, joined.me.userId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+            }
             return result
         }
     }

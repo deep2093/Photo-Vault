@@ -5,10 +5,17 @@ import com.deepak.photovault.core.media.Timeline
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 
-/** Photos from one earlier year, taken on today's date (or within 3 days of it) (7C-1 On this day, 7 Nov). */
-data class Memory(val year: Int, val yearsAgo: Int, val sameDay: Boolean, val ids: List<Long>) {
-    /** "1 year ago today", "3 years ago this week". */
-    val title: String get() = (if (yearsAgo == 1) "1 year ago" else "$yearsAgo years ago") + if (sameDay) " today" else " this week"
+/**
+ * Photos from one earlier year (7C-1 On this day, 7 Nov): taken on today's date, within 3 days of it, or ([month])
+ * anywhere in this month (8 Nov: the Memories page).
+ */
+data class Memory(val year: Int, val yearsAgo: Int, val sameDay: Boolean, val ids: List<Long>, val month: Int = 0) {
+    /** "1 year ago today", "3 years ago this week", "November 2023". */
+    val title: String get() = if (month > 0) "${Timeline.monthName(kotlinx.datetime.Month.entries[month - 1])} $year" else
+        (if (yearsAgo == 1) "1 year ago" else "$yearsAgo years ago") + if (sameDay) " today" else " this week"
+
+    /** "1 year ago", "3 years ago". */
+    val ago: String get() = if (yearsAgo == 1) "1 year ago" else "$yearsAgo years ago"
 }
 
 object Memories {
@@ -52,6 +59,24 @@ object Memories {
             val day = list.filter { it.second }
             val chosen = (day.ifEmpty { list }).map { it.first }.sortedBy { it.takenAtMillis }
             Memory(year, today.year - year, sameDay = day.isNotEmpty(), ids = spread(chosen, perYear).map { it.id })
+        }
+    }
+
+    /**
+     * This month in earlier years (the Memories page, 8 Nov), newest year first, leaving out photos already in
+     * [shown] (the On this day ones). A year needs at least 3 photos.
+     */
+    fun thisMonth(items: List<MediaItem>, today: LocalDate, zone: TimeZone, shown: Set<Long> = emptySet(), perYear: Int = PER_YEAR): List<Memory> {
+        val byYear = HashMap<Int, MutableList<MediaItem>>()
+        for (item in items) {
+            if (item.takenAtMillis <= 0 || item.id in shown) continue
+            val date = Timeline.localDate(item.takenAtMillis, zone)
+            if (date.year >= today.year || date.monthNumber != today.monthNumber) continue
+            if (!counts(item)) continue
+            byYear.getOrPut(date.year) { mutableListOf() } += item
+        }
+        return byYear.entries.filter { it.value.size >= 3 }.sortedByDescending { it.key }.map { (year, list) ->
+            Memory(year, today.year - year, sameDay = false, ids = spread(list.sortedBy { it.takenAtMillis }, perYear).map { it.id }, month = today.monthNumber)
         }
     }
 

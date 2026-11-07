@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Face
@@ -356,6 +358,8 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 val shortcuts = listOf(
                     Shortcut(Icons.Rounded.Place, "Places", "On a map") { state.open(Overlay.Places) },
                     Shortcut(Icons.Rounded.Face, "People", if (!state.people.enabled) "Off" else "On") { state.people.resetScroll(); state.open(Overlay.People) },
+                    Shortcut(Icons.Rounded.History, "Memories", "On this day") { state.open(Overlay.Memories) },
+                    Shortcut(Icons.Rounded.LocalOffer, "Tags", when (val n = state.tags.all().size) { 0 -> "None yet"; 1 -> "1 tag"; else -> "$n tags" }) { state.open(Overlay.Tags) },
                     Shortcut(Icons.Rounded.Lock, "Secured folder", if (!state.secured.setUp) "Set up" else if (state.secured.unlocked) "Unlocked" else "Locked") { state.open(Overlay.Secured) },
                     Shortcut(
                         Icons.Rounded.Delete, "Recently deleted",

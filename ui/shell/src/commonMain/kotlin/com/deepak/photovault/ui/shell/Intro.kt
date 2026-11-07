@@ -100,12 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-07-6"
+    const val ID = "2026-11-08-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "On this day", "Photos from today's date in earlier years now show at the top of Photos. Tap a card to see them. A short morning notification tells you when there are some; turn it off in Settings > Appearance."),
-        Change(ChangeKind.CHANGED, "Private backup", "The Private switch now explains what it does. Turning it back to Normal asks whether your private photos stay private or become normal pictures later."),
-        Change(ChangeKind.FIXED, "Zoom in the viewer", "After zooming into a photo, picking another one from the strip no longer shows it on top of the zoomed photo. Photos you swipe away go back to normal size."),
+        Change(ChangeKind.NEW, "Tags", "Add your own tags to photos: open a photo, swipe up and tap Add tag, or select photos and tap the tag button. Find them in Albums > Tags and in Search."),
+        Change(ChangeKind.CHANGED, "Memories", "Memories has its own page now, in Albums and from the new button next to Search on Photos. A dot on the button means there are new ones today. They no longer sit at the top of Photos."),
+        Change(ChangeKind.NEW, "This month in other years", "The Memories page also shows photos from this month in earlier years."),
     )
 }
 

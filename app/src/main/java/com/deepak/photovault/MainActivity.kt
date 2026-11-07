@@ -283,6 +283,8 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.people = com.deepak.photovault.ui.shell.PeopleState(com.deepak.photovault.faces.AndroidPeople(this))
         // Places (7B-1): where photos were taken, read quietly in the background once Android allows it.
         state.places = com.deepak.photovault.ui.shell.PlacesState(com.deepak.photovault.places.AndroidPlaces(this))
+        state.tags = com.deepak.photovault.ui.shell.TagsState(AndroidTags(this))
+        lifecycleScope.launch { runCatching { state.tags.refresh() } }
         state.places.platform.readNow()
         com.deepak.photovault.faces.FaceScanWorker.schedule(this)
         // Going to another app locks the Secured folder again.
@@ -434,9 +436,10 @@ class MainActivity : ComponentActivity(), MediaActions {
             shell.open(Overlay.People)
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_MEMORIES, false) == true) {
-            // On this day (7C-1): the memories row sits at the top of Photos.
+            // On this day (7C-1): the Memories page (8 Nov: was the top of Photos).
             shell.overlays.clear()
             shell.destination = Destination.PHOTOS
+            shell.open(Overlay.Memories)
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_BACKUP, false) == true) {
             shell.overlays.clear()
@@ -876,6 +879,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         autoDriveCheck = prefs.getBoolean("auto_drive_check", true),
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
         memoriesNotice = prefs.getBoolean("memories_notice", true),
+        memoriesSeen = prefs.getString("memories_seen", null).orEmpty(),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -890,6 +894,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("auto_drive_check", settings.autoDriveCheck)
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
             .putBoolean("memories_notice", settings.memoriesNotice)
+            .putString("memories_seen", settings.memoriesSeen)
             .apply()
     }
 }

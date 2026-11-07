@@ -65,3 +65,24 @@ class MemoriesTest {
         assertEquals(99, picked.last())
     }
 }
+
+class MemoriesMonthTest {
+    private val zone = TimeZone.UTC
+    private val today = LocalDate(2026, 11, 8)
+
+    private fun photo(id: Long, y: Int, m: Int, d: Int) = MediaItem(
+        id = id, uri = "u$id", type = MediaType.PHOTO, displayName = "IMG_$id.jpg",
+        takenAtMillis = LocalDateTime(y, m, d, 10, 0).toInstant(zone).toEpochMilliseconds() + id,
+        sizeBytes = 1, width = 1, height = 1, albumId = "Camera", albumName = "Camera", mimeType = "image/jpeg",
+    )
+
+    @Test
+    fun thisMonthLeavesOutShownAndSmallYears() {
+        val items = listOf(photo(1, 2024, 11, 20), photo(2, 2024, 11, 21), photo(3, 2024, 11, 22), photo(4, 2024, 11, 8), photo(5, 2023, 11, 1))
+        val month = Memories.thisMonth(items, today, zone, shown = setOf(4L))
+        assertEquals(listOf(2024), month.map { it.year })
+        assertEquals(listOf(1L, 2L, 3L), month[0].ids)
+        assertEquals("November 2024", month[0].title)
+        assertEquals("2 years ago", month[0].ago)
+    }
+}

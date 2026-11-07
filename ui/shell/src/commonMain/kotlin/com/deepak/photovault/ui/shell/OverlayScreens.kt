@@ -345,9 +345,9 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val zone = remember { TimeZone.currentSystemDefault() }
     var query by rememberSaveable { mutableStateOf("") }
     // People's names count too (7A): "Mum" finds the photos Mum is in.
-    val named = remember(query, state.people.people, state.people.spots, state.places.photos) {
-        // Places count too (7B-1): "Melbourne" or "India" finds photos taken there.
-        state.people.photosNamed(query) + state.places.photosMatching(query)
+    val named = remember(query, state.people.people, state.people.spots, state.places.photos, state.tags.byKey, gallery.items) {
+        // Places count too (7B-1): "Melbourne" or "India" finds photos taken there. And tags (7C-2): "birth" finds "Birthday".
+        state.people.photosNamed(query) + state.places.photosMatching(query) + state.tags.photosMatching(query, gallery.items)
     }
     val results = remember(query, gallery.items, gallery.favourites, named) {
         val found = MediaSearch.filter(gallery.items, query, gallery.favourites, zone)
@@ -359,6 +359,7 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     LaunchedEffect(Unit) {
         if (state.people.enabled) state.people.refresh()
         state.places.refresh()
+        if (!state.tags.loaded) state.tags.refresh()
     }
     val sections = remember(results) { Timeline.group(results, TimelineGrouping.MONTH, zone, today(zone)) }
     val focus = remember { FocusRequester() }
@@ -389,7 +390,7 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                         androidx.compose.foundation.layout.Box {
                             if (query.isEmpty()) {
                                 Text(
-                                    "Names, places, months, years, albums",
+                                    "Names, places, tags, months, years",
                                     color = theme.onGlassSecondary,
                                     style = MaterialTheme.typography.bodyLarge,
                                     maxLines = 1,
@@ -414,6 +415,8 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 // People to tap before typing, like Google Photos (5 Nov).
                 if (query.isBlank()) {
                     item(key = "people", span = { GridItemSpan(maxLineSpan) }) { SearchPeopleRow(state, gallery) }
+                    // Your tags to tap (7C-2), the most used first.
+                    item(key = "tags", span = { GridItemSpan(maxLineSpan) }) { SearchTagsRow(state, gallery) { query = it } }
                 }
             },
         )
@@ -459,6 +462,32 @@ private fun SearchPeopleRow(state: ShellState, gallery: GalleryState) {
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
                 androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.MoreHoriz, "Everyone", tint = LocalGlassTheme.current.onGlass)
+            }
+        }
+    }
+}
+
+
+/** Search, before anything is typed: your tags as chips (7C-2); tap one to search for it. */
+@Composable
+private fun SearchTagsRow(state: ShellState, gallery: GalleryState, onPick: (String) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val tags = remember(state.tags.byKey, gallery.items) { state.tags.list(gallery.items).map { it.first } }
+    if (tags.isEmpty()) return
+    androidx.compose.foundation.layout.Column(Modifier.padding(bottom = 8.dp)) {
+        Text(
+            "Tags",
+            color = theme.onGlass,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            modifier = Modifier.padding(start = SCREEN_MARGIN + 4.dp, top = 4.dp),
+        )
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SCREEN_MARGIN),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+        ) {
+            items(tags.size, key = { tags[it].lowercase() }) { i ->
+                com.deepak.photovault.designsystem.GlassChip(tags[i], selected = false, onClick = { onPick(tags[i]) })
             }
         }
     }

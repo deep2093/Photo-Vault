@@ -256,6 +256,7 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                 source = gallery.detailsSource,
                 actions = actions,
                 places = state.places,
+                tags = state.tags,
                 onOpenMap = { lat, lon ->
                     // The small map was tapped (7B-2): Places opens there.
                     state.places.focus = MapStart(lat, lon, 14.0)
@@ -540,6 +541,7 @@ private fun DetailsPanel(
     bottomInset: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
     places: PlacesState = PlacesState(),
+    tags: TagsState? = null,
     onOpenMap: (Double, Double) -> Unit = { _, _ -> },
 ) {
     val details by produceState<MediaDetails?>(null, item.id) { value = source.details(item) }
@@ -563,6 +565,8 @@ private fun DetailsPanel(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        // Your tags (7C-2), with Add tag.
+        if (tags != null) DetailsTags(item, tags, white, grey)
 
         val d = details
         if (item.isDriveOnly) {

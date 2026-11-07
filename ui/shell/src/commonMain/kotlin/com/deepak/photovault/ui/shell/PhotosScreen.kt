@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.Deselect
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
@@ -131,6 +132,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         floatingStartActions = { androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { ViewButtons(gallery) } },
         floatingActions = {
             androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) {
+                // Memories (8 Nov): a button with a dot on days with On this day photos, instead of a row on top.
+                MemoriesButton(state, gallery)
                 SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
             }
         },
@@ -148,10 +151,6 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             )
             else -> {
                 val spec = motionSpec<Float>(LEVEL_MS)
-                // On this day (7C-1): photos from today's date in earlier years, at the top of the timeline.
-                val zone = remember { TimeZone.currentSystemDefault() }
-                val today = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
-                val memories = remember(gallery.items, today) { Memories.find(gallery.items, today, zone) }
                 androidx.compose.animation.AnimatedContent(
                     targetState = gallery.view,
                     transitionSpec = {
@@ -203,11 +202,6 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                                         }
                                     }
                                 }
-                                if (memories.isNotEmpty()) {
-                                    item(key = "memories", span = { GridItemSpan(maxLineSpan) }, contentType = "memories") {
-                                        MemoriesRow(memories, gallery) { m -> state.open(Overlay.Photos(m.title, m.ids)) }
-                                    }
-                                }
                             },
                         ) }
                     }
@@ -218,71 +212,6 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
 }
 
 private const val LEVEL_MS = 300
-
-/** "1 year ago today" cards in a sideways row; tap one to see those photos (7C-1). */
-@Composable
-private fun MemoriesRow(memories: List<Memory>, gallery: GalleryState, onOpen: (Memory) -> Unit) {
-    val theme = LocalGlassTheme.current
-    val byId = remember(gallery.items) { gallery.items.associateBy { it.id } }
-    androidx.compose.foundation.layout.Column(Modifier.padding(top = 4.dp, bottom = 12.dp)) {
-        Text(
-            "On this day",
-            color = theme.onGlass,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = SCREEN_MARGIN, bottom = 8.dp),
-        )
-        androidx.compose.foundation.lazy.LazyRow(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SCREEN_MARGIN),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(memories.size, key = { memories[it].year }) { i ->
-                val m = memories[i]
-                val cover = m.ids.firstNotNullOfOrNull { byId[it] }
-                Box(
-                    Modifier
-                        .size(width = 140.dp, height = 180.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(theme.onGlass.copy(alpha = 0.08f))
-                        .clickable { onOpen(m) },
-                ) {
-                    if (cover != null) {
-                        coil3.compose.AsyncImage(
-                            model = com.deepak.photovault.core.media.Thumb(cover.uri, cover.isVideo, 384),
-                            contentDescription = null,
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                    // A soft dark fade at the bottom so the words read on any photo.
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    0.45f to androidx.compose.ui.graphics.Color.Transparent,
-                                    1f to androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.65f),
-                                ),
-                            ),
-                    )
-                    androidx.compose.foundation.layout.Column(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
-                        Text(
-                            if (m.yearsAgo == 1) "1 year ago" else "${m.yearsAgo} years ago",
-                            color = androidx.compose.ui.graphics.Color.White,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            "${m.year} · ${m.ids.size} ${if (m.ids.size == 1) "photo" else "photos"}",
-                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f),
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 /** Years / Months / All as three small buttons in their own pill at the top left. The chosen one is filled. */
 @Composable
@@ -364,6 +293,16 @@ fun SelectableScreen(
     val secureMover = rememberSecuredMover(state, gallery, actions)
     secureMover.Dialogs()
     val lockSpot = remember { ScreenSpot() }
+    // Tag the selected photos (7C-2).
+    var tagging by remember { mutableStateOf<List<MediaItem>?>(null) }
+    val tagScope = rememberCoroutineScope()
+    tagging?.let { chosen ->
+        AddTagDialog(state.tags, already = emptyList(), onDismiss = { tagging = null }) { tag ->
+            tagging = null
+            state.selected = emptySet()
+            tagScope.launch { state.tags.add(chosen, tag) }
+        }
+    }
     androidx.compose.runtime.CompositionLocalProvider(LocalTileSpots provides tileSpots) {
     // One GlassScreen for both modes, so the grid keeps its scroll position when selection starts.
     // Selecting (24 Oct): the top shows only the count and Cancel; share, favourite and delete rise in at the
@@ -406,6 +345,7 @@ fun SelectableScreen(
                     state.selected = emptySet()
                 })
                 if (onMove != null) GlassIconButton(Icons.Rounded.PhotoAlbum, "Move to another album", onClick = { onMove(selectedItems) })
+                GlassIconButton(Icons.Rounded.LocalOffer, "Add a tag", onClick = { tagging = selectedItems })
                 GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
                     gallery.toggleFavourite(selectedItems)
                     state.selected = emptySet()

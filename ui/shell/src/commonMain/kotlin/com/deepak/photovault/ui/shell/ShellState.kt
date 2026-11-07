@@ -71,6 +71,8 @@ data class AppearanceSettings(
     val autoDriveCheck: Boolean = true,
     /** A morning notification when there are photos from this day in earlier years (7C-1, 7 Nov). */
     val memoriesNotice: Boolean = true,
+    /** The day the Memories page was last opened ("2026-11-08"); the dot on Photos' Memories button waits for the next day. */
+    val memoriesSeen: String = "",
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
@@ -106,6 +108,15 @@ sealed interface Overlay {
 
     /** A set of photos with a title (Places: a bubble on the map, the photos in view, a trip; 7B-2). */
     data class Photos(val title: String, val ids: List<Long>) : Overlay
+
+    /** Albums > Memories, or the Memories button on Photos (7C-1, 8 Nov). */
+    data object Memories : Overlay
+
+    /** Albums > Tags (7C-2, 8 Nov). */
+    data object Tags : Overlay
+
+    /** One tag's photos. */
+    data class Tag(val name: String) : Overlay
 
     /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
     data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
@@ -196,6 +207,8 @@ class ShellState(private val store: AppearanceStore) {
                 Overlay.Search -> listOf("search")
                 Overlay.People -> listOf("people")
                 Overlay.Places -> listOf("places")
+                Overlay.Memories -> listOf("memories")
+                Overlay.Tags -> listOf("tags")
                 else -> null
             }?.joinToString("\u001F")
         }
@@ -227,6 +240,8 @@ class ShellState(private val store: AppearanceStore) {
                 "search" -> Overlay.Search
                 "people" -> Overlay.People
                 "places" -> Overlay.Places
+                "memories" -> Overlay.Memories
+                "tags" -> Overlay.Tags
                 else -> null
             }
             if (overlay != null) overlays.add(overlay)
@@ -429,6 +444,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** Places: where photos were taken (Phase 7B-1). */
     var places: PlacesState = PlacesState()
+
+    /** Tags: your own words on photos (Phase 7C-2). */
+    var tags: TagsState = TagsState()
 
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)
