@@ -475,13 +475,28 @@ private fun SearchTagsRow(state: ShellState, gallery: GalleryState, onPick: (Str
     val tags = remember(state.tags.byKey, gallery.items) { state.tags.list(gallery.items).map { it.first } }
     if (tags.isEmpty()) return
     androidx.compose.foundation.layout.Column(Modifier.padding(bottom = 8.dp)) {
-        Text(
-            "Tags",
-            color = theme.onGlass,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-            modifier = Modifier.padding(start = SCREEN_MARGIN + 4.dp, top = 4.dp),
-        )
+        // Tags has no row in Albums (8 Nov): "See all" here opens the list to rename or delete them.
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 4.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(
+                "Tags",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "See all",
+                color = theme.accent,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) { state.open(Overlay.Tags) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
         androidx.compose.foundation.lazy.LazyRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SCREEN_MARGIN),
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),

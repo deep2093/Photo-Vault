@@ -100,12 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-08-1"
+    const val ID = "2026-11-08-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Tags", "Add your own tags to photos: open a photo, swipe up and tap Add tag, or select photos and tap the tag button. Find them in Albums > Tags and in Search."),
-        Change(ChangeKind.CHANGED, "Memories", "Memories has its own page now, in Albums and from the new button next to Search on Photos. A dot on the button means there are new ones today. They no longer sit at the top of Photos."),
-        Change(ChangeKind.NEW, "This month in other years", "The Memories page also shows photos from this month in earlier years."),
+        Change(ChangeKind.NEW, "Living photos", "Open a photo and tap the sparkle button to make it move. Pixallery lifts the person off the background and moves them gently, all on your phone. The first time, Google Play services may need a minute to get ready."),
+        Change(ChangeKind.NEW, "Notifications settings", "Settings > Notifications has a switch for each kind: backup problems, On this day, People questions, and for the family owner, family requests and feedback."),
+        Change(ChangeKind.CHANGED, "Albums", "Memories and Tags are no longer in Albums. Memories is the button next to Search on Photos; all your tags are in Search > Tags > See all."),
+        Change(ChangeKind.FIXED, "Notification taps", "Tapping a feedback or On this day notification could open the wrong page. Each one now opens its own page."),
     )
 }
 

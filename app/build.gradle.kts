@@ -141,6 +141,8 @@ dependencies {
     // People test model (6 Nov): runs AuraFace (int8 TFLite, downloaded on request, not in the app).
     // LiteRT (6 Nov): Google's newer TensorFlow Lite, same Interpreter, newer operations (AuraFace wouldn't load on 2.16).
     implementation("com.google.ai.edge.litert:litert:1.4.0")
+    // Living photos (7D-1, 8 Nov): Google's on-device subject cut-out (ML Kit, through Play services; photos never leave the phone).
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
 
     testImplementation("junit:junit:4.13.2")
 }

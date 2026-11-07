@@ -73,6 +73,11 @@ data class AppearanceSettings(
     val memoriesNotice: Boolean = true,
     /** The day the Memories page was last opened ("2026-11-08"); the dot on Photos' Memories button waits for the next day. */
     val memoriesSeen: String = "",
+    /** Settings > Notifications (8 Nov): each kind of notification on or off. On by default. */
+    val notifyBackupProblems: Boolean = true,
+    val notifyPeople: Boolean = true,
+    val notifyFamily: Boolean = true,
+    val notifyFeedback: Boolean = true,
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
@@ -117,6 +122,9 @@ sealed interface Overlay {
 
     /** One tag's photos. */
     data class Tag(val name: String) : Overlay
+
+    /** One photo made to move (7D-1, 8 Nov). */
+    data class Living(val photoId: Long) : Overlay
 
     /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
     data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
@@ -447,6 +455,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** Tags: your own words on photos (Phase 7C-2). */
     var tags: TagsState = TagsState()
+
+    /** Living photos (Phase 7D). */
+    var living: LivingState = LivingState()
 
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)

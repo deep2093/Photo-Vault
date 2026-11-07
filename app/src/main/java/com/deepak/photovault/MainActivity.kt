@@ -285,6 +285,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.places = com.deepak.photovault.ui.shell.PlacesState(com.deepak.photovault.places.AndroidPlaces(this))
         state.tags = com.deepak.photovault.ui.shell.TagsState(AndroidTags(this))
         lifecycleScope.launch { runCatching { state.tags.refresh() } }
+        state.living = com.deepak.photovault.ui.shell.LivingState(com.deepak.photovault.living.AndroidLiving(this))
         state.places.platform.readNow()
         com.deepak.photovault.faces.FaceScanWorker.schedule(this)
         // Going to another app locks the Secured folder again.
@@ -620,7 +621,19 @@ class MainActivity : ComponentActivity(), MediaActions {
     // ---- Backup and family ----
 
     override fun requestNotifications() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        // Asked once and said no (or off in Android's settings): Android won't ask again, so open the app's notification settings.
+        val prefs = getSharedPreferences("appearance", MODE_PRIVATE)
+        val asked = prefs.getBoolean("asked_notifications", false)
+        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || granted(Manifest.permission.POST_NOTIFICATIONS)
+        val blocked = !androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !granted && !asked) {
+            prefs.edit().putBoolean("asked_notifications", true).apply()
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else if (!granted || blocked) {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+            }
+        }
     }
 
     override fun openBatterySettings() {
@@ -880,6 +893,10 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
         memoriesNotice = prefs.getBoolean("memories_notice", true),
         memoriesSeen = prefs.getString("memories_seen", null).orEmpty(),
+        notifyBackupProblems = prefs.getBoolean(NotifyPrefs.BACKUP_PROBLEMS, true),
+        notifyPeople = prefs.getBoolean(NotifyPrefs.PEOPLE, true),
+        notifyFamily = prefs.getBoolean(NotifyPrefs.FAMILY, true),
+        notifyFeedback = prefs.getBoolean(NotifyPrefs.FEEDBACK, true),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -895,6 +912,10 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
             .putBoolean("memories_notice", settings.memoriesNotice)
             .putString("memories_seen", settings.memoriesSeen)
+            .putBoolean(NotifyPrefs.BACKUP_PROBLEMS, settings.notifyBackupProblems)
+            .putBoolean(NotifyPrefs.PEOPLE, settings.notifyPeople)
+            .putBoolean(NotifyPrefs.FAMILY, settings.notifyFamily)
+            .putBoolean(NotifyPrefs.FEEDBACK, settings.notifyFeedback)
             .apply()
     }
 }

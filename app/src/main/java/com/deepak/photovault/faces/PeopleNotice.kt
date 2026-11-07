@@ -20,6 +20,7 @@ object PeopleNotice {
 
     /** False when notifications aren't allowed (nothing is shown then). */
     fun show(context: Context, count: Int): Boolean {
+        if (!com.deepak.photovault.NotifyPrefs.on(context, com.deepak.photovault.NotifyPrefs.PEOPLE)) return false
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return false

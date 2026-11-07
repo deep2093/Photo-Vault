@@ -60,6 +60,7 @@ class OwnerCheckWorker(context: Context, params: WorkerParameters) : CoroutineWo
     }
 
     private fun notify(context: Context, lines: List<String>) {
+        if (!com.deepak.photovault.NotifyPrefs.on(context, com.deepak.photovault.NotifyPrefs.FAMILY)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return

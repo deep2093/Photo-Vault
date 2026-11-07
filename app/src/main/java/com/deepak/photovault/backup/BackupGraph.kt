@@ -55,8 +55,10 @@ class BackupGraph private constructor(context: Context) {
 
         override fun onMobileData(): Boolean = runner.onMobileData()
 
-        override fun notificationsAllowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(app, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        // Also false when notifications are switched off for the app in Android's settings (8 Nov).
+        override fun notificationsAllowed(): Boolean = (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(app, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
+            androidx.core.app.NotificationManagerCompat.from(app).areNotificationsEnabled()
 
         override fun batteryRestricted(): Boolean =
             app.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(app.packageName) == false

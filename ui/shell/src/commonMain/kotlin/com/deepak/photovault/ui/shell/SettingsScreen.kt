@@ -1,6 +1,7 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PersonAdd
@@ -98,6 +99,7 @@ enum class SettingsPage(val title: String) {
     APPEARANCE("Appearance"),
     BACKUP("Backup"),
     DRIVE("Drive"),
+    NOTIFICATIONS("Notifications"),
     REMOTE("Remote access"),
     STORAGE("Storage"),
     // The last three stay at the end, in this order, in every build (25 Oct); the rest are alphabetical.
@@ -123,6 +125,7 @@ fun SettingsScreen(
                     val (icon, summary) = when (page) {
                         SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
+                        SettingsPage.NOTIFICATIONS -> Icons.Rounded.Notifications to notificationsSummary(state, backup)
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
                         SettingsPage.OPEN_WITH -> Icons.AutoMirrored.Rounded.OpenInNew to "Photos and videos from other apps"
@@ -193,12 +196,95 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
         when (page) {
             SettingsPage.ABOUT -> item { AboutSection(state) }
             SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
+            SettingsPage.NOTIFICATIONS -> item { NotificationsSection(state, drive, backup, actions) }
             SettingsPage.BACKUP -> Unit
             SettingsPage.DRIVE -> item { DriveSection(state, drive) }
             SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
             SettingsPage.OPEN_WITH -> item { OpenWithContent(actions) }
             SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
             SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
+        }
+    }
+}
+
+private fun notificationsSummary(state: ShellState, backup: BackupState?): String {
+    if (backup?.notificationsAllowed() == false) return "Off for Pixallery"
+    val a = state.appearance
+    val on = listOf(a.notifyBackupProblems, a.memoriesNotice, a.notifyPeople, a.notifyFamily, a.notifyFeedback).count { it }
+    return if (on == 5) "All on" else "$on of 5 on"
+}
+
+/**
+ * Settings > Notifications (8 Nov): every kind Pixallery can show, each with its own switch. The ones Android needs
+ * while work runs (backing up, restoring, a face scan you started) can't be turned off, so they are only listed.
+ */
+@Composable
+private fun NotificationsSection(state: ShellState, drive: DriveState, backup: BackupState, actions: MediaActions) {
+    val theme = LocalGlassTheme.current
+    val a = state.appearance
+    // Checked again every moment, so coming back from Android's settings updates it.
+    var allowed by remember { androidx.compose.runtime.mutableStateOf(backup.notificationsAllowed()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            allowed = backup.notificationsAllowed()
+            kotlinx.coroutines.delay(1500)
+        }
+    }
+    Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (!allowed) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                com.deepak.photovault.designsystem.WarningNote("Notifications are off for Pixallery in Android's settings, so none of these can show.")
+                GlassButton("Allow notifications", primary = true, onClick = actions::requestNotifications, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        GlassCard(Modifier.fillMaxWidth()) {
+            Text("Choose what Pixallery tells you about.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+            GlassSwitchRow(
+                "Backup problems",
+                a.notifyBackupProblems,
+                { on -> state.updateAppearance { it.copy(notifyBackupProblems = on) } },
+                icon = Icons.Rounded.Backup,
+                description = "When a scheduled backup doesn't finish after two tries.",
+            )
+            GlassSwitchRow(
+                "On this day",
+                a.memoriesNotice,
+                { on -> state.updateAppearance { it.copy(memoriesNotice = on) } },
+                icon = Icons.Rounded.History,
+                description = "A short note in the morning when you have photos from this day in earlier years.",
+            )
+            GlassSwitchRow(
+                "People: same person?",
+                a.notifyPeople,
+                { on -> state.updateAppearance { it.copy(notifyPeople = on) } },
+                icon = Icons.Rounded.Groups,
+                description = "When Pixallery isn't sure if some faces are the same person. Once a day at most.",
+            )
+            if (drive.isOwner) {
+                GlassSwitchRow(
+                    "Family requests",
+                    a.notifyFamily,
+                    { on -> state.updateAppearance { it.copy(notifyFamily = on) } },
+                    icon = Icons.Rounded.PersonAdd,
+                    description = "When a phone wants to join the family or someone asks for more space.",
+                )
+                GlassSwitchRow(
+                    "Feedback from the family",
+                    a.notifyFeedback,
+                    { on -> state.updateAppearance { it.copy(notifyFeedback = on) } },
+                    icon = Icons.Rounded.Feedback,
+                    description = "When someone in the family sends an idea or a bug report.",
+                )
+            }
+        }
+        GlassCard(Modifier.fillMaxWidth()) {
+            Text("Always shown while working", color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            Text(
+                "Android needs these so the work isn't stopped: backing up, bringing photos back from the drive, and looking for faces after you tap Scan. They go away when the work is done.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
@@ -236,13 +322,6 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             state.appearance.reduceMotion,
             { on -> state.updateAppearance { it.copy(reduceMotion = on) } },
             icon = Icons.Rounded.Animation,
-        )
-        GlassSwitchRow(
-            "On this day notification",
-            state.appearance.memoriesNotice,
-            { on -> state.updateAppearance { it.copy(memoriesNotice = on) } },
-            icon = Icons.Rounded.History,
-            description = "A short note in the morning when you have photos from this day in earlier years.",
         )
         AppIconPicker(iconSwitcher)
     }
@@ -394,7 +473,7 @@ private fun AboutSection(state: ShellState) {
         // What comes next (7 Nov).
         InfoRow(Icons.Rounded.Place, "Places", "Done")
         InfoRow(Icons.Rounded.History, "Memories and tags", "Built, being tested")
-        InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Phase 7D")
+        InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Part 1 built, being tested")
         InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10")
         InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Phase 10A")
         InfoRow(Icons.Rounded.Folder, "Editor and duplicates", "Phase 11")

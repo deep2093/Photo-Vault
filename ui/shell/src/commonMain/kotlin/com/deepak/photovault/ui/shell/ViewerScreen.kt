@@ -2,6 +2,7 @@ package com.deepak.photovault.ui.shell
 
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -366,6 +367,8 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                             }),
                             binModifier = Modifier.trackSpot(bin),
                             onWallpaper = if (current.isVideo) null else ({ wallpaperItem = current }),
+                            // Make it move (7D-1): photos on this phone.
+                            onLiving = if (current.isVideo || current.isDriveOnly || !state.living.platform.supported) null else ({ state.open(Overlay.Living(current.id)) }),
                             onSecure = if (gallery.isExternal(current) || current.isDriveOnly) null else ({ secureMover.request(listOf(current), fly = flyCurrent, aim = { lockSpot.bounds }) }),
                             secureModifier = Modifier.trackSpot(lockSpot),
                         )
@@ -500,6 +503,7 @@ private fun ViewerActions(
     onWallpaper: (() -> Unit)? = null,
     onSecure: (() -> Unit)? = null,
     secureModifier: Modifier = Modifier,
+    onLiving: (() -> Unit)? = null,
 ) {
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
@@ -510,6 +514,7 @@ private fun ViewerActions(
         if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
         if (onFavourite != null) GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
         // 26 Oct: Set as wallpaper sits between Favourite and Delete; Details opens by swiping up on the photo.
+        if (onLiving != null) GlassIconButton(Icons.Rounded.AutoAwesome, "Make it move", onClick = onLiving)
         if (onWallpaper != null) GlassIconButton(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = onWallpaper)
         if (onSecure != null) GlassIconButton(Icons.Rounded.Lock, "Move to Secured folder", onClick = onSecure, modifier = secureModifier)
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)

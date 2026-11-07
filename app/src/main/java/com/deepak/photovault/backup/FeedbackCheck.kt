@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit
  */
 class FeedbackCheckWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        if (!com.deepak.photovault.NotifyPrefs.on(applicationContext, com.deepak.photovault.NotifyPrefs.FEEDBACK)) return Result.success()
         val platform = AndroidDrivePlatform(applicationContext)
         val connection = platform.loadConnection() ?: return Result.success()
         val unseen = runCatching {
@@ -75,9 +76,10 @@ private object FeedbackNotifications {
             ?.createNotificationChannel(NotificationChannel(CHANNEL, "Feedback received", NotificationManager.IMPORTANCE_DEFAULT))
         val title = if (bugs > 0) "New bug report" + (if (bugs > 1) "s" else "") else "New feedback"
         val text = if (count == 1) "Someone in the family sent a note. Open Settings > Send feedback to read it." else "$count new notes from the family. Open Settings > Send feedback to read them."
+        // Its own number (8 Nov): with 0 it shared one tap action with the backup notification.
         val open = PendingIntent.getActivity(
             context,
-            0,
+            3,
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

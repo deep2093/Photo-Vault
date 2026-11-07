@@ -67,8 +67,9 @@ object MemoriesNotice {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return false
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "On this day", NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(
+            // Its own number (8 Nov): 7 was also the face scan's, so one tap could open the other page.
             context,
-            7,
+            9,
             Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN_MEMORIES, true).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

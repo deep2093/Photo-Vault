@@ -245,7 +245,7 @@ object BackupNotifications {
     /** Says why, in plain words (decided 24 Oct). */
     @android.annotation.SuppressLint("MissingPermission")
     fun failed(context: Context, why: String) {
-        if (!allowed(context)) return
+        if (!allowed(context) || !com.deepak.photovault.NotifyPrefs.on(context, com.deepak.photovault.NotifyPrefs.BACKUP_PROBLEMS)) return
         val n = NotificationCompat.Builder(context, CHANNEL_PROBLEMS)
             .setSmallIcon(com.deepak.photovault.NotificationIcon.of(context))
             .setContentTitle("Backup didn't finish")
