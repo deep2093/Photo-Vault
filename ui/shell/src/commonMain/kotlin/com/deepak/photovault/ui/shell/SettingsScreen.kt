@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PersonAdd
@@ -240,7 +241,7 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             "On this day notification",
             state.appearance.memoriesNotice,
             { on -> state.updateAppearance { it.copy(memoriesNotice = on) } },
-            icon = androidx.compose.material.icons.Icons.Rounded.History,
+            icon = Icons.Rounded.History,
             description = "A short note in the morning when you have photos from this day in earlier years.",
         )
         AppIconPicker(iconSwitcher)
