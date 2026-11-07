@@ -278,6 +278,9 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
 
             // Set as wallpaper from the bottom toolbar (26 Oct); its pop-up asks home, lock or both.
             var wallpaperItem by remember { mutableStateOf<MediaItem?>(null) }
+            // More (8 Nov): Set as wallpaper and Move to Secured folder moved here, so the bar fits.
+            var moreOpen by remember { mutableStateOf(false) }
+            LaunchedEffect(current.id, barsVisible, state.detailsOpen) { moreOpen = false }
             wallpaperItem?.let { photo ->
                 WallpaperDialog(
                     onDismiss = { wallpaperItem = null },
@@ -366,14 +369,32 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
                                 }
                             }),
                             binModifier = Modifier.trackSpot(bin),
-                            onWallpaper = if (current.isVideo) null else ({ wallpaperItem = current }),
                             // Make it move (7D-1): photos on this phone.
                             onLiving = if (current.isVideo || current.isDriveOnly || !state.living.platform.supported) null else ({ state.open(Overlay.Living(current.id)) }),
-                            onSecure = if (gallery.isExternal(current) || current.isDriveOnly) null else ({ secureMover.request(listOf(current), fly = flyCurrent, aim = { lockSpot.bounds }) }),
-                            secureModifier = Modifier.trackSpot(lockSpot),
+                            onMore = if (current.isVideo && (gallery.isExternal(current) || current.isDriveOnly)) null else ({ moreOpen = !moreOpen }),
+                            // The photo flies to the More button when it goes to the Secured folder.
+                            moreModifier = Modifier.trackSpot(lockSpot),
                         )
                     }
                     }
+                }
+            }
+            val moreItem = current
+            GlassMenuLayer(
+                moreOpen && !viewer.trash,
+                onDismiss = { moreOpen = false },
+                solid = true,
+                bottom = system.calculateBottomPadding() + 12.dp + 60.dp + 8.dp,
+            ) {
+                if (!moreItem.isVideo) {
+                    GlassMenuItem(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = { moreOpen = false; wallpaperItem = moreItem })
+                }
+                if (!gallery.isExternal(moreItem) && !moreItem.isDriveOnly) {
+                    GlassMenuItem(Icons.Rounded.Lock, "Move to Secured folder", onClick = {
+                        moreOpen = false
+                        val fly = { photoSpot.bounds?.let { listOf(FlyingPhoto(moreItem.uri, moreItem.isVideo, it, fit = true)) }.orEmpty() }
+                        secureMover.request(listOf(moreItem), fly = fly, aim = { lockSpot.bounds })
+                    })
                 }
             }
         }
@@ -500,24 +521,24 @@ private fun ViewerActions(
     binModifier: Modifier = Modifier,
     onFamily: (() -> Unit)? = null,
     onSave: (() -> Unit)? = null,
-    onWallpaper: (() -> Unit)? = null,
-    onSecure: (() -> Unit)? = null,
-    secureModifier: Modifier = Modifier,
     onLiving: (() -> Unit)? = null,
+    onMore: (() -> Unit)? = null,
+    moreModifier: Modifier = Modifier,
 ) {
+    // Same size buttons with the same gap (8 Nov: seven didn't fit and the last was cut off); the rarer ones are in More.
     Row(
-        modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
         if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
         if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
         if (onFavourite != null) GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
-        // 26 Oct: Set as wallpaper sits between Favourite and Delete; Details opens by swiping up on the photo.
         if (onLiving != null) GlassIconButton(Icons.Rounded.AutoAwesome, "Make it move", onClick = onLiving)
-        if (onWallpaper != null) GlassIconButton(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = onWallpaper)
-        if (onSecure != null) GlassIconButton(Icons.Rounded.Lock, "Move to Secured folder", onClick = onSecure, modifier = secureModifier)
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
+        // More (8 Nov): Set as wallpaper and Move to Secured folder.
+        if (onMore != null) GlassIconButton(Icons.Rounded.MoreVert, "More", onClick = onMore, modifier = moreModifier)
     }
 }
 

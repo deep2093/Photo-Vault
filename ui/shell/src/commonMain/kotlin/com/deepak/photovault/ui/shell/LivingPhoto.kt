@@ -31,6 +31,13 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Share
+import com.deepak.photovault.designsystem.glassChrome
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +82,12 @@ interface LivingPlatform {
 
     /** Makes (or reads back, when made before) the two layers. Runs on the phone only. */
     suspend fun make(item: MediaItem): LivingLayers = LivingLayers(null, null, note = "Living photos aren't available here.")
+
+    /**
+     * The living photo as a short video (7D-2, 8 Nov): one slow move there and back. [share] true opens the share
+     * sheet; false saves it to the phone. Returns a short line to show, or null when nothing needs saying.
+     */
+    suspend fun video(item: MediaItem, layers: LivingLayers, share: Boolean, onProgress: (Float) -> Unit): String? = "Videos can't be made here."
 }
 
 @Stable
@@ -100,12 +113,26 @@ object LivingMotion {
 
 /** The page that shows one living photo (from the viewer's Make it move). Always dark, like the viewer. */
 @Composable
-fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState) {
+fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState, actions: MediaActions) {
     val item = remember(photoId, gallery.items) { gallery.find(photoId) }
     val layers by produceState<LivingLayers?>(null, item) {
         value = item?.let { runCatching { state.living.platform.make(it) }.getOrElse { LivingLayers(null, null, note = "Couldn't make this one move.") } }
     }
     val insets = WindowInsets.safeDrawing.asPaddingValues()
+    // Save or share as a video (7D-2): how far it has got, while it is being made.
+    var making by remember { mutableStateOf<Float?>(null) }
+    val scope = rememberCoroutineScope()
+    fun export(share: Boolean) {
+        val l = layers ?: return
+        val photo = item ?: return
+        if (making != null || l.background == null) return
+        making = 0f
+        scope.launch {
+            val said = runCatching { state.living.platform.video(photo, l, share) { making = it } }.getOrElse { "Couldn't make the video." }
+            making = null
+            said?.let(actions::toast)
+        }
+    }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Crossfade(targetState = layers?.background != null, animationSpec = tween(500), label = "living") { ready ->
             val l = layers
@@ -132,9 +159,11 @@ fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val l = layers
+            val busy = making
             val text = when {
                 item == null -> "This photo isn't here any more."
                 l == null -> "Making it move…"
+                busy != null -> "Making the video… ${(busy * 100).toInt()}%"
                 else -> l.note
             }
             if (text != null) {
@@ -142,7 +171,7 @@ fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState) {
                     Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (l == null && item != null) {
+                    if ((l == null && item != null) || busy != null) {
                         CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                         Box(Modifier.size(10.dp))
                     }
@@ -150,6 +179,15 @@ fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState) {
                 }
             }
             if (l?.background != null) {
+                // Save and Share as a short video, in the same glass bar as the viewer's (7D-2).
+                Row(
+                    Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GlassIconButton(Icons.Rounded.Download, "Save as a video", onClick = { export(share = false) })
+                    GlassIconButton(Icons.Rounded.Share, "Share as a video", onClick = { export(share = true) })
+                }
                 Text("Made on your phone", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
             }
         }
@@ -158,7 +196,7 @@ fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState) {
 
 /** The two layers drifting, forever, centred on the subject. Gentler and slower with Reduce motion. */
 @Composable
-fun LivingPhoto(layers: LivingLayers, modifier: Modifier = Modifier) {
+fun LivingPhoto(layers: LivingLayers, modifier: Modifier = Modifier, fill: Boolean = false) {
     val gentle = LocalGlassSettings.current.reduceMotion
     val loop = rememberInfiniteTransition(label = "livingLoop")
     val t by loop.animateFloat(
@@ -169,7 +207,8 @@ fun LivingPhoto(layers: LivingLayers, modifier: Modifier = Modifier) {
     )
     val bg = layers.background ?: return
     Canvas(modifier) {
-        val fit = min(size.width / bg.width, size.height / bg.height) * LivingMotion.OVERSCAN
+        // [fill]: covers the whole space, cropping the sides (a Memories card); otherwise the whole photo shows.
+        val fit = (if (fill) max(size.width / bg.width, size.height / bg.height) else min(size.width / bg.width, size.height / bg.height)) * LivingMotion.OVERSCAN
         val drawW = bg.width * fit
         val drawH = bg.height * fit
         val left = (size.width - drawW) / 2f

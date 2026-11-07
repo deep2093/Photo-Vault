@@ -48,6 +48,8 @@ internal fun BoxScope.GlassMenuLayer(
     onDismiss: () -> Unit,
     /** On pages opened on top (People), the glass can't blur the page under it, so the tint is firmer (6 Nov). */
     solid: Boolean = false,
+    /** Given: the menu opens upwards from the bottom right, this far up (the viewer's More button, 8 Nov). */
+    bottom: androidx.compose.ui.unit.Dp? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!expanded) return
@@ -56,10 +58,16 @@ internal fun BoxScope.GlassMenuLayer(
     val shape = RoundedCornerShape(20.dp)
     Column(
         Modifier
-            .align(Alignment.TopEnd)
-            .padding(
-                end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
-                top = insets.calculateTopPadding() + 8.dp + TopBarHeight + 2.dp,
+            .align(if (bottom != null) Alignment.BottomEnd else Alignment.TopEnd)
+            .then(
+                if (bottom != null) {
+                    Modifier.padding(end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp, bottom = bottom)
+                } else {
+                    Modifier.padding(
+                        end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
+                        top = insets.calculateTopPadding() + 8.dp + TopBarHeight + 2.dp,
+                    )
+                },
             )
             .widthIn(min = 150.dp, max = 220.dp)
             .glassChrome(shape, elevation = 12.dp)

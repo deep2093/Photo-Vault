@@ -473,7 +473,7 @@ private fun AboutSection(state: ShellState) {
         // What comes next (7 Nov).
         InfoRow(Icons.Rounded.Place, "Places", "Done")
         InfoRow(Icons.Rounded.History, "Memories and tags", "Built, being tested")
-        InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Part 1 built, being tested")
+        InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Parts 1 and 2 built, being tested")
         InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10")
         InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Phase 10A")
         InfoRow(Icons.Rounded.Folder, "Editor and duplicates", "Phase 11")

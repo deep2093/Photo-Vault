@@ -5,7 +5,11 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import android.content.ContentValues
+import android.content.Intent
+import android.provider.MediaStore
 import com.deepak.photovault.core.backup.BackupSelection
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.ui.shell.LivingLayers
@@ -77,6 +81,61 @@ class AndroidLiving(context: Context) : LivingPlatform {
             }
             trimCache(dir)
             LivingLayers(background.asImageBitmap(), subject.asImageBitmap(), fx, fy)
+        }
+    }
+
+    override suspend fun video(item: MediaItem, layers: LivingLayers, share: Boolean, onProgress: (Float) -> Unit): String? = lock.withLock {
+        withContext(Dispatchers.Default) {
+            val bg = layers.background?.asAndroidBitmap() ?: return@withContext "Couldn't make the video."
+            val dir = File(app.cacheDir, "living").apply { mkdirs() }
+            val file = File(dir, hash(BackupSelection.key(item)) + ".mp4")
+            if (!file.exists() || file.length() == 0L) {
+                val tmp = File(dir, file.name + ".tmp")
+                try {
+                    LivingVideo.encode(bg, layers.subject?.asAndroidBitmap(), layers.focusX, layers.focusY, tmp, onProgress)
+                } catch (e: Throwable) {
+                    tmp.delete()
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    return@withContext "Couldn't make the video on this phone."
+                }
+                tmp.renameTo(file)
+            }
+            onProgress(1f)
+            if (share) {
+                val uri = androidx.core.content.FileProvider.getUriForFile(app, "${app.packageName}.files", file)
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("video/mp4")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                withContext(Dispatchers.Main) {
+                    app.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                }
+                null
+            } else {
+                saveToMovies(file, item)
+            }
+        }
+    }
+
+    /** Into Movies > Pixallery, dated like the photo so it sits next to it in the timeline. */
+    private fun saveToMovies(file: File, item: MediaItem): String {
+        val resolver = app.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Video.Media.DISPLAY_NAME, "Living_" + item.displayName.substringBeforeLast('.') + ".mp4")
+            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Pixallery")
+            put(MediaStore.Video.Media.DATE_TAKEN, item.takenAtMillis)
+            put(MediaStore.Video.Media.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
+            ?: return "Couldn't save the video."
+        return try {
+            resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream")
+            resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+            "Saved to Movies > Pixallery, next to the photo in your timeline."
+        } catch (e: Throwable) {
+            runCatching { resolver.delete(uri, null, null) }
+            "Couldn't save the video."
         }
     }
 
@@ -197,7 +256,7 @@ class AndroidLiving(context: Context) : LivingPlatform {
         val made = dir.listFiles { f -> f.name.endsWith("-bg.jpg") }?.sortedByDescending { it.lastModified() } ?: return
         made.drop(40).forEach { bg ->
             val base = bg.name.removeSuffix("-bg.jpg")
-            listOf("$base-bg.jpg", "$base-fg.png", "$base.txt").forEach { File(dir, it).delete() }
+            listOf("$base-bg.jpg", "$base-fg.png", "$base.txt", "$base.mp4").forEach { File(dir, it).delete() }
         }
     }
 

@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.deepak.photovault.core.media.MediaItem
+import com.deepak.photovault.core.backup.isDriveOnly
 import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.core.media.TimelineGrouping
@@ -143,7 +144,7 @@ fun MemoriesScreen(state: ShellState, gallery: GalleryState) {
             item(key = "dayTitle") { SectionTitle("On this day") }
             // The newest year large, the rest in a row below.
             item(key = "dayHero") {
-                MemoryCard(day.first(), byId, width = null, height = 260.dp, big = true, modifier = Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN)) {
+                MemoryCard(day.first(), byId, width = null, height = 260.dp, big = true, modifier = Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN), living = state.living) {
                     state.open(Overlay.Photos(day.first().title, day.first().ids))
                 }
             }
@@ -193,6 +194,8 @@ private fun MemoryCard(
     height: Dp,
     big: Boolean,
     modifier: Modifier = Modifier,
+    /** Given: the cover moves, as a living photo (7D-2), once it is ready. Not with Reduce motion. */
+    living: LivingState? = null,
     onClick: () -> Unit,
 ) {
     val theme = LocalGlassTheme.current
@@ -218,6 +221,19 @@ private fun MemoryCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            val still = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
+            if (living != null && living.platform.supported && !still && !cover.isVideo && !cover.isDriveOnly) {
+                val layers by androidx.compose.runtime.produceState<LivingLayers?>(null, cover.id) {
+                    value = runCatching { living.platform.make(cover) }.getOrNull()?.takeIf { it.subject != null }
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = layers != null,
+                    enter = androidx.compose.animation.fadeIn(motionSpec(600)),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    layers?.let { LivingPhoto(it, Modifier.fillMaxSize(), fill = true) }
+                }
+            }
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.68f))))
         Column(Modifier.align(Alignment.BottomStart).padding(if (big) 16.dp else 12.dp)) {

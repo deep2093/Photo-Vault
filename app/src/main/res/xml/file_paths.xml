@@ -4,4 +4,6 @@
     <cache-path name="shared" path="drive-shared/" />
     <!-- Locked photos and videos, decrypted for a moment while they are shared from the Secured folder. -->
     <cache-path name="secured_share" path="secured_share/" />
+    <!-- Living photos saved as short videos (7D-2), shared from here. -->
+    <cache-path name="living" path="living/" />
 </paths>

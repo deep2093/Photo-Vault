@@ -19,4 +19,11 @@ class FillTest {
             assertTrue((c ushr 24) == 0xFF)
         }
     }
+
+    @Test
+    fun videoGoesThereAndBack() {
+        assertTrue(LivingVideo.phase(0, 360) == 0f)
+        assertTrue(LivingVideo.phase(180, 360) == 1f)
+        assertTrue(LivingVideo.phase(90, 360) == LivingVideo.phase(270, 360))
+    }
 }
