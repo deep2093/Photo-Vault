@@ -26,7 +26,7 @@ internal object LivingVideo {
     private const val FPS = 30
     private const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
 
-    fun encode(background: Bitmap, subject: Bitmap?, focusX: Float, focusY: Float, out: File, onProgress: (Float) -> Unit) {
+    fun encode(background: Bitmap, subject: Bitmap?, focusX: Float, focusY: Float, ground: Float, out: File, onProgress: (Float) -> Unit) {
         val scale = LONG_SIDE.toFloat() / max(background.width, background.height)
         val w = even16(background.width * scale)
         val h = even16(background.height * scale)
@@ -62,7 +62,7 @@ internal object LivingVideo {
                             codec.queueInputBuffer(index, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             inputDone = true
                         } else {
-                            draw(canvas, paint, background, subject, focusX, focusY, w, h, phase(next, frames))
+                            draw(canvas, paint, background, subject, focusX, focusY, ground, w, h, phase(next, frames))
                             frame.getPixels(pixels, 0, w, 0, 0, w, h)
                             val image = codec.getInputImage(index) ?: error("The video encoder gave no frame to fill.")
                             fill(image, pixels, w, h)
@@ -112,16 +112,15 @@ internal object LivingVideo {
 
     private val matrix = Matrix()
 
-    private fun draw(canvas: Canvas, paint: Paint, bg: Bitmap, subject: Bitmap?, fx: Float, fy: Float, w: Int, h: Int, t: Float) {
+    /** The same picture as the screen draws (see LivingPhoto): a still subject, the background growing behind it. */
+    private fun draw(canvas: Canvas, paint: Paint, bg: Bitmap, subject: Bitmap?, fx: Float, fy: Float, ground: Float, w: Int, h: Int, t: Float) {
         canvas.drawColor(Color.BLACK)
         val fit = max(w.toFloat() / bg.width, h.toFloat() / bg.height) * LivingMotion.OVERSCAN
         val drawW = bg.width * fit
         val drawH = bg.height * fit
         val left = (w - drawW) / 2f
         val top = (h - drawH) / 2f
-        val px = left + drawW * fx
-        val py = top + drawH * fy
-        fun layer(image: Bitmap, scale: Float, shift: Float) {
+        fun layer(image: Bitmap, scale: Float, shift: Float, px: Float, py: Float) {
             val k = drawW / image.width
             matrix.reset()
             matrix.setScale(k, k)
@@ -130,8 +129,25 @@ internal object LivingVideo {
             matrix.postTranslate(-shift * drawW, 0f)
             canvas.drawBitmap(image, matrix, paint)
         }
-        layer(bg, LivingMotion.backgroundScale(t, false), LivingMotion.backgroundShift(t, false))
-        if (subject != null) layer(subject, LivingMotion.subjectScale(t, false), LivingMotion.subjectShift(t, false))
+        if (subject == null) {
+            layer(bg, LivingMotion.driftScale(t, false), LivingMotion.driftShift(t, false), left + drawW / 2f, top + drawH / 2f)
+            return
+        }
+        val px = left + drawW * LivingMotion.pivot(fx)
+        val py = top + drawH * LivingMotion.pivot(fy)
+        val n = LivingMotion.STRIPS
+        for (i in 0 until n) {
+            val y0 = i.toFloat() / n
+            val y1 = (i + 1).toFloat() / n
+            val s = LivingMotion.backgroundScale((y0 + y1) / 2f, ground, t, false)
+            val from = if (i == 0) 0f else py + (top + drawH * y0 - py) * s - 0.5f
+            val to = if (i == n - 1) h.toFloat() else py + (top + drawH * y1 - py) * s + 0.5f
+            canvas.save()
+            canvas.clipRect(0f, from, w.toFloat(), to)
+            layer(bg, s, 0f, px, py)
+            canvas.restore()
+        }
+        layer(subject, 1f, 0f, px, py)
     }
 
     /** ARGB pixels into the encoder's YUV 4:2:0 frame, whatever its row and pixel steps. */

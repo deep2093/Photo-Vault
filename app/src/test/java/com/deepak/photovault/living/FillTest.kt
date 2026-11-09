@@ -26,4 +26,16 @@ class FillTest {
         assertTrue(LivingVideo.phase(180, 360) == 1f)
         assertTrue(LivingVideo.phase(90, 360) == LivingVideo.phase(270, 360))
     }
+
+    @Test
+    fun backgroundNeverGrowsPastTheSubject() {
+        for (y in listOf(0f, 0.3f, 0.7f, 1f)) for (t in listOf(0f, 0.5f, 1f)) {
+            val s = com.deepak.photovault.ui.shell.LivingMotion.backgroundScale(y, 0.8f, t, false)
+            assertTrue(s <= 1f && s > 0.9f)
+        }
+        // Far (top) changes more than near (where the person stands).
+        val far = com.deepak.photovault.ui.shell.LivingMotion.backgroundScale(0f, 0.8f, 0f, false)
+        val near = com.deepak.photovault.ui.shell.LivingMotion.backgroundScale(0.9f, 0.8f, 0f, false)
+        assertTrue(far < near)
+    }
 }

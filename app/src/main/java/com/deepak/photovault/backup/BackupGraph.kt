@@ -75,6 +75,7 @@ class BackupGraph private constructor(context: Context) {
         scope.launch { runCatching { BackupScheduler.ensureScheduled(app, settings.load()) } }
         runCatching { FeedbackCheck.schedule(app) }
         runCatching { com.deepak.photovault.MemoriesNotice.schedule(app) }
+        runCatching { com.deepak.photovault.living.LivingPrepWorker.schedule(app) }
     }
 
     companion object {

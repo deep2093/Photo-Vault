@@ -178,7 +178,11 @@ private fun MemoryRow(list: List<Memory>, byId: Map<Long, MediaItem>, state: She
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(list, key = { "${it.year}-${it.month}" }) { m ->
-            MemoryCard(m, byId, width = 150.dp, height = 200.dp, big = false, modifier = Modifier.animateItem()) {
+            // Small cards move too when their living photo is ready (made while charging, 7D-3); each starts a bit later.
+            MemoryCard(
+                m, byId, width = 150.dp, height = 200.dp, big = false, modifier = Modifier.animateItem(),
+                living = state.living, makeNow = false, delayMs = (list.indexOf(m) % 4) * 1500,
+            ) {
                 state.open(Overlay.Photos(m.title, m.ids))
             }
         }
@@ -196,6 +200,9 @@ private fun MemoryCard(
     modifier: Modifier = Modifier,
     /** Given: the cover moves, as a living photo (7D-2), once it is ready. Not with Reduce motion. */
     living: LivingState? = null,
+    /** True: made now if needed (the big card). False: only one made earlier is used (the small cards, quick). */
+    makeNow: Boolean = true,
+    delayMs: Int = 0,
     onClick: () -> Unit,
 ) {
     val theme = LocalGlassTheme.current
@@ -224,14 +231,14 @@ private fun MemoryCard(
             val still = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
             if (living != null && living.platform.supported && !still && !cover.isVideo && !cover.isDriveOnly) {
                 val layers by androidx.compose.runtime.produceState<LivingLayers?>(null, cover.id) {
-                    value = runCatching { living.platform.make(cover) }.getOrNull()?.takeIf { it.subject != null }
+                    value = runCatching { if (makeNow) living.platform.make(cover) else living.platform.ready(cover) }.getOrNull()?.takeIf { it.subject != null }
                 }
                 androidx.compose.animation.AnimatedVisibility(
                     visible = layers != null,
                     enter = androidx.compose.animation.fadeIn(motionSpec(600)),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    layers?.let { LivingPhoto(it, Modifier.fillMaxSize(), fill = true) }
+                    layers?.let { LivingPhoto(it, Modifier.fillMaxSize(), fill = true, delayMs = delayMs) }
                 }
             }
         }

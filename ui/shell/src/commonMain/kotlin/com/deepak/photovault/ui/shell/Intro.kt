@@ -100,12 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-08-3"
+    const val ID = "2026-11-09-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Living photos as videos", "On a living photo, tap Save to keep it as a short video in Movies > Pixallery, or Share to send it."),
-        Change(ChangeKind.NEW, "Moving memories", "The big On this day card on the Memories page now moves gently, like a living photo. Not with Reduce motion."),
-        Change(ChangeKind.CHANGED, "Photo buttons", "The buttons under a photo are evenly spaced and all fit. Set as wallpaper and Move to Secured folder are now in the three-dot menu."),
+        Change(ChangeKind.CHANGED, "Living photos look 3D", "The person now stays still and only the background moves behind them, with parts further away moving more. No more blur round the person. Living photos made before are made again the new way."),
+        Change(ChangeKind.FIXED, "Living photo buttons", "Save and Share now show in every theme (they were dark on black in light themes)."),
+        Change(ChangeKind.NEW, "More moving memories", "While your phone charges, Pixallery gets today's and tomorrow's memories ready, so the small cards on the Memories page move too."),
     )
 }
 

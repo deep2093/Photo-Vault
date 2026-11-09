@@ -30,6 +30,8 @@ import java.security.MessageDigest
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+private val sharedLock = Mutex()
+
 /**
  * Living photos on Android (7D-1, 8 Nov). Google's on-device subject cut-out (ML Kit through Play services: the photo
  * never leaves the phone) finds the person, pet or thing; Pixallery fills the space behind them from the colours
@@ -37,14 +39,23 @@ import kotlin.coroutines.resumeWithException
  */
 class AndroidLiving(context: Context) : LivingPlatform {
     private val app = context.applicationContext
-    private val lock = Mutex()
+    // One at a time across the app and the charging job (they share the same files).
+    private val lock get() = sharedLock
 
     override val supported: Boolean get() = true
+
+    /** Only one made earlier (quick: no cut-out); for the small Memories cards (7D-3). */
+    override suspend fun ready(item: MediaItem): LivingLayers? = withContext(Dispatchers.IO) {
+        val dir = File(app.cacheDir, "living")
+        val name = VERSION + hash(BackupSelection.key(item))
+        readBack(File(dir, "$name-bg.jpg"), File(dir, "$name-fg.png"), File(dir, "$name.txt"))
+    }
 
     override suspend fun make(item: MediaItem): LivingLayers = lock.withLock {
         withContext(Dispatchers.Default) {
             val dir = File(app.cacheDir, "living").apply { mkdirs() }
-            val name = hash(BackupSelection.key(item))
+            // v3 (9 Nov): new layers (still subject, thin fill); ones made by earlier builds are made again.
+            val name = VERSION + hash(BackupSelection.key(item))
             val bgFile = File(dir, "$name-bg.jpg")
             val fgFile = File(dir, "$name-fg.png")
             val infoFile = File(dir, "$name.txt")
@@ -58,11 +69,15 @@ class AndroidLiving(context: Context) : LivingPlatform {
             var count = 0
             var sx = 0.0
             var sy = 0.0
+            var lowest = 0
             for (i in mask.indices) if (mask[i] > 0.5f) {
                 count++
                 sx += i % w
                 sy += i / w
+                if (i / w > lowest) lowest = i / w
             }
+            // Where the subject meets the ground (its lowest point): rows above it are guessed to be further away.
+            val ground = (lowest + 1).toFloat() / h
             val share = count.toFloat() / (w * h)
             if (count == 0 || share < 0.01f || share > 0.85f) {
                 // Nothing clear to lift out: the whole photo drifts on its own.
@@ -77,10 +92,10 @@ class AndroidLiving(context: Context) : LivingPlatform {
             runCatching {
                 bgFile.outputStream().use { background.compress(Bitmap.CompressFormat.JPEG, 92, it) }
                 fgFile.outputStream().use { subject.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                infoFile.writeText("$fx $fy subject")
+                infoFile.writeText("$fx $fy subject $ground")
             }
             trimCache(dir)
-            LivingLayers(background.asImageBitmap(), subject.asImageBitmap(), fx, fy)
+            LivingLayers(background.asImageBitmap(), subject.asImageBitmap(), fx, fy, ground = ground)
         }
     }
 
@@ -88,11 +103,11 @@ class AndroidLiving(context: Context) : LivingPlatform {
         withContext(Dispatchers.Default) {
             val bg = layers.background?.asAndroidBitmap() ?: return@withContext "Couldn't make the video."
             val dir = File(app.cacheDir, "living").apply { mkdirs() }
-            val file = File(dir, hash(BackupSelection.key(item)) + ".mp4")
+            val file = File(dir, VERSION + hash(BackupSelection.key(item)) + ".mp4")
             if (!file.exists() || file.length() == 0L) {
                 val tmp = File(dir, file.name + ".tmp")
                 try {
-                    LivingVideo.encode(bg, layers.subject?.asAndroidBitmap(), layers.focusX, layers.focusY, tmp, onProgress)
+                    LivingVideo.encode(bg, layers.subject?.asAndroidBitmap(), layers.focusX, layers.focusY, layers.ground, tmp, onProgress)
                 } catch (e: Throwable) {
                     tmp.delete()
                     if (e is kotlinx.coroutines.CancellationException) throw e
@@ -147,8 +162,9 @@ class AndroidLiving(context: Context) : LivingPlatform {
         val fy = parts.getOrNull(1)?.toFloatOrNull() ?: 0.5f
         if (parts.getOrNull(2) != "subject") return LivingLayers(back.asImageBitmap(), null, fx, fy, note = NOTHING_FOUND)
         val front = BitmapFactory.decodeFile(fg.path) ?: return null
+        val ground = parts.getOrNull(3)?.toFloatOrNull() ?: 1f
         bg.setLastModified(System.currentTimeMillis())
-        return LivingLayers(back.asImageBitmap(), front.asImageBitmap(), fx, fy)
+        return LivingLayers(back.asImageBitmap(), front.asImageBitmap(), fx, fy, ground = ground)
     }
 
     /** The photo, upright, at most [MAX_SIDE] on its long side (enough for a phone screen, quick to work on). */
@@ -224,7 +240,8 @@ class AndroidLiving(context: Context) : LivingPlatform {
         val h = photo.height
         val px = IntArray(w * h)
         photo.getPixels(px, 0, w, 0, 0, w, h)
-        val hole = dilate(BooleanArray(w * h) { mask[it] > 0.25f }, w, h, maxOf(4, maxOf(w, h) / 60))
+        // 9 Nov: only just the subject's own space (it no longer moves away from it), so no blurred ring shows round them.
+        val hole = dilate(BooleanArray(w * h) { mask[it] > 0.5f }, w, h, 2)
         val filled = Fill.pushPull(px, hole, w, h)
         return Bitmap.createBitmap(filled, w, h, Bitmap.Config.ARGB_8888)
     }
@@ -253,6 +270,8 @@ class AndroidLiving(context: Context) : LivingPlatform {
 
     /** Keeps the cache to the newest 40 photos. */
     private fun trimCache(dir: File) {
+        // Ones from earlier builds can't be used any more.
+        dir.listFiles { f -> !f.name.startsWith(VERSION) }?.forEach { it.delete() }
         val made = dir.listFiles { f -> f.name.endsWith("-bg.jpg") }?.sortedByDescending { it.lastModified() } ?: return
         made.drop(40).forEach { bg ->
             val base = bg.name.removeSuffix("-bg.jpg")
@@ -262,6 +281,7 @@ class AndroidLiving(context: Context) : LivingPlatform {
 
     private companion object {
         const val MAX_SIDE = 1280
+        const val VERSION = "v3-"
         const val NOTHING_FOUND = "No one stood out to lift off the background, so the whole photo drifts."
     }
 }
