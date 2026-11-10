@@ -19,7 +19,6 @@ import androidx.compose.material.icons.rounded.Deselect
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
@@ -293,16 +292,6 @@ fun SelectableScreen(
     val secureMover = rememberSecuredMover(state, gallery, actions)
     secureMover.Dialogs()
     val lockSpot = remember { ScreenSpot() }
-    // Tag the selected photos (7C-2).
-    var tagging by remember { mutableStateOf<List<MediaItem>?>(null) }
-    val tagScope = rememberCoroutineScope()
-    tagging?.let { chosen ->
-        AddTagDialog(state.tags, already = emptyList(), onDismiss = { tagging = null }) { tag ->
-            tagging = null
-            state.selected = emptySet()
-            tagScope.launch { state.tags.add(chosen, tag) }
-        }
-    }
     androidx.compose.runtime.CompositionLocalProvider(LocalTileSpots provides tileSpots) {
     // One GlassScreen for both modes, so the grid keeps its scroll position when selection starts.
     // Selecting (24 Oct): the top shows only the count and Cancel; share, favourite and delete rise in at the
@@ -345,7 +334,6 @@ fun SelectableScreen(
                     state.selected = emptySet()
                 })
                 if (onMove != null) GlassIconButton(Icons.Rounded.PhotoAlbum, "Move to another album", onClick = { onMove(selectedItems) })
-                GlassIconButton(Icons.Rounded.LocalOffer, "Add a tag", onClick = { tagging = selectedItems })
                 GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
                     gallery.toggleFavourite(selectedItems)
                     state.selected = emptySet()

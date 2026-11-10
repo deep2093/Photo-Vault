@@ -28,14 +28,25 @@ class FillTest {
     }
 
     @Test
-    fun backgroundNeverGrowsPastTheSubject() {
-        for (y in listOf(0f, 0.3f, 0.7f, 1f)) for (t in listOf(0f, 0.5f, 1f)) {
-            val s = com.deepak.photovault.ui.shell.LivingMotion.backgroundScale(y, 0.8f, t, false)
-            assertTrue(s <= 1f && s > 0.9f)
-        }
-        // Far (top) changes more than near (where the person stands).
-        val far = com.deepak.photovault.ui.shell.LivingMotion.backgroundScale(0f, 0.8f, 0f, false)
-        val near = com.deepak.photovault.ui.shell.LivingMotion.backgroundScale(0.9f, 0.8f, 0f, false)
-        assertTrue(far < near)
+    fun slideGoesBothWaysFarMore() {
+        val m = com.deepak.photovault.ui.shell.LivingMotion
+        assertTrue(m.backgroundSlide(0f, 0.8f, 0f, false) < 0f)
+        assertTrue(m.backgroundSlide(0f, 0.8f, 1f, false) > 0f)
+        assertTrue(m.backgroundSlide(0.5f, 0.8f, 0.5f, false) == 0f)
+        assertTrue(kotlin.math.abs(m.backgroundSlide(0f, 0.8f, 1f, false)) > kotlin.math.abs(m.backgroundSlide(0.9f, 0.8f, 1f, false)))
+        // Never more than the extra width around the photo, so no edge shows.
+        assertTrue(kotlin.math.abs(m.backgroundSlide(0f, 0.8f, 1f, false)) < (m.OVERSCAN - 1f) / 2f)
+    }
+
+    @Test
+    fun mirrorCopiesTheBackgroundBeside() {
+        val w = 10
+        val h = 1
+        // Left half red, right half blue, a hole in the middle.
+        val px = IntArray(w) { if (it < 5) 0xFFFF0000.toInt() else 0xFF0000FF.toInt() }
+        val hole = BooleanArray(w) { it in 4..5 }
+        val out = Fill.mirror(px, hole, w, h)
+        assertTrue(((out[4] shr 16) and 0xFF) > (out[4] and 0xFF))
+        assertTrue((out[5] and 0xFF) > ((out[5] shr 16) and 0xFF))
     }
 }

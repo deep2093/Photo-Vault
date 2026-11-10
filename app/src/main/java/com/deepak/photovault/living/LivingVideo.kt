@@ -112,7 +112,7 @@ internal object LivingVideo {
 
     private val matrix = Matrix()
 
-    /** The same picture as the screen draws (see LivingPhoto): a still subject, the background growing behind it. */
+    /** The same picture as the screen draws (see LivingPhoto): a still subject, the background sliding behind it. */
     private fun draw(canvas: Canvas, paint: Paint, bg: Bitmap, subject: Bitmap?, fx: Float, fy: Float, ground: Float, w: Int, h: Int, t: Float) {
         canvas.drawColor(Color.BLACK)
         val fit = max(w.toFloat() / bg.width, h.toFloat() / bg.height) * LivingMotion.OVERSCAN
@@ -133,18 +133,18 @@ internal object LivingVideo {
             layer(bg, LivingMotion.driftScale(t, false), LivingMotion.driftShift(t, false), left + drawW / 2f, top + drawH / 2f)
             return
         }
-        val px = left + drawW * LivingMotion.pivot(fx)
-        val py = top + drawH * LivingMotion.pivot(fy)
+        val px = left + drawW / 2f
+        val py = top + drawH / 2f
         val n = LivingMotion.STRIPS
         for (i in 0 until n) {
             val y0 = i.toFloat() / n
             val y1 = (i + 1).toFloat() / n
-            val s = LivingMotion.backgroundScale((y0 + y1) / 2f, ground, t, false)
-            val from = if (i == 0) 0f else py + (top + drawH * y0 - py) * s - 0.5f
-            val to = if (i == n - 1) h.toFloat() else py + (top + drawH * y1 - py) * s + 0.5f
+            val slide = LivingMotion.backgroundSlide((y0 + y1) / 2f, ground, t, false)
+            val from = if (i == 0) 0f else top + drawH * y0 - 0.5f
+            val to = if (i == n - 1) h.toFloat() else top + drawH * y1 + 0.5f
             canvas.save()
             canvas.clipRect(0f, from, w.toFloat(), to)
-            layer(bg, s, 0f, px, py)
+            layer(bg, 1f, -slide, px, py)
             canvas.restore()
         }
         layer(subject, 1f, 0f, px, py)

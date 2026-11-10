@@ -100,12 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-09-1"
+    const val ID = "2026-11-10-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Living photos look 3D", "The person now stays still and only the background moves behind them, with parts further away moving more. No more blur round the person. Living photos made before are made again the new way."),
-        Change(ChangeKind.FIXED, "Living photo buttons", "Save and Share now show in every theme (they were dark on black in light themes)."),
-        Change(ChangeKind.NEW, "More moving memories", "While your phone charges, Pixallery gets today's and tomorrow's memories ready, so the small cards on the Memories page move too."),
+        Change(ChangeKind.CHANGED, "Living photos slide sideways", "The person stays still and the background slides gently left and right behind them, far parts more than near ones. The edge behind the person is filled from the real background beside it."),
+        Change(ChangeKind.NEW, "Backed-up albums", "Settings > Storage > Drive shows your backed-up albums right under the ring, with each album's size and count. Tap one to see its photos on the drive."),
+        Change(ChangeKind.FIXED, "Family space size", "While family settings are unlocked, a new space size takes effect as soon as you tap it. Chosen options now stand out in every theme."),
+        Change(ChangeKind.CHANGED, "Tags", "Tags are added from a photo's details only; the tag button in the selection bar is gone."),
     )
 }
 

@@ -101,11 +101,11 @@ interface LivingPlatform {
 class LivingState(val platform: LivingPlatform = object : LivingPlatform {})
 
 /**
- * How a living photo moves (9 Nov, like Samsung's 3D photos): the subject stays still and only the background moves
- * behind them, as if the camera slowly drew back while keeping the person the same size. The background starts a
- * little smaller and grows to the subject's own size; it never goes bigger, so the space filled in behind the subject
- * always stays hidden under them (no blur shows). Parts of the background further away (higher up than where the
- * subject stands) change more than parts close to them: a guess at depth from the ground (7D-3).
+ * How a living photo moves (10 Nov, Deepak: sideways, like Samsung's 3D photos): the subject stays still and the
+ * background slides gently left and right behind them, as if the camera moved sideways past them. Parts of the
+ * background further away (higher up than where the subject stands) slide more than parts close to them, a guess at
+ * depth from the ground (7D-3). Sliding uncovers a thin strip behind one side of the subject, so the slide is kept
+ * small and that strip is filled from the real background right next to it (mirrored), not blurred.
  */
 object LivingMotion {
     /** One way takes this long; it then eases back. */
@@ -115,19 +115,16 @@ object LivingMotion {
     const val STRIPS = 40
 
     /** A little bigger than fitting the screen, so the moving edges never show. */
-    const val OVERSCAN = 1.12f
+    const val OVERSCAN = 1.08f
 
     /** How far away a row of the background is: 1 at the top, down to 0 where the subject stands and below. */
     fun farness(y: Float, ground: Float): Float = if (ground < 0.1f) 0.5f else (1f - y / ground).coerceIn(0f, 1f)
 
-    /** A background row's size against the still subject at [t]: smaller at 0, the subject's own size at 1. */
-    fun backgroundScale(y: Float, ground: Float, t: Float, gentle: Boolean): Float {
-        val most = if (gentle) 0.03f else 0.065f
-        return 1f - most * (0.15f + 0.85f * farness(y, ground)) * (1f - t)
+    /** How far a background row is slid at [t] (0 to 1 and back), as a share of the photo's width; - is left. */
+    fun backgroundSlide(y: Float, ground: Float, t: Float, gentle: Boolean): Float {
+        val most = if (gentle) 0.012f else 0.025f
+        return (t - 0.5f) * 2f * most * (0.2f + 0.8f * farness(y, ground))
     }
-
-    /** The middle the background grows from: the subject's middle, kept off the very edges so no gap shows. */
-    fun pivot(focus: Float): Float = focus.coerceIn(0.25f, 0.75f)
 
     /** Nothing to lift out: the whole photo slowly comes closer and drifts. */
     fun driftScale(t: Float, gentle: Boolean) = 1f + (if (gentle) 0.02f else 0.04f) * t
@@ -257,16 +254,16 @@ fun LivingPhoto(layers: LivingLayers, modifier: Modifier = Modifier, fill: Boole
             layer(bg, left, top, drawW, drawH, pivot, LivingMotion.driftScale(t, gentle), LivingMotion.driftShift(t, gentle) * drawW)
             return@Canvas
         }
-        val pivot = Offset(left + drawW * LivingMotion.pivot(layers.focusX), top + drawH * LivingMotion.pivot(layers.focusY))
+        val pivot = Offset(left + drawW / 2f, top + drawH / 2f)
         val n = LivingMotion.STRIPS
         for (i in 0 until n) {
             val y0 = i.toFloat() / n
             val y1 = (i + 1).toFloat() / n
-            val s = LivingMotion.backgroundScale((y0 + y1) / 2f, layers.ground, t, gentle)
-            val from = pivot.y + (top + drawH * y0 - pivot.y) * s
-            val to = pivot.y + (top + drawH * y1 - pivot.y) * s
+            val slide = LivingMotion.backgroundSlide((y0 + y1) / 2f, layers.ground, t, gentle) * drawW
+            val from = top + drawH * y0
+            val to = top + drawH * y1
             clipRect(0f, if (i == 0) 0f else from - 0.5f, size.width, if (i == n - 1) size.height else to + 0.5f) {
-                layer(bg, left, top, drawW, drawH, pivot, s, 0f)
+                layer(bg, left, top, drawW, drawH, pivot, 1f, -slide)
             }
         }
         layer(subject, left, top, drawW, drawH, pivot, 1f, 0f)

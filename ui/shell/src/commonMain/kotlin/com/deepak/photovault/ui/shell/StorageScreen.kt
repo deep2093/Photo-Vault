@@ -179,7 +179,8 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                     driveLoading -> Text("Reading the drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     files == null -> Text("Couldn't read the drive. Check you're on the home Wi-Fi.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     files.isEmpty() -> Text("Nothing backed up yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-                    else -> Breakdown(files, zone, open(true))
+                    // 10 Nov: the drive's albums right under the ring, so anyone can check their backed-up photos by album.
+                    else -> Breakdown(files, zone, open(true), albumsTitle = "Backed-up albums", albumsFirst = true)
                 }
                 if (joined != null) {
                     val binned = gallery.trashed.count { it.item.isDriveOnly }
@@ -219,7 +220,13 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
 
 /** File types as a ring, photos per year as bars, and the biggest albums. */
 @Composable
-private fun Breakdown(files: List<StoredFile>, zone: TimeZone, onOpen: (String, List<StoredFile>) -> Unit) {
+private fun Breakdown(
+    files: List<StoredFile>,
+    zone: TimeZone,
+    onOpen: (String, List<StoredFile>) -> Unit,
+    albumsTitle: String = "Albums",
+    albumsFirst: Boolean = false,
+) {
     val theme = LocalGlassTheme.current
     val types = remember(files) { StorageStats.byType(files) }
     val years = remember(files) { StorageStats.byYear(files, zone) }
@@ -230,6 +237,19 @@ private fun Breakdown(files: List<StoredFile>, zone: TimeZone, onOpen: (String, 
     fun openAlbum(i: Int) {
         albums.getOrNull(i)?.let { onOpen(it.label, StorageStats.ofAlbum(files, albums, it.label)) }
     }
+    @Composable
+    fun albumsCard() {
+        GlassCard(Modifier.fillMaxWidth()) {
+            SectionHeader(albumsTitle)
+            UsageBar(albums, albums.sumOf { it.bytes })
+            Spacer(Modifier.height(8.dp))
+            albums.forEachIndexed { i, s ->
+                Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)} items", onClick = { openAlbum(i) })
+            }
+            if (albums.isEmpty()) Text("No photos yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    if (albumsFirst) albumsCard()
     GlassCard(Modifier.fillMaxWidth()) {
         SectionHeader("File types")
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -246,15 +266,7 @@ private fun Breakdown(files: List<StoredFile>, zone: TimeZone, onOpen: (String, 
             YearBars(years) { year -> onOpen(year, StorageStats.ofYear(files, year, zone)) }
         }
     }
-    GlassCard(Modifier.fillMaxWidth()) {
-        SectionHeader("Albums")
-        UsageBar(albums, albums.sumOf { it.bytes })
-        Spacer(Modifier.height(8.dp))
-        albums.forEachIndexed { i, s ->
-            Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)} items", onClick = { openAlbum(i) })
-        }
-        if (albums.isEmpty()) Text("No photos yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-    }
+    if (!albumsFirst) albumsCard()
 }
 
 private fun shade(c: Color, factor: Float) = Color(c.red * factor, c.green * factor, c.blue * factor, c.alpha)

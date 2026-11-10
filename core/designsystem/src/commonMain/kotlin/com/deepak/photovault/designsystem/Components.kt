@@ -126,7 +126,9 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
 fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
-    val background by animateColorAsState(if (selected) theme.accentSurface else Color.Transparent, motionSpec())
+    // 10 Nov: the theme's accent, like GlassSegmented's thumb, so the choice shows in every theme (the soft accent
+    // surface was hard to see in some).
+    val background by animateColorAsState(if (selected) theme.accent else Color.Transparent, motionSpec())
     Box(
         modifier
             .heightIn(min = MinTouchTarget)
@@ -140,7 +142,7 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) theme.onAccent else theme.onGlass, style = MaterialTheme.typography.labelLarge)
+        Text(label, color = if (selected) readableOn(theme.accent) else theme.onGlass, style = MaterialTheme.typography.labelLarge)
     }
 }
 

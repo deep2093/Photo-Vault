@@ -240,9 +240,11 @@ class AndroidLiving(context: Context) : LivingPlatform {
         val h = photo.height
         val px = IntArray(w * h)
         photo.getPixels(px, 0, w, 0, 0, w, h)
-        // 9 Nov: only just the subject's own space (it no longer moves away from it), so no blurred ring shows round them.
-        val hole = dilate(BooleanArray(w * h) { mask[it] > 0.5f }, w, h, 2)
-        val filled = Fill.pushPull(px, hole, w, h)
+        // Only the subject's own space and its soft edge (so none of the subject's colour is copied into the fill).
+        val hole = dilate(BooleanArray(w * h) { mask[it] > 0.3f }, w, h, 3)
+        // 10 Nov: the background slides sideways, so the strip it uncovers is filled from the real background just
+        // beside it, mirrored, instead of a blur.
+        val filled = Fill.mirror(px, hole, w, h)
         return Bitmap.createBitmap(filled, w, h, Bitmap.Config.ARGB_8888)
     }
 
@@ -281,13 +283,52 @@ class AndroidLiving(context: Context) : LivingPlatform {
 
     private companion object {
         const val MAX_SIDE = 1280
-        const val VERSION = "v3-"
+        const val VERSION = "v4-"
         const val NOTHING_FOUND = "No one stood out to lift off the background, so the whole photo drifts."
     }
 }
 
 /** Filling a hole in a picture from its edges (kept apart so it can be tested on its own). */
 internal object Fill {
+    /**
+     * For a sideways slide (10 Nov): each missing pixel copies the real background the same distance away on the
+     * other side of the hole's edge (like a mirror), the nearer side counting most. Where there is nothing to copy,
+     * the smooth [pushPull] fill is used.
+     */
+    fun mirror(px: IntArray, hole: BooleanArray, w: Int, h: Int): IntArray {
+        val smooth = pushPull(px, hole, w, h)
+        val out = smooth.copyOf()
+        for (y in 0 until h) {
+            val row = y * w
+            var x = 0
+            while (x < w) {
+                if (!hole[row + x]) { x++; continue }
+                val a = x
+                while (x < w && hole[row + x]) x++
+                val b = x - 1
+                for (i in a..b) {
+                    val dl = i - a + 1
+                    val dr = b - i + 1
+                    val li = a - dl
+                    val ri = b + dr
+                    val left = if (li >= 0 && !hole[row + li]) px[row + li] else smooth[row + i]
+                    val right = if (ri < w && !hole[row + ri]) px[row + ri] else smooth[row + i]
+                    out[row + i] = mix(left, right, dr.toFloat() / (dl + dr))
+                }
+            }
+        }
+        return out
+    }
+
+    /** [wa] of colour [a], the rest of [b]; alpha full. */
+    private fun mix(a: Int, b: Int, wa: Float): Int {
+        val wb = 1f - wa
+        val r = (((a shr 16) and 0xFF) * wa + ((b shr 16) and 0xFF) * wb).toInt()
+        val g = (((a shr 8) and 0xFF) * wa + ((b shr 8) and 0xFF) * wb).toInt()
+        val bl = ((a and 0xFF) * wa + (b and 0xFF) * wb).toInt()
+        return (0xFF shl 24) or (r.coerceIn(0, 255) shl 16) or (g.coerceIn(0, 255) shl 8) or bl.coerceIn(0, 255)
+    }
+
     /** [px] ARGB pixels; [hole] true where the colour should be made up. Returns new pixels, alpha full. */
     fun pushPull(px: IntArray, hole: BooleanArray, w: Int, h: Int): IntArray {
         // Level 0: colour and weight (0 in the hole).

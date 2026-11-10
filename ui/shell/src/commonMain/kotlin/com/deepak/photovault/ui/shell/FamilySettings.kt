@@ -44,6 +44,20 @@ internal fun OwnerSettingsCard(drive: DriveState) {
     var changePin by remember { mutableStateOf(false) }
     var pendingDefault by remember { mutableStateOf<Int?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    // The unlock runs out after a few minutes on its own (10 Nov): look again now and then, so the Lock button goes
+    // and the next change asks for the PIN, instead of a tap that seems to do nothing.
+    var tick by remember { mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(5_000)
+            tick++
+        }
+    }
+    val unlocked = tick.let { drive.ownerUnlocked }
+    // The new size shows until the drive says it is saved (10 Nov: it went back to the old one until Lock was tapped).
+    androidx.compose.runtime.LaunchedEffect(settings.defaultLimitGb) {
+        if (pendingDefault == settings.defaultLimitGb) pendingDefault = null
+    }
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action
     }
@@ -55,7 +69,7 @@ internal fun OwnerSettingsCard(drive: DriveState) {
         summary = listOf(
             if (settings.requirePin) "PIN on" else "No PIN",
             if (settings.approveNewPhones) "you approve phones" else "phones join freely",
-            "${settings.defaultLimitGb} GB each",
+            "${pendingDefault ?: settings.defaultLimitGb} GB each",
         ).joinToString(" · "),
         initiallyOpen = joined.household.ownerPin == null,
     ) {
@@ -84,7 +98,8 @@ internal fun OwnerSettingsCard(drive: DriveState) {
                         pendingDefault = gb
                         scope.launch {
                             message = drive.updateSettings { it.copy(defaultLimitGb = gb) }
-                            pendingDefault = null
+                            // Saved: the drive's value takes over. Not saved: back to what the drive has.
+                            if (message != null || drive.joined?.household?.settings?.defaultLimitGb == gb) pendingDefault = null
                         }
                     }
                 })
@@ -96,7 +111,7 @@ internal fun OwnerSettingsCard(drive: DriveState) {
                 icon = Icons.Rounded.Password,
                 onClick = { asOwner { changePin = true } },
             )
-            if (settings.requirePin && drive.ownerUnlocked) {
+            if (settings.requirePin && unlocked) {
                 GlassButton("Lock", icon = Icons.Rounded.LockOpen, onClick = drive::lockOwner)
             }
         }
