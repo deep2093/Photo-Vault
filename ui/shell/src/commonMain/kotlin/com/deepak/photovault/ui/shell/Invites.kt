@@ -81,7 +81,8 @@ internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Un
     var problem by remember { mutableStateOf<String?>(null) }
     var made by remember { mutableStateOf<String?>(null) }
     var openInvites by remember { mutableStateOf<List<InviteMarker>>(emptyList()) }
-    androidx.compose.runtime.LaunchedEffect(open, made) { if (drive.isOwner) openInvites = drive.openInvites() }
+    // Read again whenever someone may have used one or been approved (10 Nov: a used invite stayed listed).
+    androidx.compose.runtime.LaunchedEffect(open, made, drive.invitesChanged) { if (drive.isOwner) openInvites = drive.openInvites() }
     GlassCard(Modifier.cardWidth()) {
         SectionHeader("Invite someone")
         val text = made

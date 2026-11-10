@@ -30,6 +30,12 @@ interface DriveFileSystem {
     suspend fun delete(path: String)
 
     /**
+     * Removes a folder only when it is empty (10 Nov: a deleted backup left empty folders behind). Does nothing when
+     * it is gone or still has something in it.
+     */
+    suspend fun deleteEmptyFolder(path: String) = Unit
+
+    /**
      * Streams [source] into a new file at [path]. Fails (returns false) when anything already exists there.
      * Not atomic: only used for private temporary files, which are checked and then published with [rename].
      */

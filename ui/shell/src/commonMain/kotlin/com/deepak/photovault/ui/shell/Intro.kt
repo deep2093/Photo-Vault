@@ -100,13 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-10-3"
+    const val ID = "2026-11-10-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Approving a phone", "Approve works straight from the popup, and says so if the drive couldn't be reached. A lost drive connection is made again by itself, no restart needed. The phone that asked joins within seconds."),
-        Change(ChangeKind.CHANGED, "Drive checks", "While the app is open, join requests are checked every 15 minutes. Feedback is checked only on the home Wi-Fi."),
-        Change(ChangeKind.FIXED, "First-time questions", "The privacy, quality and video questions now come only when you start a family or join one."),
-        Change(ChangeKind.CHANGED, "Backed-up albums", "Now below By year in Storage > Drive, like on the phone."),
+        Change(ChangeKind.CHANGED, "Join requests show fast", "While the owner has the app open, requests to join are checked every 30 seconds, so the popup comes up quickly."),
+        Change(ChangeKind.FIXED, "Used invites", "An invite disappears from Waiting to be used once the person is in the family."),
+        Change(ChangeKind.FIXED, "Counting...", "A new member's space is counted straight after joining, instead of showing Counting... for an hour."),
+        Change(ChangeKind.FIXED, "Deleting a backup", "Leaving or deleting the family with the backup now removes the whole folder from the drive, with no empty folders left."),
     )
 }
 

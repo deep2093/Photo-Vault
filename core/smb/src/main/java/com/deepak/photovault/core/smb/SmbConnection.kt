@@ -353,6 +353,15 @@ class SmbConnection(private val profile: SmbProfile) : Closeable {
         if (disk.fileExists(p)) disk.rm(p)
     }
 
+    /** Removes a folder only when it is empty (never anything inside it). Does nothing when it is gone. */
+    fun removeEmptyFolder(path: String) {
+        val disk = share ?: throw IOException("Not connected")
+        val p = safePath(path)
+        if (!disk.folderExists(p)) return
+        if (list(p.replace('\\', '/')).isNotEmpty()) return
+        disk.rmdir(p, false)
+    }
+
     /** Total size of files under [path]; skips links. */
     fun folderSize(path: String, depthLimit: Int = 64): Long {
         var total = 0L

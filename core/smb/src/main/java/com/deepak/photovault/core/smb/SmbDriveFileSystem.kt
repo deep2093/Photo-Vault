@@ -112,6 +112,8 @@ class SmbDriveFileSystem(private val profile: SmbProfile, root: String) : DriveF
 
     override suspend fun delete(path: String) = call { c -> c.deleteFile(full(path)) }
 
+    override suspend fun deleteEmptyFolder(path: String) = call { c -> c.removeEmptyFolder(full(path)) }
+
     override suspend fun folderSize(path: String): Long = call { c -> c.folderSize(full(path)) }
 
     override suspend fun space(): DriveSpace = call { c -> c.space().let { (total, free) -> DriveSpace(total, free) } }

@@ -89,6 +89,8 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmDeleteFamily by remember { mutableStateOf(false) }
+    // Not counted yet (a new member): count now instead of showing "Counting..." until the next hourly check (10 Nov).
+    LaunchedEffect(member.userId) { if (drive.usage[member.userId]?.usedBytes == null) drive.refreshUsage(force = true) }
     var removePhone by remember { mutableStateOf<Pair<String, String>?>(null) }
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action

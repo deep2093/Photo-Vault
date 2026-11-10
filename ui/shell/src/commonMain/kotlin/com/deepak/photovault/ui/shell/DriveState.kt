@@ -213,6 +213,8 @@ class DriveState(private val platform: DrivePlatform) {
     private suspend fun refreshLocked() {
         val s = ensureStore() ?: return
         val m = s.membership(platform.deviceId, platform.rememberedUserId())
+        // Someone new in the family may have used an invite (10 Nov): Family reads its invite list again.
+        if ((m as? Membership.Joined)?.household?.members?.size != joined?.household?.members?.size) invitesChanged++
         membership = m
         membershipStale = false
         platform.rememberHousehold((m as? Membership.Joined)?.household)
@@ -272,7 +274,7 @@ class DriveState(private val platform: DrivePlatform) {
         if (pin != null) unlock(pin)
         setupWanted = true
         refreshLocked()
-    }
+    }.also { if (it == null) refreshUsage(force = true) }
 
     /** Backing up alone: a family of one with this person as owner and no PIN (25 Oct). Family can be added later. */
     suspend fun startJustMe(): String? = createFamily(platform.deviceName.ifBlank { "Me" }, null)
@@ -295,7 +297,7 @@ class DriveState(private val platform: DrivePlatform) {
                 throw e
             }
             refreshLocked()
-        }
+        }.also { if (it == null && joined != null) refreshUsage(force = true) }
     }
 
     suspend fun cancelJoin(): String? = guarded {
@@ -333,7 +335,39 @@ class DriveState(private val platform: DrivePlatform) {
 
     private fun auth() = OwnerAuth(platform.deviceId, ownerPin)
 
-    suspend fun approve(request: JoinRequest) = ownerAction { it.approve(auth(), request) }
+    suspend fun approve(request: JoinRequest) = ownerAction { s ->
+        s.approve(auth(), request)
+        // 10 Nov: an invite made for this person isn't waiting any more once they are in.
+        val name = request.newName?.trim()?.lowercase()
+        val fs = drive
+        if (!name.isNullOrEmpty() && fs != null) {
+            val board = com.deepak.photovault.core.household.InviteBoard(fs, platform::now)
+            runCatching { board.open().filter { it.forName.trim().lowercase() == name }.forEach { board.revoke(it.id) } }
+        }
+    }.also { if (it == null) invitesChanged++ }
+
+    /** Goes up whenever an invite may have been used or approved, so Family reads its list again. */
+    var invitesChanged by mutableStateOf(0)
+        private set
+
+    /**
+     * Only the requests to join (10 Nov): one small folder, read every 30 s while the owner has the app open. Skipped
+     * while other drive work is going on.
+     */
+    suspend fun checkRequests() {
+        if (!isOwner) return
+        if (!lock.tryLock()) return
+        try {
+            val s = runCatching { ensureStore() }.getOrNull() ?: return
+            val fresh = runCatching { s.pendingRequests() }.getOrNull() ?: return
+            if (fresh != requests) {
+                requests = fresh
+                invitesChanged++
+            }
+        } finally {
+            lock.unlock()
+        }
+    }
 
     suspend fun decline(request: JoinRequest) = ownerAction { it.decline(auth(), request) }
 
@@ -389,7 +423,7 @@ class DriveState(private val platform: DrivePlatform) {
             ensureStore()!!.joinWithInvite(invite, platform.deviceId, platform.deviceName, name)
             setupWanted = true
             refreshLocked()
-        }
+        }.also { if (it == null) refreshUsage(force = true) }
     }
 
     // ---- Private backup keys (Phase 4A, 25 Oct) ----
@@ -494,6 +528,7 @@ class DriveState(private val platform: DrivePlatform) {
         require(folder == "system" || folder.startsWith("users/")) { "Not a Pixallery folder" }
         if (!fs.exists(folder)) return
         deletingFiles = 0
+        val folders = mutableListOf(folder)
         try {
             val todo = ArrayDeque(listOf(folder))
             while (todo.isNotEmpty()) {
@@ -501,12 +536,14 @@ class DriveState(private val platform: DrivePlatform) {
                 for (entry in runCatching { fs.list(dir) }.getOrDefault(emptyList())) {
                     if (entry.name == "." || entry.name == ".." || '/' in entry.name || '\\' in entry.name) continue
                     val path = DrivePaths.join(dir, entry.name)
-                    if (entry.isFolder) todo.addLast(path) else {
+                    if (entry.isFolder) { todo.addLast(path); folders += path } else {
                         runCatching { fs.delete(path) }
                         deletingFiles = (deletingFiles ?: 0) + 1
                     }
                 }
             }
+            // Then the emptied folders, deepest first, and the folder itself (10 Nov: none left behind).
+            folders.asReversed().forEach { runCatching { fs.deleteEmptyFolder(it) } }
         } finally {
             deletingFiles = null
         }

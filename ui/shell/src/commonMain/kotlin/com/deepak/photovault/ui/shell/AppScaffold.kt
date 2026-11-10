@@ -126,6 +126,9 @@ private const val DRIVE_REFRESH_MS = 60 * 60_000L
 /** Family and requests while the app is on screen (10 Nov). */
 private const val DRIVE_REQUESTS_MS = 15 * 60_000L
 
+/** The owner's app looks at the requests to join this often while on screen (10 Nov). */
+private const val DRIVE_REQUESTS_FAST_MS = 30_000L
+
 /** A phone waiting to be approved checks this often while the app is open (10 Nov). */
 private const val DRIVE_WAITING_MS = 15_000L
 
@@ -197,6 +200,17 @@ fun PhotoVaultApp(
             rounds++
             if (rounds % (DRIVE_REFRESH_MS / DRIVE_REQUESTS_MS).toInt() == 0) check() else drive.refresh()
         }
+    }
+    // The owner, app on screen: the requests folder every 30 seconds (10 Nov), so a phone asking to join pops up fast.
+    LaunchedEffect(drive.isOwner, signals.foreground) {
+        while (drive.isOwner && signals.foreground) {
+            kotlinx.coroutines.delay(DRIVE_REQUESTS_FAST_MS)
+            drive.checkRequests()
+        }
+    }
+    // Just let into the family (or started one): count the space at once, not "Counting..." until the next hour.
+    LaunchedEffect(drive.joined?.me?.userId) {
+        if (drive.joined != null) drive.refreshUsage()
     }
     // A phone waiting to be let in checks every 15 seconds while the app is open (10 Nov), so it is in the family as
     // soon as the owner approves, without restarting the app.
