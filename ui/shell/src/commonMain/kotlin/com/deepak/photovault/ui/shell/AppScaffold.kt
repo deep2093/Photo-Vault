@@ -123,6 +123,12 @@ private val PAGE_SHADOW_WIDTH = 28.dp
 /** While the app is open the drive is checked once an hour (28 Oct; was every minute, which kept a hard disk awake). */
 private const val DRIVE_REFRESH_MS = 60 * 60_000L
 
+/** Family and requests while the app is on screen (10 Nov). */
+private const val DRIVE_REQUESTS_MS = 15 * 60_000L
+
+/** A phone waiting to be approved checks this often while the app is open (10 Nov). */
+private const val DRIVE_WAITING_MS = 15_000L
+
 
 /** The full list of photos on the drive is read again at most this often, unless a backup finished or you pull down. */
 private const val DRIVE_LIBRARY_MS = 3 * 60 * 60_000L
@@ -183,9 +189,22 @@ fun PhotoVaultApp(
         // phone. Only a phone that doesn't know its family yet asks. After that: every hour while on screen, on pull
         // down, when a drive page opens, after a backup, or when a drive photo is opened.
         if (drive.joined == null) check()
+        // 10 Nov: the family and requests (small) every 15 minutes, so a phone asking to join shows up fast; space used
+        // and feedback (slower) every hour as before.
+        var rounds = 0
         while (auto) {
-            kotlinx.coroutines.delay(DRIVE_REFRESH_MS)
-            check()
+            kotlinx.coroutines.delay(DRIVE_REQUESTS_MS)
+            rounds++
+            if (rounds % (DRIVE_REFRESH_MS / DRIVE_REQUESTS_MS).toInt() == 0) check() else drive.refresh()
+        }
+    }
+    // A phone waiting to be let in checks every 15 seconds while the app is open (10 Nov), so it is in the family as
+    // soon as the owner approves, without restarting the app.
+    val waiting = drive.membership is com.deepak.photovault.core.household.Membership.Pending
+    LaunchedEffect(waiting, signals.foreground) {
+        while (waiting && signals.foreground) {
+            kotlinx.coroutines.delay(DRIVE_WAITING_MS)
+            drive.refresh()
         }
     }
     // Joining a family moves this phone's backup time to its own slot, unless it was already moved (25 Oct).

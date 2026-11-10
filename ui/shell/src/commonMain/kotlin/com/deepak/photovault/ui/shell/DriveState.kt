@@ -270,6 +270,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun createFamily(name: String, pin: String?): String? = guarded {
         ensureStore()!!.create(name, platform.deviceId, platform.deviceName, pin)
         if (pin != null) unlock(pin)
+        setupWanted = true
         refreshLocked()
     }
 
@@ -284,6 +285,7 @@ class DriveState(private val platform: DrivePlatform) {
         return guarded {
             try {
                 ensureStore()!!.requestJoin(platform.deviceId, platform.deviceName, newName, existingUserId, ownerPin)
+                setupWanted = true
                 if (ownerPin != null) {
                     pinAttempts.recordSuccess()
                     unlock(ownerPin)
@@ -385,6 +387,7 @@ class DriveState(private val platform: DrivePlatform) {
         }
         return guarded {
             ensureStore()!!.joinWithInvite(invite, platform.deviceId, platform.deviceName, name)
+            setupWanted = true
             refreshLocked()
         }
     }
@@ -970,7 +973,21 @@ class DriveState(private val platform: DrivePlatform) {
     private suspend fun guarded(block: suspend () -> Unit): String? = lock.withLock {
         busy = true
         try {
-            block()
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: NotAllowed) {
+                throw e
+            } catch (e: IllegalArgumentException) {
+                throw e
+            } catch (_: Throwable) {
+                // 10 Nov: the connection the screens share can go stale (approving a phone failed until the app was
+                // restarted). Drop it and try once more with a fresh one.
+                store = null
+                drive = null
+                block()
+            }
             null
         } catch (e: CancellationException) {
             throw e
@@ -984,6 +1001,12 @@ class DriveState(private val platform: DrivePlatform) {
             busy = false
         }
     }
+
+    /**
+     * Set when this phone starts a family or asks to join one (10 Nov): the first-time backup questions are asked
+     * then, and only then (not just because the app opened).
+     */
+    var setupWanted by mutableStateOf(false)
 
     companion object {
         const val GB = 1_000_000_000L

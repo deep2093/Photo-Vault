@@ -30,6 +30,9 @@ internal fun JoinRequestPrompt(drive: DriveState, foreground: Boolean) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     var askPin by remember { mutableStateOf<(() -> Unit)?>(null) }
+    // 10 Nov: the answer from the drive is shown; before, a failed Approve just closed the popup.
+    var failed by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
     LaunchedEffect(request.deviceId) { haptics.longPress() }
     val who = request.newName ?: joined.household.member(request.existingUserId ?: "")?.name ?: "Someone"
     fun owner(action: () -> Unit) {
@@ -49,14 +52,22 @@ internal fun JoinRequestPrompt(drive: DriveState, foreground: Boolean) {
             GlassButton("Later", onClick = { shown += request.deviceId })
             GlassButton("Decline", onClick = {
                 owner {
-                    shown += request.deviceId
-                    scope.launch { drive.decline(request) }
+                    working = true
+                    scope.launch {
+                        failed = drive.decline(request)
+                        working = false
+                        if (failed == null) shown += request.deviceId
+                    }
                 }
             })
-            GlassButton("Approve", primary = true, onClick = {
-                owner {
-                    shown += request.deviceId
-                    scope.launch { drive.approve(request) }
+            GlassButton(if (working) "Working…" else if (failed != null) "Try again" else "Approve", primary = true, onClick = {
+                if (!working) owner {
+                    working = true
+                    scope.launch {
+                        failed = drive.approve(request)
+                        working = false
+                        if (failed == null) shown += request.deviceId
+                    }
                 }
             })
         },
@@ -67,5 +78,6 @@ internal fun JoinRequestPrompt(drive: DriveState, foreground: Boolean) {
             style = MaterialTheme.typography.bodyLarge,
         )
         Text("They get their own folder on the drive and ${com.deepak.photovault.core.household.DEFAULT_LIMIT_GB} GB to start.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        failed?.let { com.deepak.photovault.designsystem.WarningNote("Couldn't do that: $it") }
     }
 }

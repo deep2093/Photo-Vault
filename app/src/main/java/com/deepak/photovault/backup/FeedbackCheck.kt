@@ -36,6 +36,8 @@ class FeedbackCheckWorker(context: Context, params: WorkerParameters) : Coroutin
         if (!com.deepak.photovault.NotifyPrefs.on(applicationContext, com.deepak.photovault.NotifyPrefs.FEEDBACK)) return Result.success()
         val platform = AndroidDrivePlatform(applicationContext)
         val connection = platform.loadConnection() ?: return Result.success()
+        // Away from home: don't even try (10 Nov).
+        if (!platform.onSameNetwork(connection.host.trim())) return Result.success()
         val unseen = runCatching {
             platform.openDetached(connection).use { fs ->
                 val joined = HouseholdStore(fs) { System.currentTimeMillis() }
@@ -57,9 +59,11 @@ object FeedbackCheck {
 
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<FeedbackCheckWorker>(3, TimeUnit.HOURS)
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            // 10 Nov: Wi-Fi only, and (below) only on the home network, where the drive is.
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
             .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+        // UPDATE so phones that already had the old "any network" job get the Wi-Fi-only one.
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 }
 

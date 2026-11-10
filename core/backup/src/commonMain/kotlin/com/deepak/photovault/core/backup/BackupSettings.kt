@@ -121,6 +121,8 @@ data class BackupSettings(
     val convertPrivateToNormal: Boolean = false,
     /** The first-time questions (privacy, quality, videos) were answered after joining (10 Nov). */
     val firstSetupDone: Boolean = false,
+    /** This phone just started or asked to join a family and hasn't answered the first-time questions yet (10 Nov). */
+    val askSetup: Boolean = false,
 )
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */

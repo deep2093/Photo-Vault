@@ -191,8 +191,8 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     files.isEmpty() -> Text("Nothing backed up yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-                    // 10 Nov: the drive's albums right under the ring, so anyone can check their backed-up photos by album.
-                    else -> Breakdown(files, zone, open(true), albumsTitle = "Backed-up albums", albumsFirst = true)
+                    // 10 Nov: the drive's albums, below By year like the phone's.
+                    else -> Breakdown(files, zone, open(true), albumsTitle = "Backed-up albums")
                 }
                 if (joined != null) {
                     val binned = gallery.trashed.count { it.item.isDriveOnly }

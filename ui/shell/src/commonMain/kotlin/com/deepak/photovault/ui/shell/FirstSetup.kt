@@ -27,16 +27,24 @@ import com.deepak.photovault.designsystem.glassPanel
 import com.deepak.photovault.designsystem.rememberHaptics
 
 /**
- * First-time backup questions (10 Nov, Deepak): right after this phone joins a family drive, with or without an
- * invite, three short popups in the app's own glass: 1) Normal or Private, 2) original quality or Space saver,
+ * First-time backup questions (10 Nov, Deepak): right after this phone starts a family or joins one, with or without
+ * an invite, three short popups in the app's own glass: 1) Normal or Private, 2) original quality or Space saver,
  * 3) videos too or photos only. Private's key is set up at the end. "Later" asks again next time; backup waits until
  * Normal or Private is picked, as before.
  */
 @Composable
 internal fun FirstSetupPopups(state: ShellState, drive: DriveState, backup: BackupState) {
     val settings = backup.settings
+    // 10 Nov: only after this phone starts a family or asks to join one, never just because the app opened.
+    // Remembered, so a phone approved later (or that tapped Later) is asked once it is in the family.
+    androidx.compose.runtime.LaunchedEffect(drive.setupWanted) {
+        if (drive.setupWanted) {
+            backup.update { it.copy(askSetup = true) }
+            drive.setupWanted = false
+        }
+    }
     var later by remember { mutableStateOf(false) }
-    val show = drive.joined != null && settings.privacy == BackupPrivacy.UNSET && !settings.firstSetupDone && !later
+    val show = drive.joined != null && settings.askSetup && !later
     if (!show) return
     var step by remember { mutableStateOf(0) }
     var private by remember { mutableStateOf(false) }
@@ -48,6 +56,7 @@ internal fun FirstSetupPopups(state: ShellState, drive: DriveState, backup: Back
                 videos = videos,
                 privacy = if (private) (if (state.encryption.keyOnPhone) BackupPrivacy.PRIVATE else it.privacy) else BackupPrivacy.NORMAL,
                 firstSetupDone = true,
+                askSetup = false,
             )
         }
         // Private needs its own key (and recovery words) first: its setup page opens now.

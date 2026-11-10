@@ -429,6 +429,8 @@ class MainActivity : ComponentActivity(), MediaActions {
         if (intent?.getBooleanExtra(EXTRA_OPEN_FAMILY, false) == true) {
             shell.overlays.clear()
             shell.destination = Destination.FAMILY
+            // 10 Nov: read the requests now, so the one in the notification is there to approve.
+            if (::drive.isInitialized) lifecycleScope.launch { drive.refresh() }
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_PEOPLE, false) == true) {
             shell.overlays.clear()

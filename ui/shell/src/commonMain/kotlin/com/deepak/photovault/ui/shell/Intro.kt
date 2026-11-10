@@ -100,13 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-10-2"
+    const val ID = "2026-11-10-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Drive storage", "After switching from Private to Normal, Storage > Drive said \"Nothing backed up yet\" because your private backups' list couldn't be opened. It opens again, and the last list shows straight away while the drive is checked."),
-        Change(ChangeKind.NEW, "First-time backup questions", "After joining a family drive, three short questions: Normal or Private, original or Space saver, and whether to back up videos."),
-        Change(ChangeKind.NEW, "Leaving the family", "When you leave, you choose to keep your backup on the drive or delete it. An owner who is alone in the family can delete the family, with or without their backup."),
-        Change(ChangeKind.FIXED, "Albums on tablets", "Places, People, Secured folder and Recently deleted now use the full width on tablets, in one row."),
+        Change(ChangeKind.FIXED, "Approving a phone", "Approve works straight from the popup, and says so if the drive couldn't be reached. A lost drive connection is made again by itself, no restart needed. The phone that asked joins within seconds."),
+        Change(ChangeKind.CHANGED, "Drive checks", "While the app is open, join requests are checked every 15 minutes. Feedback is checked only on the home Wi-Fi."),
+        Change(ChangeKind.FIXED, "First-time questions", "The privacy, quality and video questions now come only when you start a family or join one."),
+        Change(ChangeKind.CHANGED, "Backed-up albums", "Now below By year in Storage > Drive, like on the phone."),
     )
 }
 
