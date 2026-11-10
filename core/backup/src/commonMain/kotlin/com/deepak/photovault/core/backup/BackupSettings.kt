@@ -119,6 +119,8 @@ data class BackupSettings(
      * converting itself comes in Phase 10A; until then this only remembers the choice.
      */
     val convertPrivateToNormal: Boolean = false,
+    /** The first-time questions (privacy, quality, videos) were answered after joining (10 Nov). */
+    val firstSetupDone: Boolean = false,
 )
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */

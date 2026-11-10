@@ -296,7 +296,8 @@ class BackupRunner(
                 try {
                     val membership = HouseholdStore(fs) { System.currentTimeMillis() }.membership(platform.deviceId, platform.rememberedUserId())
                     val joined = membership as? Membership.Joined ?: return FreeUpResult(message = FailureReason.NOT_JOINED.plain)
-                    val records = BackupCatalog(fs, joined.me.userId, null).records().associateBy { it.key }
+                    // With the private key when there is one, so privately backed-up photos count too (10 Nov).
+                    val records = BackupCatalog(fs, joined.me.userId, com.deepak.photovault.PrivateKeys.vault(context, joined.household.householdId, joined.me.userId)).records().associateBy { it.key }
                     val split = FreeUpSpace.split(MediaStoreLibrary(context).loadAll(), records, days, System.currentTimeMillis())
                     val engine = BackupEngine(
                         drive = fs, userId = joined.me.userId, deviceId = platform.deviceId, reader = AndroidMediaReader(context), index = index,

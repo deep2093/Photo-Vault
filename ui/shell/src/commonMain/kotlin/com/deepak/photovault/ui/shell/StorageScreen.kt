@@ -174,10 +174,22 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                     )
                 }
                 val files = driveFiles
+                // 10 Nov: the list last read stays on screen while the drive is read again in the background.
+                if (joined != null && drive.backupRecordsLoading && files != null) {
+                    Text("Updating from the drive…", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                drive.backupListProblem?.let { com.deepak.photovault.designsystem.WarningNote(it) }
+                val usedOnDrive = joined?.let { drive.usage[it.me.userId]?.usedBytes } ?: 0L
                 when {
                     joined == null -> Unit
                     driveLoading -> Text("Reading the drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     files == null -> Text("Couldn't read the drive. Check you're on the home Wi-Fi.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                    // Space is used but the list came back empty: say so plainly instead of "nothing backed up".
+                    files.isEmpty() && usedOnDrive > 0 -> Text(
+                        "Your backup uses ${DetailsFormat.size(usedOnDrive)}, but its list of photos couldn't be read. Pull down on Photos on the home Wi-Fi, then come back.",
+                        color = theme.onGlassSecondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     files.isEmpty() -> Text("Nothing backed up yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     // 10 Nov: the drive's albums right under the ring, so anyone can check their backed-up photos by album.
                     else -> Breakdown(files, zone, open(true), albumsTitle = "Backed-up albums", albumsFirst = true)

@@ -120,6 +120,7 @@ fun GlassTextField(
 }
 
 /** A glass dialog with a title, content and a row of buttons. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun GlassDialog(
     title: String,
@@ -141,7 +142,12 @@ fun GlassDialog(
         ) {
             Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             content()
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+            // Buttons wrap onto a second line when they don't fit (10 Nov: three long choices ran off the edge).
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 buttons()
             }
         }

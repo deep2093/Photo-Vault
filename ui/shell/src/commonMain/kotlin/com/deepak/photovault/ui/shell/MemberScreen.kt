@@ -88,6 +88,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     var askSpace by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var confirmDeleteFamily by remember { mutableStateOf(false) }
     var removePhone by remember { mutableStateOf<Pair<String, String>?>(null) }
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action
@@ -163,6 +164,13 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                             }
                         }
                         GlassButton("Leave family", icon = Icons.AutoMirrored.Rounded.Logout, modifier = Modifier.padding(top = 10.dp), onClick = { confirmLeave = true })
+                    }
+                    // The owner alone in the family can close it (10 Nov), keeping or deleting their backup.
+                    if (isMe && drive.isOwner && (drive.joined?.household?.members?.size ?: 0) <= 1) {
+                        GlassButton("Delete family", icon = Icons.AutoMirrored.Rounded.Logout, modifier = Modifier.padding(top = 10.dp), onClick = { confirmDeleteFamily = true })
+                    }
+                    drive.deletingFiles?.let { n ->
+                        Text("Deleting from the drive… $n files", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
             }
@@ -265,17 +273,62 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
         }
     }
     if (confirmLeave) {
-        ConfirmDialog(
+        // 10 Nov: everyone who leaves chooses what happens to their backup on the drive.
+        GlassDialog(
             title = "Leave the family?",
-            body = "Your phones stop backing up to the family drive and you no longer see the Family Album. Photos you already backed up stay on the drive, and the owner can still see them. You can ask to join again later.",
-            confirm = "Leave",
             onDismiss = { confirmLeave = false },
+            buttons = {
+                GlassButton("Cancel", onClick = { confirmLeave = false })
+                GlassButton("Leave, keep backup", onClick = {
+                    confirmLeave = false
+                    scope.launch { message = drive.leaveFamily(deleteBackup = false); if (message == null) state.back() }
+                })
+                GlassButton("Leave and delete backup", primary = true, onClick = {
+                    confirmLeave = false
+                    scope.launch { message = drive.leaveFamily(deleteBackup = true); if (message == null) state.back() }
+                })
+            },
         ) {
-            confirmLeave = false
-            scope.launch {
-                message = drive.leaveFamily()
-                if (message == null) state.back()
-            }
+            Text(
+                "Your phones stop backing up to the family drive and you no longer see the Family Album. You can ask to join again later.",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Keep backup: your photos stay on the drive and the owner can still see them. Delete backup: all of your photos and videos on the drive are deleted for good. The ones on your phone stay.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+    if (confirmDeleteFamily) {
+        GlassDialog(
+            title = "Delete the family?",
+            onDismiss = { confirmDeleteFamily = false },
+            buttons = {
+                GlassButton("Cancel", onClick = { confirmDeleteFamily = false })
+                GlassButton("Delete, keep backup", onClick = {
+                    confirmDeleteFamily = false
+                    asOwner { scope.launch { message = drive.deleteFamily(deleteBackup = false); if (message == null) state.back() } }
+                })
+                GlassButton("Delete with backup", primary = true, onClick = {
+                    confirmDeleteFamily = false
+                    asOwner { scope.launch { message = drive.deleteFamily(deleteBackup = true); if (message == null) state.back() } }
+                })
+            },
+        ) {
+            Text(
+                "You're the only one in it. The family's settings, invites and requests are deleted from the drive, and this phone stops backing up. You can start a new family on the drive later.",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Keep backup: your photos stay in the drive's Pixallery folder. Delete with backup: all of your photos and videos on the drive are deleted for good. The ones on your phone stay.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
     if (confirmRemove) {

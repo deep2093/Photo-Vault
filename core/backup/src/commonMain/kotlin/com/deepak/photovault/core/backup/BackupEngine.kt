@@ -529,7 +529,15 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
     private val userFolder = HouseholdStore.userFolder(userId)
     private val manifests = DrivePaths.join(userFolder, BackupEngine.MANIFESTS)
 
+    /** From the last [records]: lists found, and how many of them couldn't be read (locked or damaged). */
+    var listsFound = 0
+        private set
+    var listsUnreadable = 0
+        private set
+
     suspend fun records(): List<BackupRecord> {
+        listsFound = 0
+        listsUnreadable = 0
         // Every phone's manifests in time order (their names start with the time), so a deletion only hides
         // what was saved before it, and a photo backed up again afterwards shows again.
         val files = drive.list(manifests).filter { it.isFolder }.flatMap { device ->
@@ -537,14 +545,16 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
             drive.list(folder).filter { !it.isFolder && (it.name.endsWith(".json") || it.name.endsWith(".pxm")) }.map { DrivePaths.join(folder, it.name) }
         }.sortedBy { it.substringAfterLast('/') }
         val out = LinkedHashMap<String, BackupRecord>()
+        listsFound = files.size
         for (path in files) {
             val manifest = try {
-                readManifest(path) ?: continue
+                readManifest(path) ?: run { listsUnreadable++; null } ?: continue
             } catch (_: DriveNotFound) {
                 continue
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
+                listsUnreadable++
                 continue // A damaged manifest never stops a backup.
             }
             manifest.records.forEach { out[it.drivePath] = it }

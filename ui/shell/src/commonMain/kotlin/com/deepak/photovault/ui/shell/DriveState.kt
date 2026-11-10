@@ -18,6 +18,7 @@ import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.drive.DriveSpace
 import com.deepak.photovault.core.household.HouseholdSettings
 import com.deepak.photovault.core.household.HouseholdStore
+import com.deepak.photovault.core.drive.DrivePaths
 import com.deepak.photovault.core.household.JoinRequest
 import com.deepak.photovault.core.household.Membership
 import com.deepak.photovault.core.household.NotAllowed
@@ -72,6 +73,10 @@ interface DrivePlatform {
     /** The family as last read from the drive (30 Oct), so Family can show it at once while the drive wakes up. */
     fun rememberedHousehold(): com.deepak.photovault.core.household.Household? = null
     fun rememberHousehold(household: com.deepak.photovault.core.household.Household?) = Unit
+
+    /** This person's backup list as last read (10 Nov), so Storage and Photos show it at once while the drive wakes up. */
+    fun rememberedBackupRecords(userId: String): List<com.deepak.photovault.core.backup.BackupRecord>? = null
+    fun rememberBackupRecords(userId: String, records: List<com.deepak.photovault.core.backup.BackupRecord>) = Unit
 
     /** The newest feedback note the owner has looked at (25 Oct), for the dot on Settings. */
     fun feedbackSeenAt(): Long = 0L
@@ -440,13 +445,73 @@ class DriveState(private val platform: DrivePlatform) {
         fs.createNew("${keysFolder(me)}/helper-$helperUserId.bin", wrapped)
     }
 
-    /** The person leaves the family from this phone. Their photos on the drive stay. */
-    suspend fun leaveFamily(): String? = guarded {
-        if (joined == null || isOwner) return@guarded
+    /**
+     * The person leaves the family from this phone. [deleteBackup] (10 Nov): their backup is deleted from the drive
+     * too (every file in their own folder, nobody else's); otherwise it stays and the owner can still see it.
+     */
+    suspend fun leaveFamily(deleteBackup: Boolean = false): String? = guarded {
+        val me = joined?.me ?: return@guarded
+        if (isOwner) return@guarded
         val s = ensureStore() ?: return@guarded
         s.leave(platform.deviceId)
         platform.rememberUserId(null)
+        if (deleteBackup) deleteFilesUnder(com.deepak.photovault.core.household.HouseholdStore.userFolder(me.userId))
+        forgetBackupList(me.userId)
         refreshLocked()
+    }
+
+    /**
+     * The owner, alone in the family, closes it (10 Nov): the family's own files on the drive go, so the drive is free
+     * for a new family; with [deleteBackup] the owner's backup goes too. Not possible while anyone else is in it.
+     */
+    suspend fun deleteFamily(deleteBackup: Boolean): String? = guarded {
+        val j = joined ?: return@guarded
+        if (!j.isOwner) throw NotAllowed("Only the owner can do this")
+        if (j.household.members.size > 1) throw NotAllowed("Remove everyone else first")
+        if (!ownerUnlocked) throw NotAllowed("Enter the owner PIN first")
+        ensureStore() ?: return@guarded
+        if (deleteBackup) deleteFilesUnder(com.deepak.photovault.core.household.HouseholdStore.userFolder(j.me.userId))
+        // The family itself last, so a stop half way still leaves a family that works.
+        deleteFilesUnder("system")
+        platform.rememberUserId(null)
+        platform.rememberHousehold(null)
+        forgetBackupList(j.me.userId)
+        lockOwner()
+        store = null
+        refreshLocked()
+    }
+
+    /** Files deleted so far by [deleteFilesUnder], shown while it works; null when nothing is being deleted. */
+    var deletingFiles by mutableStateOf<Int?>(null)
+        private set
+
+    /** Deletes every file in [folder] and the folders inside it (folders themselves stay, empty). */
+    private suspend fun deleteFilesUnder(folder: String) {
+        val fs = drive ?: return
+        require(folder == "system" || folder.startsWith("users/")) { "Not a Pixallery folder" }
+        if (!fs.exists(folder)) return
+        deletingFiles = 0
+        try {
+            val todo = ArrayDeque(listOf(folder))
+            while (todo.isNotEmpty()) {
+                val dir = todo.removeFirst()
+                for (entry in runCatching { fs.list(dir) }.getOrDefault(emptyList())) {
+                    if (entry.name == "." || entry.name == ".." || '/' in entry.name || '\\' in entry.name) continue
+                    val path = DrivePaths.join(dir, entry.name)
+                    if (entry.isFolder) todo.addLast(path) else {
+                        runCatching { fs.delete(path) }
+                        deletingFiles = (deletingFiles ?: 0) + 1
+                    }
+                }
+            }
+        } finally {
+            deletingFiles = null
+        }
+    }
+
+    private fun forgetBackupList(userId: String) {
+        backupRecords = null
+        runCatching { platform.rememberBackupRecords(userId, emptyList()) }
     }
 
     suspend fun removeMember(userId: String) = ownerAction { it.removeMember(auth(), userId) }
@@ -524,8 +589,22 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun myBackupRecords(): List<com.deepak.photovault.core.backup.BackupRecord>? {
         val me = joined?.me ?: return null
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
-        return runCatching { BackupCatalog(fs, me.userId, myVault()).records() }.getOrNull()
+        val catalog = BackupCatalog(fs, me.userId, myVault())
+        val list = runCatching { catalog.records() }.getOrNull() ?: return null
+        // 10 Nov: lists that couldn't be opened (a Private backup's key not ready, or damaged) never show as "nothing
+        // backed up": the last good list stays and the reason is said.
+        if (list.isEmpty() && catalog.listsUnreadable > 0) {
+            backupListProblem = "Couldn't open your backup list on the drive (${catalog.listsUnreadable} of ${catalog.listsFound} parts). " +
+                if (myVault() == null) "Your Private backup key isn't ready on this phone yet." else "Try again on the home Wi-Fi."
+            return null
+        }
+        backupListProblem = null
+        return list
     }
+
+    /** Why the backup list couldn't be read, or null. */
+    var backupListProblem by mutableStateOf<String?>(null)
+        private set
 
     /**
      * Streams one file of the drive to [sink] (a drive-only photo being opened or shown as a thumbnail). Returns false
@@ -563,12 +642,16 @@ class DriveState(private val platform: DrivePlatform) {
 
     suspend fun loadBackupRecords(force: Boolean = false) {
         if (backupRecordsLoading || (!force && backupRecords != null)) return
+        // 10 Nov: the list last read shows straight away, then the drive's fresh one replaces it.
+        val me = joined?.me?.userId
+        if (backupRecords == null && me != null) runCatching { platform.rememberedBackupRecords(me) }.getOrNull()?.let { backupRecords = it }
         backupRecordsLoading = true
         try {
             // A failed read keeps the list already on screen: an empty folder after a hiccup was a bug (30 Oct).
             myBackupRecords()?.let {
                 backupRecords = it
                 libraryReadAtMillis = platform.now()
+                if (me != null) runCatching { platform.rememberBackupRecords(me, it) }
             }
         } finally {
             backupRecordsLoading = false

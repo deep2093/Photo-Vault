@@ -234,6 +234,8 @@ fun PhotoVaultApp(
                     CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL)) {
                         BottomBarLayout(screens, system)
                     }
+                    // First-time backup questions after joining a family drive (10 Nov).
+                    FirstSetupPopups(state, drive, backup)
                     // Photos and dates fade out under the status bar instead of showing through its clock and icons.
                     val top = system.calculateTopPadding()
                     // Neutral dark, not the wallpaper's first colour: that showed as a pink band on Vivid Night (29 Oct).

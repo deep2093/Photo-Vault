@@ -100,13 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-10-1"
+    const val ID = "2026-11-10-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Living photos slide sideways", "The person stays still and the background slides gently left and right behind them, far parts more than near ones. The edge behind the person is filled from the real background beside it."),
-        Change(ChangeKind.NEW, "Backed-up albums", "Settings > Storage > Drive shows your backed-up albums right under the ring, with each album's size and count. Tap one to see its photos on the drive."),
-        Change(ChangeKind.FIXED, "Family space size", "While family settings are unlocked, a new space size takes effect as soon as you tap it. Chosen options now stand out in every theme."),
-        Change(ChangeKind.CHANGED, "Tags", "Tags are added from a photo's details only; the tag button in the selection bar is gone."),
+        Change(ChangeKind.FIXED, "Drive storage", "After switching from Private to Normal, Storage > Drive said \"Nothing backed up yet\" because your private backups' list couldn't be opened. It opens again, and the last list shows straight away while the drive is checked."),
+        Change(ChangeKind.NEW, "First-time backup questions", "After joining a family drive, three short questions: Normal or Private, original or Space saver, and whether to back up videos."),
+        Change(ChangeKind.NEW, "Leaving the family", "When you leave, you choose to keep your backup on the drive or delete it. An owner who is alone in the family can delete the family, with or without their backup."),
+        Change(ChangeKind.FIXED, "Albums on tablets", "Places, People, Secured folder and Recently deleted now use the full width on tablets, in one row."),
     )
 }
 

@@ -207,6 +207,24 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         }.apply()
     }
 
+    private fun recordsFile(userId: String) =
+        java.io.File(context.filesDir, "drive/records-${userId.filter { it.isLetterOrDigit() || it == '-' }}.json").apply { parentFile?.mkdirs() }
+
+    override fun rememberedBackupRecords(userId: String): List<com.deepak.photovault.core.backup.BackupRecord>? = runCatching {
+        val f = recordsFile(userId)
+        if (!f.exists()) null
+        else json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(com.deepak.photovault.core.backup.BackupRecord.serializer()), f.readText())
+    }.getOrNull()
+
+    override fun rememberBackupRecords(userId: String, records: List<com.deepak.photovault.core.backup.BackupRecord>) {
+        runCatching {
+            val f = recordsFile(userId)
+            val tmp = java.io.File(f.parentFile, f.name + ".tmp")
+            tmp.writeText(json.encodeToString(kotlinx.serialization.builtins.ListSerializer(com.deepak.photovault.core.backup.BackupRecord.serializer()), records))
+            if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+        }
+    }
+
     override fun describe(error: Throwable): String = when (error) {
         is AlreadySetUp -> "This drive already has a Pixallery family. Join it instead."
         is DriveNotFound -> "Something on the drive is missing. Refresh and try again."

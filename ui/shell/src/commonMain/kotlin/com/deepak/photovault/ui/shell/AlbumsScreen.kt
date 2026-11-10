@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -538,10 +539,12 @@ private class Shortcut(val icon: ImageVector, val title: String, val detail: Str
 @Composable
 private fun RowShortcuts(items: List<Shortcut>, tablet: Boolean) {
     val theme = LocalGlassTheme.current
+    // 10 Nov (Deepak's tablet photo): full width on tablets too, all four in one row, instead of a small block on the left.
+    val perRow = if (tablet) 4 else 2
     Column(
-        Modifier.then(if (tablet) Modifier.width(420.dp) else Modifier.fillMaxWidth()).glassPanel(GlassCardShape).padding(6.dp),
+        Modifier.fillMaxWidth().glassPanel(GlassCardShape).padding(if (tablet) 8.dp else 6.dp),
     ) {
-        items.chunked(2).forEach { pair ->
+        items.chunked(perRow).forEach { pair ->
             Row(Modifier.fillMaxWidth()) {
                 pair.forEach { item ->
                     Row(
@@ -550,11 +553,11 @@ private fun RowShortcuts(items: List<Shortcut>, tablet: Boolean) {
                             .clip(RoundedCornerShape(14.dp))
                             .clickable(enabled = item.enabled, role = Role.Button, onClick = item.onClick)
                             .semantics(mergeDescendants = true) {}
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                            .padding(horizontal = if (tablet) 12.dp else 8.dp, vertical = if (tablet) 12.dp else 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
-                            Modifier.size(38.dp).clip(CircleShape).background(theme.accent.copy(alpha = if (item.enabled) 0.14f else 0.06f)),
+                            Modifier.size(if (tablet) 44.dp else 38.dp).clip(CircleShape).background(theme.accent.copy(alpha = if (item.enabled) 0.14f else 0.06f)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(item.icon, null, tint = if (item.enabled) theme.accent else theme.onGlassSecondary, modifier = Modifier.size(20.dp))
@@ -572,6 +575,8 @@ private fun RowShortcuts(items: List<Shortcut>, tablet: Boolean) {
                         }
                     }
                 }
+                // Keep the columns lined up when the last row isn't full.
+                repeat(perRow - pair.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
