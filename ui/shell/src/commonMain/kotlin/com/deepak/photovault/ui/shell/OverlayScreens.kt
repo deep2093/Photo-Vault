@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import com.deepak.photovault.core.media.MediaItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
@@ -120,6 +121,7 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
         }
         if (items.isEmpty()) {
             EmptyState(
+                icon = Icons.Rounded.PhotoLibrary,
                 title = "Nothing here yet",
                 body = when (kind) {
                     AlbumKind.Favourites -> "Tap the heart on a photo to add it here."
@@ -312,7 +314,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
         },
     ) { padding ->
         if (trashed.isEmpty()) {
-            EmptyState("Nothing deleted", "Photos and videos you delete stay here for 30 days, so you can change your mind.")
+            EmptyState("Nothing deleted", "Photos and videos you delete stay here for 30 days, so you can change your mind.", icon = Icons.Rounded.Delete)
         } else {
             // Opens in the viewer with Restore and Delete for good (23 Oct); long-press still selects.
             MediaGrid(

@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -129,15 +130,12 @@ fun MemoriesScreen(state: ShellState, gallery: GalleryState) {
     ) {
         if (day.isEmpty() && month.isEmpty()) {
             item(key = "empty") {
-                GlassCard(Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN)) {
-                    Text("No memories today", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Photos you took on this day, or this month, in earlier years show here. Come back another day.",
-                        color = theme.onGlassSecondary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
+                com.deepak.photovault.designsystem.EmptyCard(
+                    Icons.Rounded.History,
+                    "No memories today",
+                    "Photos you took on this day, or this month, in earlier years show here. Come back another day.",
+                    Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN),
+                )
             }
         }
         if (day.isNotEmpty()) {
@@ -286,15 +284,12 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
     ) {
         if (list.isEmpty()) {
             item(key = "empty") {
-                GlassCard(Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN)) {
-                    Text("No tags yet", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Open a photo, swipe up for its details and tap Add tag. Your tags stay on your phone, and go with your backup to the family drive, locked like People.",
-                        color = theme.onGlassSecondary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
+                com.deepak.photovault.designsystem.EmptyCard(
+                    Icons.Rounded.LocalOffer,
+                    "No tags yet",
+                    "Open a photo, swipe up for its details and tap Add tag. Your tags stay on your phone, and go with your backup to the family drive, locked like People.",
+                    Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN),
+                )
             }
         }
         items(list.size, key = { "tag:" + list[it].first.lowercase() }) { i ->
@@ -385,7 +380,7 @@ fun TagScreen(tag: String, state: ShellState, gallery: GalleryState, actions: Me
         selectAllItems = items,
     ) { padding ->
         if (items.isEmpty()) {
-            EmptyState(title = "Nothing here now", body = "No photos have this tag any more.")
+            EmptyState(title = "Nothing here now", body = "No photos have this tag any more.", icon = Icons.Rounded.LocalOffer)
         } else {
             MediaGrid(
                 sections, state, gallery, padding,

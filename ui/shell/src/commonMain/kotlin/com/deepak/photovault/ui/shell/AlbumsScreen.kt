@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -229,6 +230,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             EmptyState(
                 "Your albums",
                 "Allow access to your photos to see your phone's albums.",
+                icon = Icons.Rounded.PhotoLibrary,
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
             return@GlassScreen

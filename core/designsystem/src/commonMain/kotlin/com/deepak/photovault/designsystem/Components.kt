@@ -70,7 +70,13 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier, onWallpaper: Bool
     )
 }
 
-/** Capsule button. [primary] fills with the accent; otherwise it is glass. */
+/** The red of buttons that delete or can't be undone (13 Nov), the same in every theme. */
+val DangerColor = Color(0xFFD93025)
+
+/**
+ * Capsule button. [primary] fills with the accent; otherwise it is glass. [danger] (13 Nov): red, for deleting,
+ * leaving and anything that can't be undone, so it never looks like an ordinary choice.
+ */
 @Composable
 fun GlassButton(
     text: String,
@@ -79,6 +85,7 @@ fun GlassButton(
     primary: Boolean = false,
     icon: ImageVector? = null,
     centered: Boolean = false,
+    danger: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
@@ -86,7 +93,13 @@ fun GlassButton(
     Row(
         modifier
             .heightIn(min = MinTouchTarget)
-            .then(if (primary) Modifier.clip(shape).background(theme.accentSurface).glassDepth().glassRim(shape) else Modifier.glassPanel(shape))
+            .then(
+                when {
+                    danger -> Modifier.clip(shape).background(DangerColor).glassDepth().glassRim(shape)
+                    primary -> Modifier.clip(shape).background(theme.accentSurface).glassDepth().glassRim(shape)
+                    else -> Modifier.glassPanel(shape)
+                },
+            )
             .clickable(role = Role.Button, onClick = {
                 haptics.tap()
                 onClick()
@@ -95,7 +108,7 @@ fun GlassButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (centered) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
     ) {
-        val fg = if (primary) theme.onAccent else theme.onGlass
+        val fg = if (danger) Color.White else if (primary) theme.onAccent else theme.onGlass
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
         Text(text, color = fg, style = MaterialTheme.typography.labelLarge)
     }

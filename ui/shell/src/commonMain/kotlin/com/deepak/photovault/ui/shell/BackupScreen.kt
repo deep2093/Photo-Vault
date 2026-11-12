@@ -644,8 +644,8 @@ private fun YourSpace(drive: DriveState) {
             label = "Your space, ${used?.let(DetailsFormat::size) ?: "counting"} of ${joined.me.limitGb} gigabytes used",
         )
         Spacer(Modifier.width(12.dp))
-        Text(
-            if (used == null) "Counting..." else "${DetailsFormat.size(used)} of ${joined.me.limitGb} GB",
+        if (used == null) com.deepak.photovault.designsystem.SkeletonLine(96.dp, 14.dp, label = "Counting your space") else Text(
+            "${DetailsFormat.size(used)} of ${joined.me.limitGb} GB",
             color = theme.onGlass,
             style = MaterialTheme.typography.bodyMedium,
         )

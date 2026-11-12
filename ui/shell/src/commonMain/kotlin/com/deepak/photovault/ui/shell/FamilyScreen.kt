@@ -112,7 +112,8 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
         if (joined == null) {
             // The drive is still being asked for the first time: don't offer setup yet (30 Oct).
             if (drive.isSetUp && drive.membership == null && drive.checkedAtMillis == 0L) {
-                item { Text("Looking for your family...", color = LocalGlassTheme.current.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.cardWidth().padding(8.dp)) }
+                // 13 Nov: soft placeholder rows instead of a line of text.
+                item { GlassCard(Modifier.cardWidth()) { com.deepak.photovault.designsystem.SkeletonRows(3, label = "Looking for your family") } }
                 return@GlassListScreen
             }
             item { NotConnectedCard(state, drive) }
@@ -160,13 +161,22 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
                 }
             }
         }
-        item { MembersCard(state, drive) }
-        if (drive.isOwner) item { InviteCard(state, drive, ::asOwner) }
-        if (drive.isOwner) {
-            item { OwnerSettingsCard(drive) }
-            item { DriveSpaceCard(drive) }
+        // 13 Nov: on a tablet the people and invites sit on the left, settings and space on the right.
+        item {
+            TabletColumns(
+                left = {
+                    MembersCard(state, drive)
+                    if (drive.isOwner) InviteCard(state, drive, ::asOwner)
+                },
+                right = {
+                    if (drive.isOwner) {
+                        OwnerSettingsCard(drive)
+                        DriveSpaceCard(drive)
+                    }
+                    PrivacyCard()
+                },
+            )
         }
-        item { PrivacyCard() }
     }
 
     pinFor?.let { action ->
@@ -453,16 +463,32 @@ internal fun LimitDialog(member: Member, onDismiss: () -> Unit, onSave: (Int) ->
 }
 
 @Composable
-fun ConfirmDialog(title: String, body: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+fun ConfirmDialog(
+    title: String,
+    body: String,
+    confirm: String,
+    onDismiss: () -> Unit,
+    /** Red confirm button (13 Nov). By default worked out from the button's words: Delete, Remove, Leave, Erase... */
+    danger: Boolean = isDangerous(confirm),
+    onConfirm: () -> Unit,
+) {
     val theme = LocalGlassTheme.current
     GlassDialog(
         title = title,
         onDismiss = onDismiss,
         buttons = {
             GlassButton("Cancel", onClick = onDismiss)
-            GlassButton(confirm, primary = true, onClick = onConfirm)
+            GlassButton(confirm, primary = !danger, danger = danger, onClick = onConfirm)
         },
     ) {
         Text(body, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
     }
 }
+
+private val dangerWords = listOf("delete", "remove", "leave", "erase", "forget", "empty", "clear", "reset")
+
+/**
+ * True when a button's words mean something is lost or can't be undone, so it is drawn red everywhere (13 Nov).
+ * Clearing a cache loses nothing, so that one stays an ordinary button.
+ */
+fun isDangerous(label: String): Boolean = label.lowercase().let { l -> "cache" !in l && dangerWords.any { l.startsWith(it) } }

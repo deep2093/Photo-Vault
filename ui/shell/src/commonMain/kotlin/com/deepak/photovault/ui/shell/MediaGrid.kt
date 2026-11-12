@@ -687,13 +687,28 @@ private fun Modifier.pinchSteps(onStep: (zoomIn: Boolean) -> Unit): Modifier = p
 
 /** A friendly centred message for empty or permission states. */
 @Composable
-fun EmptyState(title: String, body: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+fun EmptyState(
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+    /** A soft round picture above the words (13 Nov), so every empty screen has the same friendly look. */
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    action: (@Composable () -> Unit)? = null,
+) {
     val theme = LocalGlassTheme.current
     androidx.compose.foundation.layout.Column(
         modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (icon != null) {
+            Box(
+                Modifier.padding(bottom = 16.dp).size(72.dp).glassPanel(androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.material3.Icon(icon, contentDescription = null, tint = theme.accent, modifier = Modifier.size(34.dp))
+            }
+        }
         Text(title, color = theme.onWallpaper, style = MaterialTheme.typography.titleLarge)
         Text(
             body,

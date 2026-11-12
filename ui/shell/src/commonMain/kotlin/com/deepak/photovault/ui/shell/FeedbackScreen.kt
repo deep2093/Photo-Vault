@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.Feedback
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -200,9 +201,9 @@ private fun FeedbackInbox(drive: DriveState) {
         problem?.let { WarningNote(it) }
         val list = notes
         when {
-            !loaded -> Text("Reading the drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+            !loaded -> com.deepak.photovault.designsystem.SkeletonRows(3, label = "Reading the drive")
             list == null -> Text("Couldn't read the drive.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-            list.isEmpty() -> Text("Nothing yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+            list.isEmpty() -> com.deepak.photovault.designsystem.EmptyCard(Icons.Rounded.Feedback, "No feedback yet", "Ideas and bug reports from the family show here.", Modifier.fillMaxWidth())
             else -> list.forEach { entry ->
                 val n = entry.note
                 Column(

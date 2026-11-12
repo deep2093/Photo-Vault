@@ -120,8 +120,12 @@ fun SettingsScreen(
     val theme = LocalGlassTheme.current
     GlassListScreen(title = null, subtitle = null) {
         item {
-            Column(Modifier.cardWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(vertical = 6.dp)) {
-                SettingsPage.entries.forEach { page ->
+            // 13 Nov: two columns of rows on a tablet, so Settings uses the width.
+            val tablet = LocalTablet.current
+            Column(Modifier.pageWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(vertical = 6.dp)) {
+                SettingsPage.entries.chunked(if (tablet) 2 else 1).forEach { pair ->
+                Row(Modifier.fillMaxWidth()) {
+                pair.forEach { page ->
                     val (icon, summary) = when (page) {
                         SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
@@ -133,9 +137,12 @@ fun SettingsScreen(
                         SettingsPage.STORAGE -> Icons.Rounded.PieChart to "Phone and drive"
                         SettingsPage.FEEDBACK -> Icons.Rounded.Feedback to (if (drive.feedbackWaiting > 0) "${drive.feedbackWaiting} waiting to send" else "Ideas and bugs, with photos or videos")
                     }
-                    SettingsRow(icon, page.title, summary) {
+                    SettingsRow(icon, page.title, summary, Modifier.weight(1f)) {
                         if (page == SettingsPage.BACKUP) state.open(Overlay.Backup) else state.open(Overlay.Settings(page))
                     }
+                }
+                repeat((if (tablet) 2 else 1) - pair.size) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }
+                }
                 }
             }
         }
@@ -154,11 +161,11 @@ private fun backupSummary(backup: BackupState?): String {
 }
 
 @Composable
-private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, onClick: () -> Unit) {
+private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val theme = LocalGlassTheme.current
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = 60.dp)
             .clickable(onClickLabel = "Open $title") {

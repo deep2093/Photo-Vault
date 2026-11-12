@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PhotoAlbum
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.CloudDone
@@ -139,12 +140,14 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     ) { padding ->
         when {
             gallery.access == MediaAccess.NONE -> EmptyState(
+                icon = Icons.Rounded.PhotoLibrary,
                 title = "See your photos here",
                 body = "Pixallery needs access to your photos and videos to show them and back them up. " +
                     "They stay on your phone and your own drive.",
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
             gallery.loaded && gallery.items.isEmpty() -> EmptyState(
+                icon = Icons.Rounded.PhotoLibrary,
                 title = "No photos yet",
                 body = "Photos and videos you take will appear here.",
             )

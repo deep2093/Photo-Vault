@@ -304,5 +304,36 @@ internal val CardMaxWidth = 720.dp
 
 internal fun Modifier.cardWidth(): Modifier = this.widthIn(max = CardMaxWidth).fillMaxWidth()
 
+/** Width cap for a page laid out in two columns on a tablet (13 Nov). */
+internal val WideMaxWidth = 1180.dp
+
+/** [cardWidth] on a phone; on a tablet the wider two-column width, so pages use the screen. */
+@Composable
+internal fun Modifier.pageWidth(): Modifier = if (LocalTablet.current) this.widthIn(max = WideMaxWidth).fillMaxWidth() else cardWidth()
+
+/**
+ * Two groups of cards (13 Nov): side by side on a tablet, so the page uses the width instead of one narrow column;
+ * one under the other on a phone.
+ */
+@Composable
+internal fun TabletColumns(
+    modifier: Modifier = Modifier,
+    left: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+    right: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val gap = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+    if (LocalTablet.current) {
+        androidx.compose.foundation.layout.Row(modifier.widthIn(max = WideMaxWidth).fillMaxWidth(), horizontalArrangement = gap) {
+            androidx.compose.foundation.layout.Column(Modifier.weight(1f), verticalArrangement = gap, content = left)
+            androidx.compose.foundation.layout.Column(Modifier.weight(1f), verticalArrangement = gap, content = right)
+        }
+    } else {
+        androidx.compose.foundation.layout.Column(modifier.cardWidth(), verticalArrangement = gap) {
+            left()
+            right()
+        }
+    }
+}
+
 /** Side margin of screen content. The photo grid ignores it and runs edge to edge. */
 internal val SCREEN_MARGIN = 12.dp
