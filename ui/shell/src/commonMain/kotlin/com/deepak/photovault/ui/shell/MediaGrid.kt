@@ -303,7 +303,9 @@ fun MediaGrid(
             header?.invoke(this)
             sections.forEach { section ->
                 if (!continuous) item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                    SectionHeader(section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
+                    // 13 Nov: where most of the section was taken, after the date ("7 Nov 2026 · Melbourne").
+                    val where = remember(section.key, section.items.size, state.places.photos) { topPlace(section.items, state.places.photos) }
+                    SectionHeader(if (where != null) "${section.label} · $where" else section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
                 }
                 items(section.items, key = { it.id }, contentType = { "tile" }) { item ->
                     PhotoTile(
@@ -328,6 +330,7 @@ fun MediaGrid(
             grid = gridState,
             photos = remember(sections) { sections.flatMap { it.items } },
             headerItems = headerItems,
+            places = state.places.photos,
             color = dateColor,
             modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
         )
@@ -615,7 +618,11 @@ private fun PhotoTile(
                         modifier = Modifier.size(18.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.45f)).padding(2.dp),
                     )
                 }
-                if (favourite) Icon(Icons.Rounded.Favorite, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                // 13 Nov: on a dark dot like the cloud, so the heart shows on bright photos too, and it is read aloud.
+                if (favourite) Icon(
+                    Icons.Rounded.Favorite, "Favourite", tint = Color.White,
+                    modifier = Modifier.size(18.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.Black.copy(alpha = 0.45f)).padding(3.dp),
+                )
             }
         }
         if (label != null) {
@@ -734,14 +741,16 @@ internal fun thumbBucket(px: Int): Int = when {
  * you scroll; no word "Library", just the date, in the same glass as the other floating controls.
  */
 @Composable
-private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerItems: Int, color: Color, modifier: Modifier = Modifier) {
+private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerItems: Int, color: Color, modifier: Modifier = Modifier, places: Map<Long, PhotoPlace> = emptyMap()) {
     val theme = LocalGlassTheme.current
     val zone = remember { kotlinx.datetime.TimeZone.currentSystemDefault() }
-    val text by remember(photos, headerItems) {
+    val text by remember(photos, headerItems, places) {
         derivedStateOf {
             val item = photos.getOrNull((grid.firstVisibleItemIndex - headerItems).coerceAtLeast(0)) ?: return@derivedStateOf ""
             val d = com.deepak.photovault.core.media.Timeline.localDate(item.takenAtMillis, zone)
-            "${d.dayOfMonth} ${com.deepak.photovault.core.media.Timeline.monthName(d.month).take(3)} ${d.year}"
+            // 13 Nov: with the town the photo at the top was taken in, when it is known.
+            val where = places[item.id]?.place?.name
+            "${d.dayOfMonth} ${com.deepak.photovault.core.media.Timeline.monthName(d.month).take(3)} ${d.year}" + (if (where != null) " · $where" else "")
         }
     }
     if (text.isEmpty()) return
@@ -753,4 +762,13 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         fontWeight = FontWeight.SemiBold,
         modifier = modifier,
     )
+}
+
+/** The town most of [items] were taken in, with "and N more" when there are others; null when none is known. */
+internal fun topPlace(items: List<MediaItem>, places: Map<Long, PhotoPlace>): String? {
+    if (places.isEmpty()) return null
+    val counts = LinkedHashMap<String, Int>()
+    for (item in items.take(300)) places[item.id]?.place?.name?.let { counts[it] = (counts[it] ?: 0) + 1 }
+    val best = counts.maxByOrNull { it.value } ?: return null
+    return if (counts.size > 1) "${best.key} and ${counts.size - 1} more" else best.key
 }

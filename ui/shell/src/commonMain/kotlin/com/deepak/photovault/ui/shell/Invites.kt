@@ -70,6 +70,7 @@ private val VALID_FOR = listOf("1 day" to 24L * 60 * 60 * 1000, "3 days" to 3L *
 internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Unit) -> Unit) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     val platform = state.invites
     var open by rememberSaveable { mutableStateOf(false) }
     var forName by rememberSaveable { mutableStateOf("") }
@@ -153,7 +154,7 @@ internal fun InviteCard(state: ShellState, drive: DriveState, asOwner: (() -> Un
             openInvites.forEach { m ->
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(m.forName.ifBlank { "Invite" } + " · runs out in " + leftText(m.expiresAtMillis - drive.now()), color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    GlassButton("Take back", onClick = { asOwner { scope.launch { drive.revokeInvite(m.id); openInvites = drive.openInvites() } } })
+                    GlassButton("Take back", onClick = { asOwner { scope.launch { drive.revokeInvite(m.id); openInvites = drive.openInvites(); toast("Invite taken back.") } } })
                 }
             }
         }

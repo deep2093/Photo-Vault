@@ -100,12 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-13-1"
+    const val ID = "2026-11-13-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Waiting and empty screens", "Soft placeholder shapes show while the drive is read, instead of lines like \"Reading the drive...\". Empty pages share one look, with a picture, a short line and a button where it helps."),
-        Change(ChangeKind.CHANGED, "Tablets", "Settings, Family and Storage use two columns on tablets instead of one narrow one."),
-        Change(ChangeKind.CHANGED, "Delete buttons are red", "Buttons that delete, remove or leave are red in every popup, so they never look like an ordinary choice."),
+        Change(ChangeKind.NEW, "Settings on tablets", "The list stays on the left and the page you pick opens beside it."),
+        Change(ChangeKind.NEW, "Search ideas", "Search shows your recent searches and a few ideas to tap: your top places, this month and last year."),
+        Change(ChangeKind.CHANGED, "Places with dates", "The date at the top of Photos, and date headings in albums, also say the town the photos were taken in."),
+        Change(ChangeKind.CHANGED, "Photo viewer", "The bars under and over a photo are dark in every theme. Details are split into Tags, Details and Place."),
+        Change(ChangeKind.CHANGED, "Short messages", "A short message confirms more actions: tags, favourites, approving or removing people, invites and space."),
     )
 }
 

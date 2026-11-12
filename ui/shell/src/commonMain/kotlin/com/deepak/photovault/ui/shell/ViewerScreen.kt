@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.ui.semantics.heading
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -136,6 +137,17 @@ import kotlinx.datetime.toLocalDateTime
  */
 @Composable
 fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
+    // 13 Nov: the viewer is always dark, so its bars, menu and popups use a dark theme's glass in every theme
+    // (a light theme drew a pale bar over the black page), matching the Living photo page.
+    val theme = LocalGlassTheme.current
+    val chrome = if (theme.isDark) theme else com.deepak.photovault.designsystem.GlassThemes.darkThemes.first()
+    androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides chrome) {
+        ViewerBody(viewer, state, gallery, actions)
+    }
+}
+
+@Composable
+private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
     // Photos deleted while the viewer is open drop out of the list.
     // Recently deleted photos aren't in the library, so they are looked up among the deleted ones.
     val trashedById = remember(gallery.trashed) { gallery.trashed.associate { it.item.id to it.item } }
@@ -592,7 +604,10 @@ private fun DetailsPanel(
             overflow = TextOverflow.Ellipsis,
         )
         // Your tags (7C-2), with Add tag.
-        if (tags != null) DetailsTags(item, tags, white, grey)
+        if (tags != null) {
+            PanelLabel("Tags", grey)
+            DetailsTags(item, tags, white, grey)
+        }
 
         val d = details
         if (item.isDriveOnly) {
@@ -613,7 +628,7 @@ private fun DetailsPanel(
                 }
             }
         }
-        Spacer(Modifier.height(10.dp))
+        PanelLabel("Details", grey)
         val camera = listOfNotNull(
             d?.camera,
             if (item.isVideo) null else DetailsFormat.lensKind(d?.focalLength35mm),
@@ -641,7 +656,7 @@ private fun DetailsPanel(
         }
         if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-        Spacer(Modifier.height(12.dp))
+        PanelLabel("Place", grey)
         val mapLat = d?.latitude
         val mapLon = d?.longitude
         if (mapLat != null && mapLon != null && places.platform.supported) {
@@ -678,6 +693,19 @@ private fun DetailsPanel(
         }
         LocationRow(d, item, actions, white, grey, places)
     }
+}
+
+/** A small heading inside the details panel (13 Nov), so tags, details and place read as three clear parts. */
+@Composable
+private fun PanelLabel(text: String, grey: Color) {
+    Text(
+        text.uppercase(),
+        color = grey.copy(alpha = 0.75f),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = androidx.compose.ui.unit.TextUnit(1.2f, androidx.compose.ui.unit.TextUnitType.Sp),
+        modifier = Modifier.padding(top = 14.dp, bottom = 4.dp).semantics { heading() },
+    )
 }
 
 /** One compact row: where the photo was taken, with Open in Maps. */

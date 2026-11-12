@@ -154,6 +154,9 @@ private const val OVERLAY_SCALE = 0.9f
 /** True on tablets and wide windows (the side-menu layout), whichever menu style is chosen. */
 val LocalTablet = staticCompositionLocalOf { false }
 
+/** A short message at the bottom of the screen (13 Nov): any screen can say "done" after an action. */
+val LocalToast = staticCompositionLocalOf<(String) -> Unit> { {} }
+
 /** Space each screen must leave around its scrolling content (system bars, floating navigation). */
 val LocalScreenInsets = staticCompositionLocalOf { PaddingValues(0.dp) }
 
@@ -255,7 +258,7 @@ fun PhotoVaultApp(
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }
         val deletePrompt = remember { DeletePrompt() }
-        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides (drive.joined != null)) {
+        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides (drive.joined != null), LocalToast provides actions::toast) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     // Bars and cut-outs only, not the keyboard (24 Oct): reading the keyboard here re-laid out the whole
@@ -710,7 +713,7 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
                 Destination.PHOTOS -> PhotosScreen(state, screens.gallery, screens.actions, screens.drive)
                 Destination.ALBUMS -> AlbumsScreen(state, screens.gallery, screens.actions, screens.drive)
                 Destination.FAMILY -> FamilyScreen(state, screens.drive, screens.actions)
-                Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher, screens.backup, screens.gallery)
+                Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher, screens.backup, screens.gallery, screens.actions)
             }
         }
     }

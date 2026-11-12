@@ -81,6 +81,7 @@ const val FOLDER_PRIVACY_NOTE =
 @Composable
 fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = NoMediaActions) {
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     val theme = LocalGlassTheme.current
     // Family shows the family remembered on this phone and does not read the drive by itself (30 Oct): pull down for
     // fresh numbers and new requests (the dot on Family still comes from the hourly check). Only a phone that has
@@ -129,8 +130,8 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
                     drive.requests.forEach { r ->
                         RequestRow(
                             r, joined,
-                            onApprove = { asOwner { scope.launch { message = drive.approve(r) } } },
-                            onDecline = { asOwner { scope.launch { message = drive.decline(r) } } },
+                            onApprove = { asOwner { scope.launch { message = drive.approve(r); if (message == null) toast("Added to the family.") } } },
+                            onDecline = { asOwner { scope.launch { message = drive.decline(r); if (message == null) toast("Request declined.") } } },
                         )
                     }
                 }

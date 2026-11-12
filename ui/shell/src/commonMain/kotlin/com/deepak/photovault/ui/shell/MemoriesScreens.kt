@@ -272,6 +272,7 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
     val theme = LocalGlassTheme.current
     val tags = state.tags
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     LaunchedEffect(Unit) { if (!tags.loaded) tags.refresh() }
     val list = remember(tags.byKey, gallery.items) { tags.list(gallery.items) }
     var editing by remember { mutableStateOf<String?>(null) }
@@ -343,7 +344,7 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
                 GlassButton("Save", primary = true, onClick = {
                     val clean = TagsState.clean(name)
                     editing = null
-                    if (clean != null && clean != tag) scope.launch { tags.rename(tag, clean) }
+                    if (clean != null && clean != tag) scope.launch { tags.rename(tag, clean); toast("Tag renamed.") }
                 })
             },
         ) {
@@ -358,7 +359,7 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
             onDismiss = { deleting = null },
         ) {
             deleting = null
-            scope.launch { tags.delete(tag) }
+            scope.launch { tags.delete(tag); toast("Tag deleted.") }
         }
     }
 }
@@ -398,11 +399,12 @@ fun TagScreen(tag: String, state: ShellState, gallery: GalleryState, actions: Me
 @Composable
 internal fun DetailsTags(item: MediaItem, tags: TagsState, white: Color, grey: Color) {
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     LaunchedEffect(Unit) { if (!tags.loaded) tags.refresh() }
     val mine = remember(item.id, tags.byKey) { tags.tagsOf(item) }
     var adding by remember { mutableStateOf(false) }
     FlowRow(
-        Modifier.fillMaxWidth().padding(top = 8.dp),
+        Modifier.fillMaxWidth().padding(top = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -416,7 +418,7 @@ internal fun DetailsTags(item: MediaItem, tags: TagsState, white: Color, grey: C
                     Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .combinedClickable(role = Role.Button, onClickLabel = "Remove tag $tag", onClick = { scope.launch { tags.remove(item, tag) } }),
+                        .combinedClickable(role = Role.Button, onClickLabel = "Remove tag $tag", onClick = { scope.launch { tags.remove(item, tag); toast("Tag removed.") } }),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Rounded.Close, "Remove tag $tag", tint = grey, modifier = Modifier.size(16.dp))
@@ -439,7 +441,7 @@ internal fun DetailsTags(item: MediaItem, tags: TagsState, white: Color, grey: C
     if (adding) {
         AddTagDialog(tags, already = mine, onDismiss = { adding = false }) { tag ->
             adding = false
-            scope.launch { tags.add(listOf(item), tag) }
+            scope.launch { tags.add(listOf(item), tag); toast("Tag added.") }
         }
     }
 }

@@ -78,6 +78,8 @@ data class AppearanceSettings(
     val notifyPeople: Boolean = true,
     val notifyFamily: Boolean = true,
     val notifyFeedback: Boolean = true,
+    /** The last few things searched for, newest first (13 Nov), offered again in Search. Kept on the phone only. */
+    val recentSearches: List<String> = emptyList(),
 )
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */

@@ -69,6 +69,7 @@ import kotlinx.coroutines.launch
 fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: MediaActions) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     val joined = drive.joined
     val member = joined?.household?.member(userId)
     if (joined == null || member == null) {
@@ -271,7 +272,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
         LimitDialog(member, onDismiss = { limitOpen = false }) { gb ->
             // Closes at once; the drive is updated in the background (23 Oct: the dialog hung while it saved).
             limitOpen = false
-            scope.launch { message = drive.setLimit(member.userId, gb) }
+            scope.launch { message = drive.setLimit(member.userId, gb); if (message == null) toast("Space set to $gb GB.") }
         }
     }
     if (confirmLeave) {
@@ -343,7 +344,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
             scope.launch {
                 message = drive.removeMember(member.userId)
                 confirmRemove = false
-                if (message == null) state.back()
+                if (message == null) { toast("Removed from the family."); state.back() }
             }
         }
     }

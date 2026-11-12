@@ -29,6 +29,7 @@ internal fun JoinRequestPrompt(drive: DriveState, foreground: Boolean) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     var askPin by remember { mutableStateOf<(() -> Unit)?>(null) }
     // 10 Nov: the answer from the drive is shown; before, a failed Approve just closed the popup.
     var failed by remember { mutableStateOf<String?>(null) }
@@ -56,7 +57,7 @@ internal fun JoinRequestPrompt(drive: DriveState, foreground: Boolean) {
                     scope.launch {
                         failed = drive.decline(request)
                         working = false
-                        if (failed == null) shown += request.deviceId
+                        if (failed == null) { shown += request.deviceId; toast("Request declined.") }
                     }
                 }
             })
@@ -66,7 +67,7 @@ internal fun JoinRequestPrompt(drive: DriveState, foreground: Boolean) {
                     scope.launch {
                         failed = drive.approve(request)
                         working = false
-                        if (failed == null) shown += request.deviceId
+                        if (failed == null) { shown += request.deviceId; toast("Added to the family.") }
                     }
                 }
             })

@@ -47,6 +47,7 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -153,6 +154,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             )
             else -> {
                 val spec = motionSpec<Float>(LEVEL_MS)
+                // Towns for the date at the top of the grid (13 Nov): read once, quietly.
+                LaunchedEffect(Unit) { if (!state.places.loaded) runCatching { state.places.refresh() } }
                 androidx.compose.animation.AnimatedContent(
                     targetState = gallery.view,
                     transitionSpec = {
@@ -338,7 +341,10 @@ fun SelectableScreen(
                 })
                 if (onMove != null) GlassIconButton(Icons.Rounded.PhotoAlbum, "Move to another album", onClick = { onMove(selectedItems) })
                 GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
+                    // Said after (13 Nov): all already favourites means they come off, otherwise they go on.
+                    val removing = selectedItems.isNotEmpty() && selectedItems.all { gallery.isFavourite(it) }
                     gallery.toggleFavourite(selectedItems)
+                    actions.toast(if (removing) "Removed from Favourites." else "Added to Favourites.")
                     state.selected = emptySet()
                 })
                 GlassIconButton(
