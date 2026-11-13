@@ -645,7 +645,7 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.History, "Memories and tags", "Done")
         InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Done")
         // 10 Nov: Google Drive backup comes before Family roles.
-        InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Phase 10")
+        InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Part 1 built, being tested")
         InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10A")
         InfoRow(Icons.Rounded.Folder, "Editor and duplicates", "Phase 11")
         InfoRow(Icons.Rounded.Schedule, "Smoothness and foldables", "Phase 12")

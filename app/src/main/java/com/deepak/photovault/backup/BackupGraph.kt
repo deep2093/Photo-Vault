@@ -32,6 +32,8 @@ class BackupGraph private constructor(context: Context) {
         override fun saveSettings(settings: BackupSettings) {
             this@BackupGraph.settings.save(settings)
             scope.launch { runCatching { BackupScheduler.reschedule(app, settings) } }
+            // Google Drive has its own schedule (Phase 10): on or off with the choice of where to back up.
+            runCatching { com.deepak.photovault.google.GoogleBackup.schedule(app) }
         }
 
         override fun loadHistory(): List<BackupRun> = history.load()
@@ -76,6 +78,7 @@ class BackupGraph private constructor(context: Context) {
         runCatching { FeedbackCheck.schedule(app) }
         runCatching { com.deepak.photovault.MemoriesNotice.schedule(app) }
         runCatching { com.deepak.photovault.living.LivingPrepWorker.schedule(app) }
+        runCatching { com.deepak.photovault.google.GoogleBackup.schedule(app) }
     }
 
     companion object {

@@ -461,6 +461,9 @@ class ShellState(private val store: AppearanceStore) {
     /** Living photos (Phase 7D). */
     var living: LivingState = LivingState()
 
+    /** Google Drive backup (Phase 10). */
+    var google: GoogleState = GoogleState()
+
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)
 

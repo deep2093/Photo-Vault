@@ -131,6 +131,10 @@ class BackupRunner(
             BackupRun(trigger, started, System.currentTimeMillis(), 0, 0, 0, 0, 0, reason, detail)
 
         if (!hasPhotoAccess()) return failed(FailureReason.NO_PHOTO_ACCESS)
+        // Google Drive only (Phase 10): nothing to do on the family drive.
+        if (settingsStore.load().destination == com.deepak.photovault.core.backup.BackupDestination.GOOGLE) {
+            return BackupRun(trigger, started, System.currentTimeMillis(), 0, 0, 0, 0, 0, null, null)
+        }
         // Each person chooses Normal or Private before anything is uploaded (Phase 4A/4B).
         val privacy = settingsStore.load().privacy
         if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET) return failed(FailureReason.PRIVACY_NOT_CHOSEN)
@@ -281,6 +285,10 @@ class BackupRunner(
         if (!lock.tryLock()) return FreeUpResult(message = "A backup or restore is running. Check again when it finishes.")
         try {
             if (!hasPhotoAccess()) return FreeUpResult(message = FailureReason.NO_PHOTO_ACCESS.plain)
+            // Phase 10: freeing space checks the family drive's copies; Google-only backup can't free space yet.
+            if (settingsStore.load().destination == com.deepak.photovault.core.backup.BackupDestination.GOOGLE) {
+                return FreeUpResult(message = "Free up space works with the family drive for now. With Google Drive only, it comes in a later update.")
+            }
             val privacy = settingsStore.load().privacy
             if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET) return FreeUpResult(message = FailureReason.PRIVACY_NOT_CHOSEN.plain)
             val connection = platform.loadConnection() ?: return FreeUpResult(message = FailureReason.NO_DRIVE.plain)
@@ -298,7 +306,15 @@ class BackupRunner(
                     val joined = membership as? Membership.Joined ?: return FreeUpResult(message = FailureReason.NOT_JOINED.plain)
                     // With the private key when there is one, so privately backed-up photos count too (10 Nov).
                     val records = BackupCatalog(fs, joined.me.userId, com.deepak.photovault.PrivateKeys.vault(context, joined.household.householdId, joined.me.userId)).records().associateBy { it.key }
-                    val split = FreeUpSpace.split(MediaStoreLibrary(context).loadAll(), records, days, System.currentTimeMillis())
+                    val all = FreeUpSpace.split(MediaStoreLibrary(context).loadAll(), records, days, System.currentTimeMillis())
+                    // Backing up to both (13 Nov): a phone copy goes only once it is on Google too.
+                    val split = if (settingsStore.load().destination == com.deepak.photovault.core.backup.BackupDestination.BOTH) {
+                        val onGoogle = com.deepak.photovault.google.GoogleBackup.keys(context)
+                        val (ok, notYet) = all.ready.partition { com.deepak.photovault.core.backup.BackupSelection.key(it.item) in onGoogle }
+                        com.deepak.photovault.core.backup.FreeUpSpace.Split(ok, all.waiting + notYet.size)
+                    } else {
+                        all
+                    }
                     val engine = BackupEngine(
                         drive = fs, userId = joined.me.userId, deviceId = platform.deviceId, reader = AndroidMediaReader(context), index = index,
                         now = System::currentTimeMillis, zone = TimeZone.currentSystemDefault(), classify = { classify(it) },

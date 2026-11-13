@@ -1,5 +1,12 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -113,6 +120,11 @@ fun BackupScreen(
                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                 modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp),
             )
+        }
+        // Phase 10 (13 Nov): where to back up, and the Google accounts.
+        if (state.google.platform.supported) {
+            item { DestinationCard(backup) }
+            if (settings.destination.usesGoogle) item { GoogleCard(state.google, backup, eligible) }
         }
         item { StatusCard(drive, backup, gallery, actions, eligible.size, done) }
         item { PrivacyCard(state, drive, backup) }
@@ -678,4 +690,143 @@ private fun YourSpace(drive: DriveState) {
             )
         }
     }
+}
+
+
+/** Family drive, Google Drive or both (Phase 10). With both, a photo counts as backed up once it is in both. */
+@Composable
+private fun DestinationCard(backup: BackupState) {
+    val theme = LocalGlassTheme.current
+    val choice = backup.settings.destination
+    val options = listOf(
+        com.deepak.photovault.core.backup.BackupDestination.DRIVE to "Family drive",
+        com.deepak.photovault.core.backup.BackupDestination.GOOGLE to "Google Drive",
+        com.deepak.photovault.core.backup.BackupDestination.BOTH to "Both",
+    )
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader("Back up to")
+        com.deepak.photovault.designsystem.GlassSegmented(
+            options.map { it.second },
+            options.indexOfFirst { it.first == choice }.coerceAtLeast(0),
+            { i -> backup.update { it.copy(destination = options[i].first) } },
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        Text(
+            when (choice) {
+                com.deepak.photovault.core.backup.BackupDestination.DRIVE -> "Photos go to the family drive at home."
+                com.deepak.photovault.core.backup.BackupDestination.GOOGLE -> "Photos go to your Google accounts, so a copy is kept away from home."
+                com.deepak.photovault.core.backup.BackupDestination.BOTH -> "Photos go to the family drive and to Google. A photo counts as backed up once it is in both."
+            },
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+/**
+ * The Google accounts (Phase 10): each with its space bar (Google's 15 GB is shared with Gmail and Google Photos),
+ * Add another account, Wi-Fi and charging choices, and Back up now. Accounts fill in order: when one is full, the
+ * next one is used.
+ */
+@Composable
+private fun GoogleCard(google: GoogleState, backup: BackupState, eligible: List<com.deepak.photovault.core.media.MediaItem>) {
+    val theme = LocalGlassTheme.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val status = google.platform.status?.collectAsState()?.value ?: GoogleStatus()
+    var removing by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { google.refresh(readSpace = true, readRecords = false) }
+    val onGoogle = remember(eligible, google.keys) { eligible.count { com.deepak.photovault.core.backup.BackupSelection.key(it) in google.keys } }
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader("Google Drive")
+        if (google.accounts.isEmpty()) {
+            Text(
+                "Add a Google account to keep a copy of your photos away from home. Pixallery can only see the files it saves there, nothing else in the account.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        google.accounts.forEachIndexed { i, a ->
+            Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(a.email, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        val used = a.usedBytes
+                        val limit = a.limitBytes
+                        Text(
+                            when {
+                                a.needsSignIn -> "Needs you to sign in again"
+                                a.full -> "Full"
+                                used != null && limit != null -> "${DetailsFormat.size(used)} of ${DetailsFormat.size(limit)} used" + if (i == 0 && google.accounts.size > 1) " · fills first" else ""
+                                else -> "Space not read yet"
+                            },
+                            color = if (a.needsSignIn || a.full) com.deepak.photovault.designsystem.DangerColor else theme.onGlassSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (a.needsSignIn) GlassButton("Sign in", onClick = { google.platform.signInAgain(a.email) })
+                    else GlassIconButton(Icons.Rounded.Close, "Stop backing up to ${a.email}", onClick = { removing = a.email })
+                }
+                val used = a.usedBytes
+                val limit = a.limitBytes
+                if (used != null && limit != null && limit > 0) {
+                    val share = (used.toFloat() / limit).coerceIn(0f, 1f)
+                    Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(theme.onGlass.copy(alpha = 0.12f))) {
+                        Box(Modifier.fillMaxWidth(share).height(6.dp).clip(RoundedCornerShape(3.dp)).background(if (share > 0.95f) com.deepak.photovault.designsystem.DangerColor else theme.accent))
+                    }
+                }
+            }
+        }
+        GlassButton(
+            if (google.accounts.isEmpty()) "Add Google account" else "Add another account",
+            icon = Icons.Rounded.Add,
+            onClick = { google.platform.addAccount() },
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        if (google.accounts.isNotEmpty()) {
+            Text(
+                "$onGoogle of ${eligible.size} on Google" + (status.lastAtMillis?.let { " · last ${whenText(it)}" } ?: ""),
+                color = theme.onGlass,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            if (status.running) {
+                Text("Backing up to Google… ${status.done} of ${status.total}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+            }
+            status.message?.let { com.deepak.photovault.designsystem.WarningNote(it) }
+            GlassSwitchRow(
+                "Wi-Fi only",
+                backup.settings.googleWifiOnly,
+                { on -> backup.update { it.copy(googleWifiOnly = on) } },
+                icon = Icons.Rounded.Wifi,
+                description = "Google backup waits for Wi-Fi. It runs on its own, not in the family drive's time.",
+            )
+            GlassSwitchRow(
+                "Only while charging",
+                backup.settings.googleChargingOnly,
+                { on -> backup.update { it.copy(googleChargingOnly = on) } },
+                icon = Icons.Rounded.BatteryChargingFull,
+            )
+            GlassButton("Back up to Google now", icon = Icons.Rounded.CloudUpload, primary = true, onClick = { google.platform.backUpNow() }, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+    removing?.let { email ->
+        ConfirmDialog(
+            title = "Stop backing up to $email?",
+            body = "New photos won't go to this account. What is already there stays in its Pixallery folder.",
+            confirm = "Stop",
+            onDismiss = { removing = null },
+        ) {
+            removing = null
+            scope.launch { google.remove(email) }
+        }
+    }
+}
+
+private fun whenText(millis: Long): String {
+    val zone = kotlinx.datetime.TimeZone.currentSystemDefault()
+    val t = kotlinx.datetime.Instant.fromEpochMilliseconds(millis).toLocalDateTime(zone)
+    val h = if (t.hour % 12 == 0) 12 else t.hour % 12
+    return "${t.dayOfMonth} ${com.deepak.photovault.core.media.Timeline.monthName(t.month).take(3)} at $h:${t.minute.toString().padStart(2, '0')} ${if (t.hour < 12) "am" else "pm"}"
 }

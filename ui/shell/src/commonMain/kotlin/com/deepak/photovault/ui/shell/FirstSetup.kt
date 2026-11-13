@@ -43,8 +43,13 @@ internal fun FirstSetupPopups(state: ShellState, drive: DriveState, backup: Back
             drive.setupWanted = false
         }
     }
+    // Google Drive as the first place to back up (Phase 10): the same questions when the first account is added.
+    val googleAccounts = state.google.accounts.size
+    androidx.compose.runtime.LaunchedEffect(googleAccounts) {
+        if (googleAccounts > 0 && settings.privacy == BackupPrivacy.UNSET && !settings.firstSetupDone) backup.update { it.copy(askSetup = true) }
+    }
     var later by remember { mutableStateOf(false) }
-    val show = drive.joined != null && settings.askSetup && !later
+    val show = (drive.joined != null || googleAccounts > 0) && settings.askSetup && !later
     if (!show) return
     var step by remember { mutableStateOf(0) }
     var private by remember { mutableStateOf(false) }

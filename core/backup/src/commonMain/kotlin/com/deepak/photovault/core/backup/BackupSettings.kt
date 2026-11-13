@@ -123,7 +123,23 @@ data class BackupSettings(
     val firstSetupDone: Boolean = false,
     /** This phone just started or asked to join a family and hasn't answered the first-time questions yet (10 Nov). */
     val askSetup: Boolean = false,
+    /** Where this phone backs up (Phase 10, 13 Nov): the family drive, Google Drive, or both. */
+    val destination: BackupDestination = BackupDestination.DRIVE,
+    /** Google Drive backup only on Wi-Fi (its own setting: it runs on its own, not in the family drive's slot). */
+    val googleWifiOnly: Boolean = true,
+    /** Google Drive backup only while charging. */
+    val googleChargingOnly: Boolean = false,
 )
+
+/**
+ * Where photos are backed up (Phase 10). With [BOTH] a photo counts as backed up only once it is in both places
+ * (Deepak, 13 Nov).
+ */
+@kotlinx.serialization.Serializable
+enum class BackupDestination { DRIVE, GOOGLE, BOTH;
+    val usesDrive: Boolean get() = this != GOOGLE
+    val usesGoogle: Boolean get() = this != DRIVE
+}
 
 /** Which phone photos are backed up, and how a photo is recognised again later. */
 object BackupSelection {

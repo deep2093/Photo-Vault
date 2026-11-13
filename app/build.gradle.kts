@@ -135,6 +135,8 @@ dependencies {
     // Offer the recovery words to the phone's password manager (Samsung Pass, Google Password Manager). It may decline.
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    // Google Drive backup (Phase 10, 13 Nov): sign in and ask for access to "files this app made" only.
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     // People (7A): finds and measures faces on the phone (YuNet and SFace models, in assets/faces, fetched by CI).
     implementation("org.opencv:opencv:4.10.0")

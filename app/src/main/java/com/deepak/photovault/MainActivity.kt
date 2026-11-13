@@ -127,6 +127,15 @@ class MainActivity : ComponentActivity(), MediaActions {
             onTextFilePicked = null
         }
 
+    // Google Drive (Phase 10): Android's account list, then Google's own "allow access" page.
+    private var googlePlatform: com.deepak.photovault.google.AndroidGoogle? = null
+    private val googleChooser = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) googlePlatform?.onAccountChosen(result.data)
+    }
+    private val googleConsent = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        googlePlatform?.onConsent(result.data)
+    }
+
     private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (firstRunSetup) askBatteryInSetup()
     }
@@ -286,6 +295,14 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.tags = com.deepak.photovault.ui.shell.TagsState(AndroidTags(this))
         lifecycleScope.launch { runCatching { state.tags.refresh() } }
         state.living = com.deepak.photovault.ui.shell.LivingState(com.deepak.photovault.living.AndroidLiving(this))
+        val google = com.deepak.photovault.google.AndroidGoogle(
+            this,
+            chooseAccount = { googleChooser.launch(it) },
+            askConsent = { googleConsent.launch(it) },
+            onChanged = { lifecycleScope.launch { runCatching { state.google.refresh(readSpace = true) } } },
+        )
+        googlePlatform = google
+        state.google = com.deepak.photovault.ui.shell.GoogleState(google)
         state.places.platform.readNow()
         com.deepak.photovault.faces.FaceScanWorker.schedule(this)
         // Going to another app locks the Secured folder again.
@@ -302,7 +319,12 @@ class MainActivity : ComponentActivity(), MediaActions {
         // "Nothing backed up yet" next to 5.7 GB used).
         drive.vaultProvider = { house, me -> PrivateKeys.vault(this, house, me) }
         // Photos that are only on the drive are fetched through the same connection the rest of the app uses.
-        DriveMedia.install(this) { path, sink -> drive.readDriveFile(path, sink) }
+        // Google Drive files (Phase 10) are read from the right Google account; the rest from the family drive.
+        val appContext = applicationContext
+        DriveMedia.install(this) { path, sink ->
+            if (path.startsWith(com.deepak.photovault.google.GoogleBackup.PATH_PREFIX)) com.deepak.photovault.google.GoogleBackup.read(appContext, path, sink)
+            else drive.readDriveFile(path, sink)
+        }
         val backup = BackupGraph.get(this).state
         runCatching { iconSwitcher.tidyUp() }
         refreshSignals()

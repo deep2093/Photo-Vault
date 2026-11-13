@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
@@ -177,7 +178,7 @@ fun PhotoVaultApp(
     setSingletonImageLoaderFactory { context -> createImageLoader(context) }
     // Photos that are only on the drive go to the drive's Recently deleted; the rest go to the phone's.
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val actions = remember(phoneActions, drive, gallery, backup) { DriveAwareActions(phoneActions, drive, gallery, backup, scope) }
+    val actions = remember(phoneActions, drive, gallery, backup) { DriveAwareActions(phoneActions, drive, gallery, backup, scope, state.google) }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
     // Check the family drive when the app opens, then every minute while it is on screen, so Backup, Family and
@@ -252,7 +253,16 @@ fun PhotoVaultApp(
         }
     }
     LaunchedEffect(gallery, drive.familyAlbumRecords) { drive.familyAlbumRecords?.let(gallery::updateFamilyAlbum) }
-    LaunchedEffect(gallery, drive.backupRecords) { drive.backupRecords?.let(gallery::setDriveRecords) }
+    // The family drive's and Google's backups in one timeline (Phase 10, 13 Nov).
+    LaunchedEffect(gallery, drive.backupRecords, state.google.records) {
+        timelineRecords(drive.backupRecords, state.google.records)?.let(gallery::setDriveRecords)
+    }
+    // Google: read the accounts and what is saved there when the app opens; "backed up" marks follow.
+    LaunchedEffect(state.google) { if (state.google.platform.supported) state.google.refresh(readSpace = true) }
+    LaunchedEffect(state.google.keys, backup.settings.destination) { backup.googleKeys = state.google.keys }
+    // A Google backup that just finished: read the lists again.
+    val googleStatus = state.google.platform.status?.collectAsState()
+    LaunchedEffect(googleStatus?.value?.lastAtMillis) { if (googleStatus?.value?.lastAtMillis != null) state.google.refresh() }
     LaunchedEffect(gallery, drive.driveTrash) { drive.driveTrash?.let(gallery::setDriveTrash) }
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
@@ -272,6 +282,7 @@ fun PhotoVaultApp(
                     }
                     // First-time backup questions after joining a family drive (10 Nov).
                     FirstSetupPopups(state, drive, backup)
+                    GoogleFullPopup(state, backup)
                     // Photos and dates fade out under the status bar instead of showing through its clock and icons.
                     val top = system.calculateTopPadding()
                     // Neutral dark, not the wallpaper's first colour: that showed as a pink band on Vivid Night (29 Oct).
