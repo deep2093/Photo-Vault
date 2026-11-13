@@ -70,6 +70,18 @@ class AndroidEncryption(private val activity: MainActivity) : EncryptionPlatform
         return if (keep(MemberKeys(rootBytes))) null else "The key couldn't be kept on this phone."
     }
 
+    override fun createPinKey(pin: String): ByteArray {
+        val keys = MemberKeys.generate()
+        pending = keys
+        return com.deepak.photovault.core.crypto.PinEnvelope.wrap(keys.root, pin)
+    }
+
+    override fun restorePinKey(pin: String, envelope: ByteArray): String? {
+        val rootBytes = com.deepak.photovault.core.crypto.PinEnvelope.unwrap(envelope, pin)
+            ?: return "That PIN doesn't open your key. Check it and try again."
+        return if (keep(MemberKeys(rootBytes))) null else "The key couldn't be kept on this phone."
+    }
+
     override fun wrapForHelper(helperExchangePublic: ByteArray, householdId: String, memberId: String): ByteArray? {
         val keys = pending ?: root() ?: return null
         return runCatching { HelperWrap.wrap(keys.root, helperExchangePublic, KeyContext(householdId, memberId)) }.getOrNull()

@@ -75,13 +75,31 @@ object GoogleBackup {
      * Everything Pixallery saved to Google, from each account's own lists, with paths made unique per account for the
      * timeline ("gdrive/<account>/users/me/...").
      */
-    suspend fun records(context: Context): List<BackupRecord> {
-        val vault = privateVault(context)
-        return GoogleAccounts.list(context).flatMap { email ->
-            runCatching {
-                BackupCatalog(GoogleAccounts.fs(context, email), USER, vault).records()
-                    .map { it.copy(drivePath = PATH_PREFIX + GoogleAccounts.slug(email) + "/" + it.drivePath) }
-            }.getOrDefault(emptyList())
+    suspend fun records(context: Context): List<BackupRecord> =
+        GoogleAccounts.list(context).flatMap { email -> accountRecords(context, email) }
+
+    /** One account's records, with timeline paths ("gdrive/<account>/users/me/..."). */
+    suspend fun accountRecords(context: Context, email: String): List<BackupRecord> {
+        val fs = GoogleAccounts.fs(context, email)
+        val vaults = vaults(context)
+        return runCatching {
+            val first = BackupCatalog(fs, USER, vaults.firstOrNull())
+            var list = first.records()
+            // Saved with the other key context (before or after joining a family): read those lists too.
+            if (first.listsUnreadable > 0 && vaults.size > 1) {
+                val have = list.map { it.drivePath }.toHashSet()
+                list = list + BackupCatalog(fs, USER, vaults[1]).records().filter { it.drivePath !in have }
+            }
+            list.map { it.copy(drivePath = PATH_PREFIX + GoogleAccounts.slug(email) + "/" + it.drivePath) }
+        }.getOrDefault(emptyList())
+    }
+
+    /** Every account's space and what Pixallery keeps there, for Settings > Storage (14 Nov). */
+    suspend fun storage(context: Context): List<com.deepak.photovault.ui.shell.GoogleUsage> {
+        runCatching { refreshSpace(context) }
+        return GoogleAccounts.list(context).map { email ->
+            val (used, limit) = GoogleAccounts.space(context, email)
+            com.deepak.photovault.ui.shell.GoogleUsage.of(email, limit, used, accountRecords(context, email))
         }
     }
 
@@ -106,11 +124,23 @@ object GoogleBackup {
             }
             if (kind == null) {
                 fs.readStream(inner, sink)
+                true
             } else {
-                val vault = privateVault(context) ?: return false
-                vault.decrypt(kind, com.deepak.photovault.core.backup.PrivatePaths.idOf(inner), { cipher -> fs.readStream(inner, cipher) }, sink)
+                // Which key context it was saved with isn't written down: try this phone's in turn, as long as
+                // nothing has been handed on yet.
+                for (vault in vaults(context)) {
+                    var wrote = false
+                    val ok = runCatching {
+                        vault.decrypt(kind, com.deepak.photovault.core.backup.PrivatePaths.idOf(inner), { cipher -> fs.readStream(inner, cipher) }) { b, n ->
+                            wrote = true
+                            sink(b, n)
+                        }
+                    }.onFailure { if (it is CancellationException) throw it }.isSuccess
+                    if (ok) return true
+                    if (wrote) return false
+                }
+                false
             }
-            true
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -118,12 +148,51 @@ object GoogleBackup {
         }
     }
 
-    /** This person's private key, if it is on the phone (the family drive's: one key per person). */
-    private fun privateVault(context: Context): com.deepak.photovault.core.backup.PrivateVault? {
+    /**
+     * This person's private key for Google (one key per person): with the family's context when this phone is in a
+     * family (as before), otherwise Google's own (14 Nov: Private backup with Google only, key kept by a PIN).
+     */
+    private fun privateVault(context: Context): com.deepak.photovault.core.backup.PrivateVault? = vaults(context).firstOrNull()
+
+    /** The contexts to try, the one used for new backups first. */
+    private fun vaults(context: Context): List<com.deepak.photovault.core.backup.PrivateVault> {
+        val google = com.deepak.photovault.core.crypto.PinEnvelope.GOOGLE
         val platform = com.deepak.photovault.AndroidDrivePlatform(context)
-        val house = platform.rememberedHousehold() ?: return null
-        val me = platform.rememberedUserId() ?: return null
-        return com.deepak.photovault.PrivateKeys.vault(context, house.householdId, me)
+        val house = platform.rememberedHousehold()
+        val me = platform.rememberedUserId()
+        val family = if (house != null && me != null) com.deepak.photovault.PrivateKeys.vault(context, house.householdId, me) else null
+        val own = com.deepak.photovault.PrivateKeys.vault(context, google.householdId, google.memberId)
+        return listOfNotNull(family, own)
+    }
+
+    // ---- The PIN-locked spare key (14 Nov) ----
+
+    private const val PIN_KEY = "users/$USER/keys/pin-key-v1.bin"
+
+    suspend fun readPinKey(context: Context): ByteArray? {
+        for (email in GoogleAccounts.list(context)) {
+            val fs = GoogleAccounts.fs(context, email)
+            val bytes = runCatching { if (fs.exists(PIN_KEY)) fs.read(PIN_KEY) else null }.getOrNull()
+            if (bytes != null) return bytes
+        }
+        return null
+    }
+
+    /** In every account, so any one of them can bring the key back. */
+    suspend fun savePinKey(context: Context, envelope: ByteArray): String? {
+        val accounts = GoogleAccounts.list(context)
+        if (accounts.isEmpty()) return "Add a Google account first."
+        var saved = 0
+        for (email in accounts) {
+            val fs = GoogleAccounts.fs(context, email)
+            val ok = runCatching {
+                fs.mkdirs(com.deepak.photovault.core.drive.DrivePaths.parent(PIN_KEY))
+                if (fs.exists(PIN_KEY)) fs.delete(PIN_KEY)
+                fs.createNew(PIN_KEY, envelope)
+            }.getOrDefault(false)
+            if (ok) saved++
+        }
+        return if (saved > 0) null else "Couldn't save your key to Google. Check the internet and try again."
     }
 
     /** Reads each account's space from Google (shared with Gmail and Google Photos). */

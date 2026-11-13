@@ -61,6 +61,54 @@ interface GooglePlatform {
     fun reschedule() = Unit
 
     val status: StateFlow<GoogleStatus>? get() = null
+
+    /** The PIN-locked spare copy of the Private key from the first account that has one (14 Nov), or null. */
+    suspend fun readPinKey(): ByteArray? = null
+
+    /** Saves the PIN-locked key to every account. Null when at least one has it, else the problem in plain words. */
+    suspend fun savePinKey(envelope: ByteArray): String? = "Not available here."
+
+    /** What is in each account, for Settings > Storage (14 Nov). */
+    suspend fun storage(): List<GoogleUsage> = emptyList()
+}
+
+/**
+ * One Google account's space for Settings > Storage (14 Nov). Google tells only the total it uses for everything;
+ * Pixallery knows its own photos and videos, so "other" is Gmail, Google Photos and other Drive files.
+ */
+data class GoogleUsage(
+    val email: String,
+    val limitBytes: Long?,
+    val usedBytes: Long?,
+    val photoBytes: Long,
+    val videoBytes: Long,
+    val photos: Int,
+    val videos: Int,
+    /** What Pixallery saved there, for By year and Albums. */
+    val records: List<BackupRecord>,
+) {
+    val pixalleryBytes: Long get() = photoBytes + videoBytes
+    val otherBytes: Long get() = ((usedBytes ?: pixalleryBytes) - pixalleryBytes).coerceAtLeast(0L)
+    val freeBytes: Long? get() = limitBytes?.let { l -> (l - (usedBytes ?: pixalleryBytes)).coerceAtLeast(0L) }
+
+    companion object {
+        /** Every account added up, for the "All" view. */
+        fun all(list: List<GoogleUsage>): GoogleUsage = GoogleUsage(
+            email = "All",
+            limitBytes = if (list.isNotEmpty() && list.all { it.limitBytes != null }) list.sumOf { it.limitBytes!! } else null,
+            usedBytes = if (list.isNotEmpty() && list.all { it.usedBytes != null }) list.sumOf { it.usedBytes!! } else null,
+            photoBytes = list.sumOf { it.photoBytes },
+            videoBytes = list.sumOf { it.videoBytes },
+            photos = list.sumOf { it.photos },
+            videos = list.sumOf { it.videos },
+            records = list.flatMap { it.records },
+        )
+
+        fun of(email: String, limit: Long?, used: Long?, records: List<BackupRecord>): GoogleUsage {
+            val (v, p) = records.partition { it.isVideo }
+            return GoogleUsage(email, limit, used, p.sumOf { it.sizeBytes }, v.sumOf { it.sizeBytes }, p.size, v.size, records)
+        }
+    }
 }
 
 @Stable
@@ -77,6 +125,28 @@ class GoogleState(val platform: GooglePlatform = object : GooglePlatform {}) {
 
     var loading by mutableStateOf(false)
         private set
+
+    /** Each account's space and what Pixallery keeps there, for Settings > Storage (14 Nov); null until read. */
+    var usage by mutableStateOf<List<GoogleUsage>?>(null)
+        private set
+
+    var usageLoading by mutableStateOf(false)
+        private set
+
+    suspend fun loadUsage() {
+        if (usageLoading) return
+        usageLoading = true
+        try {
+            val list = runCatching { platform.storage() }.getOrNull()
+            if (list != null) {
+                usage = list
+                records = list.flatMap { it.records }
+                accounts = platform.accounts()
+            }
+        } finally {
+            usageLoading = false
+        }
+    }
 
     /** The "Google Drive is full" popup was closed this time the app is open. */
     var fullSeen by mutableStateOf(false)

@@ -116,20 +116,22 @@ fun StorageFilesScreen(
     val scope = rememberCoroutineScope()
     val flight = LocalDeleteFlight.current
     val prompt = LocalDeletePrompt.current
-    val files: List<StoredFile> = remember(page, gallery.items, drive.backupRecords) {
+    // Google Drive's own list (14 Nov), or the family drive's.
+    val records = if (page.google) state.google.records.orEmpty() else drive.backupRecords.orEmpty()
+    val files: List<StoredFile> = remember(page, gallery.items, records) {
         if (page.onDrive) {
-            val byPath = drive.backupRecords.orEmpty().associateBy { it.drivePath }
+            val byPath = records.associateBy { it.drivePath }
             page.refs.mapNotNull { path -> byPath[path]?.let { r -> StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album.orEmpty(), r.drivePath, r.isVideo) } }
         } else {
             StorageStats.fromPhone(page.refs.mapNotNull { it.toLongOrNull()?.let(gallery::find) })
         }
     }
     // Backups open full screen: the photo on this phone if it is still here, else the drive's copy (one timeline).
-    val openable: Map<String, Long> = remember(page, gallery.items, drive.backupRecords) {
+    val openable: Map<String, Long> = remember(page, gallery.items, records) {
         if (!page.onDrive) emptyMap() else {
             val byKey = gallery.items.associateBy { BackupSelection.key(it) }
             val byNameSize = gallery.items.associateBy { "${it.displayName}|${it.sizeBytes}" }
-            drive.backupRecords.orEmpty().mapNotNull { r ->
+            records.mapNotNull { r ->
                 val id = byKey[r.key]?.id ?: byNameSize["${r.fileName}|${r.sizeBytes}"]?.id
                     ?: DriveTimeline.idOf(r.drivePath).takeIf { gallery.find(it) != null }
                 id?.let { r.drivePath to it }
@@ -224,6 +226,8 @@ fun StorageFilesScreen(
                 }
 
                 override fun onDragSelectStart(id: Long) {
+                    // Saving and deleting Google backups from here come later: open only, for now.
+                    if (page.google) return
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     val all = currentSorted
                     initial = all.indices.filter { all[it].ref in state.filesSelected }.map { it.toLong() }.toSet()
@@ -281,7 +285,7 @@ fun StorageFilesScreen(
                         message?.let { WarningNote(it) }
                         if (page.onDrive) {
                             Text(
-                                "Tap to open. Press and hold to pick backups.",
+                                if (page.google) "Tap to open." else "Tap to open. Press and hold to pick backups.",
                                 color = theme.onGlassSecondary,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -312,7 +316,8 @@ fun StorageFilesScreen(
             )
             }
         }
-        if (page.onDrive) PullToRefresh(padding, onRefresh = {
+        if (page.google) PullToRefresh(padding, onRefresh = { state.google.loadUsage() }, content = refreshList)
+        else if (page.onDrive) PullToRefresh(padding, onRefresh = {
             drive.refresh()
             if (drive.joined != null) {
                 drive.loadBackupRecords(force = true)

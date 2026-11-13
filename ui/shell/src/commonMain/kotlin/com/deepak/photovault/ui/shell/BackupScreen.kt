@@ -148,24 +148,23 @@ fun BackupScreen(
         }
         item(key = "more") {
             GlassCard(Modifier.cardWidth()) {
+                // Each opens a popup (14 Nov), not a card at the end of the page.
                 if (!privacyNeedsYou) {
                     SettingRow(
                         Icons.Rounded.Lock,
                         "Backup privacy",
                         if (settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) "Private" else "Normal",
-                        open = privacyOpen,
-                        onClick = { privacyOpen = !privacyOpen },
+                        onClick = { privacyOpen = true },
                     )
                 }
                 SettingRow(
                     Icons.Rounded.PhoneAndroid,
                     "Remove phone copies",
                     if (settings.freeUpDays == 0) "Off" else "After ${settings.freeUpDays} days",
-                    open = freeUpOpen,
-                    onClick = { freeUpOpen = !freeUpOpen },
+                    onClick = { freeUpOpen = true },
                 )
                 if (drive.joined != null) {
-                    SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", open = restoreOpen, onClick = { restoreOpen = !restoreOpen })
+                    SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", onClick = { restoreOpen = true })
                 }
                 if (!backup.notificationsAllowed()) {
                     SettingRow(Icons.Rounded.Notifications, "Notifications are off", "Allow", onClick = actions::requestNotifications)
@@ -175,11 +174,10 @@ fun BackupScreen(
                 }
             }
         }
-        // Opened from the rows above; each keeps its own card.
-        if (privacyOpen && !privacyNeedsYou) item(key = "privacy") { PrivacyCard(state, drive, backup) }
-        if (freeUpOpen) item(key = "free-up") { FreeUpContent(backup, actions) }
-        if (restoreOpen && drive.joined != null) item(key = "restore") { RestoreCard(drive, backup, gallery) }
     }
+    if (privacyOpen) PrivacyDialog(state, drive, backup, onDismiss = { privacyOpen = false })
+    if (freeUpOpen) FreeUpDialog(backup, actions, onDismiss = { freeUpOpen = false })
+    if (restoreOpen && drive.joined != null) RestoreDialog(drive, backup, gallery, onDismiss = { restoreOpen = false })
 
     sheet?.let { (what, forGoogle) ->
         val view = if (forGoogle) googleView else settings
@@ -666,42 +664,62 @@ private fun HistoryCard(history: List<BackupRun>) {
     }
 }
 
+/** Restore to this phone in a popup (14 Nov): bring back backed-up photos that aren't on this phone. */
 @Composable
-private fun RestoreCard(drive: DriveState, backup: BackupState, gallery: GalleryState) {
+private fun RestoreDialog(drive: DriveState, backup: BackupState, gallery: GalleryState, onDismiss: () -> Unit) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     var missing by remember { mutableStateOf<Int?>(null) }
     var checking by remember { mutableStateOf(false) }
-    GlassCard(Modifier.cardWidth()) {
-        SectionHeader("Restore")
-        Text(
-            "Bring back backed-up photos that aren't on this phone.",
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        val rp = backup.restoreProgress
-        when {
-            backup.restoring -> {
-                Text(if (rp == null) "Restoring..." else "Restoring ${rp.first} of ${rp.second}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-                if (rp != null && rp.second > 0) GlassProgressBar(rp.first / rp.second.toFloat(), label = "Restore progress")
+    // Look straight away: the popup was opened to restore.
+    LaunchedEffect(Unit) {
+        if (!backup.restoring) {
+            checking = true
+            missing = drive.missingOnPhone(gallery.items) ?: -1
+            checking = false
+        }
+    }
+    val rp = backup.restoreProgress
+    val count = missing
+    GlassDialog(
+        title = "Restore to this phone",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton(if (backup.restoring) "Close" else "Cancel", onClick = onDismiss)
+            if (!backup.restoring && count != null && count > 0) {
+                GlassButton("Restore ${LibraryCounts.grouped(count)}", primary = true, icon = Icons.Rounded.CloudDownload, onClick = {
+                    backup.restoreMissing()
+                    missing = null
+                })
             }
-            missing == null -> GlassButton(if (checking) "Checking..." else "Restore backup", icon = Icons.Rounded.CloudDownload, modifier = Modifier.padding(top = 8.dp), onClick = {
-                if (!checking) {
-                    checking = true
+            if (!backup.restoring && count == -1) {
+                GlassButton("Try again", onClick = {
                     scope.launch {
+                        checking = true
                         missing = drive.missingOnPhone(gallery.items) ?: -1
                         checking = false
                     }
-                }
-            })
-            missing == -1 -> WarningNote("Couldn't read the drive. Check you're on the home Wi-Fi and try again.")
-            missing == 0 -> Text("Everything on the drive is already on this phone.", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-            else -> GlassButton("Restore ${LibraryCounts.grouped(missing!!)} to this phone", primary = true, icon = Icons.Rounded.CloudDownload, modifier = Modifier.padding(top = 8.dp), onClick = {
-                backup.restoreMissing()
-                missing = null
-            })
+                })
+            }
+        },
+    ) {
+        Text(
+            "Brings back photos from the family drive that aren't on this phone.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        when {
+            backup.restoring -> {
+                Text(if (rp == null) "Restoring..." else "Restoring ${rp.first} of ${rp.second}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+                if (rp != null && rp.second > 0) GlassProgressBar(rp.first / rp.second.toFloat(), label = "Restore progress")
+                Text("You can close this; it carries on.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+            }
+            checking || count == null -> com.deepak.photovault.designsystem.SkeletonLine(180.dp, 16.dp, label = "Looking at the drive")
+            count == -1 -> WarningNote("Couldn't read the drive. Check you're on the home Wi-Fi and try again.")
+            count == 0 -> Text("Everything on the drive is already on this phone.", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+            else -> Text("${LibraryCounts.grouped(count)} backed-up photos and videos aren't on this phone.", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
         }
-        backup.restoreMessage?.let { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
+        backup.restoreMessage?.let { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall) }
     }
 }
 

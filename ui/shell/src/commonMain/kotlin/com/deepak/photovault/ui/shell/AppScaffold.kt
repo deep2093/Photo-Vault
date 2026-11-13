@@ -522,6 +522,7 @@ private fun OverlayPage(
                         Overlay.PrivacyChoice -> PrivacyChoiceScreen(state, drive, backup)
                         Overlay.PrivateSetup -> PrivateSetupScreen(state, drive, backup)
                         Overlay.RestoreKeys -> RestoreKeysScreen(state, drive, backup)
+                        Overlay.PinKey -> PinKeyScreen(state, backup)
                         is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions, backup, overlay.startOnDrive)
                         is Overlay.StorageFiles -> StorageFilesScreen(overlay, state, gallery, drive, backup, actions)
                         is Overlay.CoverPicker -> CoverPickerScreen(overlay, state, gallery)

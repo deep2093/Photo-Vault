@@ -134,7 +134,7 @@ sealed interface Overlay {
     /** Albums > menu > Hide albums: a switch for every album (31 Oct; replaced Settings > Albums). */
     data object HiddenAlbums : Overlay
 
-    data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>) : Overlay
+    data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>, val google: Boolean = false) : Overlay
 
     /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
     data class Viewer(val ids: List<Long>, val startId: Long, val trash: Boolean = false) : Overlay
@@ -169,6 +169,9 @@ sealed interface Overlay {
 
     /** Getting the private key back on a new phone with the 24 words. */
     data object RestoreKeys : Overlay
+
+    /** Private backup with Google only (14 Nov): make the key and lock a spare copy in Google with a PIN, or get it back. */
+    data object PinKey : Overlay
 }
 
 sealed interface AlbumKind {
@@ -349,6 +352,10 @@ class ShellState(private val store: AppearanceStore) {
 
     /** Settings > Storage remembers Phone or Drive while pages are opened on top (25 Oct). */
     var storageOnDrive: Boolean? by mutableStateOf(null)
+
+    /** Settings > Storage on Google Drive (14 Nov), and which account: null is All. */
+    var storageOnGoogle by mutableStateOf(false)
+    var storageGoogleAccount: String? by mutableStateOf(null)
 
     val canGoBack: Boolean get() = canStepBack || overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty() || albumsSelectMode
 

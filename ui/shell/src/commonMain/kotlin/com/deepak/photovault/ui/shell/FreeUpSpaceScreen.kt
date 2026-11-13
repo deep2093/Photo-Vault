@@ -4,7 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,8 +40,29 @@ fun FreeUpContent(backup: BackupState, actions: MediaActions) {
     Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) { FreeUpCards(backup, actions) }
 }
 
+/** Remove phone copies in a popup (14 Nov), from its row on the Backup page. */
 @Composable
-private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
+fun FreeUpDialog(backup: BackupState, actions: MediaActions, onDismiss: () -> Unit) {
+    com.deepak.photovault.designsystem.GlassDialog(
+        title = "Remove phone copies",
+        onDismiss = onDismiss,
+        buttons = { GlassButton("Done", primary = true, onClick = onDismiss) },
+    ) {
+        Column(
+            Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) { FreeUpCards(backup, actions, inDialog = true) }
+    }
+}
+
+/** A card on its own page; a plain section inside a popup (no card inside a card). */
+@Composable
+private fun FreeUpSection(inDialog: Boolean, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    if (inDialog) Column(Modifier.fillMaxWidth(), content = content) else GlassCard(Modifier.fillMaxWidth(), content = content)
+}
+
+@Composable
+private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Boolean = false) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     val days = backup.settings.freeUpDays
@@ -47,8 +71,8 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
     var confirmSmaller by remember { mutableStateOf(false) }
     val automatic = actions.canDeleteWithoutAsking()
 
-    GlassCard(Modifier.fillMaxWidth()) {
-        SectionHeader("Remove phone copies after")
+    FreeUpSection(inDialog) {
+        SectionHeader(if (inDialog) "After" else "Remove phone copies after")
         // One glass pill with a sliding highlight: the chosen day shows in every theme (30 Oct).
         val choices = listOf(0) + FreeUpSpace.DAY_CHOICES
         GlassSegmented(
@@ -57,7 +81,7 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
             onSelect = { i -> backup.update { it.copy(freeUpDays = choices[i]) }; backup.clearFreeUp() },
         )
         Text(
-            if (days == 0) "Turn this on and photos that are already backed up to the drive are taken off this phone after that many days. Right now nothing is removed."
+            if (days == 0) "Turn this on and photos that are already backed up are taken off this phone after that many days. Right now nothing is removed."
             else "Photos that are already backed up are taken off this phone $days days after their backup. They stay on the drive and in Photos, and sit in Recently deleted for 30 days first.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
@@ -69,7 +93,7 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions) {
     }
 
     if (days > 0) {
-        GlassCard(Modifier.fillMaxWidth()) {
+        FreeUpSection(inDialog) {
             SectionHeader("Check now")
             val progress = backup.freeUpProgress
             if (backup.freeUpChecking) {

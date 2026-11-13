@@ -67,11 +67,17 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
             )
         }
         item {
+            val googleOnly = googleKeyWay(state, drive)
             ChoiceCard(
                 title = "Private",
                 tag = "Only you can open them",
                 selected = current == BackupPrivacy.PRIVATE,
-                lines = listOf(
+                lines = if (googleOnly) listOf(
+                    "Photos are scrambled on your phone before they leave it. Google, or anyone who gets into your Google account, sees only scrambled files.",
+                    "You choose a PIN. A locked spare copy of your key is kept in your Google Drive, so a new phone gets it back with the PIN.",
+                    "If you forget the PIN and lose this phone, the backup can't be opened by anyone.",
+                    "Photos open only inside Pixallery, not on drive.google.com.",
+                ) else listOf(
                     "Photos are scrambled on your phone before they leave it. Nobody with the drive password, a computer or the family owner can open them.",
                     "You get 24 recovery words. If you lose your phone AND the words, the backup can't be opened by anyone.",
                     "Photos open only inside Pixallery, not straight from the drive.",
@@ -79,7 +85,11 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
                 ),
                 onClick = {
                     // Already have the key on this phone: nothing to set up, just use it.
-                    if (state.encryption.keyOnPhone) { backup.update { it.copy(privacy = BackupPrivacy.PRIVATE) }; state.back() } else state.open(Overlay.PrivateSetup)
+                    when {
+                        state.encryption.keyOnPhone -> { backup.update { it.copy(privacy = BackupPrivacy.PRIVATE) }; state.back() }
+                        googleOnly -> state.open(Overlay.PinKey)
+                        else -> state.open(Overlay.PrivateSetup)
+                    }
                 },
             )
         }
@@ -186,7 +196,11 @@ internal fun PrivateSetupScreen(state: ShellState, drive: DriveState, backup: Ba
                 } else item {
                     GlassButton("Make my key", primary = true, onClick = {
                         val ctx = drive.keyContext()
-                        if (ctx == null) { problem = "Join the family first (Settings > Drive)."; return@GlassButton }
+                        if (ctx == null) {
+                            if (state.google.accounts.isNotEmpty()) state.open(Overlay.PinKey)
+                            else problem = "Join a family (Settings > Drive) or add a Google account (Backup) first."
+                            return@GlassButton
+                        }
                         scope.launch {
                             working = true
                             val existing = drive.readKeyFiles()
@@ -328,32 +342,195 @@ internal fun RestoreKeysScreen(state: ShellState, drive: DriveState, backup: Bac
     }
 }
 
-/** A card on the Backup screen: what is chosen, and the way to change it or to restore a key. */
+/**
+ * Google only (14 Nov): no family on this phone, but a Google account. The key is then kept by a PIN in Google, not
+ * by the 24 words on the family drive.
+ */
+internal fun googleKeyWay(state: ShellState, drive: DriveState): Boolean =
+    drive.keyContext() == null && state.google.platform.supported && state.google.accounts.isNotEmpty()
+
+/** Where this person's key can be brought back from when it isn't on this phone: the family drive, Google, or nowhere. */
+private enum class KeyBackup { NONE, FAMILY, GOOGLE }
+
+@Composable
+private fun rememberKeyBackup(state: ShellState, drive: DriveState): KeyBackup {
+    var where by remember { mutableStateOf(KeyBackup.NONE) }
+    LaunchedEffect(drive.joined?.me?.userId, state.encryption.keyOnPhone, state.google.accounts.size) {
+        where = when {
+            state.encryption.keyOnPhone -> KeyBackup.NONE
+            drive.joined != null && drive.readKeyFiles() != null -> KeyBackup.FAMILY
+            state.google.accounts.isNotEmpty() && state.google.platform.readPinKey() != null -> KeyBackup.GOOGLE
+            else -> KeyBackup.NONE
+        }
+    }
+    return where
+}
+
+private fun privacyLine(privacy: BackupPrivacy, needsRestore: Boolean): String = when {
+    needsRestore -> "You use Private backup, but this phone doesn't have your key yet."
+    privacy == BackupPrivacy.UNSET -> "Not chosen yet. Backup waits until you pick Normal or Private."
+    privacy == BackupPrivacy.NORMAL -> "Normal: your photos are saved as ordinary pictures."
+    else -> "Private: only you can open your backed-up photos."
+}
+
+/** A card on the Backup screen when privacy needs the person (not chosen, or the key is missing). */
 @Composable
 internal fun PrivacyCard(state: ShellState, drive: DriveState, backup: BackupState) {
     val theme = LocalGlassTheme.current
     val privacy = backup.settings.privacy
-    var onDrive by remember { mutableStateOf(false) }
-    LaunchedEffect(drive.joined?.me?.userId, state.encryption.keyOnPhone) {
-        onDrive = drive.joined != null && drive.readKeyFiles() != null
-    }
-    val needsRestore = onDrive && !state.encryption.keyOnPhone
+    val where = rememberKeyBackup(state, drive)
+    val needsRestore = where != KeyBackup.NONE
     GlassCard(Modifier.cardWidth()) {
         SectionHeader("Backup privacy")
-        Text(
-            when {
-                needsRestore -> "You use Private backup, but this phone doesn't have your key yet."
-                privacy == BackupPrivacy.UNSET -> "Not chosen yet. Backup waits until you pick Normal or Private."
-                privacy == BackupPrivacy.NORMAL -> "Normal: your photos are saved as ordinary pictures."
-                else -> "Private: only you can open your backed-up photos."
-            },
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
+        Text(privacyLine(privacy, needsRestore), color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (needsRestore) GlassButton("Restore my key", primary = true, onClick = { state.open(Overlay.RestoreKeys) })
+            if (needsRestore) GlassButton("Restore my key", primary = true, onClick = { state.open(if (where == KeyBackup.GOOGLE) Overlay.PinKey else Overlay.RestoreKeys) })
             GlassButton(if (privacy == BackupPrivacy.UNSET) "Choose" else "Change", primary = privacy == BackupPrivacy.UNSET && !needsRestore, onClick = { state.open(Overlay.PrivacyChoice) })
         }
     }
 }
+
+/** Backup privacy in a popup (14 Nov), from its row on the Backup page. */
+@Composable
+internal fun PrivacyDialog(state: ShellState, drive: DriveState, backup: BackupState, onDismiss: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val privacy = backup.settings.privacy
+    val where = rememberKeyBackup(state, drive)
+    val needsRestore = where != KeyBackup.NONE
+    GlassDialog(
+        title = "Backup privacy",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton("Close", onClick = onDismiss)
+            if (needsRestore) GlassButton("Restore my key", primary = true, onClick = {
+                onDismiss()
+                state.open(if (where == KeyBackup.GOOGLE) Overlay.PinKey else Overlay.RestoreKeys)
+            })
+            GlassButton(if (privacy == BackupPrivacy.UNSET) "Choose" else "Change", primary = !needsRestore, onClick = {
+                onDismiss()
+                state.open(Overlay.PrivacyChoice)
+            })
+        },
+    ) {
+        Text(privacyLine(privacy, needsRestore), color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            when (privacy) {
+                BackupPrivacy.PRIVATE -> "The same for the family drive and Google Drive: photos are scrambled on this phone before they leave it, and only Pixallery with your key can open them."
+                else -> "The same for the family drive and Google Drive. Private scrambles photos on this phone before they leave it, so only you can open them."
+            },
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            "Changing it only changes new backups; ones already saved stay as they are.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/**
+ * Private backup with Google only (14 Nov). No family drive, so no recovery words there: the phone makes the key and a
+ * spare copy, locked with a PIN the person picks, goes into each of their Google accounts. On a new phone the PIN brings
+ * it back. The PIN itself is never saved anywhere.
+ */
+@Composable
+internal fun PinKeyScreen(state: ShellState, backup: BackupState) {
+    val theme = LocalGlassTheme.current
+    val scope = rememberCoroutineScope()
+    val enc = state.encryption
+    val google = state.google
+    // null while looking in Google; then whether a spare copy is already there.
+    var existing by remember { mutableStateOf<ByteArray?>(null) }
+    var looked by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    var problem by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        existing = google.platform.readPinKey()
+        looked = true
+    }
+    fun done() {
+        backup.update { it.copy(privacy = BackupPrivacy.PRIVATE) }
+        enc.refresh()
+        // Back past the choice page too, when it is under this one.
+        state.back()
+        if (state.overlays.lastOrNull() == Overlay.PrivacyChoice) state.back()
+    }
+    val restoring = existing != null
+    GlassListScreen(title = if (restoring) "Restore my key" else "Private backup", subtitle = null, onBack = { enc.clearPending(); state.back() }) {
+        if (!looked) {
+            item { com.deepak.photovault.designsystem.SkeletonRows(2, Modifier.cardWidth(), label = "Looking in Google") }
+            return@GlassListScreen
+        }
+        item {
+            GlassCard(Modifier.cardWidth()) {
+                if (restoring) {
+                    Text("Your key is in Google", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "You set up Private backup before. Type the PIN you chose then to bring your key to this phone.",
+                        color = theme.onGlassSecondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                } else {
+                    Text("Choose a PIN", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    listOf(
+                        "Your photos are scrambled on this phone before they go to Google. Only Pixallery with your key can open them.",
+                        "A spare copy of your key is kept in your Google Drive, locked with this PIN, so a new phone can get it back.",
+                        "Numbers or letters, at least ${PIN_MIN} long. Longer is safer.",
+                        "If you forget the PIN and lose this phone, nobody can open your backup. Pixallery can't reset it.",
+                    ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
+                }
+                GlassTextField(pin, { pin = it.trim() }, "PIN", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 12.dp))
+                if (!restoring) {
+                    GlassTextField(again, { again = it.trim() }, "PIN again", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        }
+        item { problem?.let { WarningNote(it, Modifier.cardWidth()) } }
+        item {
+            GlassButton(
+                when {
+                    working -> if (restoring) "Opening..." else "Saving..."
+                    restoring -> "Restore"
+                    else -> "Make my key"
+                },
+                primary = true,
+                onClick = {
+                    if (working) return@GlassButton
+                    if (pin.length < PIN_MIN) { problem = "The PIN needs at least $PIN_MIN numbers or letters."; return@GlassButton }
+                    if (!restoring && pin != again) { problem = "The two PINs aren't the same."; return@GlassButton }
+                    working = true
+                    problem = null
+                    scope.launch {
+                        val envelope = existing
+                        if (envelope != null) {
+                            // Slow on purpose (about a second): kept off the screen's thread.
+                            problem = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { enc.platform.restorePinKey(pin, envelope) }
+                            if (problem == null) done()
+                        } else {
+                            val sealed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { enc.platform.createPinKey(pin) }
+                            if (sealed == null) {
+                                problem = "This phone can't make a private key."
+                            } else {
+                                // Google keeps the spare first: a key only on this phone could be lost with it.
+                                val failed = google.platform.savePinKey(sealed)
+                                problem = when {
+                                    failed != null -> failed.also { enc.clearPending() }
+                                    !enc.platform.commitKey() -> "The key couldn't be kept on this phone. Nothing was changed."
+                                    else -> null
+                                }
+                                if (problem == null) { enc.clearPending(); done() }
+                            }
+                        }
+                        working = false
+                    }
+                },
+            )
+        }
+    }
+}
+
+private const val PIN_MIN = 6

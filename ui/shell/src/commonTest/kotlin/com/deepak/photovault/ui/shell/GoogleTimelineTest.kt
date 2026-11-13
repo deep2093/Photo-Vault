@@ -37,4 +37,23 @@ class GoogleTimelineTest {
         assertEquals("Full", accountsSummary(listOf(GoogleAccount("a@x.com", full = true))))
         assertEquals("Sign in again", accountsSummary(listOf(GoogleAccount("a@x.com"), GoogleAccount("b@x.com", needsSignIn = true))))
     }
+
+    @Test
+    fun googleStorageAddsUpAccounts() {
+        val gb = 1024L * 1024 * 1024
+        val photo = record("p", "gdrive/a/p.jpg").copy(sizeBytes = 2 * gb)
+        val video = record("v", "gdrive/a/v.mp4").copy(sizeBytes = gb, isVideo = true)
+        val a = GoogleUsage.of("a@x.com", limit = 15 * gb, used = 10 * gb, records = listOf(photo, video))
+        val b = GoogleUsage.of("b@x.com", limit = 15 * gb, used = 1 * gb, records = emptyList())
+        assertEquals(7 * gb, a.otherBytes)
+        assertEquals(5 * gb, a.freeBytes)
+        val all = GoogleUsage.all(listOf(a, b))
+        assertEquals(30 * gb, all.limitBytes)
+        assertEquals(1, all.photos)
+        assertEquals(1, all.videos)
+        assertEquals(8 * gb, all.otherBytes)
+        assertEquals(19 * gb, all.freeBytes)
+        // Google hasn't said the size of one account: no total.
+        assertNull(GoogleUsage.all(listOf(a, b.copy(limitBytes = null))).limitBytes)
+    }
 }

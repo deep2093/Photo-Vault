@@ -119,4 +119,10 @@ class AndroidGoogle(
     override fun reschedule() = GoogleBackup.schedule(app)
 
     override val status: StateFlow<GoogleStatus> get() = GoogleBackup.status
+
+    override suspend fun readPinKey(): ByteArray? = GoogleBackup.readPinKey(app)
+
+    override suspend fun savePinKey(envelope: ByteArray): String? = GoogleBackup.savePinKey(app, envelope)
+
+    override suspend fun storage(): List<com.deepak.photovault.ui.shell.GoogleUsage> = GoogleBackup.storage(app)
 }

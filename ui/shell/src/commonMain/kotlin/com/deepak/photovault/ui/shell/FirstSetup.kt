@@ -65,7 +65,7 @@ internal fun FirstSetupPopups(state: ShellState, drive: DriveState, backup: Back
             )
         }
         // Private needs its own key (and recovery words) first: its setup page opens now.
-        if (private && !state.encryption.keyOnPhone) state.open(Overlay.PrivateSetup)
+        if (private && !state.encryption.keyOnPhone) state.open(if (googleKeyWay(state, drive)) Overlay.PinKey else Overlay.PrivateSetup)
     }
     val laterButton: @Composable () -> Unit = { GlassButton("Later", onClick = { later = true }) }
     when (step) {
