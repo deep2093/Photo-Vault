@@ -1,5 +1,11 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.heading
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.CloudQueue
@@ -116,12 +122,22 @@ fun SettingsScreen(
     iconSwitcher: AppIconSwitcher = NoAppIconSwitcher,
     backup: BackupState? = null,
     gallery: GalleryState? = null,
+    actions: MediaActions? = null,
 ) {
     val theme = LocalGlassTheme.current
+    // 13 Nov: on a tablet the list stays on the left and the chosen page opens beside it.
+    if (LocalTablet.current && backup != null && gallery != null && actions != null) {
+        SettingsTwoPane(state, drive, iconSwitcher, backup, gallery, actions)
+        return
+    }
     GlassListScreen(title = null, subtitle = null) {
         item {
-            Column(Modifier.cardWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(vertical = 6.dp)) {
-                SettingsPage.entries.forEach { page ->
+            // 13 Nov: two columns of rows on a tablet, so Settings uses the width.
+            val tablet = LocalTablet.current
+            Column(Modifier.pageWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(vertical = 6.dp)) {
+                SettingsPage.entries.chunked(if (tablet) 2 else 1).forEach { pair ->
+                Row(Modifier.fillMaxWidth()) {
+                pair.forEach { page ->
                     val (icon, summary) = when (page) {
                         SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
                         SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
@@ -133,12 +149,165 @@ fun SettingsScreen(
                         SettingsPage.STORAGE -> Icons.Rounded.PieChart to "Phone and drive"
                         SettingsPage.FEEDBACK -> Icons.Rounded.Feedback to (if (drive.feedbackWaiting > 0) "${drive.feedbackWaiting} waiting to send" else "Ideas and bugs, with photos or videos")
                     }
-                    SettingsRow(icon, page.title, summary) {
+                    SettingsRow(icon, page.title, summary, Modifier.weight(1f)) {
                         if (page == SettingsPage.BACKUP) state.open(Overlay.Backup) else state.open(Overlay.Settings(page))
+                    }
+                }
+                repeat((if (tablet) 2 else 1) - pair.size) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }
+                }
+                }
+            }
+        }
+    }
+}
+
+/** What each Settings row shows: its picture and the short line under its name. */
+@Composable
+private fun settingsRowInfo(page: SettingsPage, state: ShellState, drive: DriveState, backup: BackupState?): Pair<androidx.compose.ui.graphics.vector.ImageVector, String> {
+    val theme = LocalGlassTheme.current
+    return when (page) {
+        SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
+        SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
+        SettingsPage.NOTIFICATIONS -> Icons.Rounded.Notifications to notificationsSummary(state, backup)
+        SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
+        SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
+        SettingsPage.OPEN_WITH -> Icons.AutoMirrored.Rounded.OpenInNew to "Photos and videos from other apps"
+        SettingsPage.REMOTE -> Icons.Rounded.VpnKey to state.remote.summary()
+        SettingsPage.STORAGE -> Icons.Rounded.PieChart to "Phone and drive"
+        SettingsPage.FEEDBACK -> Icons.Rounded.Feedback to (if (drive.feedbackWaiting > 0) "${drive.feedbackWaiting} waiting to send" else "Ideas and bugs, with photos or videos")
+    }
+}
+
+/**
+ * Settings on a tablet (13 Nov): the list on the left, the chosen page beside it, each scrolling on its own. Backup
+ * still opens as its own full page (it is a big screen with its own bar).
+ */
+@Composable
+private fun SettingsTwoPane(state: ShellState, drive: DriveState, iconSwitcher: AppIconSwitcher, backup: BackupState, gallery: GalleryState, actions: MediaActions) {
+    val theme = LocalGlassTheme.current
+    var chosen by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(SettingsPage.APPEARANCE.name) }
+    val page = SettingsPage.entries.firstOrNull { it.name == chosen } ?: SettingsPage.APPEARANCE
+    GlassScreen(title = null, subtitle = null) { padding ->
+        // 13 Nov (Deepak's tablet photos): the list and the page sit together in the middle of the screen, instead of
+        // the list hard left and the page far to the right.
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Row(Modifier.widthIn(max = 1140.dp).fillMaxSize()) {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    Modifier.width(340.dp).fillMaxHeight(),
+                    contentPadding = padding,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item {
+                        Text(
+                            "Settings",
+                            color = theme.onWallpaper,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 8.dp, top = 4.dp).semantics { heading() },
+                        )
+                    }
+                    item {
+                        Column(
+                            Modifier.fillMaxWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            SettingsPage.entries.forEach { p ->
+                                val (icon, summary) = settingsRowInfo(p, state, drive, backup)
+                                SettingsPaneRow(icon, p.title, summary, selected = p == page) { chosen = p.name }
+                            }
+                        }
+                    }
+                }
+                androidx.compose.animation.Crossfade(page, Modifier.weight(1f).fillMaxHeight(), animationSpec = com.deepak.photovault.designsystem.motionSpec(), label = "settingsPane") { shown ->
+                    if (shown == SettingsPage.BACKUP) {
+                        // Backup opens beside the list too (13 Nov), not as a page of its own.
+                        BackupScreen(drive, backup, gallery, actions, state, onBack = null, heading = "Backup")
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            Modifier.fillMaxSize().imePadding(),
+                            contentPadding = padding,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            item {
+                                Text(
+                                    shown.title,
+                                    color = theme.onWallpaper,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                    modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp).semantics { heading() },
+                                )
+                            }
+                            settingsPageItems(shown, state, drive, iconSwitcher, gallery, actions, backup, startOnDrive = false)
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * One row of the tablet's Settings list (13 Nov): its picture in a soft round, and the chosen one filled with the
+ * theme's own colour (with words that stay readable on it), so it is clear which page is open beside the list.
+ */
+@Composable
+private fun SettingsPaneRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, selected: Boolean, onClick: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    val fill by androidx.compose.animation.animateColorAsState(if (selected) theme.accent else androidx.compose.ui.graphics.Color.Transparent, com.deepak.photovault.designsystem.motionSpec(), label = "paneRow")
+    val ink = if (selected) com.deepak.photovault.designsystem.readableOn(theme.accent) else theme.onGlass
+    val soft = if (selected) ink.copy(alpha = 0.8f) else theme.onGlassSecondary
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(fill)
+            .semantics { this.selected = selected }
+            .heightIn(min = 60.dp)
+            .clickable(role = androidx.compose.ui.semantics.Role.Tab, onClickLabel = "Open $title") {
+                haptics.tap()
+                onClick()
+            }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (selected) ink.copy(alpha = 0.16f) else theme.accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(icon, contentDescription = null, tint = if (selected) ink else theme.accent, modifier = Modifier.size(22.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(title, color = ink, style = MaterialTheme.typography.bodyLarge, fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else null)
+            if (summary.isNotEmpty()) {
+                Text(summary, color = soft, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.settingsPageItems(
+    page: SettingsPage,
+    state: ShellState,
+    drive: DriveState,
+    iconSwitcher: AppIconSwitcher,
+    gallery: GalleryState,
+    actions: MediaActions,
+    backup: BackupState,
+    startOnDrive: Boolean,
+) {
+    when (page) {
+        SettingsPage.ABOUT -> item { AboutSection(state) }
+        SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
+        SettingsPage.NOTIFICATIONS -> item { NotificationsSection(state, drive, backup, actions) }
+        SettingsPage.BACKUP -> Unit
+        SettingsPage.DRIVE -> item { DriveSection(state, drive) }
+        SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
+        SettingsPage.OPEN_WITH -> item { OpenWithContent(actions) }
+        SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
+        SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
     }
 }
 
@@ -154,12 +323,23 @@ private fun backupSummary(backup: BackupState?): String {
 }
 
 @Composable
-private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, onClick: () -> Unit) {
+private fun SettingsRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    summary: String,
+    modifier: Modifier = Modifier,
+    /** The page showing beside the list on a tablet: softly lit in the theme's colour. */
+    selected: Boolean = false,
+    onClick: () -> Unit,
+) {
     val theme = LocalGlassTheme.current
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+            .then(if (selected) Modifier.background(theme.accent.copy(alpha = 0.16f)) else Modifier)
+            .semantics { this.selected = selected }
             .heightIn(min = 60.dp)
             .clickable(onClickLabel = "Open $title") {
                 haptics.tap()
@@ -193,17 +373,7 @@ fun SettingsPageScreen(page: SettingsPage, state: ShellState, drive: DriveState,
         }
     }) else null
     GlassListScreen(title = page.title, subtitle = null, onBack = { state.back() }, onRefresh = refresh) {
-        when (page) {
-            SettingsPage.ABOUT -> item { AboutSection(state) }
-            SettingsPage.APPEARANCE -> item { AppearanceSection(state, iconSwitcher) }
-            SettingsPage.NOTIFICATIONS -> item { NotificationsSection(state, drive, backup, actions) }
-            SettingsPage.BACKUP -> Unit
-            SettingsPage.DRIVE -> item { DriveSection(state, drive) }
-            SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
-            SettingsPage.OPEN_WITH -> item { OpenWithContent(actions) }
-            SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
-            SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
-        }
+        settingsPageItems(page, state, drive, iconSwitcher, gallery, actions, backup, startOnDrive)
     }
 }
 

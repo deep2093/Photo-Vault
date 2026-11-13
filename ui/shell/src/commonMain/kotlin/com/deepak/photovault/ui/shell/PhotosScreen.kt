@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PhotoAlbum
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.CloudDone
@@ -46,6 +47,7 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -139,17 +141,21 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     ) { padding ->
         when {
             gallery.access == MediaAccess.NONE -> EmptyState(
+                icon = Icons.Rounded.PhotoLibrary,
                 title = "See your photos here",
                 body = "Pixallery needs access to your photos and videos to show them and back them up. " +
                     "They stay on your phone and your own drive.",
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
             gallery.loaded && gallery.items.isEmpty() -> EmptyState(
+                icon = Icons.Rounded.PhotoLibrary,
                 title = "No photos yet",
                 body = "Photos and videos you take will appear here.",
             )
             else -> {
                 val spec = motionSpec<Float>(LEVEL_MS)
+                // Towns for the date at the top of the grid (13 Nov): read once, quietly.
+                LaunchedEffect(Unit) { if (!state.places.loaded) runCatching { state.places.refresh() } }
                 androidx.compose.animation.AnimatedContent(
                     targetState = gallery.view,
                     transitionSpec = {
@@ -335,7 +341,10 @@ fun SelectableScreen(
                 })
                 if (onMove != null) GlassIconButton(Icons.Rounded.PhotoAlbum, "Move to another album", onClick = { onMove(selectedItems) })
                 GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
+                    // Said after (13 Nov): all already favourites means they come off, otherwise they go on.
+                    val removing = selectedItems.isNotEmpty() && selectedItems.all { gallery.isFavourite(it) }
                     gallery.toggleFavourite(selectedItems)
+                    actions.toast(if (removing) "Removed from Favourites." else "Added to Favourites.")
                     state.selected = emptySet()
                 })
                 GlassIconButton(
@@ -346,6 +355,7 @@ fun SelectableScreen(
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
                     // Where the photos are now: by the time Android has asked, the grid may have changed.
                     val flying = tileSpots.flying(selectedItems)
+                    flight.prepare(flying)
                     prompt.trash(actions, selectedItems) { agreed ->
                         if (agreed) {
                             flight.launch(flying, bin.bounds)

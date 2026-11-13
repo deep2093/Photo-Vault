@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.CloudUpload
 import com.deepak.photovault.core.backup.isDriveOnly
 import com.deepak.photovault.designsystem.GlassButton
 import androidx.compose.material.icons.rounded.Delete
@@ -97,7 +98,7 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     }
     var cacheVersion by remember { mutableStateOf(0) }
     var showCache by remember { mutableStateOf(false) }
-    Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.pageWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StorageSource.entries.forEach { s -> GlassChip(s.label, selected = source == s, onClick = { state.storageOnDrive = s == StorageSource.DRIVE }) }
         }
@@ -182,7 +183,8 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                 val usedOnDrive = joined?.let { drive.usage[it.me.userId]?.usedBytes } ?: 0L
                 when {
                     joined == null -> Unit
-                    driveLoading -> Text("Reading the drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                    // 13 Nov: placeholder rows while the drive is read the first time.
+                    driveLoading -> GlassCard(Modifier.fillMaxWidth()) { com.deepak.photovault.designsystem.SkeletonRows(4, label = "Reading the drive") }
                     files == null -> Text("Couldn't read the drive. Check you're on the home Wi-Fi.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                     // Space is used but the list came back empty: say so plainly instead of "nothing backed up".
                     files.isEmpty() && usedOnDrive > 0 -> Text(
@@ -190,7 +192,12 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                         color = theme.onGlassSecondary,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    files.isEmpty() -> Text("Nothing backed up yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                    files.isEmpty() -> com.deepak.photovault.designsystem.EmptyCard(
+                        Icons.Rounded.CloudUpload,
+                        "Nothing backed up yet",
+                        "Photos you back up to the family drive show here, by type, year and album.",
+                        Modifier.fillMaxWidth(),
+                    ) { GlassButton("Open Backup", primary = true, onClick = { state.open(Overlay.Backup) }) }
                     // 10 Nov: the drive's albums, below By year like the phone's.
                     else -> Breakdown(files, zone, open(true), albumsTitle = "Backed-up albums")
                 }
@@ -261,7 +268,8 @@ private fun Breakdown(
             if (albums.isEmpty()) Text("No photos yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
         }
     }
-    if (albumsFirst) albumsCard()
+    @Composable
+    fun typesAndYears() {
     GlassCard(Modifier.fillMaxWidth()) {
         SectionHeader("File types")
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -278,7 +286,15 @@ private fun Breakdown(
             YearBars(years) { year -> onOpen(year, StorageStats.ofYear(files, year, zone)) }
         }
     }
-    if (!albumsFirst) albumsCard()
+    }
+    // 13 Nov: on a tablet, types and years on the left and the albums on the right.
+    if (LocalTablet.current) {
+        TabletColumns(left = { typesAndYears() }, right = { albumsCard() })
+    } else {
+        if (albumsFirst) albumsCard()
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { typesAndYears() }
+        if (!albumsFirst) albumsCard()
+    }
 }
 
 private fun shade(c: Color, factor: Float) = Color(c.red * factor, c.green * factor, c.blue * factor, c.alpha)

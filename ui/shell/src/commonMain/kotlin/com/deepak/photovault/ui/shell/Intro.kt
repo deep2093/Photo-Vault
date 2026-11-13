@@ -100,13 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-10-4"
+    const val ID = "2026-11-13-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Join requests show fast", "While the owner has the app open, requests to join are checked every 30 seconds, so the popup comes up quickly."),
-        Change(ChangeKind.FIXED, "Used invites", "An invite disappears from Waiting to be used once the person is in the family."),
-        Change(ChangeKind.FIXED, "Counting...", "A new member's space is counted straight after joining, instead of showing Counting... for an hour."),
-        Change(ChangeKind.FIXED, "Deleting a backup", "Leaving or deleting the family with the backup now removes the whole folder from the drive, with no empty folders left."),
+        Change(ChangeKind.FIXED, "Turning the screen", "Turning your phone or tablet no longer closes a playing video or an open photo."),
+        Change(ChangeKind.FIXED, "Video time strip", "It moves smoothly while the video plays, and shows by itself when the video is the only item (it was missing on the tablet)."),
+        Change(ChangeKind.FIXED, "Delete effect", "Photos are now sucked into the bin in Recently deleted too, and everywhere else you delete."),
     )
 }
 

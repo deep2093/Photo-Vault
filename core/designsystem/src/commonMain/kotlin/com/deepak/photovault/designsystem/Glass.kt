@@ -1,5 +1,12 @@
 package com.deepak.photovault.designsystem
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -37,19 +44,52 @@ import dev.chrisbanes.haze.hazeEffect
 fun GlassBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val theme = LocalGlassTheme.current
     val registry = remember { ScreenColors() }
+    // 13 Nov: picking another theme melts the old wallpaper into the new one instead of snapping. The old one is
+    // painted on top and fades away; the fade is read only while drawing, so nothing is laid out or built again.
+    var shown by remember { mutableStateOf(theme) }
+    var leaving by remember { mutableStateOf<GlassTheme?>(null) }
+    val fade = remember { Animatable(0f) }
+    val still = LocalGlassSettings.current.reduceMotion
+    LaunchedEffect(theme.id, theme.isDark) {
+        if (shown.id != theme.id || shown.isDark != theme.isDark) {
+            leaving = shown
+            shown = theme
+            if (!still) {
+                fade.snapTo(1f)
+                fade.animateTo(0f, tween(THEME_FADE_MS, easing = FastOutSlowInEasing))
+            }
+            leaving = null
+        }
+    }
     CompositionLocalProvider(LocalScreenColors provides registry) {
         val style = theme.adaptive
         if (style != null) {
             val colors = rememberAdaptiveColors(style)
-            Box(modifier.drawBehind { drawAdaptiveWallpaper(colors.map { it.value }, style) }, content = content)
+            Box(
+                modifier.drawBehind {
+                    drawAdaptiveWallpaper(colors.map { it.value }, style)
+                    leaving?.let { drawWallpaper(it, fade.value) }
+                },
+                content = content,
+            )
         } else {
-            Box(modifier.drawBehind { drawWallpaper(theme) }, content = content)
+            Box(
+                modifier.drawBehind {
+                    drawWallpaper(theme)
+                    leaving?.let { drawWallpaper(it, fade.value) }
+                },
+                content = content,
+            )
         }
     }
 }
 
-internal fun DrawScope.drawWallpaper(theme: GlassTheme) {
-    drawRect(Brush.linearGradient(theme.wallpaper, start = Offset.Zero, end = Offset(size.width, size.height)))
+/** How long the old wallpaper takes to melt into the new theme's. */
+private const val THEME_FADE_MS = 420
+
+internal fun DrawScope.drawWallpaper(theme: GlassTheme, alpha: Float = 1f) {
+    if (alpha <= 0f) return
+    drawRect(Brush.linearGradient(theme.wallpaper, start = Offset.Zero, end = Offset(size.width, size.height)), alpha = alpha)
     theme.glows.forEach { glow ->
         drawRect(
             Brush.radialGradient(
@@ -57,6 +97,7 @@ internal fun DrawScope.drawWallpaper(theme: GlassTheme) {
                 center = Offset(size.width * glow.x, size.height * glow.y),
                 radius = size.maxDimension * glow.radius,
             ),
+            alpha = alpha,
         )
     }
     drawRect(
@@ -68,7 +109,24 @@ internal fun DrawScope.drawWallpaper(theme: GlassTheme) {
             start = Offset(0f, size.height * 0.2f),
             end = Offset(size.width, size.height * 0.6f),
         ),
+        alpha = alpha,
     )
+}
+
+/**
+ * A soft press (13 Nov): the control dips a little under the finger and springs back. Read while drawing only, so
+ * pressing never lays anything out again. Off with Reduce motion.
+ */
+@Composable
+fun Modifier.pressDip(source: androidx.compose.foundation.interaction.InteractionSource, to: Float = 0.96f): Modifier {
+    val pressed by source.collectIsPressedAsState()
+    val still = LocalGlassSettings.current.reduceMotion
+    val scale = androidx.compose.animation.core.animateFloatAsState(
+        if (pressed && !still) to else 1f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 700f),
+        label = "pressDip",
+    )
+    return graphicsLayer { scaleX = scale.value; scaleY = scale.value }
 }
 
 /** A fine specular rim: bright at the top-left, fading, with a softer glint at the bottom-right. */

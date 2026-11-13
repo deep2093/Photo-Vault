@@ -1,5 +1,7 @@
 package com.deepak.photovault.designsystem
 
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
@@ -70,7 +72,13 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier, onWallpaper: Bool
     )
 }
 
-/** Capsule button. [primary] fills with the accent; otherwise it is glass. */
+/** The red of buttons that delete or can't be undone (13 Nov), the same in every theme. */
+val DangerColor = Color(0xFFD93025)
+
+/**
+ * Capsule button. [primary] fills with the accent; otherwise it is glass. [danger] (13 Nov): red, for deleting,
+ * leaving and anything that can't be undone, so it never looks like an ordinary choice.
+ */
 @Composable
 fun GlassButton(
     text: String,
@@ -79,15 +87,24 @@ fun GlassButton(
     primary: Boolean = false,
     icon: ImageVector? = null,
     centered: Boolean = false,
+    danger: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
     val shape = Capsule
+    val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(
         modifier
+            .pressDip(press)
             .heightIn(min = MinTouchTarget)
-            .then(if (primary) Modifier.clip(shape).background(theme.accentSurface).glassDepth().glassRim(shape) else Modifier.glassPanel(shape))
-            .clickable(role = Role.Button, onClick = {
+            .then(
+                when {
+                    danger -> Modifier.clip(shape).background(DangerColor).glassDepth().glassRim(shape)
+                    primary -> Modifier.clip(shape).background(theme.accentSurface).glassDepth().glassRim(shape)
+                    else -> Modifier.glassPanel(shape)
+                },
+            )
+            .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = {
                 haptics.tap()
                 onClick()
             })
@@ -95,7 +112,7 @@ fun GlassButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (centered) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
     ) {
-        val fg = if (primary) theme.onAccent else theme.onGlass
+        val fg = if (danger) Color.White else if (primary) theme.onAccent else theme.onGlass
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
         Text(text, color = fg, style = MaterialTheme.typography.labelLarge)
     }
@@ -147,7 +164,7 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
 }
 
 /** Dark ink or white, whichever reads better on [background]. */
-internal fun readableOn(background: Color): Color =
+fun readableOn(background: Color): Color =
     if (background.luminance() > 0.45f) Color(0xFF10141A) else Color.White
 
 /**
@@ -370,24 +387,38 @@ fun GlassProgressBar(fraction: Float, modifier: Modifier = Modifier, label: Stri
 /** Round swatch for the theme picker: just the colours, with a white ring and a tick when chosen. [theme] is spoken to screen readers. */
 @Composable
 fun ThemeSwatch(theme: GlassTheme, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    // 13 Nov: the ring, the size and the tick ease in and out when the choice moves, and the swatch dips when
+    // pressed. All read while drawing (graphicsLayer), so choosing a theme stays light.
+    val still = LocalGlassSettings.current.reduceMotion
+    val spec = if (still) androidx.compose.animation.core.snap<Float>() else androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 500f)
+    val on = androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0f, spec, label = "swatch")
+    val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val ring = LocalGlassTheme.current.onGlass
     Box(
         modifier
             .size(72.dp)
+            .pressDip(press, to = 0.92f)
             .clip(CircleShape)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = selected, interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = theme.displayName },
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) Box(Modifier.size(72.dp).border(3.dp, LocalGlassTheme.current.onGlass, CircleShape))
+        Box(Modifier.size(72.dp).graphicsLayer { alpha = on.value; val k = 0.86f + 0.14f * on.value; scaleX = k; scaleY = k }.border(3.dp, ring, CircleShape))
         Box(
             Modifier
-                .size(if (selected) 58.dp else 64.dp)
+                .size(64.dp)
+                .graphicsLayer { val k = 1f - 0.1f * on.value; scaleX = k; scaleY = k }
                 .clip(CircleShape)
                 .background(Brush.linearGradient(theme.wallpaper + theme.glassRim))
-                .border(1.dp, LocalGlassTheme.current.onGlass.copy(alpha = 0.25f), CircleShape),
+                .border(1.dp, ring.copy(alpha = 0.25f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = theme.onGlass, modifier = Modifier.size(26.dp))
+            Icon(
+                Icons.Rounded.Check,
+                contentDescription = null,
+                tint = theme.onGlass,
+                modifier = Modifier.size(26.dp).graphicsLayer { alpha = on.value; scaleX = on.value; scaleY = on.value },
+            )
         }
     }
 }

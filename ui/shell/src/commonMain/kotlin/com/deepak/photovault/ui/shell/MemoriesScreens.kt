@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -129,15 +130,12 @@ fun MemoriesScreen(state: ShellState, gallery: GalleryState) {
     ) {
         if (day.isEmpty() && month.isEmpty()) {
             item(key = "empty") {
-                GlassCard(Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN)) {
-                    Text("No memories today", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Photos you took on this day, or this month, in earlier years show here. Come back another day.",
-                        color = theme.onGlassSecondary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
+                com.deepak.photovault.designsystem.EmptyCard(
+                    Icons.Rounded.History,
+                    "No memories today",
+                    "Photos you took on this day, or this month, in earlier years show here. Come back another day.",
+                    Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN),
+                )
             }
         }
         if (day.isNotEmpty()) {
@@ -274,6 +272,7 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
     val theme = LocalGlassTheme.current
     val tags = state.tags
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     LaunchedEffect(Unit) { if (!tags.loaded) tags.refresh() }
     val list = remember(tags.byKey, gallery.items) { tags.list(gallery.items) }
     var editing by remember { mutableStateOf<String?>(null) }
@@ -286,15 +285,12 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
     ) {
         if (list.isEmpty()) {
             item(key = "empty") {
-                GlassCard(Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN)) {
-                    Text("No tags yet", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Open a photo, swipe up for its details and tap Add tag. Your tags stay on your phone, and go with your backup to the family drive, locked like People.",
-                        color = theme.onGlassSecondary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
+                com.deepak.photovault.designsystem.EmptyCard(
+                    Icons.Rounded.LocalOffer,
+                    "No tags yet",
+                    "Open a photo, swipe up for its details and tap Add tag. Your tags stay on your phone, and go with your backup to the family drive, locked like People.",
+                    Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN),
+                )
             }
         }
         items(list.size, key = { "tag:" + list[it].first.lowercase() }) { i ->
@@ -348,7 +344,7 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
                 GlassButton("Save", primary = true, onClick = {
                     val clean = TagsState.clean(name)
                     editing = null
-                    if (clean != null && clean != tag) scope.launch { tags.rename(tag, clean) }
+                    if (clean != null && clean != tag) scope.launch { tags.rename(tag, clean); toast("Tag renamed.") }
                 })
             },
         ) {
@@ -363,7 +359,7 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
             onDismiss = { deleting = null },
         ) {
             deleting = null
-            scope.launch { tags.delete(tag) }
+            scope.launch { tags.delete(tag); toast("Tag deleted.") }
         }
     }
 }
@@ -385,7 +381,7 @@ fun TagScreen(tag: String, state: ShellState, gallery: GalleryState, actions: Me
         selectAllItems = items,
     ) { padding ->
         if (items.isEmpty()) {
-            EmptyState(title = "Nothing here now", body = "No photos have this tag any more.")
+            EmptyState(title = "Nothing here now", body = "No photos have this tag any more.", icon = Icons.Rounded.LocalOffer)
         } else {
             MediaGrid(
                 sections, state, gallery, padding,
@@ -403,11 +399,12 @@ fun TagScreen(tag: String, state: ShellState, gallery: GalleryState, actions: Me
 @Composable
 internal fun DetailsTags(item: MediaItem, tags: TagsState, white: Color, grey: Color) {
     val scope = rememberCoroutineScope()
+    val toast = LocalToast.current
     LaunchedEffect(Unit) { if (!tags.loaded) tags.refresh() }
     val mine = remember(item.id, tags.byKey) { tags.tagsOf(item) }
     var adding by remember { mutableStateOf(false) }
     FlowRow(
-        Modifier.fillMaxWidth().padding(top = 8.dp),
+        Modifier.fillMaxWidth().padding(top = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -421,7 +418,7 @@ internal fun DetailsTags(item: MediaItem, tags: TagsState, white: Color, grey: C
                     Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .combinedClickable(role = Role.Button, onClickLabel = "Remove tag $tag", onClick = { scope.launch { tags.remove(item, tag) } }),
+                        .combinedClickable(role = Role.Button, onClickLabel = "Remove tag $tag", onClick = { scope.launch { tags.remove(item, tag); toast("Tag removed.") } }),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Rounded.Close, "Remove tag $tag", tint = grey, modifier = Modifier.size(16.dp))
@@ -444,7 +441,7 @@ internal fun DetailsTags(item: MediaItem, tags: TagsState, white: Color, grey: C
     if (adding) {
         AddTagDialog(tags, already = mine, onDismiss = { adding = false }) { tag ->
             adding = false
-            scope.launch { tags.add(listOf(item), tag) }
+            scope.launch { tags.add(listOf(item), tag); toast("Tag added.") }
         }
     }
 }

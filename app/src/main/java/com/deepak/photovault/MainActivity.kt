@@ -898,6 +898,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         notifyPeople = prefs.getBoolean(NotifyPrefs.PEOPLE, true),
         notifyFamily = prefs.getBoolean(NotifyPrefs.FAMILY, true),
         notifyFeedback = prefs.getBoolean(NotifyPrefs.FEEDBACK, true),
+        recentSearches = prefs.getString("recent_searches", null).orEmpty().split('\n').filter { it.isNotBlank() },
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -917,6 +918,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean(NotifyPrefs.PEOPLE, settings.notifyPeople)
             .putBoolean(NotifyPrefs.FAMILY, settings.notifyFamily)
             .putBoolean(NotifyPrefs.FEEDBACK, settings.notifyFeedback)
+            .putString("recent_searches", settings.recentSearches.joinToString("\n"))
             .apply()
     }
 }

@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -145,6 +146,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         val items = albums.flatMap { it.items() }
         val bounds = cardBounds(albums.map { it.id }.toSet())
         val flying = albums.mapNotNull { a -> bounds[a.id]?.let { r -> a.newest?.let { FlyingPhoto(it.uri, it.isVideo, r) } } }
+        flight.prepare(flying)
         prompt.trash(actions, items) { agreed ->
             if (agreed) {
                 flight.launch(flying, bin.bounds)
@@ -229,6 +231,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             EmptyState(
                 "Your albums",
                 "Allow access to your photos to see your phone's albums.",
+                icon = Icons.Rounded.PhotoLibrary,
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
             return@GlassScreen

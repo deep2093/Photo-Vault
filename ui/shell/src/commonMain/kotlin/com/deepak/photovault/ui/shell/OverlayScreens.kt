@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import com.deepak.photovault.core.media.MediaItem
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
@@ -120,6 +121,7 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
         }
         if (items.isEmpty()) {
             EmptyState(
+                icon = Icons.Rounded.PhotoLibrary,
                 title = "Nothing here yet",
                 body = when (kind) {
                     AlbumKind.Favourites -> "Tap the heart on a photo to add it here."
@@ -301,6 +303,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
             })
             GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = {
                 val flying = spots.flying(selected)
+                flight.prepare(flying)
                 prompt.deleteForever(actions, selected) { agreed ->
                     if (agreed) {
                         flight.launch(flying, bin.bounds)
@@ -312,7 +315,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
         },
     ) { padding ->
         if (trashed.isEmpty()) {
-            EmptyState("Nothing deleted", "Photos and videos you delete stay here for 30 days, so you can change your mind.")
+            EmptyState("Nothing deleted", "Photos and videos you delete stay here for 30 days, so you can change your mind.", icon = Icons.Rounded.Delete)
         } else {
             // Opens in the viewer with Restore and Delete for good (23 Oct); long-press still selects.
             MediaGrid(
@@ -410,10 +413,17 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     ) { padding ->
         MediaGrid(
             sections, state, gallery, padding,
-            onOpen = { item -> state.open(Overlay.Viewer(results.map { it.id }, item.id)) },
+            onOpen = { item ->
+                // A search that led to a photo is remembered (13 Nov), newest first, eight at most.
+                val q = query.trim()
+                if (q.length >= 2) state.updateAppearance { a -> a.copy(recentSearches = (listOf(q) + a.recentSearches.filterNot { it.equals(q, ignoreCase = true) }).take(8)) }
+                state.open(Overlay.Viewer(results.map { it.id }, item.id))
+            },
             header = {
                 // People to tap before typing, like Google Photos (5 Nov).
                 if (query.isBlank()) {
+                    // Your last searches and a few ideas to tap (13 Nov).
+                    item(key = "ideas", span = { GridItemSpan(maxLineSpan) }) { SearchIdeasRow(state, gallery) { query = it } }
                     item(key = "people", span = { GridItemSpan(maxLineSpan) }) { SearchPeopleRow(state, gallery) }
                     // Your tags to tap (7C-2), the most used first.
                     item(key = "tags", span = { GridItemSpan(maxLineSpan) }) { SearchTagsRow(state, gallery) { query = it } }
@@ -505,5 +515,54 @@ private fun SearchTagsRow(state: ShellState, gallery: GalleryState, onPick: (Str
                 com.deepak.photovault.designsystem.GlassChip(tags[i], selected = false, onClick = { onPick(tags[i]) })
             }
         }
+    }
+}
+
+
+/**
+ * Search, before anything is typed (13 Nov): what you searched for last (with Clear), then a few ideas made from
+ * your own photos: the places with the most photos, this month, and last year.
+ */
+@Composable
+private fun SearchIdeasRow(state: ShellState, gallery: GalleryState, onPick: (String) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val recent = state.appearance.recentSearches
+    val ideas = remember(state.places.photos, gallery.items.size) {
+        val shown = gallery.items.map { it.id }.toHashSet()
+        val today = com.deepak.photovault.core.media.Timeline.localDate(kotlinx.datetime.Clock.System.now().toEpochMilliseconds(), kotlinx.datetime.TimeZone.currentSystemDefault())
+        state.places.places(shown).take(3).map { it.first.name } +
+            com.deepak.photovault.core.media.Timeline.monthName(today.month) + "${today.year - 1}"
+    }
+    @Composable
+    fun chips(title: String, words: List<String>, onClear: (() -> Unit)? = null) {
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 4.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(title, color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            if (onClear != null) {
+                Text(
+                    "Clear",
+                    color = theme.accent,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Clear recent searches", onClick = onClear)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                )
+            }
+        }
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = SCREEN_MARGIN),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+        ) {
+            items(words.size, key = { title + words[it].lowercase() }) { i ->
+                com.deepak.photovault.designsystem.GlassChip(words[i], selected = false, onClick = { onPick(words[i]) })
+            }
+        }
+    }
+    androidx.compose.foundation.layout.Column(Modifier.padding(bottom = 8.dp)) {
+        if (recent.isNotEmpty()) chips("Recent", recent) { state.updateAppearance { it.copy(recentSearches = emptyList()) } }
+        if (ideas.isNotEmpty()) chips("Try", ideas.distinct())
     }
 }

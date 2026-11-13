@@ -279,6 +279,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
 
     fun moveOut(moving: List<String>) {
         val flying = tileFlying(moving)
+        flight.prepare(flying)
         scope.launch {
             busy = "Moving out..."
             val n = platform.moveOut(moving)
