@@ -38,6 +38,7 @@ import com.deepak.photovault.core.media.MediaStoreLibrary
 import com.deepak.photovault.ui.shell.GoogleStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
@@ -312,11 +313,15 @@ object GoogleBackup {
 class GoogleBackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun getForegroundInfo(): ForegroundInfo = GoogleBackup.foreground(applicationContext, 0, 0)
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = kotlinx.coroutines.coroutineScope {
         runCatching { setForeground(getForegroundInfo()) }
-        GoogleBackup.run(applicationContext, BackupTrigger.SCHEDULED) { done, total ->
-            runCatching { setForegroundAsync(GoogleBackup.foreground(applicationContext, done, total)) }
+        // The notification follows the progress (done of total), updated from here, not from inside the backup.
+        val progress = MutableStateFlow(0 to 0)
+        val updater = launch {
+            progress.collect { (done, total) -> runCatching { setForeground(GoogleBackup.foreground(applicationContext, done, total)) } }
         }
-        return Result.success()
+        GoogleBackup.run(applicationContext, BackupTrigger.SCHEDULED) { done, total -> progress.value = done to total }
+        updater.cancel()
+        Result.success()
     }
 }
