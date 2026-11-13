@@ -100,12 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-14-1"
+    const val ID = "2026-11-14-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Google Drive backup", "Settings > Backup > Back up to: Family drive, Google Drive or Both. Add one or more Google accounts; when one is full the next is used. Photos on Google show in your timeline like the family drive's."),
-        Change(ChangeKind.NEW, "Its own schedule", "Google backup runs by itself about every 12 hours, on Wi-Fi unless you allow mobile data, and whenever you tap Back up to Google now."),
-        Change(ChangeKind.NEW, "When Google is full", "You get a notification, and a popup when you open the app."),
+        Change(ChangeKind.CHANGED, "A tidier Backup page", "One card for the family drive and one for Google Drive, each with its count and Back up now. Schedule, Folders and Options open in small windows. Privacy, Remove phone copies and Restore are in one card at the bottom."),
+        Change(ChangeKind.NEW, "Google Drive has its own settings", "Its own days and time, folders, photos and videos, storage saver, charging and mobile data, separate from the family drive's. It starts as every day at 3:00 am."),
+        Change(ChangeKind.FIXED, "Back up to no longer jumps", "The Family drive / Google Drive / Both choice stays put when you scroll away and back."),
     )
 }
 

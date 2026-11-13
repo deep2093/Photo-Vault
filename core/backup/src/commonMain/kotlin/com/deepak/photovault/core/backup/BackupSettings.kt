@@ -129,6 +129,65 @@ data class BackupSettings(
     val googleWifiOnly: Boolean = true,
     /** Google Drive backup only while charging. */
     val googleChargingOnly: Boolean = false,
+    /**
+     * Google Drive's own choices (14 Nov): its days and time, folders, photos and videos, quality, charging and mobile
+     * data. Null until something is changed for Google; until then it follows the family drive's choices
+     * ([googleOptions]).
+     */
+    val google: GoogleOptions? = null,
+) {
+    /** Google's choices; before any were made: what to back up as for the family drive, every day at 3 am. */
+    val googleOptions: GoogleOptions
+        get() = google ?: GoogleOptions(
+            photos = photos,
+            videos = videos,
+            folders = folders,
+            chargingOnly = googleChargingOnly,
+            mobileData = !googleWifiOnly,
+            storageSaver = storageSaver,
+        )
+
+    /** These settings as the Google backup sees them: Google's own schedule, folders and switches, the rest shared. */
+    fun forGoogle(): BackupSettings = googleOptions.let { g ->
+        copy(
+            schedule = g.schedule,
+            photos = g.photos,
+            videos = g.videos,
+            folders = g.folders,
+            chargingOnly = g.chargingOnly,
+            mobileData = g.mobileData,
+            videosOnMobile = g.videosOnMobile,
+            storageSaver = g.storageSaver,
+        )
+    }
+
+    /** Keeps Google's part of [view] (settings as [forGoogle] gives them, then changed) and nothing else. */
+    fun withGoogleFrom(view: BackupSettings): BackupSettings = copy(
+        google = GoogleOptions(
+            schedule = view.schedule,
+            photos = view.photos,
+            videos = view.videos,
+            folders = view.folders,
+            chargingOnly = view.chargingOnly,
+            mobileData = view.mobileData,
+            videosOnMobile = view.videosOnMobile,
+            storageSaver = view.storageSaver,
+        ),
+    )
+}
+
+/** What Google Drive backup does differently from the family drive's (14 Nov). Privacy is shared: one key per person. */
+@Serializable
+data class GoogleOptions(
+    /** Every day at 3 am by default: Google can't crowd the home drive, so it needs no slot of its own. */
+    val schedule: BackupSchedule = BackupSchedule(frequency = Frequency.DAILY, hour = 3, minute = 0),
+    val photos: Boolean = true,
+    val videos: Boolean = false,
+    val folders: Set<String>? = null,
+    val chargingOnly: Boolean = false,
+    val mobileData: Boolean = false,
+    val videosOnMobile: Boolean = false,
+    val storageSaver: Boolean = false,
 )
 
 /**

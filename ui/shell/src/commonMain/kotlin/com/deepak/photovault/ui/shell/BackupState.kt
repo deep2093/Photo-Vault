@@ -175,7 +175,15 @@ class BackupState(private val platform: BackupPlatform) {
             backedUpKeys = combine(driveKeys, value)
         }
 
-    private var driveKeys: Set<String> = emptySet()
+    /** What is saved to the family drive, for its own count on the Backup page (14 Nov). */
+    var driveKeys by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    /** Changes Google's own choices (14 Nov): [change] sees the settings as Google does and only Google's part is kept. */
+    fun updateGoogle(change: (BackupSettings) -> BackupSettings) = update { it.withGoogleFrom(change(it.forGoogle())) }
+
+    fun nextGoogleRunMillis(zone: TimeZone = TimeZone.currentSystemDefault()): Long? =
+        settings.forGoogle().schedule.takeIf { it.enabled }?.nextRun(platform.now(), zone)
 
     /**
      * "Backed up" follows where this phone backs up (13 Nov): the family drive, Google, or, with both, only what is

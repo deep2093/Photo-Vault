@@ -14,12 +14,12 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.workDataOf
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.deepak.photovault.MainActivity
@@ -37,6 +37,10 @@ import com.deepak.photovault.core.backup.FailureReason
 import com.deepak.photovault.core.media.MediaStoreLibrary
 import com.deepak.photovault.ui.shell.GoogleStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -137,7 +141,8 @@ object GoogleBackup {
     suspend fun run(context: Context, trigger: BackupTrigger, onProgress: (Int, Int) -> Unit = { _, _ -> }) {
         if (!running.tryLock()) return
         try {
-            val settings = BackupSettingsStore(context).load()
+            // Google's own folders, photos and videos, quality and mobile-data choices (14 Nov).
+            val settings = BackupSettingsStore(context).load().forGoogle()
             if (!settings.destination.usesGoogle) return
             val accounts = GoogleAccounts.list(context)
             if (accounts.isEmpty()) return
@@ -207,11 +212,13 @@ object GoogleBackup {
                 accounts.any { GoogleAccounts.isFull(context, it) }
             if (allFull) notifyFull(context)
             if (accounts.any { GoogleAccounts.needsSignIn(context, it) }) message = message ?: "A Google account needs you to sign in again."
+            val at = System.currentTimeMillis()
+            prefs(context).edit().putLong(KEY_LAST, at).apply()
             status.value = GoogleStatus(
                 running = false,
                 done = uploadedTotal,
                 total = uploadedTotal + todo.size,
-                lastAtMillis = System.currentTimeMillis(),
+                lastAtMillis = at,
                 message = message,
                 allFull = allFull,
                 left = todo.size,
@@ -227,35 +234,85 @@ object GoogleBackup {
 
     // ---- Scheduling ----
 
-    private const val PERIODIC = "google_backup"
+    private const val OLD_PERIODIC = "google_backup"
     private const val NOW = "google_backup_now"
+    private const val TAG_SCHEDULED = "google-backup-scheduled"
+    private const val KEY_LAST = "last_at"
+    const val KEY_MANUAL = "manual"
 
-    private fun constraints(context: Context): Constraints {
-        val s = BackupSettingsStore(context).load()
-        return Constraints.Builder()
-            .setRequiredNetworkType(if (s.googleWifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
-            .setRequiresCharging(s.googleChargingOnly)
-            .setRequiresBatteryNotLow(true)
-            .build()
-    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scheduling = Mutex()
 
-    /** Every 12 hours while Google is chosen; stopped otherwise. Called whenever the settings change. */
+    private fun prefs(context: Context) = context.getSharedPreferences("google_backup", Context.MODE_PRIVATE)
+
+    /** Wi-Fi unless mobile data is allowed for Google; a charger for scheduled backups when chosen. */
+    private fun constraints(g: com.deepak.photovault.core.backup.BackupSettings, scheduled: Boolean) = Constraints.Builder()
+        .setRequiredNetworkType(if (g.mobileData) NetworkType.CONNECTED else NetworkType.UNMETERED)
+        .setRequiresCharging(scheduled && g.chargingOnly)
+        .build()
+
+    /**
+     * After a change to Google's schedule, accounts or where to back up: the waiting backup is replaced by one at
+     * Google's own next day and time (14 Nov; before, it simply ran every 12 hours).
+     */
     fun schedule(context: Context) {
-        val wm = WorkManager.getInstance(context)
-        val s = BackupSettingsStore(context).load()
-        if (!s.destination.usesGoogle || GoogleAccounts.list(context).isEmpty()) {
-            wm.cancelUniqueWork(PERIODIC)
-            return
-        }
-        val request = PeriodicWorkRequestBuilder<GoogleBackupWorker>(12, TimeUnit.HOURS).setConstraints(constraints(context)).build()
-        wm.enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, request)
+        val app = context.applicationContext
+        scope.launch { runCatching { scheduleNext(app, exceptId = null) } }
     }
 
-    fun backUpNow(context: Context) {
+    /** At app start, and when other settings change: makes sure a Google backup is waiting, without moving one that is. */
+    fun ensure(context: Context) {
+        val app = context.applicationContext
+        scope.launch {
+            runCatching {
+                if (status.value.lastAtMillis == null) {
+                    prefs(app).getLong(KEY_LAST, 0L).takeIf { it > 0 }?.let { status.value = status.value.copy(lastAtMillis = it) }
+                }
+                val wm = WorkManager.getInstance(app)
+                wm.cancelUniqueWork(OLD_PERIODIC)
+                val waiting = wm.getWorkInfosByTagFlow(TAG_SCHEDULED).first()
+                    .any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.BLOCKED }
+                if (!waiting || !wanted(app)) scheduleNext(app, exceptId = null)
+            }
+        }
+    }
+
+    private fun wanted(context: Context): Boolean {
+        val s = BackupSettingsStore(context).load()
+        return s.destination.usesGoogle && s.forGoogle().schedule.enabled && GoogleAccounts.list(context).isNotEmpty()
+    }
+
+    internal suspend fun scheduleNext(context: Context, exceptId: java.util.UUID?) {
+        scheduling.withLock { scheduleNextLocked(context, exceptId) }
+    }
+
+    private suspend fun scheduleNextLocked(context: Context, exceptId: java.util.UUID?) {
+        val wm = WorkManager.getInstance(context)
+        wm.cancelUniqueWork(OLD_PERIODIC)
+        // Cancel waiting ones only, never a backup that is running right now.
+        wm.getWorkInfosByTagFlow(TAG_SCHEDULED).first()
+            .filter { it.id != exceptId && it.state == WorkInfo.State.ENQUEUED }
+            .forEach { wm.cancelWorkById(it.id) }
+        if (!wanted(context)) return
+        val g = BackupSettingsStore(context).load().forGoogle()
+        val now = System.currentTimeMillis()
+        val at = g.schedule.nextRun(now, TimeZone.currentSystemDefault())
         val request = OneTimeWorkRequestBuilder<GoogleBackupWorker>()
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setInitialDelay(at - now, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints(g, scheduled = true))
+            .addTag(TAG_SCHEDULED)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, request)
+        wm.enqueue(request)
+    }
+
+    /** "Back up now": no charger needed; waits for Wi-Fi unless mobile data is allowed for Google. */
+    fun backUpNow(context: Context) {
+        val g = BackupSettingsStore(context).load().forGoogle()
+        val request = OneTimeWorkRequestBuilder<GoogleBackupWorker>()
+            .setConstraints(constraints(g, scheduled = false))
+            .setInputData(workDataOf(KEY_MANUAL to true))
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.REPLACE, request)
     }
 
     // ---- Notifications ----
@@ -320,8 +377,11 @@ class GoogleBackupWorker(context: Context, params: WorkerParameters) : Coroutine
         val updater = launch {
             progress.collect { (done, total) -> runCatching { setForeground(GoogleBackup.foreground(applicationContext, done, total)) } }
         }
-        GoogleBackup.run(applicationContext, BackupTrigger.SCHEDULED) { done, total -> progress.value = done to total }
+        val manual = inputData.getBoolean(GoogleBackup.KEY_MANUAL, false)
+        GoogleBackup.run(applicationContext, if (manual) BackupTrigger.MANUAL else BackupTrigger.SCHEDULED) { done, total -> progress.value = done to total }
         updater.cancel()
+        // The next scheduled time, counted from now.
+        if (!manual) runCatching { GoogleBackup.scheduleNext(applicationContext, exceptId = id) }
         Result.success()
     }
 }

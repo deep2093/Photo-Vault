@@ -91,7 +91,7 @@ class AndroidGoogle(
         GoogleAccounts.add(app, email)
         GoogleAccounts.setNeedsSignIn(app, email, false)
         activity.toast("$email added.")
-        GoogleBackup.schedule(app)
+        GoogleBackup.ensure(app)
         activity.lifecycleScope.launch {
             runCatching { GoogleBackup.refreshSpace(app) }
             onChanged()

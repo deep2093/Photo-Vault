@@ -27,4 +27,14 @@ class GoogleTimelineTest {
         assertEquals(1, timelineRecords(null, listOf(record("b", "gdrive/x/b.jpg")))!!.size)
         assertEquals(0, timelineRecords(emptyList(), null)!!.size)
     }
+
+    @Test
+    fun backupPageSummaries() {
+        val s = com.deepak.photovault.core.backup.BackupSettings()
+        assertEquals("Photos · Wi-Fi", optionsSummary(s))
+        assertEquals("Photos, videos · mobile data · saver", optionsSummary(s.copy(videos = true, mobileData = true, storageSaver = true)))
+        assertEquals("1 account", accountsSummary(listOf(GoogleAccount("a@x.com"))))
+        assertEquals("Full", accountsSummary(listOf(GoogleAccount("a@x.com", full = true))))
+        assertEquals("Sign in again", accountsSummary(listOf(GoogleAccount("a@x.com"), GoogleAccount("b@x.com", needsSignIn = true))))
+    }
 }

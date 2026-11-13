@@ -30,10 +30,18 @@ class BackupGraph private constructor(context: Context) {
         override fun loadSettings(): BackupSettings = settings.load()
 
         override fun saveSettings(settings: BackupSettings) {
+            val before = this@BackupGraph.settings.load()
             this@BackupGraph.settings.save(settings)
             scope.launch { runCatching { BackupScheduler.reschedule(app, settings) } }
-            // Google Drive has its own schedule (Phase 10): on or off with the choice of where to back up.
-            runCatching { com.deepak.photovault.google.GoogleBackup.schedule(app) }
+            // Google Drive has its own schedule (Phase 10): moved only when its own time or conditions change (14 Nov),
+            // so changing something else doesn't push back a Google backup that is waiting for Wi-Fi.
+            val was = before.forGoogle()
+            val now = settings.forGoogle()
+            val moved = before.destination != settings.destination || was.schedule != now.schedule ||
+                was.chargingOnly != now.chargingOnly || was.mobileData != now.mobileData
+            runCatching {
+                if (moved) com.deepak.photovault.google.GoogleBackup.schedule(app) else com.deepak.photovault.google.GoogleBackup.ensure(app)
+            }
         }
 
         override fun loadHistory(): List<BackupRun> = history.load()
@@ -78,7 +86,7 @@ class BackupGraph private constructor(context: Context) {
         runCatching { FeedbackCheck.schedule(app) }
         runCatching { com.deepak.photovault.MemoriesNotice.schedule(app) }
         runCatching { com.deepak.photovault.living.LivingPrepWorker.schedule(app) }
-        runCatching { com.deepak.photovault.google.GoogleBackup.schedule(app) }
+        runCatching { com.deepak.photovault.google.GoogleBackup.ensure(app) }
     }
 
     companion object {
