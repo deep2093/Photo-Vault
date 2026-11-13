@@ -57,18 +57,33 @@ class AndroidGoogle(
                 }
             }
             .addOnFailureListener { e ->
-                activity.toast(
-                    if ("10:" in (e.message ?: "") || "DEVELOPER_ERROR" in (e.message ?: "")) "Google sign-in isn't set up for this app yet (see Phase 10 setup)."
-                    else "Couldn't reach Google. Check the internet and try again.",
-                )
+                activity.toast(why((e as? com.google.android.gms.common.api.ApiException)?.statusCode ?: -1, android.app.Activity.RESULT_OK).let {
+                    if ((e as? com.google.android.gms.common.api.ApiException) == null) "Couldn't reach Google: ${e.message?.take(80)}" else it
+                })
             }
     }
 
-    /** Google's own "allow access" page closed. */
-    fun onConsent(data: Intent?) {
+    /** Google's own "allow access" page closed. 14 Nov: says why when it didn't work, instead of one plain line. */
+    fun onConsent(resultCode: Int, data: Intent?) {
         val email = pending ?: return
-        val result = runCatching { Identity.getAuthorizationClient(activity).getAuthorizationResultFromIntent(data) }.getOrNull()
-        if (result?.accessToken != null) added(email) else activity.toast("Google Drive wasn't added.")
+        val result = runCatching { Identity.getAuthorizationClient(activity).getAuthorizationResultFromIntent(data) }
+        val token = result.getOrNull()?.accessToken
+        if (token != null) return added(email)
+        val code = (result.exceptionOrNull() as? com.google.android.gms.common.api.ApiException)?.statusCode
+        activity.toast(why(code, resultCode))
+    }
+
+    /** Google's answer in plain words, with its number so it can be looked up. */
+    private fun why(code: Int?, resultCode: Int): String = when (code) {
+        10 -> "Google says Pixallery isn't set up for sign-in yet (code 10): check the Android sign-in key (package and SHA-1) in Google Cloud."
+        16, 12501 -> "Google Drive wasn't added: the Google page was closed."
+        7 -> "Google Drive wasn't added: no internet connection (code 7)."
+        null -> if (resultCode == android.app.Activity.RESULT_CANCELED) {
+            "Google Drive wasn't added: the Google page was closed or Google blocked it. If Google showed \"Access blocked\", publish the app in Google Cloud (OAuth consent screen)."
+        } else {
+            "Google Drive wasn't added (Google gave no answer)."
+        }
+        else -> "Google Drive wasn't added (Google code $code)."
     }
 
     private fun added(email: String) {

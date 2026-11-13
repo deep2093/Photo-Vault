@@ -133,7 +133,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         if (result.resultCode == RESULT_OK) googlePlatform?.onAccountChosen(result.data)
     }
     private val googleConsent = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        googlePlatform?.onConsent(result.data)
+        googlePlatform?.onConsent(result.resultCode, result.data)
     }
 
     private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
