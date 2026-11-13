@@ -80,7 +80,16 @@ const val MOBILE_DATA_WARNING =
  * their own small windows), your space and phones, a short history and restore. Details live one tap away.
  */
 @Composable
-fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, actions: MediaActions, state: ShellState, onBack: (() -> Unit)? = null) {
+fun BackupScreen(
+    drive: DriveState,
+    backup: BackupState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    state: ShellState,
+    onBack: (() -> Unit)? = null,
+    /** Shown above the cards when the page sits beside the tablet's Settings list (13 Nov), which has no top bar. */
+    heading: String? = null,
+) {
     val settings = backup.settings
     var confirmMobile by remember { mutableStateOf(false) }
     var pickFolders by remember { mutableStateOf(false) }
@@ -96,6 +105,15 @@ fun BackupScreen(drive: DriveState, backup: BackupState, gallery: GalleryState, 
 
     // Opened from Settings since 24 Oct, so it has a title and a back button.
     GlassListScreen(title = if (onBack != null) "Backup" else null, subtitle = null, onBack = onBack) {
+        if (heading != null) item {
+            Text(
+                heading,
+                color = LocalGlassTheme.current.onWallpaper,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp),
+            )
+        }
         item { StatusCard(drive, backup, gallery, actions, eligible.size, done) }
         item { PrivacyCard(state, drive, backup) }
         // Free up space lives here, right under Backup privacy (30 Oct).

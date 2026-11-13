@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.heading
 import androidx.compose.foundation.layout.imePadding
@@ -187,40 +188,101 @@ private fun SettingsTwoPane(state: ShellState, drive: DriveState, iconSwitcher: 
     var chosen by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(SettingsPage.APPEARANCE.name) }
     val page = SettingsPage.entries.firstOrNull { it.name == chosen } ?: SettingsPage.APPEARANCE
     GlassScreen(title = null, subtitle = null) { padding ->
-        Row(Modifier.fillMaxSize()) {
-            androidx.compose.foundation.lazy.LazyColumn(
-                Modifier.width(360.dp).fillMaxHeight(),
-                contentPadding = padding,
-            ) {
-                item {
-                    Column(Modifier.fillMaxWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(6.dp)) {
-                        SettingsPage.entries.forEach { p ->
-                            val (icon, summary) = settingsRowInfo(p, state, drive, backup)
-                            SettingsRow(icon, p.title, summary, selected = p == page && p != SettingsPage.BACKUP) {
-                                if (p == SettingsPage.BACKUP) state.open(Overlay.Backup) else chosen = p.name
+        // 13 Nov (Deepak's tablet photos): the list and the page sit together in the middle of the screen, instead of
+        // the list hard left and the page far to the right.
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Row(Modifier.widthIn(max = 1140.dp).fillMaxSize()) {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    Modifier.width(340.dp).fillMaxHeight(),
+                    contentPadding = padding,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item {
+                        Text(
+                            "Settings",
+                            color = theme.onWallpaper,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 8.dp, top = 4.dp).semantics { heading() },
+                        )
+                    }
+                    item {
+                        Column(
+                            Modifier.fillMaxWidth().glassPanel(com.deepak.photovault.designsystem.GlassCardShape).padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            SettingsPage.entries.forEach { p ->
+                                val (icon, summary) = settingsRowInfo(p, state, drive, backup)
+                                SettingsPaneRow(icon, p.title, summary, selected = p == page) { chosen = p.name }
                             }
                         }
                     }
                 }
-            }
-            androidx.compose.animation.Crossfade(page, Modifier.weight(1f).fillMaxHeight(), animationSpec = com.deepak.photovault.designsystem.motionSpec(), label = "settingsPane") { shown ->
-                androidx.compose.foundation.lazy.LazyColumn(
-                    Modifier.fillMaxSize().imePadding(),
-                    contentPadding = padding,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    item {
-                        Text(
-                            shown.title,
-                            color = theme.onWallpaper,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                            modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp).semantics { heading() },
-                        )
+                androidx.compose.animation.Crossfade(page, Modifier.weight(1f).fillMaxHeight(), animationSpec = com.deepak.photovault.designsystem.motionSpec(), label = "settingsPane") { shown ->
+                    if (shown == SettingsPage.BACKUP) {
+                        // Backup opens beside the list too (13 Nov), not as a page of its own.
+                        BackupScreen(drive, backup, gallery, actions, state, onBack = null, heading = "Backup")
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            Modifier.fillMaxSize().imePadding(),
+                            contentPadding = padding,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            item {
+                                Text(
+                                    shown.title,
+                                    color = theme.onWallpaper,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                    modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp).semantics { heading() },
+                                )
+                            }
+                            settingsPageItems(shown, state, drive, iconSwitcher, gallery, actions, backup, startOnDrive = false)
+                        }
                     }
-                    settingsPageItems(shown, state, drive, iconSwitcher, gallery, actions, backup, startOnDrive = false)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * One row of the tablet's Settings list (13 Nov): its picture in a soft round, and the chosen one filled with the
+ * theme's own colour (with words that stay readable on it), so it is clear which page is open beside the list.
+ */
+@Composable
+private fun SettingsPaneRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, summary: String, selected: Boolean, onClick: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    val fill by androidx.compose.animation.animateColorAsState(if (selected) theme.accent else androidx.compose.ui.graphics.Color.Transparent, com.deepak.photovault.designsystem.motionSpec(), label = "paneRow")
+    val ink = if (selected) com.deepak.photovault.designsystem.readableOn(theme.accent) else theme.onGlass
+    val soft = if (selected) ink.copy(alpha = 0.8f) else theme.onGlassSecondary
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(fill)
+            .semantics { this.selected = selected }
+            .heightIn(min = 60.dp)
+            .clickable(role = androidx.compose.ui.semantics.Role.Tab, onClickLabel = "Open $title") {
+                haptics.tap()
+                onClick()
+            }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (selected) ink.copy(alpha = 0.16f) else theme.accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(icon, contentDescription = null, tint = if (selected) ink else theme.accent, modifier = Modifier.size(22.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(title, color = ink, style = MaterialTheme.typography.bodyLarge, fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else null)
+            if (summary.isNotEmpty()) {
+                Text(summary, color = soft, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
     }

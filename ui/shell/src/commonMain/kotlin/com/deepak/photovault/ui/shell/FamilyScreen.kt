@@ -163,20 +163,25 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
             }
         }
         // 13 Nov: on a tablet the people and invites sit on the left, settings and space on the right.
-        item {
-            TabletColumns(
-                left = {
-                    MembersCard(state, drive)
-                    if (drive.isOwner) InviteCard(state, drive, ::asOwner)
-                },
-                right = {
-                    if (drive.isOwner) {
+        // 13 Nov (Deepak's tablet photo): two columns only for the owner, who has enough cards to fill them; a
+        // member's page has two small cards, which look better one under the other in the middle.
+        if (drive.isOwner) {
+            item {
+                TabletColumns(
+                    left = {
+                        MembersCard(state, drive)
+                        InviteCard(state, drive, ::asOwner)
+                    },
+                    right = {
                         OwnerSettingsCard(drive)
                         DriveSpaceCard(drive)
-                    }
-                    PrivacyCard()
-                },
-            )
+                        PrivacyCard()
+                    },
+                )
+            }
+        } else {
+            item { MembersCard(state, drive) }
+            item { PrivacyCard() }
         }
     }
 

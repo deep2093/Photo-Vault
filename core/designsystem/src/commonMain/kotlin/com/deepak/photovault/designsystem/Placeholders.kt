@@ -21,10 +21,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -42,12 +42,15 @@ import androidx.compose.ui.unit.dp
 fun Skeleton(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(8.dp)) {
     val theme = LocalGlassTheme.current
     val still = LocalGlassSettings.current.reduceMotion
-    val alpha = if (still) 0.12f else {
+    if (still) {
+        Box(modifier.clip(shape).background(theme.onGlass.copy(alpha = 0.12f)))
+    } else {
+        // The breathing is read while drawing only, so a page of placeholders costs almost nothing.
         val pulse = rememberInfiniteTransition(label = "skeleton")
-        val a by pulse.animateFloat(0.07f, 0.17f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "skeletonAlpha")
-        a
+        val a = pulse.animateFloat(0.07f, 0.17f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "skeletonAlpha")
+        val ink = theme.onGlass
+        Box(modifier.clip(shape).drawBehind { drawRect(ink, alpha = a.value) })
     }
-    Box(modifier.clip(shape).background(theme.onGlass.copy(alpha = alpha)))
 }
 
 /** A few placeholder rows (a round picture and two lines), for a list that is still loading. [label] is read aloud. */
