@@ -125,4 +125,6 @@ class AndroidGoogle(
     override suspend fun savePinKey(envelope: ByteArray): String? = GoogleBackup.savePinKey(app, envelope)
 
     override suspend fun storage(): List<com.deepak.photovault.ui.shell.GoogleUsage> = GoogleBackup.storage(app)
+
+    override suspend fun deleteBackups(paths: Set<String>): String? = GoogleBackup.deleteBackups(app, paths)
 }

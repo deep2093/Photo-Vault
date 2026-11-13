@@ -167,7 +167,7 @@ fun StorageFilesScreen(
                     message = "Saving ${LibraryCounts.grouped(chosen.size)} to the phone's \"Restored\" album. Ones already on the phone are skipped."
                     state.filesSelected = emptySet()
                 })
-                GlassIconButton(Icons.Rounded.DeleteForever, "Delete from drive", modifier = Modifier.trackSpot(bin), onClick = { confirmDelete = true })
+                GlassIconButton(Icons.Rounded.DeleteForever, if (page.google) "Delete from Google Drive" else "Delete from drive", modifier = Modifier.trackSpot(bin), onClick = { confirmDelete = true })
             } else {
                 GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(chosen.mapNotNull { it.ref.toLongOrNull()?.let(gallery::find) }) })
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
@@ -226,8 +226,6 @@ fun StorageFilesScreen(
                 }
 
                 override fun onDragSelectStart(id: Long) {
-                    // Saving and deleting Google backups from here come later: open only, for now.
-                    if (page.google) return
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     val all = currentSorted
                     initial = all.indices.filter { all[it].ref in state.filesSelected }.map { it.toLong() }.toSet()
@@ -285,7 +283,7 @@ fun StorageFilesScreen(
                         message?.let { WarningNote(it) }
                         if (page.onDrive) {
                             Text(
-                                if (page.google) "Tap to open." else "Tap to open. Press and hold to pick backups.",
+                                "Tap to open. Press and hold to pick backups.",
                                 color = theme.onGlassSecondary,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -328,16 +326,17 @@ fun StorageFilesScreen(
 
     if (confirmDelete) {
         val bytes = chosen.sumOf { it.bytes }
+        val where = if (page.google) "Google Drive" else "the family drive"
         ConfirmDialog(
-            title = "Delete ${LibraryCounts.grouped(chosen.size)} from the drive?",
-            body = "These backups (${DetailsFormat.size(bytes)}) are removed from the family drive for good. Nothing on this phone is deleted. " +
+            title = "Delete ${LibraryCounts.grouped(chosen.size)} from ${if (page.google) "Google Drive" else "the drive"}?",
+            body = "These backups (${DetailsFormat.size(bytes)}) are removed from $where for good. Nothing on this phone is deleted. " +
                 "Any that are still on this phone will be backed up again next time, unless you delete them from the phone too.",
             confirm = "Delete",
             onDismiss = { confirmDelete = false },
         ) {
             confirmDelete = false
             val paths = chosen.map { it.ref }.toSet()
-            val keys = drive.backupRecords.orEmpty().filter { it.drivePath in paths }.map { it.key }.toSet()
+            val keys = records.filter { it.drivePath in paths }.map { it.key }.toSet()
             // The rows fly into the delete button like everywhere else (30 Oct).
             val flying = chosen.mapNotNull { f ->
                 thumbs[f.ref]?.let { rect ->
@@ -347,6 +346,18 @@ fun StorageFilesScreen(
             }
             flight.prepare(flying)
             scope.launch {
+                if (page.google) {
+                    message = "Deleting from Google Drive…"
+                    val error = state.google.deleteBackups(paths)
+                    if (error == null) {
+                        flight.launch(flying, bin.bounds)
+                        state.filesSelected = emptySet()
+                        message = "Deleted ${LibraryCounts.grouped(paths.size)} from Google Drive."
+                    } else {
+                        message = error
+                    }
+                    return@launch
+                }
                 val error = drive.deleteBackups(paths)
                 if (error == null) {
                     flight.launch(flying, bin.bounds)

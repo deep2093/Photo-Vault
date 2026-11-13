@@ -76,13 +76,19 @@ object GoogleBackup {
      * timeline ("gdrive/<account>/users/me/...").
      */
     suspend fun records(context: Context): List<BackupRecord> =
-        GoogleAccounts.list(context).flatMap { email -> accountRecords(context, email) }
+        GoogleAccounts.list(context).flatMap { email -> accountRecords(context, email).orEmpty() }
 
-    /** One account's records, with timeline paths ("gdrive/<account>/users/me/..."). */
-    suspend fun accountRecords(context: Context, email: String): List<BackupRecord> {
+    /**
+     * The last list read from each account (14 Nov). A read that fails (no internet for a moment, Google busy) gives
+     * this one instead of an empty list, so photos never vanish from the timeline or Storage and then come back.
+     */
+    private val lastGood = java.util.concurrent.ConcurrentHashMap<String, List<BackupRecord>>()
+
+    /** One account's records, with timeline paths ("gdrive/<account>/users/me/..."); null when never read. */
+    suspend fun accountRecords(context: Context, email: String): List<BackupRecord>? {
         val fs = GoogleAccounts.fs(context, email)
         val vaults = vaults(context)
-        return runCatching {
+        return try {
             val first = BackupCatalog(fs, USER, vaults.firstOrNull())
             var list = first.records()
             // Saved with the other key context (before or after joining a family): read those lists too.
@@ -91,15 +97,106 @@ object GoogleBackup {
                 list = list + BackupCatalog(fs, USER, vaults[1]).records().filter { it.drivePath !in have }
             }
             list.map { it.copy(drivePath = PATH_PREFIX + GoogleAccounts.slug(email) + "/" + it.drivePath) }
-        }.getOrDefault(emptyList())
+                .also { lastGood[email] = it }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            lastGood[email]
+        }
     }
 
     /** Every account's space and what Pixallery keeps there, for Settings > Storage (14 Nov). */
     suspend fun storage(context: Context): List<com.deepak.photovault.ui.shell.GoogleUsage> {
-        runCatching { refreshSpace(context) }
+        try {
+            refreshSpace(context)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
         return GoogleAccounts.list(context).map { email ->
             val (used, limit) = GoogleAccounts.space(context, email)
-            com.deepak.photovault.ui.shell.GoogleUsage.of(email, limit, used, accountRecords(context, email))
+            val records = accountRecords(context, email)
+            com.deepak.photovault.ui.shell.GoogleUsage.of(email, limit, used, records.orEmpty()).copy(listRead = records != null)
+        }
+    }
+
+    /**
+     * Deletes backups from Google Drive (Settings > Storage, 14 Nov, after a warning). Like the family drive's: the
+     * deletion is written in the backup list first, then the files go. Ones still on this phone back up again next time.
+     */
+    suspend fun deleteBackups(context: Context, paths: Set<String>): String? {
+        val byAccount = paths.mapNotNull { split(context, it) }.groupBy({ it.first }, { it.second })
+        if (byAccount.isEmpty()) return "Those aren't on Google Drive."
+        val deviceId = com.deepak.photovault.AndroidDrivePlatform(context).deviceId
+        return try {
+            for ((email, inner) in byAccount) {
+                val wanted = inner.toSet()
+                val prefix = PATH_PREFIX + GoogleAccounts.slug(email) + "/"
+                val known = (lastGood[email] ?: accountRecords(context, email)).orEmpty()
+                val records = known.filter { it.drivePath.removePrefix(prefix) in wanted }.map { it.copy(drivePath = it.drivePath.removePrefix(prefix)) }
+                if (records.isEmpty()) continue
+                BackupCatalog(GoogleAccounts.fs(context, email), USER, privateVault(context)).remove(records, deviceId, System.currentTimeMillis())
+                index(context, email).remove(records.map { it.key }.toSet())
+                val gone = records.map { prefix + it.drivePath }.toSet()
+                lastGood[email]?.let { list -> lastGood[email] = list.filterNot { it.drivePath in gone } }
+            }
+            runCatching { refreshSpace(context) }
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GoogleSignInNeeded) {
+            "Google asked you to sign in again (Backup > Google Drive > Accounts)."
+        } catch (e: Exception) {
+            "Couldn't delete from Google Drive. Check the internet and try again."
+        }
+    }
+
+    /**
+     * Saves the chosen Google backups (timeline paths) to this phone's "Restored" album (14 Nov). Each download is
+     * checked before it is kept; ones already on the phone are skipped.
+     */
+    suspend fun restore(context: Context, paths: Set<String>, onProgress: (Int, Int) -> Unit): String {
+        val byAccount = paths.mapNotNull { split(context, it) }.groupBy({ it.first }, { it.second })
+        val phone = MediaStoreLibrary(context).loadAll()
+        val writer = com.deepak.photovault.backup.AndroidMediaWriter(context)
+        var restored = 0
+        var total = 0
+        var problem: String? = null
+        for ((email, inner) in byAccount) {
+            val wanted = inner.toSet()
+            val engine = com.deepak.photovault.core.backup.RestoreEngine(
+                GoogleAccounts.fs(context, email),
+                USER,
+                { e ->
+                    when (e) {
+                        is GoogleSignInNeeded -> com.deepak.photovault.core.backup.BackupFailure(FailureReason.OTHER, "Google asked to sign in again")
+                        else -> BackupRunner.classify(e)
+                    }
+                },
+                privateVault(context),
+            )
+            val missing = try {
+                engine.missing(phone).filter { it.drivePath in wanted }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                problem = "Couldn't read Google Drive. Check the internet and try again."
+                continue
+            }
+            val before = restored
+            val start = total
+            total += missing.size
+            if (missing.isEmpty()) continue
+            val result = engine.restore(missing, writer) { done, _ -> onProgress(start + done, total) }
+            restored = before + result.restored
+            result.failure?.let { problem = it.message }
+        }
+        return when {
+            total == 0 && problem == null -> "Those are already on this phone."
+            else -> buildString {
+                append("Restored $restored of $total to the \"${com.deepak.photovault.backup.AndroidMediaWriter.RESTORED_FOLDER}\" album.")
+                problem?.let { append(" ").append(it) }
+            }
         }
     }
 

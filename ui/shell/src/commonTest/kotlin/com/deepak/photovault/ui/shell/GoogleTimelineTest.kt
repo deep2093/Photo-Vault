@@ -56,4 +56,32 @@ class GoogleTimelineTest {
         // Google hasn't said the size of one account: no total.
         assertNull(GoogleUsage.all(listOf(a, b.copy(limitBytes = null))).limitBytes)
     }
+
+    @Test
+    fun deletingFromGoogleTakesThemOffTheLists() = kotlinx.coroutines.test.runTest {
+        val gb = 1024L * 1024 * 1024
+        val keep = record("k", "gdrive/a/users/me/k.jpg").copy(sizeBytes = gb)
+        val gone = record("g", "gdrive/a/users/me/g.jpg").copy(sizeBytes = 2 * gb)
+        val asked = mutableListOf<Set<String>>()
+        val platform = object : GooglePlatform {
+            override val supported = true
+            override suspend fun accounts() = listOf(GoogleAccount("a@x.com", 5 * gb, 15 * gb))
+            override suspend fun storage() = listOf(GoogleUsage.of("a@x.com", 15 * gb, 5 * gb, listOf(keep, gone)))
+            override suspend fun keys() = setOf("k")
+            override suspend fun deleteBackups(paths: Set<String>): String? {
+                asked += paths
+                return null
+            }
+        }
+        val google = GoogleState(platform)
+        google.loadUsage()
+        assertEquals(2, google.records!!.size)
+        assertNull(google.deleteBackups(setOf(gone.drivePath)))
+        assertEquals(listOf(setOf(gone.drivePath)), asked)
+        assertEquals(listOf("k"), google.records!!.map { it.key })
+        val u = google.usage!!.single()
+        assertEquals(1, u.photos)
+        assertEquals(3 * gb, u.usedBytes)
+        assertEquals(setOf("k"), google.keys)
+    }
 }

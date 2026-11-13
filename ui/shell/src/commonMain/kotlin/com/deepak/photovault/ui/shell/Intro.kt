@@ -100,12 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-14-3"
+    const val ID = "2026-11-14-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Google Drive in Storage", "Settings > Storage > Google Drive: a ring of your photos, videos, the rest of Google (Gmail, Google Photos) and free space, then by year and albums. With more than one account, see All or pick one."),
-        Change(ChangeKind.NEW, "Private backup with Google only", "No family drive? Choose Private and pick a PIN. Photos are scrambled before they go to Google, and a locked spare of your key stays in your Google Drive so a new phone gets it back with the PIN."),
-        Change(ChangeKind.CHANGED, "Popups on the Backup page", "Backup privacy, Remove phone copies and Restore now open in a small window instead of at the end of the page."),
+        Change(ChangeKind.NEW, "Pick, save and delete Google backups", "In Settings > Storage > Google Drive, press and hold to pick backups, then save them to this phone or delete them from Google Drive, like the family drive."),
+        Change(ChangeKind.CHANGED, "Storage shows only what you use", "The Drive and Google Drive buttons show only once they're set up."),
+        Change(ChangeKind.FIXED, "Google numbers stay put", "Storage > Google Drive no longer empties for a moment and fills again while it checks Google, and the rings don't spin again when numbers update."),
     )
 }
 

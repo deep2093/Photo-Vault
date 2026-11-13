@@ -70,6 +70,9 @@ interface GooglePlatform {
 
     /** What is in each account, for Settings > Storage (14 Nov). */
     suspend fun storage(): List<GoogleUsage> = emptyList()
+
+    /** Deletes these backups (timeline paths) from Google Drive. Null when it worked, else the problem in plain words. */
+    suspend fun deleteBackups(paths: Set<String>): String? = "Not available here."
 }
 
 /**
@@ -86,6 +89,8 @@ data class GoogleUsage(
     val videos: Int,
     /** What Pixallery saved there, for By year and Albums. */
     val records: List<BackupRecord>,
+    /** False when the list of photos couldn't be read from Google yet (the space still shows). */
+    val listRead: Boolean = true,
 ) {
     val pixalleryBytes: Long get() = photoBytes + videoBytes
     val otherBytes: Long get() = ((usedBytes ?: pixalleryBytes) - pixalleryBytes).coerceAtLeast(0L)
@@ -146,6 +151,20 @@ class GoogleState(val platform: GooglePlatform = object : GooglePlatform {}) {
         } finally {
             usageLoading = false
         }
+    }
+
+    /** Deletes backups from Google Drive and takes them off the lists at once (14 Nov). */
+    suspend fun deleteBackups(paths: Set<String>): String? {
+        val error = platform.deleteBackups(paths)
+        if (error == null) {
+            records = records?.filterNot { it.drivePath in paths }
+            usage = usage?.map { u ->
+                val gone = u.records.filter { it.drivePath in paths }
+                if (gone.isEmpty()) u else GoogleUsage.of(u.email, u.limitBytes, u.usedBytes?.let { (it - gone.sumOf { r -> r.sizeBytes }).coerceAtLeast(0L) }, u.records - gone.toSet())
+            }
+            keys = runCatching { platform.keys() }.getOrDefault(keys)
+        }
+        return error
     }
 
     /** The "Google Drive is full" popup was closed this time the app is open. */

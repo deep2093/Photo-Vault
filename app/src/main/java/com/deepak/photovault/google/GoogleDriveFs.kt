@@ -102,8 +102,9 @@ class GoogleDriveFs(
 
     override suspend fun list(path: String): List<DriveEntry> {
         val id = resolve(path) ?: return emptyList()
+        // Files are remembered too (14 Nov), so reading each backup list right after costs one call, not two.
         return query("'$id' in parents and trashed = false").map { e ->
-            if (e.isFolder) ids[DrivePaths.join(DrivePaths.check(path), e.name)] = e.id
+            ids[DrivePaths.join(DrivePaths.check(path), e.name)] = e.id
             DriveEntry(e.name, e.isFolder, e.size)
         }
     }
@@ -350,12 +351,16 @@ class GoogleDriveFs(
                     continue
                 }
                 if (code == 401) throw GoogleSignInNeeded("Google asked to sign in again")
-                if ((code == 429 || code >= 500 || (code == 403 && rateLimited(c))) && attempt < 4) {
+                // Google's answer to a 403 can be read only once: look at it here.
+                val refused = if (code == 403) errorText(c) else ""
+                val slowDown = code == 429 || code >= 500 || "rateLimitExceeded" in refused || "userRateLimitExceeded" in refused
+                if (slowDown && attempt < 5) {
                     attempt++
                     delay(1000L shl attempt)
                     continue
                 }
-                if (code == 403 && storageFull(c)) throw GoogleStorageFull("Google Drive is full")
+                if ("storageQuotaExceeded" in refused) throw GoogleStorageFull("Google Drive is full")
+                if (code == 403) throw IOException("Google Drive said 403: ${refused.take(200)}")
                 return@withContext read(c)
             } finally {
                 c.disconnect()
@@ -366,10 +371,6 @@ class GoogleDriveFs(
     }
 
     private fun errorText(c: HttpURLConnection): String = runCatching { c.errorStream?.bufferedReader()?.readText() }.getOrNull().orEmpty()
-
-    private fun rateLimited(c: HttpURLConnection): Boolean = errorText(c).let { "rateLimitExceeded" in it || "userRateLimitExceeded" in it }
-
-    private fun storageFull(c: HttpURLConnection): Boolean = "storageQuotaExceeded" in errorText(c)
 
     private fun ok(c: HttpURLConnection) {
         val code = c.responseCode

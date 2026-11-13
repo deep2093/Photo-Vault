@@ -72,11 +72,21 @@ private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Dri
 internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: DriveState, actions: MediaActions, startOnDrive: Boolean = false) {
     val theme = LocalGlassTheme.current
     // Remembered across the pages opened from here, so Back returns to the tab you were on.
+    // Only places that are set up get a button (14 Nov): the family drive once this phone is in a family, Google once
+    // an account is added. With just the phone there are no buttons at all.
     val googleOn = state.google.platform.supported && state.google.accounts.isNotEmpty()
+    val driveOn = drive.joined != null
     val source = when {
         state.storageOnGoogle && googleOn -> StorageSource.GOOGLE
-        state.storageOnDrive ?: startOnDrive -> StorageSource.DRIVE
+        (state.storageOnDrive ?: startOnDrive) && driveOn -> StorageSource.DRIVE
         else -> StorageSource.PHONE
+    }
+    val sources = StorageSource.entries.filter {
+        when (it) {
+            StorageSource.PHONE -> true
+            StorageSource.DRIVE -> driveOn
+            StorageSource.GOOGLE -> googleOn
+        }
     }
     val zone = remember { TimeZone.currentSystemDefault() }
     // Only what is on this phone: photos that are only on the drive don't take phone space.
@@ -105,8 +115,8 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     var cacheVersion by remember { mutableStateOf(0) }
     var showCache by remember { mutableStateOf(false) }
     Column(Modifier.pageWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StorageSource.entries.filter { it != StorageSource.GOOGLE || googleOn }.forEach { s ->
+        if (sources.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            sources.forEach { s ->
                 GlassChip(s.label, selected = source == s, onClick = {
                     state.storageOnDrive = s == StorageSource.DRIVE
                     state.storageOnGoogle = s == StorageSource.GOOGLE
@@ -348,7 +358,13 @@ private fun GoogleStorage(state: ShellState, zone: TimeZone, onOpen: (String, Li
             }
         }
     }
-    if (files.isEmpty()) {
+    val unread = if (chosenEmail != null) !view.listRead else usage.any { !it.listRead }
+    if (unread && !google.usageLoading) {
+        com.deepak.photovault.designsystem.WarningNote("Couldn't read the list of photos from Google just now. Check the internet; it tries again each time you open this.")
+    }
+    if (files.isEmpty() && unread) {
+        Unit
+    } else if (files.isEmpty()) {
         com.deepak.photovault.designsystem.EmptyCard(
             Icons.Rounded.CloudUpload,
             "Nothing backed up yet",
@@ -464,11 +480,16 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     val reduceMotion = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
     val grow = remember { androidx.compose.animation.core.Animatable(if (reduceMotion) 1f else 0f) }
     // Starts empty and waits for the page to slide in and for the sizes to arrive, so the whole ring fills, not just the last slice.
-    LaunchedEffect(slices.map { it.bytes }) {
-        if (slices.isEmpty() || reduceMotion) return@LaunchedEffect
+    // Only the first time (14 Nov): new sizes arriving a moment later (read again from the drive or Google) no longer
+    // empty the ring and sweep it again, which looked like the numbers went away and came back.
+    var swept by remember { mutableStateOf(reduceMotion) }
+    val hasData = slices.any { it.bytes > 0 }
+    LaunchedEffect(hasData) {
+        if (!hasData || swept) return@LaunchedEffect
         grow.snapTo(0f)
         kotlinx.coroutines.delay(350)
         grow.animateTo(1f, androidx.compose.animation.core.tween(2000, easing = com.deepak.photovault.designsystem.PageEasing))
+        swept = true
     }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->
