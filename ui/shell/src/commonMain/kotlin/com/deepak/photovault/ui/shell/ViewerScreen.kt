@@ -325,7 +325,9 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                     val growIn = motionSpec<androidx.compose.ui.unit.IntSize>(SCRUB_MS)
                     val fadeSpec = motionSpec<Float>(SCRUB_MS)
                     androidx.compose.animation.AnimatedContent(
-                        targetState = playingHere && scrubbing,
+                        // 13 Nov: a video on its own has no row of photos to tap, so its time strip shows by itself
+                        // while it plays (on the tablet with one video there was no way to open it).
+                        targetState = playingHere && (scrubbing || ids.size <= 1),
                         transitionSpec = {
                             if (targetState) {
                                 (fadeIn(fadeSpec) + androidx.compose.animation.expandHorizontally(growIn, expandFrom = Alignment.CenterHorizontally)) togetherWith fadeOut(fadeSpec)
@@ -350,6 +352,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                             onRestore = { actions.restore(listOf(current)) },
                             onDelete = {
                                 val flying = flyCurrent()
+                                flight.prepare(flying)
                                 prompt.deleteForever(actions, listOf(current)) { agreed ->
                                     if (agreed) {
                                         flight.launch(flying, bin.bounds)
@@ -373,6 +376,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                             onFavourite = if (gallery.isExternal(current)) null else ({ gallery.toggleFavourite(listOf(current)) }),
                             onDelete = if (gallery.isExternal(current)) null else ({
                                 val flying = flyCurrent()
+                                flight.prepare(flying)
                                 prompt.trash(actions, listOf(current)) { agreed ->
                                     if (agreed) {
                                         flight.launch(flying, bin.bounds)
@@ -1003,13 +1007,37 @@ private fun VideoScrubber(item: MediaItem, video: VideoControls, onTouch: () -> 
             }
         }
     }
-    // Video -> strip.
+    // Video -> strip. 13 Nov: moved on every screen frame, not only when the player reports its time (a few times a
+    // second, which made the strip step along). Between reports the time is carried forward by the clock while the
+    // video plays; a report that differs a lot (a seek) is taken at once, a small difference is eased in.
     LaunchedEffect(strip, duration) {
-        snapshotFlow { video.positionMs }.collect { ms ->
-            if (!fingerLeads && !strip.isScrollInProgress) {
-                val px = ScrubberMath.offsetAt(ms, totalPx, duration)
-                val index = (px / framePx).toInt().coerceIn(0, frames - 1)
-                strip.scrollToItem(index, (px - index * framePx).toInt())
+        var seen = -1L
+        var base = video.positionMs.toDouble()
+        var baseAt = 0L
+        var lastPx = -1f
+        while (true) {
+            val now = androidx.compose.runtime.withFrameNanos { it }
+            val reported = video.positionMs
+            val guess = if (video.playing && baseAt != 0L) base + (now - baseAt) / 1_000_000.0 else base
+            if (reported != seen) {
+                seen = reported
+                base = ScrubberMath.follow(guess, reported.toDouble())
+                baseAt = now
+            } else if (!video.playing) {
+                base = reported.toDouble()
+                baseAt = now
+            }
+            if (!fingerLeads && !dragged) {
+                val at = (if (video.playing) base + (now - baseAt) / 1_000_000.0 else base).coerceIn(0.0, duration.toDouble())
+                val px = ScrubberMath.offsetAt(at.toLong(), totalPx, duration)
+                // Only when it has moved by a pixel: a paused video costs nothing.
+                if (kotlin.math.abs(px - lastPx) >= 1f) {
+                    lastPx = px
+                    val index = (px / framePx).toInt().coerceIn(0, frames - 1)
+                    strip.scrollToItem(index, (px - index * framePx).toInt())
+                }
+            } else {
+                lastPx = -1f
             }
         }
     }
@@ -1059,6 +1087,13 @@ object ScrubberMath {
 
     fun timeAt(offsetPx: Float, totalPx: Float, durationMs: Long): Long =
         if (totalPx <= 0f) 0L else ((offsetPx / totalPx).coerceIn(0f, 1f) * durationMs).toLong()
+
+    /**
+     * The strip's own running time meeting the player's report (13 Nov): far apart (a seek, or the first report) it
+     * takes the report; close, it moves a third of the way, so the strip never jerks back or forth.
+     */
+    fun follow(guessMs: Double, reportedMs: Double): Double =
+        if (kotlin.math.abs(reportedMs - guessMs) > 400.0) reportedMs else guessMs + (reportedMs - guessMs) / 3.0
 
     fun offsetAt(timeMs: Long, totalPx: Float, durationMs: Long): Float =
         if (durationMs <= 0L) 0f else (timeMs.toFloat() / durationMs).coerceIn(0f, 1f) * totalPx

@@ -355,6 +355,7 @@ fun SelectableScreen(
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
                     // Where the photos are now: by the time Android has asked, the grid may have changed.
                     val flying = tileSpots.flying(selectedItems)
+                    flight.prepare(flying)
                     prompt.trash(actions, selectedItems) { agreed ->
                         if (agreed) {
                             flight.launch(flying, bin.bounds)

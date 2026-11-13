@@ -303,6 +303,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
             })
             GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = {
                 val flying = spots.flying(selected)
+                flight.prepare(flying)
                 prompt.deleteForever(actions, selected) { agreed ->
                     if (agreed) {
                         flight.launch(flying, bin.bounds)

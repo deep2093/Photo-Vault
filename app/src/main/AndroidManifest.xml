@@ -67,8 +67,11 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation"
             android:windowSoftInputMode="adjustResize">
-            <!-- Pixallery is offered for every photo and video other apps open (Phase 5B-2). -->
+            <!-- configChanges (13 Nov): turning the phone or tablet no longer starts the screen again, which closed
+                 a playing video (and any open photo). The app lays itself out again in place.
+                 Pixallery is offered for every photo and video other apps open (Phase 5B-2). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -100,13 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-13-3"
+    const val ID = "2026-11-13-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Settings on tablets", "The list and the page sit together in the middle. The page you're on is filled with your theme's colour, and Backup opens beside the list like the others."),
-        Change(ChangeKind.CHANGED, "Changing theme", "The old background melts into the new one, and the theme circles ease as you pick."),
-        Change(ChangeKind.CHANGED, "Buttons", "Buttons dip softly under your finger and spring back."),
-        Change(ChangeKind.FIXED, "Family on tablets", "A member's Family page is one tidy column again; the owner keeps two columns."),
+        Change(ChangeKind.FIXED, "Turning the screen", "Turning your phone or tablet no longer closes a playing video or an open photo."),
+        Change(ChangeKind.FIXED, "Video time strip", "It moves smoothly while the video plays, and shows by itself when the video is the only item (it was missing on the tablet)."),
+        Change(ChangeKind.FIXED, "Delete effect", "Photos are now sucked into the bin in Recently deleted too, and everywhere else you delete."),
     )
 }
 

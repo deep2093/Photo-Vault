@@ -171,6 +171,7 @@ fun StorageFilesScreen(
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
                     val items = chosen.mapNotNull { it.ref.toLongOrNull()?.let(gallery::find) }
                     val flying = items.mapNotNull { item -> thumbs[item.id.toString()]?.let { FlyingPhoto(item.uri, item.isVideo, it) } }
+                    flight.prepare(flying)
                     prompt.trash(actions, items) { agreed ->
                         if (agreed) {
                             flight.launch(flying, bin.bounds)
@@ -339,6 +340,7 @@ fun StorageFilesScreen(
                     FlyingPhoto(uri, f.isVideo, rect)
                 }
             }
+            flight.prepare(flying)
             scope.launch {
                 val error = drive.deleteBackups(paths)
                 if (error == null) {

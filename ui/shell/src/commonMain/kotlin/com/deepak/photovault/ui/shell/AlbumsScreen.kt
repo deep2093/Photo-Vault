@@ -146,6 +146,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         val items = albums.flatMap { it.items() }
         val bounds = cardBounds(albums.map { it.id }.toSet())
         val flying = albums.mapNotNull { a -> bounds[a.id]?.let { r -> a.newest?.let { FlyingPhoto(it.uri, it.isVideo, r) } } }
+        flight.prepare(flying)
         prompt.trash(actions, items) { agreed ->
             if (agreed) {
                 flight.launch(flying, bin.bounds)

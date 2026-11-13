@@ -23,4 +23,13 @@ class ViewerAndPickerMathTest {
         assertEquals(12, WheelTime.to24(12, pm = true))
         assertEquals(18, WheelTime.to24(6, pm = true))
     }
+
+    @Test
+    fun stripFollowsThePlayerWithoutJerks() {
+        // A seek (far apart) is taken at once.
+        assertEquals(9000.0, ScrubberMath.follow(1000.0, 9000.0))
+        // A small difference is eased: a third of the way.
+        assertEquals(1030.0, ScrubberMath.follow(1000.0, 1090.0))
+        assertEquals(970.0, ScrubberMath.follow(1000.0, 910.0))
+    }
 }

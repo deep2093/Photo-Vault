@@ -1,5 +1,6 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -62,7 +63,25 @@ class DeleteFlight {
 
     internal fun done(id: Long) {
         flights = flights.filterNot { it.id == id }
+        if (flights.isEmpty()) warming = emptyList()
     }
+
+    /**
+     * The pictures about to be deleted, read into memory now (13 Nov), before anything is deleted. A photo deleted for
+     * good can't be read afterwards, so without this the effect had nothing to draw (Recently deleted showed none).
+     * Call it as soon as Delete is tapped, with the same photos later given to [launch].
+     */
+    fun prepare(photos: List<FlyingPhoto>) {
+        warming = photos.take(MAX_FLYING)
+    }
+
+    internal var warming by mutableStateOf<List<FlyingPhoto>>(emptyList())
+        private set
+
+    /** Pictures already read by [prepare], by [keyOf]. */
+    internal val ready = HashMap<String, androidx.compose.ui.graphics.painter.Painter>()
+
+    internal fun keyOf(p: FlyingPhoto) = "${p.uri}|${p.thumbPx}|${p.bytes?.size ?: -1}"
 
     companion object {
         const val MAX_FLYING = 24
@@ -133,17 +152,42 @@ object FlightMath {
 /** Draws every flight in progress, above all pages. */
 @Composable
 fun DeleteFlightLayer(flight: DeleteFlight) {
-    flight.flights.forEach { f -> key(f.id) { FlightView(f) { flight.done(f.id) } } }
+    // Pictures being made ready: drawn once where nobody sees them, so they are in memory when the flight starts.
+    flight.warming.forEach { p ->
+        key("warm" + flight.keyOf(p)) {
+            val painter = rememberAsyncImagePainter(p.bytes ?: Thumb(p.uri, p.isVideo, p.thumbPx))
+            androidx.compose.runtime.DisposableEffect(painter) {
+                val k = flight.keyOf(p)
+                flight.ready[k] = painter
+                onDispose { flight.ready.remove(k) }
+            }
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.foundation.Image(
+                painter,
+                contentDescription = null,
+                alpha = 0f,
+                modifier = Modifier.requiredSize(
+                    with(density) { p.bounds.width.coerceAtLeast(1f).toDp() },
+                    with(density) { p.bounds.height.coerceAtLeast(1f).toDp() },
+                ),
+            )
+        }
+    }
+    flight.flights.forEach { f -> key(f.id) { FlightView(f, flight) { flight.done(f.id) } } }
 }
 
 @Composable
-private fun FlightView(f: DeleteFlight.Flight, onDone: () -> Unit) {
+private fun FlightView(f: DeleteFlight.Flight, flight: DeleteFlight, onDone: () -> Unit) {
     val t = remember { Animatable(0f) }
     val reduceMotion = LocalGlassSettings.current.reduceMotion
     val haptics = rememberHaptics()
     // The pictures are made ready first: a picture that is still loading drew nothing for the first frames, so the
     // effect looked broken or missing (31 Oct, Recently deleted).
-    val painters = f.photos.map { p -> rememberAsyncImagePainter(p.bytes ?: Thumb(p.uri, p.isVideo, p.thumbPx)) }
+    // 13 Nov: the ones read ahead by prepare() are used as they are; the rest are read now, as before.
+    val painters = f.photos.map { p ->
+        val fresh = rememberAsyncImagePainter(p.bytes ?: Thumb(p.uri, p.isVideo, p.thumbPx))
+        remember(p) { flight.ready[flight.keyOf(p)] } ?: fresh
+    }
     LaunchedEffect(Unit) {
         if (!reduceMotion) {
             kotlinx.coroutines.withTimeoutOrNull(300) {
