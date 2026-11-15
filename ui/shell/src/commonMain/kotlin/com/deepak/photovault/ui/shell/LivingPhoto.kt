@@ -162,7 +162,7 @@ fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState, a
         if (making != null || l.background == null) return
         making = 0f
         scope.launch {
-            val said = runCatching { state.living.platform.video(photo, l, share) { making = it } }.getOrElse { "Couldn't make the video." }
+            val said = runCatching { state.living.platform.video(photo, l, share, onProgress = { making = it }) }.getOrElse { "Couldn't make the video." }
             making = null
             said?.let(actions::toast)
         }
