@@ -1,13 +1,26 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,52 +30,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.deepak.photovault.core.backup.FreeUpSpace
 import com.deepak.photovault.core.media.DetailsFormat
+import com.deepak.photovault.core.media.LibraryCounts
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.designsystem.GlassButton
-import com.deepak.photovault.designsystem.GlassCard
+import com.deepak.photovault.designsystem.GlassProgressBar
 import com.deepak.photovault.designsystem.GlassSegmented
+import com.deepak.photovault.designsystem.GlassSheet
 import com.deepak.photovault.designsystem.LocalGlassTheme
-import com.deepak.photovault.designsystem.SectionHeader
+import com.deepak.photovault.designsystem.StatTile
+import com.deepak.photovault.designsystem.WarningNote
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Settings > Free up space (29 Oct, Phase 6B-2). Off by default. When on, a phone copy may move to the phone's
- * Recently deleted once its backup is N days old, every file has been read back from the drive again and the drive has a
- * preview of it. The photo stays on the family drive and in the grid.
+ * Remove phone copies (29 Oct, Phase 6B-2; its own pop-up since 14 Nov; redesigned 15 Nov as a floating sheet). Off by
+ * default. When on, a phone copy may move to the phone's Recently deleted once its backup is N days old, every file has
+ * been read back from the backup again and the backup has a preview of it. The photo stays in the backup and in the grid.
+ *
+ * The sheet, top to bottom: how long to wait (one short pill), what is ready at a glance (three tiles), the one thing
+ * to do next (a full-width button), then the three promises in a line each instead of a paragraph.
  */
 @Composable
-fun FreeUpContent(backup: BackupState, actions: MediaActions) {
-    Column(Modifier.cardWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) { FreeUpCards(backup, actions) }
-}
-
-/** Remove phone copies in a popup (14 Nov), from its row on the Backup page. */
-@Composable
 fun FreeUpDialog(backup: BackupState, actions: MediaActions, onDismiss: () -> Unit) {
-    com.deepak.photovault.designsystem.GlassDialog(
-        title = "Remove phone copies",
-        onDismiss = onDismiss,
-        buttons = { GlassButton("Done", primary = true, onClick = onDismiss) },
-    ) {
-        Column(
-            Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) { FreeUpCards(backup, actions, inDialog = true) }
-    }
-}
-
-/** A card on its own page; a plain section inside a popup (no card inside a card). */
-@Composable
-private fun FreeUpSection(inDialog: Boolean, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    if (inDialog) Column(Modifier.fillMaxWidth(), content = content) else GlassCard(Modifier.fillMaxWidth(), content = content)
-}
-
-@Composable
-private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Boolean = false) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     val days = backup.settings.freeUpDays
@@ -70,66 +69,122 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Bo
     var confirm by remember { mutableStateOf<List<MediaItem>?>(null) }
     var confirmSmaller by remember { mutableStateOf(false) }
     val automatic = actions.canDeleteWithoutAsking()
+    val checking = backup.freeUpChecking
 
-    FreeUpSection(inDialog) {
-        SectionHeader(if (inDialog) "After" else "Remove phone copies after")
-        // One glass pill with a sliding highlight: the chosen day shows in every theme (30 Oct).
-        val choices = listOf(0) + FreeUpSpace.DAY_CHOICES
-        GlassSegmented(
-            options = choices.map { if (it == 0) "Off" else "$it days" },
-            selectedIndex = choices.indexOf(days).coerceAtLeast(0),
-            onSelect = { i -> backup.update { it.copy(freeUpDays = choices[i]) }; backup.clearFreeUp() },
-        )
-        Text(
-            if (days == 0) "Turn this on and photos that are already backed up are taken off this phone after that many days. Right now nothing is removed."
-            else "Photos that are already backed up are taken off this phone $days days after their backup. They stay in your backup and in Photos, and sit in Recently deleted for 30 days first.",
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        if (days > 0 && !automatic && actions.automaticCleanupAvailable()) {
-            GlassButton("Allow without asking each time", onClick = actions::askDeletePermission, modifier = Modifier.padding(top = 10.dp))
-        }
-    }
+    GlassSheet(
+        title = "Remove phone copies",
+        subtitle = "Make room once photos are safely backed up",
+        icon = Icons.Rounded.PhoneAndroid,
+        onDismiss = onDismiss,
+    ) {
+        Column(
+            Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()).padding(top = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // How long to wait. Short labels so five choices fit one pill on a narrow phone (they ran together before).
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Days after backup",
+                        color = theme.onGlassSecondary,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.weight(1f).semantics { heading() },
+                    )
+                    Text(
+                        if (days == 0) "Off" else "$days days",
+                        color = theme.onGlass,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                val choices = listOf(0) + FreeUpSpace.DAY_CHOICES
+                GlassSegmented(
+                    options = choices.map { if (it == 0) "Off" else "$it" },
+                    selectedIndex = choices.indexOf(days).coerceAtLeast(0),
+                    onSelect = { i -> backup.update { it.copy(freeUpDays = choices[i]) }; backup.clearFreeUp() },
+                )
+            }
 
-    if (days > 0) {
-        FreeUpSection(inDialog) {
-            SectionHeader("Check now")
-            val progress = backup.freeUpProgress
-            if (backup.freeUpChecking) {
+            if (days == 0) {
                 Text(
-                    progress?.let { "Checking ${it.first} of ${it.second} against your backup..." } ?: "Looking at what is backed up...",
-                    color = theme.onGlass,
+                    "Nothing is removed right now. Pick a number of days and photos that are already backed up leave this phone that long after their backup.",
+                    color = theme.onGlassSecondary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
-                Text(
-                    if (result == null) "See which photos are ready. Nothing moves until you say so." else summary(result),
-                    color = theme.onGlass,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                result?.message?.let { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
-                if (result != null && result.waiting > 0) {
-                    Text("${result.waiting} more are backed up but not $days days old yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+                // At a glance: ready, still waiting, and the room it makes. Dashes until the first check.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val ready = result?.verified?.size
+                    StatTile(ready?.let { LibraryCounts.grouped(it) } ?: "–", "Ready", Modifier.weight(1f), strong = ready != null && ready > 0 && !checking)
+                    StatTile(result?.let { LibraryCounts.grouped(it.waiting) } ?: "–", "Waiting", Modifier.weight(1f))
+                    StatTile(result?.let { DetailsFormat.size(it.bytes) } ?: "–", "To free", Modifier.weight(1f))
                 }
-                if (result != null && result.failedCheck > 0) {
-                    Text("${result.failedCheck} didn't pass the check, so they stay on the phone.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+
+                val progress = backup.freeUpProgress
+                val line = when {
+                    checking -> progress?.let { "Checking ${it.first} of ${it.second} against your backup…" } ?: "Looking at what is backed up…"
+                    result == null -> "Check to see which photos are ready. Nothing moves until you say so."
+                    else -> summary(result)
                 }
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GlassButton(if (result == null) "Check now" else "Check again", onClick = { scope.launch { backup.checkFreeUp() } })
-                if (result != null && result.verified.isNotEmpty() && !backup.freeUpChecking) {
-                    GlassButton("Move ${result.verified.size} to Recently deleted", primary = true, onClick = { confirm = result.verified })
+                Text(line, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+                if (checking && progress != null && progress.second > 0) {
+                    GlassProgressBar(progress.first / progress.second.toFloat(), label = "Checking ${progress.first} of ${progress.second}")
                 }
-            }
-            if (result != null && result.smaller.isNotEmpty() && !backup.freeUpChecking) {
-                Text(
-                    "${result.smaller.size} photos (${DetailsFormat.size(result.smallerBytes)} on the phone) were saved smaller by Storage saver. The drive has only the smaller copy, so Pixallery never removes these by itself.",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-                GlassButton("Also move these ${result.smaller.size}", onClick = { confirmSmaller = true })
+                if (!checking && result != null) {
+                    val notes = listOfNotNull(
+                        result.message,
+                        if (result.waiting > 0) "${result.waiting} more are backed up but not $days days old yet." else null,
+                        if (result.failedCheck > 0) "${result.failedCheck} didn't pass the check, so they stay on the phone." else null,
+                    )
+                    notes.forEach { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall) }
+                }
+
+                // One clear next step: move what is ready, otherwise check.
+                val canMove = result != null && result.verified.isNotEmpty() && !checking
+                if (canMove) {
+                    GlassButton(
+                        "Move ${result!!.verified.size} to Recently deleted",
+                        primary = true,
+                        centered = true,
+                        icon = Icons.Rounded.DeleteSweep,
+                        onClick = { confirm = result.verified },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (!checking) {
+                    GlassButton(
+                        if (result == null) "Check now" else "Check again",
+                        primary = !canMove,
+                        centered = true,
+                        icon = Icons.Rounded.Refresh,
+                        onClick = { scope.launch { backup.checkFreeUp() } },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (!automatic && actions.automaticCleanupAvailable()) {
+                    GlassButton("Allow without asking each time", centered = true, onClick = actions::askDeletePermission, modifier = Modifier.fillMaxWidth())
+                }
+
+                if (result != null && result.smaller.isNotEmpty() && !checking) {
+                    WarningNote(
+                        "${result.smaller.size} photos (${DetailsFormat.size(result.smallerBytes)} on the phone) were saved smaller by Storage saver. The backup has only the smaller copy, so Pixallery never removes these by itself.",
+                    )
+                    GlassButton("Also move these ${result.smaller.size}", centered = true, onClick = { confirmSmaller = true }, modifier = Modifier.fillMaxWidth())
+                }
+
+                // The three promises, a line each.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(theme.onGlass.copy(alpha = 0.05f))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Promise(Icons.Rounded.VerifiedUser, "Each photo is read back from your backup and checked first")
+                    Promise(Icons.Rounded.Restore, "Phone copies wait 30 days in Recently deleted")
+                    Promise(Icons.Rounded.CloudDone, "They stay in your backup and in Photos")
+                }
             }
         }
     }
@@ -137,7 +192,7 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Bo
     confirm?.let { items ->
         ConfirmDialog(
             title = "Move ${items.size} photos off this phone?",
-            body = "They stay on the family drive. The phone copies go to Recently deleted for 30 days, where you can put them back.",
+            body = "They stay in your backup. The phone copies go to Recently deleted for 30 days, where you can put them back.",
             confirm = "Move",
             onDismiss = { confirm = null },
             onConfirm = {
@@ -150,7 +205,7 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Bo
         val items = result?.smaller.orEmpty()
         ConfirmDialog(
             title = "Remove full-quality originals?",
-            body = "The drive has only the smaller Storage saver copy of these ${items.size} photos. Once they are deleted for good from Recently deleted, the full-quality originals are gone.",
+            body = "The backup has only the smaller Storage saver copy of these ${items.size} photos. Once they are deleted for good from Recently deleted, the full-quality originals are gone.",
             confirm = "Move anyway",
             onDismiss = { confirmSmaller = false },
             onConfirm = {
@@ -161,11 +216,22 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Bo
     }
 }
 
+/** One promise in the sheet: a small icon and a short line. */
+@Composable
+private fun Promise(icon: ImageVector, text: String) {
+    val theme = LocalGlassTheme.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = theme.onGlassSecondary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(text, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 private fun summary(r: com.deepak.photovault.core.backup.FreeUpResult): String = when {
     r.message != null && r.nothingToDo -> "Nothing was checked."
-    r.verified.isEmpty() && r.smaller.isEmpty() -> "Nothing is ready to move right now."
+    r.verified.isEmpty() && r.smaller.isEmpty() -> "Nothing is ready to move yet."
     r.verified.isEmpty() -> "Only Storage saver photos are ready."
-    else -> "${r.verified.size} photos are ready: backed up, read back and checked, with a preview. Moving them frees ${DetailsFormat.size(r.bytes)}."
+    else -> "${r.verified.size} photos are ready: read back, checked and with a preview."
 }
 
 /**

@@ -645,9 +645,11 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.History, "Memories and tags", "Done")
         InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Done")
         // 10 Nov: Google Drive backup comes before Family roles.
-        InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Part 1 built, being tested")
+        InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Done")
+        // 15 Nov: Phase 11 started before Family roles (10A comes after it).
+        InfoRow(Icons.Rounded.Folder, "Photo editor", "Built, being tested")
+        InfoRow(Icons.Rounded.Folder, "Duplicate finder", "Phase 11, next part")
         InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10A")
-        InfoRow(Icons.Rounded.Folder, "Editor and duplicates", "Phase 11")
         InfoRow(Icons.Rounded.Schedule, "Smoothness and foldables", "Phase 12")
         InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Release", "Phase 13")
         // Credits for the face models (6 Nov). AuraFace's licence asks for the notice and credit.

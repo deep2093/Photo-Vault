@@ -14,6 +14,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.heading
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -49,6 +56,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
 
 /** A labelled text field on glass. */
 @Composable
@@ -200,5 +208,133 @@ fun CollapsibleSection(
         ) {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), content = content)
         }
+    }
+}
+
+/**
+ * A floating sheet (15 Nov): a rounded glass card that rises from the bottom of a phone screen (centred on a tablet),
+ * with a grab line, an icon badge, a title with one line under it and a close button. For pop-ups that hold a small
+ * page of their own (Remove phone copies), where [GlassDialog]'s plain box looked dated. Tapping outside, the close
+ * button and the back gesture all close it. With Reduce motion it appears in place.
+ */
+@Composable
+fun GlassSheet(
+    title: String,
+    onDismiss: () -> Unit,
+    icon: ImageVector? = null,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val theme = LocalGlassTheme.current
+    val still = LocalGlassSettings.current.reduceMotion
+    val shape = RoundedCornerShape(32.dp)
+    val shown = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (still) 1f else 0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { shown.animateTo(1f, androidx.compose.animation.core.tween(280, easing = PageEasing)) }
+    // Pulling the top of the sheet down closes it; let go early and it springs back.
+    val pull = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val dismissNow by androidx.compose.runtime.rememberUpdatedState(onDismiss)
+    Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .clickable(interactionSource = null, indication = null, onClick = onDismiss)
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+        ) {
+            val wide = maxWidth > 600.dp
+            Column(
+                Modifier
+                    .align(if (wide) Alignment.Center else Alignment.BottomCenter)
+                    .widthIn(max = 520.dp)
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        translationY = (1f - shown.value) * 56.dp.toPx() + pull.value
+                        alpha = shown.value
+                    }
+                    .clip(shape)
+                    .background(theme.glassFallback.compositeOver(theme.wallpaper.first()))
+                    .glassRim(shape)
+                    // Taps on the sheet itself stay on the sheet.
+                    .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTapGestures { } }
+                    .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().pointerInput(Unit) {
+                        androidx.compose.foundation.gestures.detectVerticalDragGestures(
+                            onDragEnd = {
+                                if (pull.value > 96.dp.toPx()) dismissNow() else scope.launch { pull.animateTo(0f) }
+                            },
+                            onDragCancel = { scope.launch { pull.animateTo(0f) } },
+                        ) { change, dy ->
+                            change.consume()
+                            val to = (pull.value + dy).coerceAtLeast(0f)
+                            scope.launch { pull.snapTo(to) }
+                        }
+                    },
+                ) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(theme.onGlass.copy(alpha = 0.22f)),
+                )
+                Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (icon != null) {
+                        Box(
+                            Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(theme.onGlass.copy(alpha = 0.10f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            androidx.compose.material3.Icon(icon, contentDescription = null, tint = theme.onGlass, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            title,
+                            color = theme.onGlass,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.semantics { heading() },
+                        )
+                        if (subtitle != null) {
+                            Text(subtitle, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    GlassIconButton(androidx.compose.material.icons.Icons.Rounded.Close, "Close", onClick = onDismiss)
+                }
+                }
+                content()
+            }
+        }
+    }
+}
+
+/** A number with a short label under it, in a soft tile; a row of these sums up a page at a glance (15 Nov). */
+@Composable
+fun StatTile(value: String, label: String, modifier: Modifier = Modifier, strong: Boolean = false) {
+    val theme = LocalGlassTheme.current
+    Column(
+        modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (strong) theme.accent else theme.onGlass.copy(alpha = 0.07f))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .semantics(mergeDescendants = true) { },
+    ) {
+        Text(
+            value,
+            color = if (strong) readableOn(theme.accent) else theme.onGlass,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
+        Text(
+            label,
+            color = if (strong) readableOn(theme.accent).copy(alpha = 0.82f) else theme.onGlassSecondary,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
     }
 }

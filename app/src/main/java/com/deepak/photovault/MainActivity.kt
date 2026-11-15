@@ -295,6 +295,8 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.tags = com.deepak.photovault.ui.shell.TagsState(AndroidTags(this))
         lifecycleScope.launch { runCatching { state.tags.refresh() } }
         state.living = com.deepak.photovault.ui.shell.LivingState(com.deepak.photovault.living.AndroidLiving(this))
+        // The photo editor (Phase 11): crop, turn, light and colour, looks; always saves a copy.
+        state.editor = com.deepak.photovault.ui.shell.EditorState(com.deepak.photovault.editor.AndroidEditor(this))
         val google = com.deepak.photovault.google.AndroidGoogle(
             this,
             chooseAccount = { googleChooser.launch(it) },

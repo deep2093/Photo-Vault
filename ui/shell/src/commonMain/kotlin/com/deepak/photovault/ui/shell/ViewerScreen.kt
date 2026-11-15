@@ -3,6 +3,7 @@ package com.deepak.photovault.ui.shell
 import androidx.compose.ui.semantics.heading
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Download
@@ -402,6 +403,10 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 solid = true,
                 bottom = system.calculateBottomPadding() + 12.dp + 60.dp + 8.dp,
             ) {
+                // Edit (Phase 11): photos on this phone; the editor saves a copy, the original stays.
+                if (!moreItem.isVideo && !moreItem.isDriveOnly && !gallery.isExternal(moreItem) && state.editor.platform.supported) {
+                    GlassMenuItem(Icons.Rounded.Tune, "Edit", onClick = { moreOpen = false; state.open(Overlay.Edit(moreItem.id)) })
+                }
                 if (!moreItem.isVideo) {
                     GlassMenuItem(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = { moreOpen = false; wallpaperItem = moreItem })
                 }

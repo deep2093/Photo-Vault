@@ -135,6 +135,9 @@ sealed interface Overlay {
     /** One photo made to move (7D-1, 8 Nov). */
     data class Living(val photoId: Long) : Overlay
 
+    /** The photo editor (Phase 11): crop, turn, light and colour, looks; saves a copy. */
+    data class Edit(val photoId: Long) : Overlay
+
     /** Cropping the one photo chosen as a cover: a frame to move and resize (31 Oct). */
     data class CropCover(val cardId: String, val title: String, val photoId: Long) : Overlay
 
@@ -330,7 +333,10 @@ class ShellState(private val store: AppearanceStore) {
     val canDragBack: Boolean
         get() = !detailsOpen && !selecting && filesSelected.isEmpty() && albumsSelected.isEmpty() && !albumsSelectMode && overlays.lastOrNull().slidesSideways() &&
             !(overlays.lastOrNull() is Overlay.Secured && (secured.viewing != null || secured.selected.isNotEmpty())) &&
-            !(overlays.lastOrNull() == Overlay.People && people.selected.isNotEmpty())
+            !(overlays.lastOrNull() == Overlay.People && people.selected.isNotEmpty()) &&
+            // The editor's page stays put: a sideways drag there moves the crop frame or a slider, and it asks
+            // before changes are lost.
+            overlays.lastOrNull() !is Overlay.Edit
 
     suspend fun dragBack(progress: Float, toRight: Boolean) {
         pageBackDir = if (toRight) 1 else -1
@@ -399,6 +405,11 @@ class ShellState(private val store: AppearanceStore) {
         }
         overlays.lastOrNull() == Overlay.People && people.selected.isNotEmpty() -> {
             people.selected = emptySet()
+            true
+        }
+        // The editor with changes in it: ask before they are lost (the page's own buttons clear the flag first).
+        overlays.lastOrNull() is Overlay.Edit && editor.changed -> {
+            editor.askDiscard = true
             true
         }
         // Choosing a cover uses the photo picks; back leaves the page in one go.
@@ -481,6 +492,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** Living photos (Phase 7D). */
     var living: LivingState = LivingState()
+
+    /** The photo editor (Phase 11). */
+    var editor: EditorState = EditorState()
 
     /** Google Drive backup (Phase 10). */
     var google: GoogleState = GoogleState()

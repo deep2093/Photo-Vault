@@ -544,6 +544,7 @@ private fun OverlayPage(
                         Overlay.Tags -> TagsScreen(state, gallery)
                         is Overlay.Tag -> TagScreen(overlay.name, state, gallery, actions)
                         is Overlay.Living -> LivingPhotoScreen(overlay.photoId, state, gallery, actions)
+                        is Overlay.Edit -> EditorScreen(overlay.photoId, state, gallery, actions)
                         Overlay.HiddenAlbums -> HiddenAlbumsScreen(state, gallery)
                         is Overlay.Viewer -> Unit
                     }
