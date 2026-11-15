@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -255,12 +257,12 @@ fun GlassSheet(
                     .background(theme.glassFallback.compositeOver(theme.wallpaper.first()))
                     .glassRim(shape)
                     // Taps on the sheet itself stay on the sheet.
-                    .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTapGestures { } }
+                    .pointerInput(Unit) { detectTapGestures { } }
                     .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
             ) {
                 Column(
                     Modifier.fillMaxWidth().pointerInput(Unit) {
-                        androidx.compose.foundation.gestures.detectVerticalDragGestures(
+                        detectVerticalDragGestures(
                             onDragEnd = {
                                 if (pull.value > 96.dp.toPx()) dismissNow() else scope.launch { pull.animateTo(0f) }
                             },
