@@ -930,7 +930,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             if (k.isEmpty() || v == null) null else k to v
         }.toMap(),
         albumSize = prefs.getInt("album_size", 2),
-        compactLists = prefs.getBoolean("compact_lists", false),
+        newBackupLayout = prefs.getBoolean("new_backup_layout", false),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -953,7 +953,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putString("recent_searches", settings.recentSearches.joinToString("\n"))
             .putString("grid_sizes", settings.gridSizes.entries.joinToString("\n") { "${it.key}=${it.value}" })
             .putInt("album_size", settings.albumSize)
-            .putBoolean("compact_lists", settings.compactLists)
+            .putBoolean("new_backup_layout", settings.newBackupLayout)
             .apply()
     }
 }

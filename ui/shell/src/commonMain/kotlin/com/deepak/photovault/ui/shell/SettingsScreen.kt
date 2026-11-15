@@ -661,10 +661,10 @@ private fun AboutSection(state: ShellState) {
             modifier = Modifier.padding(top = 12.dp),
         )
         com.deepak.photovault.designsystem.GlassSwitchRow(
-            "Compact lists",
-            state.appearance.compactLists,
-            { on -> state.updateAppearance { it.copy(compactLists = on) } },
-            description = "Smaller rows in Storage's file lists, with the count and total size at the top.",
+            "New Backup layout",
+            state.appearance.newBackupLayout,
+            { on -> state.updateAppearance { it.copy(newBackupLayout = on) } },
+            description = "A ring card like Storage's, one settings card, and warnings only when they need you. Turn off to go back.",
             icon = Icons.Rounded.Folder,
         )
         // Credits for the face models (6 Nov). AuraFace's licence asks for the notice and credit.

@@ -265,7 +265,8 @@ fun StorageFilesScreen(
                 }
             }
         }
-        val compact = state.appearance.compactLists
+        // Compact lists were tried and dropped (15 Nov); kept off.
+        val compact = false
         val refreshList: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize()) {
             LazyColumn(

@@ -551,7 +551,7 @@ private fun shade(c: Color, factor: Float) = Color(c.red * factor, c.green * fac
 
 /** A ring split by size. */
 @Composable
-private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<Color> = CHART, onSlice: ((Int) -> Unit)? = null) {
+internal fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<Color> = CHART, onSlice: ((Int) -> Unit)? = null) {
     // Rings with depth are drawn from solid colours: see-through ones (the Free part) smudged when layered (26 Oct).
     val onGlass = LocalGlassTheme.current.onGlass
     val base = if (onGlass.red + onGlass.green + onGlass.blue > 1.5f) Color(0xFF2B2E36) else Color.White
@@ -793,7 +793,7 @@ private fun SpaceCard(
 
 /** Small dots for the ring card's pages; the current one is wider. */
 @Composable
-private fun PagerDots(count: Int, current: Int) {
+internal fun PagerDots(count: Int, current: Int) {
     val theme = LocalGlassTheme.current
     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         repeat(count) { i ->
@@ -811,7 +811,7 @@ private fun PagerDots(count: Int, current: Int) {
 
 /** One line of a legend (15 Nov): dot, name, size and count on the right, an arrow when it opens a list. */
 @Composable
-private fun CompactLegend(color: Color, label: String, detail: String, onClick: (() -> Unit)? = null) {
+internal fun CompactLegend(color: Color, label: String, detail: String, onClick: (() -> Unit)? = null) {
     val theme = LocalGlassTheme.current
     Row(
         Modifier

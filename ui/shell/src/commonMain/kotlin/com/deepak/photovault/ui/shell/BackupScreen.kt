@@ -86,7 +86,7 @@ const val MOBILE_DATA_WARNING =
         "every file after uploading. Large videos can use a lot of data."
 
 /** Which small window is open on the Backup page, and for which place (family drive or Google). */
-private enum class BackupSheet { SCHEDULE, FOLDERS, OPTIONS, ACCOUNTS }
+internal enum class BackupSheet { SCHEDULE, FOLDERS, OPTIONS, ACCOUNTS }
 
 /**
  * Backup (Phase 4; tidied 14 Nov): where to back up, then one card for each place in use (the family drive, Google
@@ -136,6 +136,18 @@ fun BackupScreen(
                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                 modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp),
             )
+        }
+        if (state.appearance.newBackupLayout) {
+            // Try out (15 Nov): the new layout.
+            newBackupItems(
+                state, drive, backup, gallery, actions, googleOn, showDrive, showGoogle, googleView,
+                eligible.size, done, googleEligible, privacyNeedsYou,
+                open = { what, google -> sheet = what to google },
+                openPrivacy = { privacyOpen = true },
+                openFreeUp = { freeUpOpen = true },
+                openRestore = { restoreOpen = true },
+            )
+            return@GlassListScreen
         }
         // Phase 10 (13 Nov): where to back up.
         if (googleOn) item(key = "where") { DestinationCard(backup) }
@@ -197,7 +209,7 @@ fun BackupScreen(
 }
 
 /** "Sun · 2:00 am · charging", or "Off". */
-private fun scheduleSummary(settings: com.deepak.photovault.core.backup.BackupSettings): String {
+internal fun scheduleSummary(settings: com.deepak.photovault.core.backup.BackupSettings): String {
     val s = settings.schedule
     if (!s.enabled) return "Off"
     val day = when (s.frequency) {
@@ -222,7 +234,7 @@ internal fun optionsSummary(s: com.deepak.photovault.core.backup.BackupSettings)
 
 /** The three rows every place has: when, which folders, and what and how. */
 @Composable
-private fun PlaceRows(view: com.deepak.photovault.core.backup.BackupSettings, albums: List<PhoneAlbum>, open: (BackupSheet) -> Unit) {
+internal fun PlaceRows(view: com.deepak.photovault.core.backup.BackupSettings, albums: List<PhoneAlbum>, open: (BackupSheet) -> Unit) {
     SettingRow(Icons.Rounded.Schedule, "Schedule", scheduleSummary(view), onClick = { open(BackupSheet.SCHEDULE) })
     SettingRow(
         Icons.Rounded.Folder,
@@ -272,7 +284,7 @@ private fun OptionsDialog(
 
 /** A short row: icon, title, current value and an arrow; opens its own window. */
 @Composable
-private fun SettingRow(
+internal fun SettingRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     value: String,
@@ -387,7 +399,7 @@ private fun chosenFolders(albums: List<PhoneAlbum>, folders: Set<String>?): List
 
 /** The family drive: how much is backed up, Back up now, and its schedule, folders and options. */
 @Composable
-private fun DriveCard(
+internal fun DriveCard(
     drive: DriveState,
     backup: BackupState,
     gallery: GalleryState,
@@ -889,7 +901,7 @@ private fun DestinationCard(backup: BackupState) {
  * own window), and Google's own schedule, folders and options.
  */
 @Composable
-private fun GoogleCard(
+internal fun GoogleCard(
     google: GoogleState,
     backup: BackupState,
     view: com.deepak.photovault.core.backup.BackupSettings,
