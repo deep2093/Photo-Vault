@@ -36,12 +36,14 @@ import androidx.compose.ui.unit.dp
 import com.deepak.photovault.core.backup.isDriveOnly
 import com.deepak.photovault.core.media.DetailsFormat
 import com.deepak.photovault.core.media.Duplicates
+import com.deepak.photovault.core.media.LibraryCounts
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.GlassSegmented
 import com.deepak.photovault.designsystem.LocalGlassTheme
+import com.deepak.photovault.designsystem.SectionHeader
 import com.deepak.photovault.designsystem.rememberHaptics
 import kotlinx.datetime.TimeZone
 
