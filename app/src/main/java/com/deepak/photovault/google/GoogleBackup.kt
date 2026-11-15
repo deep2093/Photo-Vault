@@ -90,6 +90,7 @@ object GoogleBackup {
         java.io.File(context.applicationContext.filesDir, "backup/google-records-${GoogleAccounts.slug(email)}.json")
 
     private val recordsJson = kotlinx.serialization.builtins.ListSerializer(BackupRecord.serializer())
+    private val cacheJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
     private fun remember(context: Context, email: String, list: List<BackupRecord>) {
         lastGood[email] = list
@@ -97,7 +98,7 @@ object GoogleBackup {
             val f = recordsFile(context, email)
             f.parentFile?.mkdirs()
             val tmp = java.io.File(f.path + ".tmp")
-            tmp.writeText(com.deepak.photovault.core.backup.BackupEngine.json.encodeToString(recordsJson, list))
+            tmp.writeText(cacheJson.encodeToString(recordsJson, list))
             tmp.renameTo(f)
         }
     }
@@ -105,7 +106,7 @@ object GoogleBackup {
     /** The last list read from [email], from memory or the phone; null when never read. */
     private fun cachedRecords(context: Context, email: String): List<BackupRecord>? = lastGood[email] ?: runCatching {
         val f = recordsFile(context, email)
-        if (!f.exists()) null else com.deepak.photovault.core.backup.BackupEngine.json.decodeFromString(recordsJson, f.readText()).also { lastGood[email] = it }
+        if (!f.exists()) null else cacheJson.decodeFromString(recordsJson, f.readText()).also { lastGood[email] = it }
     }.getOrNull()
 
     /** What Storage showed last time, straight from the phone: no waiting for Google (15 Nov). */
