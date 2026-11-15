@@ -234,15 +234,16 @@ internal fun optionsSummary(s: com.deepak.photovault.core.backup.BackupSettings)
 
 /** The three rows every place has: when, which folders, and what and how. */
 @Composable
-internal fun PlaceRows(view: com.deepak.photovault.core.backup.BackupSettings, albums: List<PhoneAlbum>, open: (BackupSheet) -> Unit) {
-    SettingRow(Icons.Rounded.Schedule, "Schedule", scheduleSummary(view), onClick = { open(BackupSheet.SCHEDULE) })
+internal fun PlaceRows(view: com.deepak.photovault.core.backup.BackupSettings, albums: List<PhoneAlbum>, dense: Boolean = false, open: (BackupSheet) -> Unit) {
+    SettingRow(Icons.Rounded.Schedule, "Schedule", scheduleSummary(view), dense = dense, onClick = { open(BackupSheet.SCHEDULE) })
     SettingRow(
         Icons.Rounded.Folder,
         "Folders",
         chosenFolders(albums, view.folders).joinToString(", ").ifEmpty { "None" },
+        dense = dense,
         onClick = { open(BackupSheet.FOLDERS) },
     )
-    SettingRow(Icons.Rounded.Photo, "Options", optionsSummary(view), onClick = { open(BackupSheet.OPTIONS) })
+    SettingRow(Icons.Rounded.Photo, "Options", optionsSummary(view), dense = dense, onClick = { open(BackupSheet.OPTIONS) })
 }
 
 /** Photos, videos, quality and mobile data for one place, in a small window. Changes apply straight away. */
@@ -290,16 +291,18 @@ internal fun SettingRow(
     value: String,
     /** For a row that opens its card further down the page: an arrow down (closed) or up (open) instead of right. */
     open: Boolean? = null,
+    /** A shorter row, for the new Backup layout (16 Nov). */
+    dense: Boolean = false,
     onClick: () -> Unit,
 ) {
     val theme = LocalGlassTheme.current
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
+            .heightIn(min = if (dense) 42.dp else 52.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
             .clickable(onClickLabel = title, onClick = onClick)
-            .padding(vertical = 6.dp),
+            .padding(vertical = if (dense) 2.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         androidx.compose.material3.Icon(icon, contentDescription = null, tint = theme.onGlassSecondary)

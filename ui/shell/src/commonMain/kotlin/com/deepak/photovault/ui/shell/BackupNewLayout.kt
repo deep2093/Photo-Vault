@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -83,7 +84,9 @@ internal fun LazyListScope.newBackupItems(
 ) {
     val settings = backup.settings
     if (googleOn) item(key = "n-where") { WhereSwitch(backup) }
-    item(key = "n-warnings") { Warnings(state, backup, actions, showGoogle) { open(BackupSheet.ACCOUNTS, true) } }
+    // Only when something needs the person (16 Nov: an empty one left a double gap under the switch).
+    val warn = (showGoogle && state.google.accounts.any { it.needsSignIn }) || !backup.notificationsAllowed() || backup.batteryRestricted()
+    if (warn) item(key = "n-warnings") { Warnings(state, backup, actions, showGoogle) { open(BackupSheet.ACCOUNTS, true) } }
     if (privacyNeedsYou) item(key = "n-privacy-needed") { PrivacyCard(state, drive, backup) }
     // A place that isn't ready yet (no family, no photo access, no Google account) keeps its old card: it says what to do.
     val driveReady = showDrive && drive.joined != null && gallery.access != MediaAccess.NONE
@@ -103,10 +106,10 @@ internal fun LazyListScope.newBackupItems(
     item(key = "n-more") {
         GlassCard(Modifier.cardWidth()) {
             if (!privacyNeedsYou) {
-                SettingRow(Icons.Rounded.Lock, "Backup privacy", if (settings.privacy == BackupPrivacy.PRIVATE) "Private" else "Normal", onClick = openPrivacy)
+                SettingRow(Icons.Rounded.Lock, "Backup privacy", if (settings.privacy == BackupPrivacy.PRIVATE) "Private" else "Normal", dense = true, onClick = openPrivacy)
             }
-            SettingRow(Icons.Rounded.PhoneAndroid, "Remove phone copies", if (settings.freeUpDays == 0) "Off" else "After ${settings.freeUpDays} days", onClick = openFreeUp)
-            if (drive.joined != null || showGoogle) SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", onClick = openRestore)
+            SettingRow(Icons.Rounded.PhoneAndroid, "Remove phone copies", if (settings.freeUpDays == 0) "Off" else "After ${settings.freeUpDays} days", dense = true, onClick = openFreeUp)
+            if (drive.joined != null || showGoogle) SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", dense = true, onClick = openRestore)
         }
     }
 }
@@ -201,7 +204,7 @@ private fun RingCard(
                             colors = RING + theme.onGlass.copy(alpha = 0.10f),
                         )
                         val pct = if (total == 0) 0 else (saved * 100L / total).toInt()
-                        Text("$pct%", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 10.dp))
+                        Text("$pct%", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.offset(y = (-6.5).dp))
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
@@ -273,8 +276,8 @@ private fun SettingsCard(
         if (driveReady && googleReady) {
             GlassSegmented(listOf("Family drive", "Google Drive"), if (g) 1 else 0, { showGoogle = it == 1 }, Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp))
         }
-        if (g) SettingRow(Icons.Rounded.Storage, "Accounts", accountsSummary(state.google.accounts), onClick = { open(BackupSheet.ACCOUNTS, true) })
-        PlaceRows(if (g) googleView else settings, gallery.albums) { open(it, g) }
+        if (g) SettingRow(Icons.Rounded.Storage, "Accounts", accountsSummary(state.google.accounts), dense = true, onClick = { open(BackupSheet.ACCOUNTS, true) })
+        PlaceRows(if (g) googleView else settings, gallery.albums, dense = true) { open(it, g) }
         if (!g) {
             // Kept from the old layout: the line in the family's queue, if this phone must wait.
             backup.queuePlace.takeIf { it >= 2 }?.let {

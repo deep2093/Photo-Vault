@@ -100,11 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-15-8"
+    const val ID = "2026-11-16-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Try out: a new Backup layout", "Settings > About > New Backup layout: a ring card like Storage's (backed up, waiting, skipped; swipe between the family drive and Google Drive), one settings card, and warnings only when they need you. Turn it off to go back."),
-        Change(ChangeKind.CHANGED, "Compact lists removed", "The Compact lists switch is gone; Storage's lists stay as they were."),
+        Change(ChangeKind.FIXED, "Duplicates: the Move button stays in reach", "Move to Recently deleted now stays at the top while you scroll the groups. The folder and size under each photo line up."),
+        Change(ChangeKind.FIXED, "New Backup layout tidied", "Even gaps under the switch, shorter rows in the two settings cards, and the percentage sits in the middle of the ring."),
     )
 }
 

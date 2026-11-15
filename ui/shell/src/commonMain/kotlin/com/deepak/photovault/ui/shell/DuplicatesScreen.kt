@@ -117,6 +117,7 @@ class DuplicateState(val platform: DuplicatePlatform = object : DuplicatePlatfor
  * keep is marked; the rest are ticked to go. Untick any, tick the keeper of a group only if another stays. Moving
  * sends them to Recently deleted (30 days), so nothing is lost straight away.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DuplicatesScreen(state: ShellState, gallery: GalleryState, actions: MediaActions) {
     val theme = LocalGlassTheme.current
@@ -192,21 +193,8 @@ fun DuplicatesScreen(state: ShellState, gallery: GalleryState, actions: MediaAct
                 }
             }
         }
-        if (p == null) {
-            shown.forEach { g ->
-                item(key = "g-${g.kind}-${g.keep}") { GroupCard(g, byId, dup, zone, onRefused = { toast("Keep at least one photo of each group.") }) }
-            }
-            if (shown.isEmpty() && groups.isNotEmpty()) {
-                item(key = "none") {
-                    Text(
-                        if (exact) "No exact copies." else "No similar photos.",
-                        color = theme.onWallpaper,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.cardWidth().padding(8.dp),
-                    )
-                }
-            }
-            if (chosen.isNotEmpty()) item(key = "go") {
+        // Stays at the top while the groups scroll (16 Nov), so it is always in reach.
+        if (p == null && chosen.isNotEmpty()) stickyHeader(key = "go") {
                 GlassButton(
                     "Move ${LibraryCounts.grouped(chosen.size)} to Recently deleted",
                     icon = Icons.Rounded.Delete,
@@ -223,6 +211,20 @@ fun DuplicatesScreen(state: ShellState, gallery: GalleryState, actions: MediaAct
                         }
                     },
                 )
+            }
+        if (p == null) {
+            shown.forEach { g ->
+                item(key = "g-${g.kind}-${g.keep}") { GroupCard(g, byId, dup, zone, onRefused = { toast("Keep at least one photo of each group.") }) }
+            }
+            if (shown.isEmpty() && groups.isNotEmpty()) {
+                item(key = "none") {
+                    Text(
+                        if (exact) "No exact copies." else "No similar photos.",
+                        color = theme.onWallpaper,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.cardWidth().padding(8.dp),
+                    )
+                }
             }
         }
     }
@@ -266,7 +268,7 @@ private fun GroupCard(
             items.forEach { item ->
                 val picked = item.id in dup.remove
                 val shape = RoundedCornerShape(14.dp)
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.Start) {
                     Box(
                         Modifier
                             .size(84.dp)
