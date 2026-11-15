@@ -727,7 +727,7 @@ private fun RestoreDialog(
         },
     ) {
         Text(
-            "Brings back backed-up photos that aren't on this phone. They go to the \"Pixallery Restored\" album.",
+            "Brings back backed-up photos that aren't on this phone, each to the folder it came from.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
         )

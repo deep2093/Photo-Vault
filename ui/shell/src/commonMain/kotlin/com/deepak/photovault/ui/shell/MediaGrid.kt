@@ -123,6 +123,8 @@ fun MediaGrid(
     screenPadding: PaddingValues,
     onOpen: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
+    /** Which page this grid is on: each keeps its own pinch size, remembered after the app closes (15 Nov). */
+    gridKey: String = GRID_PHOTOS,
     tileLabel: TileLabel? = null,
     /** A face to circle on a tile (inside a person: which face matched, 5 Nov): left, top, width, height, 0 to 1. */
     tileMark: ((MediaItem) -> FloatArray?)? = null,
@@ -155,7 +157,7 @@ fun MediaGrid(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth.value.toInt()
         val maxColumns = AdaptiveLayout.maxColumns(width)
-        val columns = state.gridColumns?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
+        val columns = state.gridColumnsFor(gridKey)?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
         val currentColumns by rememberUpdatedState(columns)
         val currentMax by rememberUpdatedState(maxColumns)
         val tileDp = maxWidth / columns
@@ -299,7 +301,7 @@ fun MediaGrid(
                 .photoGridGestures(gridState, handler)
                 .pinchToZoom { zoomIn ->
                     val past = currentZoomOut
-                    if (!zoomIn && currentColumns >= currentMax && past != null) past() else state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax)
+                    if (!zoomIn && currentColumns >= currentMax && past != null) past() else state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax, gridKey)
                 },
         ) {
             header?.invoke(this)

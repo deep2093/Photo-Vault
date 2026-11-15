@@ -385,6 +385,7 @@ fun TagScreen(tag: String, state: ShellState, gallery: GalleryState, actions: Me
         } else {
             MediaGrid(
                 sections, state, gallery, padding,
+                gridKey = "memories",
                 onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
             )
         }

@@ -23,6 +23,8 @@ data class MediaItem(
     val albumId: String,
     val albumName: String,
     val mimeType: String,
+    /** The folder on the phone ("DCIM/Camera/"), Android's RELATIVE_PATH (15 Nov: restores go back to it). */
+    val folder: String? = null,
 ) {
     val isVideo: Boolean get() = type == MediaType.VIDEO
 }

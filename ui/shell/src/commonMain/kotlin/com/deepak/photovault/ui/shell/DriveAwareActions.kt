@@ -44,7 +44,7 @@ class DriveAwareActions(
         val paths = items.filter { it.isDriveOnly }.mapNotNull { DriveTimeline.pathOf(it.uri) }
         if (paths.isEmpty()) return phone.toast("Already on this phone.")
         backup.restoreSelected(paths)
-        phone.toast("Saving ${paths.size} to this phone (\"Restored\" album)...")
+        phone.toast("Saving ${paths.size} to this phone, back to their folders...")
     }
 
     override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) {

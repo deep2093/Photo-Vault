@@ -104,4 +104,21 @@ class ShellStateTest {
         state.updateAppearance { it.copy(themeId = "LIQUID_NIGHT", themeChosen = true) }
         assertEquals(GlassThemes.default, state.theme)
     }
+
+    @Test
+    fun eachPageRemembersItsOwnGridSize() {
+        val store = MemoryAppearanceStore()
+        val state = ShellState(store)
+        state.zoomGrid(+1, currentColumns = 4, maxColumns = 8, page = "album")
+        state.zoomGrid(-1, currentColumns = 4, maxColumns = 8, page = GRID_PHOTOS)
+        assertEquals(3, state.gridColumnsFor("album"))
+        assertEquals(5, state.gridColumnsFor(GRID_PHOTOS))
+        assertEquals(null, state.gridColumnsFor("search"))
+        state.albumSize = 4
+        // Saved: a new start of the app gets the same sizes.
+        val again = ShellState(store)
+        assertEquals(3, again.gridColumnsFor("album"))
+        assertEquals(5, again.gridColumns)
+        assertEquals(4, again.albumSize)
+    }
 }

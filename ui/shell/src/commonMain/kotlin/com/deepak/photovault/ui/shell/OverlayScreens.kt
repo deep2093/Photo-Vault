@@ -132,6 +132,7 @@ fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actio
         } else {
             MediaGrid(
                 sections, state, gallery, padding,
+                gridKey = "album",
                 onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
                 topButton = true,
                 header = {
@@ -320,6 +321,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
             // Opens in the viewer with Restore and Delete for good (23 Oct); long-press still selects.
             MediaGrid(
                 section, state, gallery, padding,
+                gridKey = "recently-deleted",
                 topButton = true,
                 header = {
                     item(key = "warning", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
@@ -413,6 +415,7 @@ fun SearchScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     ) { padding ->
         MediaGrid(
             sections, state, gallery, padding,
+            gridKey = "search",
             onOpen = { item ->
                 // A search that led to a photo is remembered (13 Nov), newest first, eight at most.
                 val q = query.trim()

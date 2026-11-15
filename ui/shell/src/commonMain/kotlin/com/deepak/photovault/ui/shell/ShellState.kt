@@ -80,7 +80,14 @@ data class AppearanceSettings(
     val notifyFeedback: Boolean = true,
     /** The last few things searched for, newest first (13 Nov), offered again in Search. Kept on the phone only. */
     val recentSearches: List<String> = emptyList(),
+    /** Each page's grid size from pinching (15 Nov), by page ("photos", "album", ...): columns. */
+    val gridSizes: Map<String, Int> = emptyMap(),
+    /** The Albums page's card size from pinching (15 Nov). */
+    val albumSize: Int = 2,
 )
+
+/** The Photos page's grid. */
+const val GRID_PHOTOS = "photos"
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
 interface AppearanceStore {
@@ -433,11 +440,18 @@ class ShellState(private val store: AppearanceStore) {
     var appearance by mutableStateOf(store.load())
         private set
 
-    /** Album card size chosen by pinching on Albums (index into its sizes; 2 = the usual). */
-    var albumSize by mutableStateOf(2)
+    /** Album card size chosen by pinching on Albums (index into its sizes; 2 = the usual). Remembered (15 Nov). */
+    var albumSize: Int
+        get() = appearance.albumSize
+        set(value) {
+            if (value != appearance.albumSize) updateAppearance { it.copy(albumSize = value) }
+        }
 
-    /** Photo grid columns chosen by pinching; null means "fit the screen". */
-    var gridColumns by mutableStateOf<Int?>(null)
+    /** A page's photo grid columns chosen by pinching (15 Nov: each page its own, remembered); null means "fit the screen". */
+    fun gridColumnsFor(page: String): Int? = appearance.gridSizes[page]
+
+    /** Photos' grid columns. */
+    val gridColumns: Int? get() = gridColumnsFor(GRID_PHOTOS)
 
     val theme: GlassTheme get() = if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default
 
@@ -489,8 +503,9 @@ class ShellState(private val store: AppearanceStore) {
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */
-    fun zoomGrid(step: Int, currentColumns: Int, maxColumns: Int) {
-        gridColumns = (currentColumns - step).coerceIn(AdaptiveLayout.MIN_COLUMNS, maxColumns)
+    fun zoomGrid(step: Int, currentColumns: Int, maxColumns: Int, page: String = GRID_PHOTOS) {
+        val columns = (currentColumns - step).coerceIn(AdaptiveLayout.MIN_COLUMNS, maxColumns)
+        if (appearance.gridSizes[page] != columns) updateAppearance { it.copy(gridSizes = it.gridSizes + (page to columns)) }
     }
 }
 

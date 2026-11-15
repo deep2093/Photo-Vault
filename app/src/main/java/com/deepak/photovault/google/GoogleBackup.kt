@@ -113,7 +113,8 @@ object GoogleBackup {
     fun cachedStorage(context: Context): List<com.deepak.photovault.ui.shell.GoogleUsage>? {
         val accounts = GoogleAccounts.list(context)
         if (accounts.isEmpty()) return emptyList()
-        val lists = accounts.map { it to cachedRecords(context, it) }
+        val hide = pendingDeletes(context)
+        val lists = accounts.map { email -> email to cachedRecords(context, email)?.filterNot { it.drivePath in hide } }
         if (lists.all { it.second == null }) return null
         return lists.map { (email, records) ->
             val (used, limit) = GoogleAccounts.space(context, email)
@@ -127,8 +128,62 @@ object GoogleBackup {
         runCatching { recordsFile(context, email).delete() }
     }
 
-    /** One account's records, with timeline paths ("gdrive/<account>/users/me/..."); null when never read. */
+    // ---- Deleting in the background (15 Nov) ----
+    // A delete takes the photos off every list at once and is written in a small file on the phone; a background job
+    // then removes them from Google, trying again (when the app opens, or whenever Android runs it) until it works.
+
+    private fun deleteQueue(context: Context) = java.io.File(context.applicationContext.filesDir, "backup/google-delete-queue.txt")
+    private val queueLock = Any()
+
+    /** Photos (timeline paths) waiting to be deleted from Google: hidden from every list meanwhile. */
+    fun pendingDeletes(context: Context): Set<String> = synchronized(queueLock) {
+        val f = deleteQueue(context)
+        if (!f.exists()) emptySet() else f.readLines().filter { it.isNotBlank() }.toSet()
+    }
+
+    private fun writeQueue(context: Context, paths: Set<String>) = synchronized(queueLock) {
+        val f = deleteQueue(context)
+        f.parentFile?.mkdirs()
+        if (paths.isEmpty()) f.delete() else f.writeText(paths.joinToString("\n"))
+    }
+
+    /** Takes [paths] off the lists now and deletes them from Google in the background. */
+    fun deleteLater(context: Context, paths: Set<String>) {
+        if (paths.isEmpty()) return
+        synchronized(queueLock) { writeQueue(context, pendingDeletes(context) + paths) }
+        startDeleting(context)
+    }
+
+    /** Runs the waiting deletes once there's internet; kept until they're done. */
+    fun startDeleting(context: Context) {
+        if (pendingDeletes(context).isEmpty()) return
+        val request = OneTimeWorkRequestBuilder<GoogleDeleteWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(DELETE_WORK, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+    }
+
+    /** Deletes what is waiting; true when nothing is left. */
+    internal suspend fun runDeletes(context: Context): Boolean {
+        val waiting = pendingDeletes(context)
+        if (waiting.isEmpty()) return true
+        val error = deleteBackups(context, waiting)
+        if (error != null) return false
+        synchronized(queueLock) { writeQueue(context, pendingDeletes(context) - waiting) }
+        return pendingDeletes(context).isEmpty()
+    }
+
+    private const val DELETE_WORK = "google_delete"
+
+    /** One account's records without the ones waiting to be deleted: what every list shows. */
     suspend fun accountRecords(context: Context, email: String): List<BackupRecord>? {
+        val hide = pendingDeletes(context)
+        return rawRecords(context, email)?.let { list -> if (hide.isEmpty()) list else list.filterNot { it.drivePath in hide } }
+    }
+
+    /** One account's records, with timeline paths ("gdrive/<account>/users/me/..."); null when never read. */
+    private suspend fun rawRecords(context: Context, email: String): List<BackupRecord>? {
         val fs = GoogleAccounts.fs(context, email)
         val vaults = vaults(context)
         return try {
@@ -192,7 +247,7 @@ object GoogleBackup {
             for ((email, inner) in byAccount) {
                 val wanted = inner.toSet()
                 val prefix = PATH_PREFIX + GoogleAccounts.slug(email) + "/"
-                val known = (cachedRecords(context, email) ?: accountRecords(context, email)).orEmpty()
+                val known = (cachedRecords(context, email) ?: rawRecords(context, email)).orEmpty()
                 val records = known.filter { it.drivePath.removePrefix(prefix) in wanted }.map { it.copy(drivePath = it.drivePath.removePrefix(prefix)) }
                 if (records.isEmpty()) continue
                 BackupCatalog(GoogleAccounts.fs(context, email), USER, privateVault(context)).remove(records, deviceId, System.currentTimeMillis())
@@ -254,7 +309,7 @@ object GoogleBackup {
         return when {
             total == 0 && problem == null -> "Those are already on this phone."
             else -> buildString {
-                append("Restored $restored of $total to the \"${com.deepak.photovault.backup.AndroidMediaWriter.RESTORED_FOLDER}\" album.")
+                append("Restored $restored of $total, back to their folders.")
                 problem?.let { append(" ").append(it) }
             }
         }
@@ -490,6 +545,8 @@ object GoogleBackup {
     fun ensure(context: Context) {
         val app = context.applicationContext
         scope.launch {
+            // Deletes left from last time (the app was closed before they finished).
+            runCatching { startDeleting(app) }
             runCatching {
                 if (status.value.lastAtMillis == null) {
                     prefs(app).getLong(KEY_LAST, 0L).takeIf { it > 0 }?.let { status.value = status.value.copy(lastAtMillis = it) }
@@ -610,4 +667,11 @@ class GoogleBackupWorker(context: Context, params: WorkerParameters) : Coroutine
         if (!manual) runCatching { GoogleBackup.scheduleNext(applicationContext, exceptId = id) }
         Result.success()
     }
+}
+
+/** Deletes photos from Google Drive in the background (15 Nov); tries again later if Google can't be reached. */
+class GoogleDeleteWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result =
+        if (runCatching { GoogleBackup.runDeletes(applicationContext) }.getOrDefault(false)) Result.success()
+        else if (runAttemptCount < 20) Result.retry() else Result.failure()
 }

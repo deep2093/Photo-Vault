@@ -31,6 +31,8 @@ data class BackupRecord(
      */
     val latitude: Double? = null,
     val longitude: Double? = null,
+    /** The phone folder it came from ("DCIM/Camera/"), so a restore puts it back there (15 Nov; older ones: null). */
+    val folder: String? = null,
 ) {
     val fileName: String get() = if (encrypted) originalName else drivePath.substringAfterLast('/')
 }

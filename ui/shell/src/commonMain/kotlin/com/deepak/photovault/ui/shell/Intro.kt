@@ -100,14 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-15-1"
+    const val ID = "2026-11-15-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Delete Google-only photos from Photos", "Photos that are only on Google Drive can now be deleted from the timeline. A popup asks first, because they're deleted for good."),
-        Change(ChangeKind.NEW, "Restore from Google Drive", "Backup > Restore to this phone now also brings back photos from Google Drive."),
-        Change(ChangeKind.CHANGED, "Storage > Google Drive opens at once", "It shows last time's numbers straight away and says \"Checking Google Drive for new photos\" while it updates."),
-        Change(ChangeKind.CHANGED, "Clearer tick when picking photos", "Picked photos show a bright blue circle with a white tick; unpicked ones a white ring."),
-        Change(ChangeKind.FIXED, "Finding the drive after it changes address", "When the drive gets a new address on the home Wi-Fi, Pixallery now also tries the addresses right next to the old one and checks it's really your drive before signing in."),
+        Change(ChangeKind.CHANGED, "Restores go back to their folders", "Restored photos now go back to the folder they came from instead of \"Pixallery Restored\". Older backups go to a folder of their album's name."),
+        Change(ChangeKind.CHANGED, "Each page remembers its grid size", "Pinch to a size on Photos, an album, Search or any other page, and it stays that size, even after closing the app."),
+        Change(ChangeKind.FIXED, "Deleting Google Drive photos", "Photos only on Google Drive now leave Photos the moment you delete them, and are removed from Google in the background, even if you close the app."),
     )
 }
 

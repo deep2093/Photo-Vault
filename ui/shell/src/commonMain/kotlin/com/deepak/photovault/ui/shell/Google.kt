@@ -78,8 +78,11 @@ interface GooglePlatform {
     /** What Storage showed last time, kept on the phone (15 Nov); null when nothing was kept yet. */
     suspend fun cachedStorage(): List<GoogleUsage>? = null
 
-    /** Deletes these backups (timeline paths) from Google Drive. Null when it worked, else the problem in plain words. */
-    suspend fun deleteBackups(paths: Set<String>): String? = "Not available here."
+    /**
+     * Deletes these backups (timeline paths) from Google Drive in the background (15 Nov): written down on the phone
+     * at once, then done when there's internet, trying again until it works. Hidden from every list meanwhile.
+     */
+    fun deleteLater(paths: Set<String>) = Unit
 }
 
 /**
@@ -171,18 +174,21 @@ class GoogleState(val platform: GooglePlatform = object : GooglePlatform {}) {
         }
     }
 
-    /** Deletes backups from Google Drive and takes them off the lists at once (14 Nov). */
-    suspend fun deleteBackups(paths: Set<String>): String? {
-        val error = platform.deleteBackups(paths)
-        if (error == null) {
-            records = records?.filterNot { it.drivePath in paths }
-            usage = usage?.map { u ->
-                val gone = u.records.filter { it.drivePath in paths }
-                if (gone.isEmpty()) u else GoogleUsage.of(u.email, u.limitBytes, u.usedBytes?.let { (it - gone.sumOf { r -> r.sizeBytes }).coerceAtLeast(0L) }, u.records - gone.toSet())
-            }
-            keys = runCatching { platform.keys() }.getOrDefault(keys)
+    /**
+     * Deletes backups from Google Drive (15 Nov): off every list at once, so the timeline and Storage update straight
+     * away; the phone then deletes them from Google in the background, even if the app is closed first.
+     */
+    fun deleteBackups(paths: Set<String>): String? {
+        if (paths.isEmpty()) return null
+        val goneKeys = records.orEmpty().filter { it.drivePath in paths }.map { it.key }.toSet()
+        records = records?.filterNot { it.drivePath in paths }
+        usage = usage?.map { u ->
+            val gone = u.records.filter { it.drivePath in paths }
+            if (gone.isEmpty()) u else GoogleUsage.of(u.email, u.limitBytes, u.usedBytes?.let { (it - gone.sumOf { r -> r.sizeBytes }).coerceAtLeast(0L) }, u.records - gone.toSet())
         }
-        return error
+        keys = keys - goneKeys
+        platform.deleteLater(paths)
+        return null
     }
 
     /** Photos only on Google waiting for "Delete from Google Drive?" (15 Nov), and what to do after. */
@@ -200,8 +206,8 @@ class GoogleState(val platform: GooglePlatform = object : GooglePlatform {}) {
         p.second(false)
     }
 
-    /** Null when deleted, else the problem. */
-    suspend fun confirmDelete(): String? {
+    /** Takes them off the lists at once; Google is told in the background (15 Nov). Null when done, else the problem. */
+    fun confirmDelete(): String? {
         val (paths, done) = pendingDelete ?: return null
         pendingDelete = null
         val error = deleteBackups(paths)
@@ -279,7 +285,6 @@ internal fun GoogleFullPopup(state: ShellState, backup: BackupState) {
 internal fun GoogleDeletePopup(state: ShellState) {
     val google = state.google
     val pending = google.pendingDelete ?: return
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val toast = LocalToast.current
     val n = pending.first.size
     ConfirmDialog(
@@ -289,9 +294,7 @@ internal fun GoogleDeletePopup(state: ShellState) {
         confirm = "Delete",
         onDismiss = { google.cancelDelete() },
     ) {
-        scope.launch {
-            val error = google.confirmDelete()
-            toast(error ?: "Deleted from Google Drive.")
-        }
+        // Nothing to wait for: gone from the timeline now, deleted from Google in the background.
+        google.confirmDelete()?.let(toast)
     }
 }

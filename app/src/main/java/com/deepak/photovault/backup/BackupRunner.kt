@@ -385,7 +385,7 @@ class BackupRunner(
                 onProgress(done, total)
             }
             return buildString {
-                append("Restored ${result.restored} of ${missing.size} to the \"${AndroidMediaWriter.RESTORED_FOLDER}\" album.")
+                append("Restored ${result.restored} of ${missing.size}, back to their folders.")
                 result.failure?.let { append(" ").append(it.message) }
             }
         }

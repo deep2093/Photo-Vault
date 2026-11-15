@@ -921,6 +921,12 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         notifyFamily = prefs.getBoolean(NotifyPrefs.FAMILY, true),
         notifyFeedback = prefs.getBoolean(NotifyPrefs.FEEDBACK, true),
         recentSearches = prefs.getString("recent_searches", null).orEmpty().split('\n').filter { it.isNotBlank() },
+        gridSizes = prefs.getString("grid_sizes", null).orEmpty().split('\n').mapNotNull { line ->
+            val k = line.substringBefore('=', "")
+            val v = line.substringAfter('=', "").toIntOrNull()
+            if (k.isEmpty() || v == null) null else k to v
+        }.toMap(),
+        albumSize = prefs.getInt("album_size", 2),
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -941,6 +947,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean(NotifyPrefs.FAMILY, settings.notifyFamily)
             .putBoolean(NotifyPrefs.FEEDBACK, settings.notifyFeedback)
             .putString("recent_searches", settings.recentSearches.joinToString("\n"))
+            .putString("grid_sizes", settings.gridSizes.entries.joinToString("\n") { "${it.key}=${it.value}" })
+            .putInt("album_size", settings.albumSize)
             .apply()
     }
 }

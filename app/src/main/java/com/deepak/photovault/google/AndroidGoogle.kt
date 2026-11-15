@@ -127,7 +127,7 @@ class AndroidGoogle(
 
     override suspend fun storage(): List<com.deepak.photovault.ui.shell.GoogleUsage> = GoogleBackup.storage(app)
 
-    override suspend fun deleteBackups(paths: Set<String>): String? = GoogleBackup.deleteBackups(app, paths)
+    override fun deleteLater(paths: Set<String>) = GoogleBackup.deleteLater(app, paths)
 
     override suspend fun missingOnPhone(): List<String>? = GoogleBackup.missingOnPhone(app)
 

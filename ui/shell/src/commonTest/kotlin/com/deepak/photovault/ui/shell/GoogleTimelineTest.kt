@@ -67,13 +67,13 @@ class GoogleTimelineTest {
             override val supported = true
             override suspend fun accounts() = listOf(GoogleAccount("a@x.com", 5 * gb, 15 * gb))
             override suspend fun storage() = listOf(GoogleUsage.of("a@x.com", 15 * gb, 5 * gb, listOf(keep, gone)))
-            override suspend fun keys() = setOf("k")
-            override suspend fun deleteBackups(paths: Set<String>): String? {
+            override suspend fun keys() = setOf("k", "g")
+            override fun deleteLater(paths: Set<String>) {
                 asked += paths
-                return null
             }
         }
         val google = GoogleState(platform)
+        google.refresh(readRecords = false)
         google.loadUsage()
         assertEquals(2, google.records!!.size)
         assertNull(google.deleteBackups(setOf(gone.drivePath)))
@@ -82,6 +82,7 @@ class GoogleTimelineTest {
         val u = google.usage!!.single()
         assertEquals(1, u.photos)
         assertEquals(3 * gb, u.usedBytes)
+        // Its key is gone at once too, so it isn't marked backed up while Google is still being told.
         assertEquals(setOf("k"), google.keys)
     }
 }

@@ -65,7 +65,7 @@ fun CoverPickerScreen(page: Overlay.CoverPicker, state: ShellState, gallery: Gal
             }
         },
     ) { padding ->
-        MediaGrid(sections, state, gallery, padding, onOpen = { state.toggleSelected(it.id) })
+        MediaGrid(sections, state, gallery, padding, onOpen = { state.toggleSelected(it.id) }, gridKey = "cover")
     }
 }
 

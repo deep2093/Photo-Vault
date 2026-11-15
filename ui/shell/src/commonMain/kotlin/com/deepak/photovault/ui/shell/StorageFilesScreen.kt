@@ -164,7 +164,7 @@ fun StorageFilesScreen(
             if (page.onDrive) {
                 GlassIconButton(Icons.Rounded.Download, "Save to phone", onClick = {
                     backup.restoreSelected(chosen.map { it.ref })
-                    message = "Saving ${LibraryCounts.grouped(chosen.size)} to the phone's \"Restored\" album. Ones already on the phone are skipped."
+                    message = "Saving ${LibraryCounts.grouped(chosen.size)} to the phone, back to their folders. Ones already on the phone are skipped."
                     state.filesSelected = emptySet()
                 })
                 GlassIconButton(Icons.Rounded.DeleteForever, if (page.google) "Delete from Google Drive" else "Delete from drive", modifier = Modifier.trackSpot(bin), onClick = { confirmDelete = true })
@@ -347,7 +347,6 @@ fun StorageFilesScreen(
             flight.prepare(flying)
             scope.launch {
                 if (page.google) {
-                    message = "Deleting from Google Drive…"
                     val error = state.google.deleteBackups(paths)
                     if (error == null) {
                         flight.launch(flying, bin.bounds)

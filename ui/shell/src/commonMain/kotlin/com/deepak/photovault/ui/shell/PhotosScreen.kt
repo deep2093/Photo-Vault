@@ -191,6 +191,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             state = state,
                             gallery = gallery,
                             screenPadding = padding,
+                            gridKey = GRID_PHOTOS,
                             onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
                             jumpTo = gallery.jumpTo,
                             onJumped = { gallery.jumpTo = null },
