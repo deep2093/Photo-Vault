@@ -36,6 +36,10 @@ class DeletePrompt {
     /** Move [items] to Recently deleted ("the bin"), asking first. [onDone] gets whether they went. */
     fun trash(actions: MediaActions, items: List<MediaItem>, onDone: (Boolean) -> Unit) {
         if (items.isEmpty()) return
+        // Only on Google Drive (15 Nov): there is no bin for those; Google's own "delete for good?" popup asks instead.
+        if (items.all { com.deepak.photovault.core.backup.DriveTimeline.pathOf(it.uri)?.let(::isGooglePath) == true }) {
+            return actions.moveToRecentlyDeleted(items, onDone)
+        }
         ask(actions, DeleteText.trash(items), DeleteText.trashBody(items.size), "Move to bin", onDone) {
             actions.moveToRecentlyDeleted(items, onDone)
         }

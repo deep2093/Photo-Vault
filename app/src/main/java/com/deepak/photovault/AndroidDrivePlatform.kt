@@ -96,23 +96,31 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
      * network, so the sign-in is never offered to servers on someone else's Wi-Fi.
      */
     private suspend fun openChecked(connection: DriveConnection): SmbDriveFileSystem {
+        val known = prefs.getString(KEY_SERVER_ID, null)
         val first = try {
-            return tryOpen(connection).also { fs -> fs.serverId?.let { prefs.edit().putString(KEY_SERVER_ID, it).apply() } }
+            // 15 Nov: the saved address is checked against the drive's own ID before signing in, so a different
+            // device that took the drive's old address is never signed in to, and counts as "the drive moved".
+            return tryOpen(connection, expectedServerId = known).also { fs -> fs.serverId?.let { prefs.edit().putString(KEY_SERVER_ID, it).apply() } }
         } catch (e: Throwable) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             e
         }
         val saved = connection.host.trim()
-        // Only a drive we have met before is looked for, by its own ID, so no other server is ever signed in to.
-        val known = prefs.getString(KEY_SERVER_ID, null) ?: throw first
-        if (!SmbErrors.isUnreachable(first) || !isIpv4(saved) || !onSameNetwork(saved)) throw first
+        val wrongServer = generateSequence(first) { it.cause }.any { it is com.deepak.photovault.core.smb.SmbWrongServerException }
+        if (!(wrongServer || SmbErrors.isUnreachable(first)) || !isIpv4(saved) || !onSameNetwork(saved)) throw first
+        // Servers answering on the home network, nearest first; the next few addresses either side are always tried
+        // too, even if the quick search missed them (15 Nov: the drive moved .249 -> .250 and wasn't found).
         val found = runCatching { LanDiscovery.around(context, saved) }.getOrDefault(emptyList())
-        for (host in SmbErrors.nearbyFirst(saved, found).take(MAX_TRIES)) {
+        val candidates = (SmbErrors.nearbyFirst(saved, found).take(MAX_TRIES) + SmbErrors.neighbours(saved, NEIGHBOURS)).distinct()
+        val household = rememberedHousehold()?.householdId
+        for (host in candidates) {
             val moved = connection.copy(host = host)
             val fs = try {
+                // A drive met before is matched by its own ID before signing in. Without one (older setups), only a
+                // server on the home network whose share has this family's own folder is accepted.
                 tryOpen(moved, expectedServerId = known).also { fs ->
-                    // The family's own folder must be there, or it isn't our drive.
-                    if (!fs.exists(HouseholdStore.HOUSEHOLD_DIR)) {
+                    val ours = if (household != null) fs.exists(HouseholdStore.HOUSEHOLD_DIR) && familyMatches(fs, household) else fs.exists(HouseholdStore.HOUSEHOLD_DIR)
+                    if (!ours) {
                         fs.close()
                         throw IllegalStateException("Not the family drive")
                     }
@@ -122,10 +130,17 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
                 continue
             }
             saveConnection(moved)
+            fs.serverId?.let { prefs.edit().putString(KEY_SERVER_ID, it).apply() }
             return fs
         }
         throw first
     }
+
+    /** The drive holds this family (its household file names the same family), not just any Pixallery family. */
+    private suspend fun familyMatches(fs: SmbDriveFileSystem, householdId: String): Boolean = runCatching {
+        val h = HouseholdStore(fs) { System.currentTimeMillis() }.load()
+        h == null || h.householdId == householdId
+    }.getOrDefault(true)
 
     private suspend fun tryOpen(connection: DriveConnection, expectedServerId: String? = null): SmbDriveFileSystem {
         val fs = SmbDriveFileSystem(profileOf(connection).copy(expectedServerId = expectedServerId), connection.folder.trim().trim('/'))
@@ -252,5 +267,7 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
 
         /** At most this many other addresses are tried before giving up. */
         const val MAX_TRIES = 6
+        /** Addresses either side of the saved one always tried when it stops answering. */
+        const val NEIGHBOURS = 3
     }
 }

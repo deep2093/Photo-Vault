@@ -452,6 +452,13 @@ class DriveState(private val platform: DrivePlatform) {
         }.getOrNull()
     }
 
+    /** The drive was read and has no recovery file for this person (15 Nov). False when the drive can't be reached. */
+    suspend fun keyFilesMissing(): Boolean {
+        val who = joined?.me?.userId ?: return false
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return false
+        return runCatching { !fs.exists("${keysFolder(who)}/recovery-v1.bin") }.getOrDefault(false)
+    }
+
     /** Writes the person's recovery file and public identity. Never replaces what is there. Returns a problem, or null. */
     suspend fun publishKeys(recovery: ByteArray, identity: String): String? = guarded {
         val me = joined?.me?.userId ?: throw NotAllowed("Join the family first")

@@ -8,6 +8,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
@@ -61,7 +62,7 @@ private val CHART = listOf(
     Color(0xFF3949AB), Color(0xFF1E88E5), Color(0xFF00897B), Color(0xFF7CB342),
 )
 
-private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Drive") }
+private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Drive"), GOOGLE("Google Drive") }
 
 /**
  * Settings > Storage (24 Oct, after the screenshot Deepak shared): phone or drive, each with how full it is, a ring
@@ -71,7 +72,22 @@ private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Dri
 internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: DriveState, actions: MediaActions, startOnDrive: Boolean = false) {
     val theme = LocalGlassTheme.current
     // Remembered across the pages opened from here, so Back returns to the tab you were on.
-    val source = if (state.storageOnDrive ?: startOnDrive) StorageSource.DRIVE else StorageSource.PHONE
+    // Only places that are set up get a button (14 Nov): the family drive once this phone is in a family, Google once
+    // an account is added. With just the phone there are no buttons at all.
+    val googleOn = state.google.platform.supported && state.google.accounts.isNotEmpty()
+    val driveOn = drive.joined != null
+    val source = when {
+        state.storageOnGoogle && googleOn -> StorageSource.GOOGLE
+        (state.storageOnDrive ?: startOnDrive) && driveOn -> StorageSource.DRIVE
+        else -> StorageSource.PHONE
+    }
+    val sources = StorageSource.entries.filter {
+        when (it) {
+            StorageSource.PHONE -> true
+            StorageSource.DRIVE -> driveOn
+            StorageSource.GOOGLE -> googleOn
+        }
+    }
     val zone = remember { TimeZone.currentSystemDefault() }
     // Only what is on this phone: photos that are only on the drive don't take phone space.
     val phoneFiles = remember(gallery.items) { StorageStats.fromPhone(gallery.items.filterNot { it.isDriveOnly }) }
@@ -93,16 +109,22 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     }
     val driveLoading = drive.backupRecordsLoading && records == null
     // Every part of a chart opens the files behind it (23 Oct).
-    fun open(onDrive: Boolean) = { title: String, files: List<StoredFile> ->
-        if (files.isNotEmpty()) state.open(Overlay.StorageFiles(title, onDrive, files.map { it.ref }))
+    fun open(onDrive: Boolean, google: Boolean = false) = { title: String, files: List<StoredFile> ->
+        if (files.isNotEmpty()) state.open(Overlay.StorageFiles(title, onDrive, files.map { it.ref }, google))
     }
     var cacheVersion by remember { mutableStateOf(0) }
     var showCache by remember { mutableStateOf(false) }
     Column(Modifier.pageWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StorageSource.entries.forEach { s -> GlassChip(s.label, selected = source == s, onClick = { state.storageOnDrive = s == StorageSource.DRIVE }) }
+        if (sources.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            sources.forEach { s ->
+                GlassChip(s.label, selected = source == s, onClick = {
+                    state.storageOnDrive = s == StorageSource.DRIVE
+                    state.storageOnGoogle = s == StorageSource.GOOGLE
+                })
+            }
         }
         when (source) {
+            StorageSource.GOOGLE -> GoogleStorage(state, zone, open(true, google = true))
             StorageSource.PHONE -> {
                 val phone = remember { actions.phoneStorage() }
                 val media = phoneFiles.sumOf { it.bytes }
@@ -237,6 +259,157 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
 }
 
 
+/**
+ * Settings > Storage > Google Drive (14 Nov, option A): All or one account at the top; a ring of Pixallery's photos,
+ * its videos, everything else in Google (Gmail, Google Photos, other files: Google only says the total) and free;
+ * with more than one account, each account's bar (tap one to see just it); then types, years and albums like the drive.
+ */
+@Composable
+private fun GoogleStorage(state: ShellState, zone: TimeZone, onOpen: (String, List<StoredFile>) -> Unit) {
+    val theme = LocalGlassTheme.current
+    val google = state.google
+    // Last time's numbers at once (kept on the phone), then a fresh check with Google each time the tab opens.
+    LaunchedEffect(google.accounts.size) {
+        google.loadCached()
+        google.loadUsage()
+    }
+    val usage = google.usage
+    if (usage == null) {
+        GlassCard(Modifier.fillMaxWidth()) {
+            SectionHeader("Google Drive")
+            com.deepak.photovault.designsystem.SkeletonRows(3, label = "Reading Google Drive")
+        }
+        return
+    }
+    if (usage.isEmpty()) {
+        com.deepak.photovault.designsystem.EmptyCard(
+            Icons.Rounded.CloudUpload,
+            "No Google account yet",
+            "Add one in Backup to keep a copy of your photos in Google Drive.",
+            Modifier.fillMaxWidth(),
+        ) { GlassButton("Open Backup", primary = true, onClick = { state.open(Overlay.Backup) }) }
+        return
+    }
+    val chosenEmail = state.storageGoogleAccount?.takeIf { e -> usage.any { it.email == e } }
+    val view = chosenEmail?.let { e -> usage.first { it.email == e } } ?: GoogleUsage.all(usage)
+    val files = remember(view) {
+        view.records.map { r -> StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album ?: "Not on this phone", r.drivePath, r.isVideo) }
+    }
+    if (usage.size > 1) {
+        Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlassChip("All", selected = chosenEmail == null, onClick = { state.storageGoogleAccount = null })
+            usage.forEach { u -> GlassChip(u.email.substringBefore('@'), selected = chosenEmail == u.email, onClick = { state.storageGoogleAccount = u.email }) }
+        }
+    }
+    // Tells the person it is checking (15 Nov), while the last numbers stay on screen.
+    androidx.compose.animation.AnimatedVisibility(
+        visible = google.usageLoading,
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = theme.onGlassSecondary, strokeWidth = 2.dp)
+            Spacer(Modifier.width(8.dp))
+            Text("Checking Google Drive for new photos…", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    val photos = files.filterNot { it.isVideo }
+    val videos = files.filter { it.isVideo }
+    SpaceCard(
+        if (chosenEmail != null) chosenEmail else if (usage.size > 1) "All Google accounts" else usage.first().email,
+        listOf(
+            StorageSlice("Pixallery photos", view.photoBytes, view.photos),
+            StorageSlice("Pixallery videos", view.videoBytes, view.videos),
+            StorageSlice("Gmail, Google Photos and other files", view.otherBytes, 0),
+            StorageSlice("Free", view.freeBytes ?: 0L, 0),
+        ),
+        when {
+            view.limitBytes == null -> "Google hasn't said how big this account is yet."
+            chosenEmail == null && usage.size > 1 -> "${DetailsFormat.size(view.freeBytes ?: 0L)} free of ${DetailsFormat.size(view.limitBytes)} across ${usage.size} accounts"
+            else -> "${DetailsFormat.size(view.freeBytes ?: 0L)} free of ${DetailsFormat.size(view.limitBytes)}"
+        },
+        canOpen = { i, sl -> i <= 1 && sl.count > 0 },
+        onOpen = { i ->
+            when (i) {
+                0 -> onOpen("Photos on Google", photos)
+                1 -> onOpen("Videos on Google", videos)
+            }
+        },
+    )
+    // Each account's bar under All, filled in the order they were added.
+    if (chosenEmail == null && usage.size > 1) {
+        GlassCard(Modifier.fillMaxWidth()) {
+            SectionHeader("Accounts")
+            Text("Filled in this order: when one is full, the next is used.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+            usage.forEach { u ->
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClickLabel = "Show ${u.email}") { state.storageGoogleAccount = u.email }
+                        .padding(vertical = 8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(u.email, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = theme.onGlassSecondary)
+                    }
+                    val limit = u.limitBytes ?: 0L
+                    SpaceBar(
+                        listOf(u.photoBytes, u.videoBytes, u.otherBytes),
+                        limit.coerceAtLeast(u.pixalleryBytes + u.otherBytes),
+                    )
+                    Text(
+                        listOfNotNull(
+                            "${LibraryCounts.grouped(u.photos + u.videos)} items · ${DetailsFormat.size(u.pixalleryBytes)}",
+                            u.freeBytes?.let { "${DetailsFormat.size(it)} free" },
+                        ).joinToString(" · "),
+                        color = theme.onGlassSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
+    val unread = if (chosenEmail != null) !view.listRead else usage.any { !it.listRead }
+    if (unread && !google.usageLoading) {
+        com.deepak.photovault.designsystem.WarningNote("Couldn't read the list of photos from Google just now. Check the internet; it tries again each time you open this.")
+    }
+    if (files.isEmpty() && unread) {
+        Unit
+    } else if (files.isEmpty()) {
+        com.deepak.photovault.designsystem.EmptyCard(
+            Icons.Rounded.CloudUpload,
+            "Nothing backed up yet",
+            "Photos you back up to Google Drive show here, by type, year and album.",
+            Modifier.fillMaxWidth(),
+        ) { GlassButton("Open Backup", primary = true, onClick = { state.open(Overlay.Backup) }) }
+    } else {
+        Breakdown(files, zone, onOpen, albumsTitle = "Backed-up albums")
+    }
+}
+
+/** One account's bar, in the same colours as the ring: photos, videos, the rest of Google; the empty part is free. */
+@Composable
+private fun SpaceBar(parts: List<Long>, total: Long) {
+    val theme = LocalGlassTheme.current
+    val sum = total.coerceAtLeast(1L)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .height(10.dp)
+            .clip(RoundedCornerShape(5.dp))
+            .background(theme.onGlass.copy(alpha = 0.10f)),
+    ) {
+        parts.forEachIndexed { i, b ->
+            val f = (b.toFloat() / sum).coerceIn(0f, 1f)
+            if (f > 0.002f) Box(Modifier.weight(f).height(10.dp).background(SPACE_COLORS[i % SPACE_COLORS.size]))
+        }
+        val rest = 1f - parts.sum().toFloat() / sum
+        if (rest > 0.002f) Spacer(Modifier.weight(rest))
+    }
+}
+
 /** File types as a ring, photos per year as bars, and the biggest albums. */
 @Composable
 private fun Breakdown(
@@ -319,11 +492,16 @@ private fun Donut(slices: List<StorageSlice>, modifier: Modifier, colors: List<C
     val reduceMotion = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
     val grow = remember { androidx.compose.animation.core.Animatable(if (reduceMotion) 1f else 0f) }
     // Starts empty and waits for the page to slide in and for the sizes to arrive, so the whole ring fills, not just the last slice.
-    LaunchedEffect(slices.map { it.bytes }) {
-        if (slices.isEmpty() || reduceMotion) return@LaunchedEffect
+    // Only the first time (14 Nov): new sizes arriving a moment later (read again from the drive or Google) no longer
+    // empty the ring and sweep it again, which looked like the numbers went away and came back.
+    var swept by remember { mutableStateOf(reduceMotion) }
+    val hasData = slices.any { it.bytes > 0 }
+    LaunchedEffect(hasData) {
+        if (!hasData || swept) return@LaunchedEffect
         grow.snapTo(0f)
         kotlinx.coroutines.delay(350)
         grow.animateTo(1f, androidx.compose.animation.core.tween(2000, easing = com.deepak.photovault.designsystem.PageEasing))
+        swept = true
     }
     val tap = if (onSlice == null) Modifier else Modifier.pointerInput(slices) {
         detectTapGestures { p ->

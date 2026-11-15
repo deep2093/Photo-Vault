@@ -38,6 +38,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -121,6 +123,8 @@ fun MediaGrid(
     screenPadding: PaddingValues,
     onOpen: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
+    /** Which page this grid is on: each keeps its own pinch size, remembered after the app closes (15 Nov). */
+    gridKey: String = GRID_PHOTOS,
     tileLabel: TileLabel? = null,
     /** A face to circle on a tile (inside a person: which face matched, 5 Nov): left, top, width, height, 0 to 1. */
     tileMark: ((MediaItem) -> FloatArray?)? = null,
@@ -153,7 +157,7 @@ fun MediaGrid(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth.value.toInt()
         val maxColumns = AdaptiveLayout.maxColumns(width)
-        val columns = state.gridColumns?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
+        val columns = state.gridColumnsFor(gridKey)?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
         val currentColumns by rememberUpdatedState(columns)
         val currentMax by rememberUpdatedState(maxColumns)
         val tileDp = maxWidth / columns
@@ -297,7 +301,7 @@ fun MediaGrid(
                 .photoGridGestures(gridState, handler)
                 .pinchToZoom { zoomIn ->
                     val past = currentZoomOut
-                    if (!zoomIn && currentColumns >= currentMax && past != null) past() else state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax)
+                    if (!zoomIn && currentColumns >= currentMax && past != null) past() else state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax, gridKey)
                 },
         ) {
             header?.invoke(this)
@@ -644,16 +648,29 @@ private fun PhotoTile(
             exit = fadeOut(motionSpec()) + scaleOut(motionSpec()),
             modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
         ) {
-            Box(
-                Modifier
-                    .size(22.dp)
-                    .clip(CircleShape)
-                    .background(if (selected) theme.accentSurface else Color.Black.copy(alpha = 0.35f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(22.dp))
-            }
+            SelectionMark(selected, 24.dp)
         }
+    }
+}
+
+/** Picked: a bright blue circle with a white tick and white ring (15 Nov: the dark tick was hard to see on photos). */
+internal val SelectedBlue = Color(0xFF1A73E8)
+
+/**
+ * The round mark on a photo while picking (15 Nov): picked is bright blue with a white tick; not picked is an empty
+ * white ring on a light shadow, so both show on dark and light photos in every theme.
+ */
+@Composable
+internal fun SelectionMark(selected: Boolean, size: androidx.compose.ui.unit.Dp = 24.dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (selected) SelectedBlue else Color.Black.copy(alpha = 0.25f))
+            .border(2.dp, Color.White, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) Icon(Icons.Rounded.Check, "Picked", tint = Color.White, modifier = Modifier.size(size * 0.7f))
     }
 }
 

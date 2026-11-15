@@ -80,7 +80,14 @@ data class AppearanceSettings(
     val notifyFeedback: Boolean = true,
     /** The last few things searched for, newest first (13 Nov), offered again in Search. Kept on the phone only. */
     val recentSearches: List<String> = emptyList(),
+    /** Each page's grid size from pinching (15 Nov), by page ("photos", "album", ...): columns. */
+    val gridSizes: Map<String, Int> = emptyMap(),
+    /** The Albums page's card size from pinching (15 Nov). */
+    val albumSize: Int = 2,
 )
+
+/** The Photos page's grid. */
+const val GRID_PHOTOS = "photos"
 
 /** Saves [AppearanceSettings]. Android uses SharedPreferences; the PC app uses Java preferences. */
 interface AppearanceStore {
@@ -134,7 +141,7 @@ sealed interface Overlay {
     /** Albums > menu > Hide albums: a switch for every album (31 Oct; replaced Settings > Albums). */
     data object HiddenAlbums : Overlay
 
-    data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>) : Overlay
+    data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>, val google: Boolean = false) : Overlay
 
     /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
     data class Viewer(val ids: List<Long>, val startId: Long, val trash: Boolean = false) : Overlay
@@ -169,6 +176,9 @@ sealed interface Overlay {
 
     /** Getting the private key back on a new phone with the 24 words. */
     data object RestoreKeys : Overlay
+
+    /** Private backup with Google only (14 Nov): make the key and lock a spare copy in Google with a PIN, or get it back. */
+    data object PinKey : Overlay
 }
 
 sealed interface AlbumKind {
@@ -350,6 +360,10 @@ class ShellState(private val store: AppearanceStore) {
     /** Settings > Storage remembers Phone or Drive while pages are opened on top (25 Oct). */
     var storageOnDrive: Boolean? by mutableStateOf(null)
 
+    /** Settings > Storage on Google Drive (14 Nov), and which account: null is All. */
+    var storageOnGoogle by mutableStateOf(false)
+    var storageGoogleAccount: String? by mutableStateOf(null)
+
     val canGoBack: Boolean get() = canStepBack || overlays.isNotEmpty() || selecting || detailsOpen || filesSelected.isNotEmpty() || albumsSelected.isNotEmpty() || albumsSelectMode
 
     /** Where each page was scrolled to when a photo was opened from it, so coming back lands in the same place (25 Oct). */
@@ -426,11 +440,18 @@ class ShellState(private val store: AppearanceStore) {
     var appearance by mutableStateOf(store.load())
         private set
 
-    /** Album card size chosen by pinching on Albums (index into its sizes; 2 = the usual). */
-    var albumSize by mutableStateOf(2)
+    /** Album card size chosen by pinching on Albums (index into its sizes; 2 = the usual). Remembered (15 Nov). */
+    var albumSize: Int
+        get() = appearance.albumSize
+        set(value) {
+            if (value != appearance.albumSize) updateAppearance { it.copy(albumSize = value) }
+        }
 
-    /** Photo grid columns chosen by pinching; null means "fit the screen". */
-    var gridColumns by mutableStateOf<Int?>(null)
+    /** A page's photo grid columns chosen by pinching (15 Nov: each page its own, remembered); null means "fit the screen". */
+    fun gridColumnsFor(page: String): Int? = appearance.gridSizes[page]
+
+    /** Photos' grid columns. */
+    val gridColumns: Int? get() = gridColumnsFor(GRID_PHOTOS)
 
     val theme: GlassTheme get() = if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default
 
@@ -461,6 +482,9 @@ class ShellState(private val store: AppearanceStore) {
     /** Living photos (Phase 7D). */
     var living: LivingState = LivingState()
 
+    /** Google Drive backup (Phase 10). */
+    var google: GoogleState = GoogleState()
+
     /** An invite another app opened in Pixallery, waiting for the join screen to take it. */
     var pendingInvite by mutableStateOf<String?>(null)
 
@@ -479,8 +503,9 @@ class ShellState(private val store: AppearanceStore) {
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */
-    fun zoomGrid(step: Int, currentColumns: Int, maxColumns: Int) {
-        gridColumns = (currentColumns - step).coerceIn(AdaptiveLayout.MIN_COLUMNS, maxColumns)
+    fun zoomGrid(step: Int, currentColumns: Int, maxColumns: Int, page: String = GRID_PHOTOS) {
+        val columns = (currentColumns - step).coerceIn(AdaptiveLayout.MIN_COLUMNS, maxColumns)
+        if (appearance.gridSizes[page] != columns) updateAppearance { it.copy(gridSizes = it.gridSizes + (page to columns)) }
     }
 }
 

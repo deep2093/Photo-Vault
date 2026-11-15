@@ -56,6 +56,15 @@ interface EncryptionPlatform {
     /** Offers the words to the phone's password manager (Samsung Pass, Google Password Manager...). It may decline. */
     fun saveWordsToPasswordManager(words: List<String>, onResult: (Boolean) -> Unit) = onResult(false)
 
+    /**
+     * Google only (14 Nov): makes a new key (kept back until [commitKey]) and returns it sealed under [pin], for the
+     * spare copy in the person's Google Drive. Slow on purpose (about a second).
+     */
+    fun createPinKey(pin: String): ByteArray? = null
+
+    /** Opens the spare copy from Google with the PIN and keeps the key on this phone. Null when it worked. */
+    fun restorePinKey(pin: String, envelope: ByteArray): String? = "Not available on this device."
+
     /** Forgets the key on this phone only. The drive's recovery file stays. */
     fun forgetKey() = Unit
 }

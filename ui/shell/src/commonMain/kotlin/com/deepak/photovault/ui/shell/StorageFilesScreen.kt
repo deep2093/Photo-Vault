@@ -116,20 +116,22 @@ fun StorageFilesScreen(
     val scope = rememberCoroutineScope()
     val flight = LocalDeleteFlight.current
     val prompt = LocalDeletePrompt.current
-    val files: List<StoredFile> = remember(page, gallery.items, drive.backupRecords) {
+    // Google Drive's own list (14 Nov), or the family drive's.
+    val records = if (page.google) state.google.records.orEmpty() else drive.backupRecords.orEmpty()
+    val files: List<StoredFile> = remember(page, gallery.items, records) {
         if (page.onDrive) {
-            val byPath = drive.backupRecords.orEmpty().associateBy { it.drivePath }
+            val byPath = records.associateBy { it.drivePath }
             page.refs.mapNotNull { path -> byPath[path]?.let { r -> StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album.orEmpty(), r.drivePath, r.isVideo) } }
         } else {
             StorageStats.fromPhone(page.refs.mapNotNull { it.toLongOrNull()?.let(gallery::find) })
         }
     }
     // Backups open full screen: the photo on this phone if it is still here, else the drive's copy (one timeline).
-    val openable: Map<String, Long> = remember(page, gallery.items, drive.backupRecords) {
+    val openable: Map<String, Long> = remember(page, gallery.items, records) {
         if (!page.onDrive) emptyMap() else {
             val byKey = gallery.items.associateBy { BackupSelection.key(it) }
             val byNameSize = gallery.items.associateBy { "${it.displayName}|${it.sizeBytes}" }
-            drive.backupRecords.orEmpty().mapNotNull { r ->
+            records.mapNotNull { r ->
                 val id = byKey[r.key]?.id ?: byNameSize["${r.fileName}|${r.sizeBytes}"]?.id
                     ?: DriveTimeline.idOf(r.drivePath).takeIf { gallery.find(it) != null }
                 id?.let { r.drivePath to it }
@@ -162,10 +164,10 @@ fun StorageFilesScreen(
             if (page.onDrive) {
                 GlassIconButton(Icons.Rounded.Download, "Save to phone", onClick = {
                     backup.restoreSelected(chosen.map { it.ref })
-                    message = "Saving ${LibraryCounts.grouped(chosen.size)} to the phone's \"Restored\" album. Ones already on the phone are skipped."
+                    message = "Saving ${LibraryCounts.grouped(chosen.size)} to the phone, back to their folders. Ones already on the phone are skipped."
                     state.filesSelected = emptySet()
                 })
-                GlassIconButton(Icons.Rounded.DeleteForever, "Delete from drive", modifier = Modifier.trackSpot(bin), onClick = { confirmDelete = true })
+                GlassIconButton(Icons.Rounded.DeleteForever, if (page.google) "Delete from Google Drive" else "Delete from drive", modifier = Modifier.trackSpot(bin), onClick = { confirmDelete = true })
             } else {
                 GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(chosen.mapNotNull { it.ref.toLongOrNull()?.let(gallery::find) }) })
                 GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
@@ -312,7 +314,8 @@ fun StorageFilesScreen(
             )
             }
         }
-        if (page.onDrive) PullToRefresh(padding, onRefresh = {
+        if (page.google) PullToRefresh(padding, onRefresh = { state.google.loadUsage() }, content = refreshList)
+        else if (page.onDrive) PullToRefresh(padding, onRefresh = {
             drive.refresh()
             if (drive.joined != null) {
                 drive.loadBackupRecords(force = true)
@@ -323,16 +326,17 @@ fun StorageFilesScreen(
 
     if (confirmDelete) {
         val bytes = chosen.sumOf { it.bytes }
+        val where = if (page.google) "Google Drive" else "the family drive"
         ConfirmDialog(
-            title = "Delete ${LibraryCounts.grouped(chosen.size)} from the drive?",
-            body = "These backups (${DetailsFormat.size(bytes)}) are removed from the family drive for good. Nothing on this phone is deleted. " +
+            title = "Delete ${LibraryCounts.grouped(chosen.size)} from ${if (page.google) "Google Drive" else "the drive"}?",
+            body = "These backups (${DetailsFormat.size(bytes)}) are removed from $where for good. Nothing on this phone is deleted. " +
                 "Any that are still on this phone will be backed up again next time, unless you delete them from the phone too.",
             confirm = "Delete",
             onDismiss = { confirmDelete = false },
         ) {
             confirmDelete = false
             val paths = chosen.map { it.ref }.toSet()
-            val keys = drive.backupRecords.orEmpty().filter { it.drivePath in paths }.map { it.key }.toSet()
+            val keys = records.filter { it.drivePath in paths }.map { it.key }.toSet()
             // The rows fly into the delete button like everywhere else (30 Oct).
             val flying = chosen.mapNotNull { f ->
                 thumbs[f.ref]?.let { rect ->
@@ -342,6 +346,17 @@ fun StorageFilesScreen(
             }
             flight.prepare(flying)
             scope.launch {
+                if (page.google) {
+                    val error = state.google.deleteBackups(paths)
+                    if (error == null) {
+                        flight.launch(flying, bin.bounds)
+                        state.filesSelected = emptySet()
+                        message = "Deleted ${LibraryCounts.grouped(paths.size)} from Google Drive."
+                    } else {
+                        message = error
+                    }
+                    return@launch
+                }
                 val error = drive.deleteBackups(paths)
                 if (error == null) {
                     flight.launch(flying, bin.bounds)
@@ -442,16 +457,7 @@ private fun FileRow(
             Text("$when_ · ${DetailsFormat.size(file.bytes)}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
         AnimatedVisibility(visible = selecting, enter = fadeIn(motionSpec()) + scaleIn(motionSpec()), exit = fadeOut(motionSpec()) + scaleOut(motionSpec())) {
-            Box(
-                Modifier
-                    .padding(start = 8.dp)
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(if (selected) theme.accentSurface else theme.onGlass.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(24.dp))
-            }
+            SelectionMark(selected, 24.dp, Modifier.padding(start = 8.dp))
         }
     }
 }

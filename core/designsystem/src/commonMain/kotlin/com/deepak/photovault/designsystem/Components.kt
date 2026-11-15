@@ -178,11 +178,19 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
     var widthPx by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
     val count = options.size.coerceAtLeast(1)
     val segment = widthPx / count
-    val offset by androidx.compose.animation.core.animateIntAsState(
-        segment * selectedIndex.coerceIn(0, count - 1),
-        motionSpec(),
-        label = "segment",
-    )
+    // The thumb starts on the chosen option and only slides when the choice changes (14 Nov): it used to slide in
+    // from the first option every time the control came back on screen (scrolled away and back).
+    val target = segment * selectedIndex.coerceIn(0, count - 1)
+    val slide = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    var placed by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val spec = motionSpec<Float>()
+    androidx.compose.runtime.LaunchedEffect(target, segment) {
+        if (segment <= 0) return@LaunchedEffect
+        if (placed) slide.animateTo(target.toFloat(), spec) else {
+            slide.snapTo(target.toFloat())
+            placed = true
+        }
+    }
     val thumbText = readableOn(theme.accent)
     Box(
         modifier
@@ -195,7 +203,7 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
                 if (segment > 0) {
                     drawRoundRect(
                         color = theme.accent,
-                        topLeft = androidx.compose.ui.geometry.Offset(offset.toFloat(), 0f),
+                        topLeft = androidx.compose.ui.geometry.Offset(if (placed) slide.value else target.toFloat(), 0f),
                         size = androidx.compose.ui.geometry.Size(segment.toFloat(), size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
                     )

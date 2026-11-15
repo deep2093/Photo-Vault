@@ -32,3 +32,12 @@ actual fun aesGcmOpen(key: ByteArray, nonce: ByteArray, sealed: ByteArray, aad: 
 } catch (_: java.security.GeneralSecurityException) {
     null
 }
+
+actual fun pbkdf2Sha256(password: CharArray, salt: ByteArray, iterations: Int, length: Int): ByteArray {
+    val spec = javax.crypto.spec.PBEKeySpec(password, salt, iterations, length * 8)
+    return try {
+        javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+    } finally {
+        spec.clearPassword()
+    }
+}

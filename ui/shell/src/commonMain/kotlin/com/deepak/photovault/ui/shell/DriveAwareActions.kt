@@ -16,14 +16,18 @@ class DriveAwareActions(
     private val gallery: GalleryState,
     private val backup: BackupState,
     private val scope: CoroutineScope,
+    private val google: GoogleState? = null,
 ) : MediaActions by phone {
     private fun List<MediaItem>.paths() = mapNotNull { DriveTimeline.pathOf(it.uri) }.toSet()
+
+    /** A photo saved only to Google (13 Nov). */
+    private fun MediaItem.onGoogle() = DriveTimeline.pathOf(uri)?.let(::isGooglePath) == true
 
     /** After a change on the drive: re-read the lists so every screen agrees. */
     private suspend fun reread() {
         drive.loadBackupRecords(force = true)
         drive.loadDriveTrash()
-        drive.backupRecords?.let(gallery::setDriveRecords)
+        timelineRecords(drive.backupRecords, google?.records)?.let(gallery::setDriveRecords)
         drive.driveTrash?.let(gallery::setDriveTrash)
         drive.loadFamilyAlbum()
         drive.familyAlbumRecords?.let(gallery::updateFamilyAlbum)
@@ -36,13 +40,23 @@ class DriveAwareActions(
     }
 
     override fun saveToPhone(items: List<MediaItem>) {
+        // Google's and the family drive's both go through the same restore job (15 Nov).
         val paths = items.filter { it.isDriveOnly }.mapNotNull { DriveTimeline.pathOf(it.uri) }
         if (paths.isEmpty()) return phone.toast("Already on this phone.")
         backup.restoreSelected(paths)
-        phone.toast("Saving ${paths.size} to this phone (\"Restored\" album)...")
+        phone.toast("Saving ${paths.size} to this phone, back to their folders...")
     }
 
     override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) {
+        // Only on Google (15 Nov): Google has no Recently deleted here, so a popup asks first and they go for good.
+        val (onGoogle, rest) = items.partition { it.onGoogle() }
+        if (onGoogle.isNotEmpty()) {
+            val g = google ?: return onDone(false)
+            g.askDelete(onGoogle.paths()) { ok ->
+                if (rest.isEmpty()) onDone(ok) else moveToRecentlyDeleted(rest, onDone)
+            }
+            return
+        }
         val (onDrive, onPhone) = items.partition { it.isDriveOnly }
         if (onDrive.isEmpty()) return phone.moveToRecentlyDeleted(items, onDone)
         scope.launch {
@@ -73,6 +87,7 @@ class DriveAwareActions(
     }
 
     override fun shareToFamilyAlbum(items: List<MediaItem>) {
+        if (items.any { it.onGoogle() }) return phone.toast("Photos only on Google Drive can't go to the Family Album.")
         scope.launch {
             val r = drive.addToFamilyAlbum(items)
             drive.familyAlbumRecords?.let(gallery::updateFamilyAlbum)

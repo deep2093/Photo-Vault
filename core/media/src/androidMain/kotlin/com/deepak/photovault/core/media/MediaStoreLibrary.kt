@@ -76,6 +76,7 @@ class MediaStoreLibrary(context: Context) : MediaLibrary {
         val bucketName = c.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
         val mime = c.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
         val expires = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_EXPIRES)
+        val relative = c.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
         while (c.moveToNext()) {
             val rowId = c.getLong(id)
             val isVideo = c.getInt(type) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
@@ -96,6 +97,7 @@ class MediaStoreLibrary(context: Context) : MediaLibrary {
                         albumId = c.getString(bucketId).orEmpty(),
                         albumName = c.getString(bucketName).orEmpty(),
                         mimeType = c.getString(mime).orEmpty(),
+                        folder = c.getString(relative)?.takeIf { it.isNotBlank() },
                     ),
                     // DATE_EXPIRES is in seconds; trashed items get it set by Android (30 days).
                     expiresAtMillis = c.getLong(expires) * 1000,
@@ -119,6 +121,7 @@ class MediaStoreLibrary(context: Context) : MediaLibrary {
             MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
             MediaStore.MediaColumns.MIME_TYPE,
             MediaStore.MediaColumns.DATE_EXPIRES,
+            MediaStore.MediaColumns.RELATIVE_PATH,
         )
     }
 }

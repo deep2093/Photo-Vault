@@ -100,12 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-13-4"
+    const val ID = "2026-11-15-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Turning the screen", "Turning your phone or tablet no longer closes a playing video or an open photo."),
-        Change(ChangeKind.FIXED, "Video time strip", "It moves smoothly while the video plays, and shows by itself when the video is the only item (it was missing on the tablet)."),
-        Change(ChangeKind.FIXED, "Delete effect", "Photos are now sucked into the bin in Recently deleted too, and everywhere else you delete."),
+        Change(ChangeKind.NEW, "Remove phone copies with Google Drive only", "Backing up to Google Drive only? Remove phone copies now works there too: each photo is read back from Google and checked before its phone copy can go."),
+        Change(ChangeKind.NEW, "Recovery words for a PIN key", "If you made your Private key with a Google PIN and then joined a family, Backup privacy now offers your 24 recovery words, so the family drive can bring your key back too."),
     )
 }
 

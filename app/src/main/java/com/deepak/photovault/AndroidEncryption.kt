@@ -36,7 +36,9 @@ class AndroidEncryption(private val activity: MainActivity) : EncryptionPlatform
     override fun hasLocalKey(): Boolean = root() != null
 
     override fun createKey(householdId: String, memberId: String): NewPrivateKey {
-        val keys = MemberKeys.generate()
+        // A key already on this phone (made with a PIN for Google, 15 Nov) is kept: it only gets its 24 words and its
+        // recovery file for the family drive. A new key would lock the person out of what they already backed up.
+        val keys = root()?.let { MemberKeys(it) } ?: MemberKeys.generate()
         val code = RecoveryCode.generate()
         val identity = MemberIdentity(keys)
         pending = keys
@@ -67,6 +69,18 @@ class AndroidEncryption(private val activity: MainActivity) : EncryptionPlatform
         }
         val rootBytes = RecoveryEnvelope.unwrap(envelope, code, KeyContext(householdId, memberId))
             ?: return "These words don't open your backup key. They may belong to someone else or the key file was changed."
+        return if (keep(MemberKeys(rootBytes))) null else "The key couldn't be kept on this phone."
+    }
+
+    override fun createPinKey(pin: String): ByteArray {
+        val keys = MemberKeys.generate()
+        pending = keys
+        return com.deepak.photovault.core.crypto.PinEnvelope.wrap(keys.root, pin)
+    }
+
+    override fun restorePinKey(pin: String, envelope: ByteArray): String? {
+        val rootBytes = com.deepak.photovault.core.crypto.PinEnvelope.unwrap(envelope, pin)
+            ?: return "That PIN doesn't open your key. Check it and try again."
         return if (keep(MemberKeys(rootBytes))) null else "The key couldn't be kept on this phone."
     }
 

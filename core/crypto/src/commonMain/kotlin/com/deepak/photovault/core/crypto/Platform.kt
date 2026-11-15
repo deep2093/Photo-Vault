@@ -12,3 +12,6 @@ expect fun aesGcmSeal(key: ByteArray, nonce: ByteArray, plain: ByteArray, aad: B
 
 /** The plain bytes, or null when the key, nonce, data or associated data do not match. */
 expect fun aesGcmOpen(key: ByteArray, nonce: ByteArray, sealed: ByteArray, aad: ByteArray): ByteArray?
+
+/** PBKDF2 with HMAC-SHA256: a key from a PIN or password, slow on purpose so guessing takes long. */
+expect fun pbkdf2Sha256(password: CharArray, salt: ByteArray, iterations: Int, length: Int): ByteArray

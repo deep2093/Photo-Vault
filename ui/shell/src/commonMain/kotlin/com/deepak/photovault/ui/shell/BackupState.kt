@@ -110,8 +110,10 @@ class BackupState(private val platform: BackupPlatform) {
         private set
 
     fun update(change: (BackupSettings) -> BackupSettings) {
+        val before = settings.destination
         settings = change(settings)
         platform.saveSettings(settings)
+        if (settings.destination != before) backedUpKeys = combine(driveKeys, googleKeys)
     }
 
     /** The latest Free up space check, for its page. */
@@ -156,6 +158,7 @@ class BackupState(private val platform: BackupPlatform) {
     /** After backups were deleted from the drive: copies still on the phone back up again next time. */
     suspend fun forgetBackedUp(keys: Set<String>) {
         platform.forgetBackedUp(keys)
+        driveKeys = driveKeys - keys
         backedUpKeys = backedUpKeys - keys
     }
 
@@ -165,8 +168,36 @@ class BackupState(private val platform: BackupPlatform) {
 
     fun batteryRestricted() = platform.batteryRestricted()
 
+    /** What is saved to Google (Phase 10); set by the app from [GoogleState]. */
+    var googleKeys: Set<String> = emptySet()
+        set(value) {
+            field = value
+            backedUpKeys = combine(driveKeys, value)
+        }
+
+    /** What is saved to the family drive, for its own count on the Backup page (14 Nov). */
+    var driveKeys by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    /** Changes Google's own choices (14 Nov): [change] sees the settings as Google does and only Google's part is kept. */
+    fun updateGoogle(change: (BackupSettings) -> BackupSettings) = update { it.withGoogleFrom(change(it.forGoogle())) }
+
+    fun nextGoogleRunMillis(zone: TimeZone = TimeZone.currentSystemDefault()): Long? =
+        settings.forGoogle().schedule.takeIf { it.enabled }?.nextRun(platform.now(), zone)
+
+    /**
+     * "Backed up" follows where this phone backs up (13 Nov): the family drive, Google, or, with both, only what is
+     * in both places.
+     */
+    private fun combine(drive: Set<String>, google: Set<String>): Set<String> = when (settings.destination) {
+        com.deepak.photovault.core.backup.BackupDestination.DRIVE -> drive
+        com.deepak.photovault.core.backup.BackupDestination.GOOGLE -> google
+        com.deepak.photovault.core.backup.BackupDestination.BOTH -> if (drive.size < google.size) drive.filterTo(HashSet()) { it in google } else google.filterTo(HashSet()) { it in drive }
+    }
+
     suspend fun refreshKeys() {
-        backedUpKeys = platform.backedUpKeys()
+        driveKeys = platform.backedUpKeys()
+        backedUpKeys = combine(driveKeys, googleKeys)
     }
 
     /** Called by the background work when a backup ends. */

@@ -164,15 +164,17 @@ class AndroidMediaWriter(context: Context) : MediaWriter {
         } else {
             MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         }
-        val folder = (if (record.isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES) + "/" + RESTORED_FOLDER
-        val values = ContentValues().apply {
+        fun values(folder: String) = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, record.fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, record.mimeType)
             put(MediaStore.MediaColumns.RELATIVE_PATH, folder)
             put(MediaStore.MediaColumns.DATE_TAKEN, record.takenAtMillis)
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
-        val uri = resolver.insert(collection, values) ?: throw FileNotFoundException("Couldn't create the photo")
+        // Back where it came from (15 Nov); Android may refuse some folders, then the Restored folder is used.
+        val uri = RestoreFolders.choices(record).firstNotNullOfOrNull { folder ->
+            runCatching { resolver.insert(collection, values(folder)) }.getOrNull()
+        } ?: throw FileNotFoundException("Couldn't create the photo")
         val out: OutputStream = resolver.openOutputStream(uri) ?: run {
             resolver.delete(uri, null, null)
             throw FileNotFoundException("Couldn't write the photo")
@@ -195,4 +197,33 @@ class AndroidMediaWriter(context: Context) : MediaWriter {
     companion object {
         const val RESTORED_FOLDER = "Pixallery Restored"
     }
+}
+
+/**
+ * Where a restored photo goes (15 Nov): back to its own folder when the backup knows it ("DCIM/Camera/"); for older
+ * backups, a folder of its album's name ("Camera" in DCIM, others in Pictures, or Movies for videos); otherwise, or if
+ * Android refuses those, Pictures/Pixallery Restored (Movies/... for videos).
+ */
+object RestoreFolders {
+    fun choices(record: BackupRecord): List<String> {
+        val top = if (record.isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+        val out = mutableListOf<String>()
+        record.folder?.let { clean(it) }?.let { out += it }
+        record.album?.let { safeName(it) }?.let { name ->
+            out += if (name.equals("Camera", ignoreCase = true)) "${Environment.DIRECTORY_DCIM}/Camera" else "$top/$name"
+        }
+        out += "$top/${AndroidMediaWriter.RESTORED_FOLDER}"
+        return out.distinct()
+    }
+
+    /** A phone folder path without "..", leading or trailing slashes. */
+    internal fun clean(path: String): String? {
+        val parts = path.split('/').map { it.trim() }.filter { it.isNotEmpty() }
+        if (parts.isEmpty() || parts.any { it == "." || it == ".." }) return null
+        return parts.joinToString("/")
+    }
+
+    /** An album name usable as one folder name. */
+    internal fun safeName(name: String): String? =
+        name.map { c -> if (c < ' ' || c in "\\/:*?\"<>|") '_' else c }.joinToString("").trim().trim('.').takeIf { it.isNotEmpty() }
 }

@@ -57,8 +57,9 @@ class BackupHistoryStore(context: Context) {
  * What this phone knows is backed up: one JSON line per verified file, in the app's private storage. Only ever
  * appended to; if it is lost (app data cleared) the engine rebuilds it from the drive's manifests.
  */
-class FileBackupIndex(context: Context) : BackupIndex {
-    private val file = File(context.applicationContext.filesDir, "backup/index.jsonl")
+class FileBackupIndex(context: Context, name: String = "index.jsonl") : BackupIndex {
+    /** One list per place backed up to: the family drive's is index.jsonl, each Google account has its own (13 Nov). */
+    private val file = File(context.applicationContext.filesDir, "backup/$name")
     private val lock = Mutex()
     private var cache: MutableSet<String>? = null
 
@@ -80,7 +81,7 @@ class FileBackupIndex(context: Context) : BackupIndex {
                 val key = runCatching { backupJson.decodeFromString(BackupRecord.serializer(), line).key }.getOrNull()
                 key != null && key !in keys
             }
-            val tmp = File(file.parentFile, "index.jsonl.tmp")
+            val tmp = File(file.parentFile, file.name + ".tmp")
             tmp.writeText(kept.joinToString("") { it + "\n" })
             if (!tmp.renameTo(file)) {
                 file.writeText(tmp.readText())

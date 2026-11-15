@@ -433,6 +433,7 @@ fun PhotoSetScreen(title: String, ids: List<Long>, state: ShellState, gallery: G
     ) { padding ->
         MediaGrid(
             sections, state, gallery, padding,
+            gridKey = "photo-set",
             onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
         )
     }
@@ -457,6 +458,7 @@ fun PlaceScreen(key: String, state: ShellState, gallery: GalleryState, actions: 
     ) { padding ->
         MediaGrid(
             sections, state, gallery, padding,
+            gridKey = "place",
             onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
         )
     }

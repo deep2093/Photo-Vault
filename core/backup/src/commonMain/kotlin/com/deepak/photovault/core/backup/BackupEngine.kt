@@ -214,6 +214,7 @@ class BackupEngine(
                     deviceId = deviceId,
                     storageSaver = prepared.compressed,
                     album = item.albumName.ifBlank { null },
+                    folder = item.folder,
                     encrypted = true,
                 ),
             )
@@ -284,6 +285,7 @@ class BackupEngine(
                 deviceId = deviceId,
                 storageSaver = prepared.compressed,
                 album = item.albumName.ifBlank { null },
+                folder = item.folder,
             )
             return Outcome.Saved(record)
         } catch (e: Throwable) {

@@ -70,4 +70,13 @@ class SmbProfileTest {
         assertFalse(profile.toString().contains("hunter2-secret"))
         assertTrue(profile.toString().contains("192.168.1.1"))
     }
+
+    @Test
+    fun neighboursAreTriedNearestFirst() {
+        org.junit.Assert.assertEquals(
+            listOf("192.168.71.250", "192.168.71.248", "192.168.71.251", "192.168.71.247", "192.168.71.252", "192.168.71.246"),
+            SmbErrors.neighbours("192.168.71.249", 3),
+        )
+        org.junit.Assert.assertEquals(listOf("10.0.0.2", "10.0.0.3"), SmbErrors.neighbours("10.0.0.1", 2))
+    }
 }

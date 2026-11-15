@@ -49,7 +49,28 @@ class BackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         runCatching { setForeground(getForegroundInfo()) }
         if (inputData.getBoolean(KEY_RESTORE, false)) {
             val only = if (inputData.getBoolean(KEY_SELECTED, false)) RestoreSelection.take(applicationContext) else null
-            graph.runner.restoreMissing(only) { done, total -> BackupNotifications.restoring(applicationContext, done, total) }
+            // Chosen Google Drive backups (14 Nov) come from Google; the rest from the family drive.
+            val fromGoogle = only.orEmpty().filter { it.startsWith(com.deepak.photovault.google.GoogleBackup.PATH_PREFIX) }.toSet()
+            if (fromGoogle.isNotEmpty()) {
+                val state = graph.state
+                state.restoring = true
+                try {
+                    state.restoreMessage = com.deepak.photovault.google.GoogleBackup.restore(applicationContext, fromGoogle) { done, total ->
+                        state.restoreProgress = done to total
+                        BackupNotifications.restoring(applicationContext, done, total)
+                    }
+                } finally {
+                    state.restoring = false
+                    state.restoreProgress = null
+                }
+            }
+            val rest = only?.minus(fromGoogle)
+            // "Everything missing from the family drive too", from the Restore popup (15 Nov).
+            val driveAll = rest?.contains(com.deepak.photovault.ui.shell.RESTORE_ALL_FROM_DRIVE) == true
+            val driveOnly = if (driveAll) null else rest
+            if (driveOnly == null || driveOnly.isNotEmpty()) {
+                graph.runner.restoreMissing(driveOnly) { done, total -> BackupNotifications.restoring(applicationContext, done, total) }
+            }
             BackupNotifications.clearProgress(applicationContext)
             return Result.success()
         }

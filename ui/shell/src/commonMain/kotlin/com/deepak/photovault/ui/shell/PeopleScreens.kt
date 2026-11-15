@@ -711,6 +711,7 @@ fun PersonScreen(personId: Int, state: ShellState, gallery: GalleryState, action
     ) { padding ->
         MediaGrid(
             sections, state, gallery, padding,
+            gridKey = "person",
             onOpen = { item -> state.open(Overlay.Viewer(sections.flatMap { s -> s.items.map { it.id } }, item.id)) },
             topButton = true,
             // Which face counted as this person, so a wrong group photo is easy to spot (5 Nov).

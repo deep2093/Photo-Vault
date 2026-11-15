@@ -1,5 +1,12 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +30,9 @@ import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.PhotoSizeSelectLarge
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PhoneAndroid
@@ -75,9 +85,13 @@ const val MOBILE_DATA_WARNING =
     "Backing up on mobile data uses about twice the size of each photo or video, because the app checks " +
         "every file after uploading. Large videos can use a lot of data."
 
+/** Which small window is open on the Backup page, and for which place (family drive or Google). */
+private enum class BackupSheet { SCHEDULE, FOLDERS, OPTIONS, ACCOUNTS }
+
 /**
- * Backup (Phase 4, made compact 24 Oct): status at the top, then one card of short rows (schedule and folders open
- * their own small windows), your space and phones, a short history and restore. Details live one tap away.
+ * Backup (Phase 4; tidied 14 Nov): where to back up, then one card for each place in use (the family drive, Google
+ * Drive) with its own count, Back up now and three short rows (schedule, folders, options) that open small windows,
+ * so each place has its own days, time and choices. Privacy, removing phone copies and restore sit in one last card.
  */
 @Composable
 fun BackupScreen(
@@ -91,9 +105,14 @@ fun BackupScreen(
     heading: String? = null,
 ) {
     val settings = backup.settings
-    var confirmMobile by remember { mutableStateOf(false) }
-    var pickFolders by remember { mutableStateOf(false) }
-    var scheduleOpen by remember { mutableStateOf(false) }
+    val googleOn = state.google.platform.supported
+    val showDrive = !googleOn || settings.destination.usesDrive
+    val showGoogle = googleOn && settings.destination.usesGoogle
+    val googleView = remember(settings) { settings.forGoogle() }
+    var sheet by remember { mutableStateOf<Pair<BackupSheet, Boolean>?>(null) }
+    var privacyOpen by remember { mutableStateOf(false) }
+    var freeUpOpen by remember { mutableStateOf(false) }
+    var restoreOpen by remember { mutableStateOf(false) }
     // What is backed up changes after every run; refresh when the screen opens and when a run ends.
     LaunchedEffect(backup.running, backup.history.size) { backup.refreshKeys() }
     // Let the family see this phone's backup time, so nobody picks the same hour (24 Oct).
@@ -101,11 +120,15 @@ fun BackupScreen(
         if (drive.joined != null) drive.publishSchedule(settings.schedule, kotlinx.datetime.TimeZone.currentSystemDefault().id)
     }
     val eligible = remember(gallery.items, settings) { BackupSelection.eligible(gallery.items, settings) }
-    val done = remember(eligible, backup.backedUpKeys) { eligible.count { BackupSelection.key(it) in backup.backedUpKeys } }
+    val done = remember(eligible, backup.driveKeys) { eligible.count { BackupSelection.key(it) in backup.driveKeys } }
+    val googleEligible = remember(gallery.items, googleView) { BackupSelection.eligible(gallery.items, googleView) }
+    // Backup waits for this choice, and a Private backup needs its key: shown in full until sorted.
+    val privacyNeedsYou = settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET ||
+        (settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE && !state.encryption.keyOnPhone)
 
     // Opened from Settings since 24 Oct, so it has a title and a back button.
     GlassListScreen(title = if (onBack != null) "Backup" else null, subtitle = null, onBack = onBack) {
-        if (heading != null) item {
+        if (heading != null) item(key = "heading") {
             Text(
                 heading,
                 color = LocalGlassTheme.current.onWallpaper,
@@ -114,41 +137,34 @@ fun BackupScreen(
                 modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp),
             )
         }
-        item { StatusCard(drive, backup, gallery, actions, eligible.size, done) }
-        item { PrivacyCard(state, drive, backup) }
-        // Free up space lives here, right under Backup privacy (30 Oct).
-        item { FreeUpContent(backup, actions) }
-        item {
+        // Phase 10 (13 Nov): where to back up.
+        if (googleOn) item(key = "where") { DestinationCard(backup) }
+        if (privacyNeedsYou) item(key = "privacy-needed") { PrivacyCard(state, drive, backup) }
+        if (showDrive) item(key = "drive") {
+            DriveCard(drive, backup, gallery, actions, eligible.size, done, titled = googleOn) { sheet = it to false }
+        }
+        if (showGoogle) item(key = "google") {
+            GoogleCard(state.google, backup, googleView, gallery.albums, googleEligible) { sheet = it to true }
+        }
+        item(key = "more") {
             GlassCard(Modifier.cardWidth()) {
-                SettingRow(Icons.Rounded.Schedule, "Schedule", scheduleSummary(settings), onClick = { scheduleOpen = true })
+                // Each opens a popup (14 Nov), not a card at the end of the page.
+                if (!privacyNeedsYou) {
+                    SettingRow(
+                        Icons.Rounded.Lock,
+                        "Backup privacy",
+                        if (settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) "Private" else "Normal",
+                        onClick = { privacyOpen = true },
+                    )
+                }
                 SettingRow(
-                    Icons.Rounded.Folder,
-                    "Folders",
-                    chosenFolders(gallery.albums, settings.folders).joinToString(", ").ifEmpty { "None" },
-                    onClick = { pickFolders = true },
+                    Icons.Rounded.PhoneAndroid,
+                    "Remove phone copies",
+                    if (settings.freeUpDays == 0) "Off" else "After ${settings.freeUpDays} days",
+                    onClick = { freeUpOpen = true },
                 )
-                GlassSwitchRow("Photos", settings.photos, { on -> backup.update { it.copy(photos = on) } }, icon = Icons.Rounded.Photo)
-                GlassSwitchRow(
-                    "Videos",
-                    settings.videos,
-                    { on -> backup.update { it.copy(videos = on, videosOnMobile = if (on) it.videosOnMobile else false) } },
-                    icon = Icons.Rounded.Movie,
-                )
-                GlassSwitchRow(
-                    "Storage saver",
-                    settings.storageSaver,
-                    { on -> backup.update { it.copy(storageSaver = on) } },
-                    icon = Icons.Rounded.PhotoSizeSelectLarge,
-                    description = "Photos saved at 16 MP: still sharp for prints up to 24 × 16 in.",
-                )
-                GlassSwitchRow(
-                    "Mobile data",
-                    settings.mobileData,
-                    { on -> if (on) confirmMobile = true else backup.update { it.copy(mobileData = false, videosOnMobile = false) } },
-                    icon = Icons.Rounded.SignalCellularAlt,
-                )
-                if (settings.mobileData && settings.videos) {
-                    GlassSwitchRow("Videos on mobile data", settings.videosOnMobile, { on -> backup.update { it.copy(videosOnMobile = on) } }, icon = Icons.Rounded.Movie)
+                if (drive.joined != null || showGoogle) {
+                    SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", onClick = { restoreOpen = true })
                 }
                 if (!backup.notificationsAllowed()) {
                     SettingRow(Icons.Rounded.Notifications, "Notifications are off", "Allow", onClick = actions::requestNotifications)
@@ -158,29 +174,25 @@ fun BackupScreen(
                 }
             }
         }
-        // Your phones moved to your own page in Family (24 Oct).
-        if (drive.joined != null) item { RestoreCard(drive, backup, gallery) }
     }
+    if (privacyOpen) PrivacyDialog(state, drive, backup, onDismiss = { privacyOpen = false })
+    if (freeUpOpen) FreeUpDialog(backup, actions, onDismiss = { freeUpOpen = false })
+    if (restoreOpen) RestoreDialog(drive, backup, gallery, state.google, fromDrive = drive.joined != null && showDrive, fromGoogle = showGoogle, onDismiss = { restoreOpen = false })
 
-    if (confirmMobile) {
-        ConfirmDialog(
-            title = "Back up on mobile data?",
-            body = MOBILE_DATA_WARNING,
-            confirm = "Use mobile data",
-            onDismiss = { confirmMobile = false },
-        ) {
-            backup.update { it.copy(mobileData = true) }
-            confirmMobile = false
+    sheet?.let { (what, forGoogle) ->
+        val view = if (forGoogle) googleView else settings
+        val change: ((com.deepak.photovault.core.backup.BackupSettings) -> com.deepak.photovault.core.backup.BackupSettings) -> Unit =
+            { f -> if (forGoogle) backup.updateGoogle(f) else backup.update(f) }
+        val close = { sheet = null }
+        when (what) {
+            BackupSheet.SCHEDULE -> ScheduleDialog(backup, actions, drive, forGoogle, onDismiss = close)
+            BackupSheet.FOLDERS -> FolderPicker(gallery.albums, view.folders, onDismiss = close) { ids ->
+                change { it.copy(folders = ids) }
+                close()
+            }
+            BackupSheet.OPTIONS -> OptionsDialog(if (forGoogle) "Google Drive options" else "Family drive options", view, change, close)
+            BackupSheet.ACCOUNTS -> AccountsDialog(state.google, close)
         }
-    }
-    if (pickFolders) {
-        FolderPicker(gallery.albums, settings.folders, onDismiss = { pickFolders = false }) { ids ->
-            backup.update { it.copy(folders = ids) }
-            pickFolders = false
-        }
-    }
-    if (scheduleOpen) {
-        ScheduleDialog(backup, actions, drive, onDismiss = { scheduleOpen = false })
     }
 }
 
@@ -196,9 +208,78 @@ private fun scheduleSummary(settings: com.deepak.photovault.core.backup.BackupSe
     return listOfNotNull(day, BackupSchedule.timeLabel(s.hour, s.minute), if (settings.chargingOnly) "charging" else null).joinToString(" · ")
 }
 
+/** "Photos · Wi-Fi", "Photos, videos · mobile data · saver". */
+internal fun optionsSummary(s: com.deepak.photovault.core.backup.BackupSettings): String = listOfNotNull(
+    when {
+        s.photos && s.videos -> "Photos, videos"
+        s.photos -> "Photos"
+        s.videos -> "Videos"
+        else -> "Nothing"
+    },
+    if (s.mobileData) "mobile data" else "Wi-Fi",
+    if (s.storageSaver) "saver" else null,
+).joinToString(" · ")
+
+/** The three rows every place has: when, which folders, and what and how. */
+@Composable
+private fun PlaceRows(view: com.deepak.photovault.core.backup.BackupSettings, albums: List<PhoneAlbum>, open: (BackupSheet) -> Unit) {
+    SettingRow(Icons.Rounded.Schedule, "Schedule", scheduleSummary(view), onClick = { open(BackupSheet.SCHEDULE) })
+    SettingRow(
+        Icons.Rounded.Folder,
+        "Folders",
+        chosenFolders(albums, view.folders).joinToString(", ").ifEmpty { "None" },
+        onClick = { open(BackupSheet.FOLDERS) },
+    )
+    SettingRow(Icons.Rounded.Photo, "Options", optionsSummary(view), onClick = { open(BackupSheet.OPTIONS) })
+}
+
+/** Photos, videos, quality and mobile data for one place, in a small window. Changes apply straight away. */
+@Composable
+private fun OptionsDialog(
+    title: String,
+    view: com.deepak.photovault.core.backup.BackupSettings,
+    change: ((com.deepak.photovault.core.backup.BackupSettings) -> com.deepak.photovault.core.backup.BackupSettings) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    GlassDialog(title = title, onDismiss = onDismiss, buttons = { GlassButton("Done", primary = true, onClick = onDismiss) }) {
+        GlassSwitchRow("Photos", view.photos, { on -> change { it.copy(photos = on) } }, icon = Icons.Rounded.Photo)
+        GlassSwitchRow(
+            "Videos",
+            view.videos,
+            { on -> change { it.copy(videos = on, videosOnMobile = if (on) it.videosOnMobile else false) } },
+            icon = Icons.Rounded.Movie,
+        )
+        GlassSwitchRow(
+            "Storage saver",
+            view.storageSaver,
+            { on -> change { it.copy(storageSaver = on) } },
+            icon = Icons.Rounded.PhotoSizeSelectLarge,
+            description = "Photos saved at 16 MP: still sharp for prints up to 24 × 16 in.",
+        )
+        GlassSwitchRow(
+            "Mobile data",
+            view.mobileData,
+            { on -> change { it.copy(mobileData = on, videosOnMobile = if (on) it.videosOnMobile else false) } },
+            icon = Icons.Rounded.SignalCellularAlt,
+            description = if (view.mobileData) null else "Off: backup waits for Wi-Fi.",
+            warning = MOBILE_DATA_WARNING,
+        )
+        if (view.mobileData && view.videos) {
+            GlassSwitchRow("Videos on mobile data", view.videosOnMobile, { on -> change { it.copy(videosOnMobile = on) } }, icon = Icons.Rounded.Movie)
+        }
+    }
+}
+
 /** A short row: icon, title, current value and an arrow; opens its own window. */
 @Composable
-private fun SettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String, onClick: () -> Unit) {
+private fun SettingRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String,
+    /** For a row that opens its card further down the page: an arrow down (closed) or up (open) instead of right. */
+    open: Boolean? = null,
+    onClick: () -> Unit,
+) {
     val theme = LocalGlassTheme.current
     Row(
         Modifier
@@ -220,19 +301,28 @@ private fun SettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 180.dp),
         )
-        androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = theme.onGlassSecondary)
+        androidx.compose.material3.Icon(
+            when (open) {
+                null -> Icons.AutoMirrored.Rounded.KeyboardArrowRight
+                true -> Icons.Rounded.KeyboardArrowUp
+                false -> Icons.Rounded.KeyboardArrowDown
+            },
+            contentDescription = null,
+            tint = theme.onGlassSecondary,
+        )
     }
 }
 
-/** Everything about when backups run, in one small window. */
+/** Everything about when backups run, in one small window: the family drive's, or Google's own (14 Nov). */
 @Composable
-private fun ScheduleDialog(backup: BackupState, actions: MediaActions, drive: DriveState, onDismiss: () -> Unit) {
+private fun ScheduleDialog(backup: BackupState, actions: MediaActions, drive: DriveState, forGoogle: Boolean, onDismiss: () -> Unit) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
     // Changes are a draft until Save, so a time too close to another phone's is never scheduled (24 Oct).
-    var draft by remember { mutableStateOf(backup.settings) }
+    var draft by remember { mutableStateOf(if (forGoogle) backup.settings.forGoogle() else backup.settings) }
+    // Only the family drive takes turns; Google can be used by every phone at once.
     var others by remember { mutableStateOf<List<com.deepak.photovault.core.backup.PublishedSchedule>?>(null) }
-    LaunchedEffect(Unit) { others = drive.otherSchedules() }
+    LaunchedEffect(Unit) { if (!forGoogle) others = drive.otherSchedules() }
     val zone = remember { kotlinx.datetime.TimeZone.currentSystemDefault() }
     val now = remember { backup.now() }
     val clashes = remember(draft.schedule, others) {
@@ -242,14 +332,18 @@ private fun ScheduleDialog(backup: BackupState, actions: MediaActions, drive: Dr
         if (clashes.isEmpty()) null else others?.let { com.deepak.photovault.core.backup.SlotRules.nearestFree(draft.schedule, zone, it, now) }
     }
     GlassDialog(
-        title = "Schedule",
+        title = if (forGoogle) "Google Drive schedule" else "Schedule",
         onDismiss = onDismiss,
         buttons = {
             GlassButton("Cancel", onClick = onDismiss)
             GlassButton("Save", primary = true, onClick = {
                 if (clashes.isNotEmpty()) return@GlassButton
-                backup.update { draft }
-                scope.launch { drive.publishSchedule(draft.schedule, zone.id) }
+                if (forGoogle) {
+                    backup.updateGoogle { draft }
+                } else {
+                    backup.update { draft }
+                    scope.launch { drive.publishSchedule(draft.schedule, zone.id) }
+                }
                 onDismiss()
             })
         },
@@ -278,8 +372,9 @@ private fun ScheduleDialog(backup: BackupState, actions: MediaActions, drive: Dr
                 )
             }
             GlassSwitchRow("Only while charging", draft.chargingOnly, { on -> draft = draft.copy(chargingOnly = on) })
+            val net = if (draft.mobileData) "online" else "on Wi-Fi"
             Text(
-                if (draft.chargingOnly) "Not charging then? It starts once the phone is charging on Wi-Fi." else "Starts at that time once on Wi-Fi.",
+                if (draft.chargingOnly) "Not charging then? It starts once the phone is charging and $net." else "Starts at that time once $net.",
                 color = theme.onGlassSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -290,8 +385,19 @@ private fun ScheduleDialog(backup: BackupState, actions: MediaActions, drive: Dr
 private fun chosenFolders(albums: List<PhoneAlbum>, folders: Set<String>?): List<String> =
     albums.filter { if (folders == null) BackupSelection.isCamera(it.name) else it.id in folders }.map { it.name }
 
+/** The family drive: how much is backed up, Back up now, and its schedule, folders and options. */
 @Composable
-private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryState, actions: MediaActions, eligible: Int, done: Int) {
+private fun DriveCard(
+    drive: DriveState,
+    backup: BackupState,
+    gallery: GalleryState,
+    actions: MediaActions,
+    eligible: Int,
+    done: Int,
+    /** "Family drive" on top, when Google Drive can be chosen too. */
+    titled: Boolean,
+    open: (BackupSheet) -> Unit,
+) {
     val soloScope = rememberCoroutineScope()
     val theme = LocalGlassTheme.current
     var note by remember { mutableStateOf<String?>(null) }
@@ -329,6 +435,7 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
         }
     }
     GlassCard(Modifier.cardWidth()) {
+        if (titled) SectionHeader("Family drive")
         val p = backup.progress
         when {
             backup.running -> {
@@ -416,6 +523,8 @@ private fun StatusCard(drive: DriveState, backup: BackupState, gallery: GalleryS
                 note?.let { WarningNote(it) }
             }
         }
+        Spacer(Modifier.height(6.dp))
+        PlaceRows(backup.settings, gallery.albums, open)
     }
 }
 
@@ -555,44 +664,107 @@ private fun HistoryCard(history: List<BackupRun>) {
     }
 }
 
+/**
+ * Restore to this phone in a popup (14 Nov): bring back backed-up photos that aren't on this phone, from the family
+ * drive, Google Drive (15 Nov) or both, following where this phone backs up to.
+ */
 @Composable
-private fun RestoreCard(drive: DriveState, backup: BackupState, gallery: GalleryState) {
+private fun RestoreDialog(
+    drive: DriveState,
+    backup: BackupState,
+    gallery: GalleryState,
+    google: GoogleState,
+    fromDrive: Boolean,
+    fromGoogle: Boolean,
+    onDismiss: () -> Unit,
+) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
-    var missing by remember { mutableStateOf<Int?>(null) }
+    // null while looking; -1 when it couldn't be read.
+    var driveMissing by remember { mutableStateOf<Int?>(null) }
+    var googleMissing by remember { mutableStateOf<List<String>?>(null) }
+    var googleFailed by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
-    GlassCard(Modifier.cardWidth()) {
-        SectionHeader("Restore")
+    suspend fun look() {
+        checking = true
+        driveMissing = if (fromDrive) (drive.missingOnPhone(gallery.items) ?: -1) else 0
+        if (fromGoogle) {
+            val list = google.platform.missingOnPhone()
+            googleFailed = list == null
+            googleMissing = list.orEmpty()
+        } else {
+            googleMissing = emptyList()
+        }
+        checking = false
+    }
+    // Look straight away: the popup was opened to restore.
+    LaunchedEffect(Unit) { if (!backup.restoring) look() }
+    val rp = backup.restoreProgress
+    val d = driveMissing
+    val g = googleMissing
+    val total = (d?.coerceAtLeast(0) ?: 0) + (g?.size ?: 0)
+    val failed = (fromDrive && d == -1) || (fromGoogle && googleFailed)
+    GlassDialog(
+        title = "Restore to this phone",
+        onDismiss = onDismiss,
+        buttons = {
+            GlassButton(if (backup.restoring) "Close" else "Cancel", onClick = onDismiss)
+            if (!backup.restoring && !checking && total > 0) {
+                GlassButton("Restore ${LibraryCounts.grouped(total)}", primary = true, icon = Icons.Rounded.CloudDownload, onClick = {
+                    val googlePaths = g.orEmpty()
+                    val driveToo = (d ?: 0) > 0
+                    when {
+                        googlePaths.isNotEmpty() -> backup.restoreSelected(googlePaths + (if (driveToo) listOf(RESTORE_ALL_FROM_DRIVE) else emptyList()))
+                        driveToo -> backup.restoreMissing()
+                    }
+                    driveMissing = null
+                    googleMissing = null
+                })
+            }
+            if (!backup.restoring && !checking && failed) {
+                GlassButton("Try again", onClick = { scope.launch { look() } })
+            }
+        },
+    ) {
         Text(
-            "Bring back backed-up photos that aren't on this phone.",
+            "Brings back backed-up photos that aren't on this phone, each to the folder it came from.",
             color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
         )
-        val rp = backup.restoreProgress
         when {
             backup.restoring -> {
-                Text(if (rp == null) "Restoring..." else "Restoring ${rp.first} of ${rp.second}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                Text(if (rp == null) "Restoring..." else "Restoring ${rp.first} of ${rp.second}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
                 if (rp != null && rp.second > 0) GlassProgressBar(rp.first / rp.second.toFloat(), label = "Restore progress")
+                Text("You can close this; it carries on.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
             }
-            missing == null -> GlassButton(if (checking) "Checking..." else "Restore backup", icon = Icons.Rounded.CloudDownload, modifier = Modifier.padding(top = 8.dp), onClick = {
-                if (!checking) {
-                    checking = true
-                    scope.launch {
-                        missing = drive.missingOnPhone(gallery.items) ?: -1
-                        checking = false
-                    }
-                }
-            })
-            missing == -1 -> WarningNote("Couldn't read the drive. Check you're on the home Wi-Fi and try again.")
-            missing == 0 -> Text("Everything on the drive is already on this phone.", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-            else -> GlassButton("Restore ${LibraryCounts.grouped(missing!!)} to this phone", primary = true, icon = Icons.Rounded.CloudDownload, modifier = Modifier.padding(top = 8.dp), onClick = {
-                backup.restoreMissing()
-                missing = null
-            })
+            checking || d == null || g == null -> com.deepak.photovault.designsystem.SkeletonLine(180.dp, 16.dp, label = "Looking for backups")
+            else -> {
+                if (fromDrive) Text(
+                    when (d) {
+                        -1 -> "Family drive: couldn't read it. Check you're on the home Wi-Fi."
+                        0 -> "Family drive: everything is already on this phone."
+                        else -> "Family drive: ${LibraryCounts.grouped(d)} not on this phone."
+                    },
+                    color = if (d == -1) com.deepak.photovault.designsystem.DangerColor else theme.onGlass,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (fromGoogle) Text(
+                    when {
+                        googleFailed -> "Google Drive: couldn't read it. Check the internet."
+                        g.isEmpty() -> "Google Drive: everything is already on this phone."
+                        else -> "Google Drive: ${LibraryCounts.grouped(g.size)} not on this phone."
+                    },
+                    color = if (googleFailed) com.deepak.photovault.designsystem.DangerColor else theme.onGlass,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
-        backup.restoreMessage?.let { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
+        backup.restoreMessage?.let { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall) }
     }
 }
+
+/** In a chosen restore list: "and everything missing from the family drive too" (15 Nov). */
+const val RESTORE_ALL_FROM_DRIVE = "*family-drive-all*"
 
 @Composable
 internal fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String) {
@@ -676,6 +848,191 @@ private fun YourSpace(drive: DriveState) {
                 color = theme.onGlassSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+
+/** Family drive, Google Drive or both (Phase 10). With both, a photo counts as backed up once it is in both. */
+@Composable
+private fun DestinationCard(backup: BackupState) {
+    val theme = LocalGlassTheme.current
+    val choice = backup.settings.destination
+    val options = listOf(
+        com.deepak.photovault.core.backup.BackupDestination.DRIVE to "Family drive",
+        com.deepak.photovault.core.backup.BackupDestination.GOOGLE to "Google Drive",
+        com.deepak.photovault.core.backup.BackupDestination.BOTH to "Both",
+    )
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader("Back up to")
+        com.deepak.photovault.designsystem.GlassSegmented(
+            options.map { it.second },
+            options.indexOfFirst { it.first == choice }.coerceAtLeast(0),
+            { i -> backup.update { it.copy(destination = options[i].first) } },
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
+        Text(
+            when (choice) {
+                com.deepak.photovault.core.backup.BackupDestination.DRIVE -> "Kept on the family drive at home."
+                com.deepak.photovault.core.backup.BackupDestination.GOOGLE -> "Kept in your Google account, away from home."
+                com.deepak.photovault.core.backup.BackupDestination.BOTH -> "Kept in both places. Each has its own schedule and choices below."
+            },
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+/**
+ * Google Drive (Phase 10; tidied 14 Nov): how much is on Google, Back up now, then short rows: the accounts (in their
+ * own window), and Google's own schedule, folders and options.
+ */
+@Composable
+private fun GoogleCard(
+    google: GoogleState,
+    backup: BackupState,
+    view: com.deepak.photovault.core.backup.BackupSettings,
+    albums: List<PhoneAlbum>,
+    eligible: List<com.deepak.photovault.core.media.MediaItem>,
+    open: (BackupSheet) -> Unit,
+) {
+    val theme = LocalGlassTheme.current
+    val status = google.platform.status?.collectAsState()?.value ?: GoogleStatus()
+    var note by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { google.refresh(readSpace = true, readRecords = false) }
+    // The count follows a run that just ended.
+    LaunchedEffect(status.running) { if (!status.running) google.refresh(readRecords = false) }
+    val onGoogle = remember(eligible, google.keys) { eligible.count { BackupSelection.key(it) in google.keys } }
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader("Google Drive")
+        if (google.accounts.isEmpty()) {
+            Text(
+                "Add a Google account to keep a copy of your photos away from home. Pixallery can only see the files it saves there, nothing else in the account.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            GlassButton("Add Google account", icon = Icons.Rounded.Add, primary = true, onClick = { google.platform.addAccount() }, modifier = Modifier.padding(top = 12.dp))
+        } else {
+        val total = eligible.size
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    when {
+                        status.running -> "Backing up"
+                        total > 0 && onGoogle == total -> "All backed up"
+                        else -> "${LibraryCounts.grouped(total - onGoogle)} to back up"
+                    },
+                    color = theme.onGlass,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    if (status.running) (if (status.total == 0) "Getting ready..." else "${status.done} of ${status.total}")
+                    else "${LibraryCounts.grouped(onGoogle)} of ${LibraryCounts.grouped(total)} on Google",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (!status.running) {
+                GlassButton("Back up now", primary = true, icon = Icons.Rounded.CloudUpload, onClick = {
+                    note = if (backup.onMobileData() && !view.mobileData) "On mobile data: it starts once you're on Wi-Fi." else null
+                    google.platform.backUpNow()
+                })
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        GlassProgressBar(
+            if (status.running) (if (status.total == 0) 0f else status.done / status.total.toFloat()) else if (total == 0) 0f else onGoogle / total.toFloat(),
+            label = "$onGoogle of $total on Google",
+        )
+        val line = listOfNotNull(
+            status.lastAtMillis?.let { "Last ${whenText(it, backup.now())}" },
+            backup.nextGoogleRunMillis()?.let { "next ${whenText(it, backup.now())}" },
+        ).joinToString(" · ")
+        if (line.isNotEmpty()) {
+            Text(line.replaceFirstChar { it.uppercase() }, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+        }
+        status.message?.let { WarningNote(it) }
+        note?.let { WarningNote(it) }
+        Spacer(Modifier.height(6.dp))
+        SettingRow(Icons.Rounded.Storage, "Accounts", accountsSummary(google.accounts), onClick = { open(BackupSheet.ACCOUNTS) })
+        PlaceRows(view, albums, open)
+        }
+    }
+}
+
+/** "1 account · 13.6 GB free"; what needs the person comes first. */
+internal fun accountsSummary(accounts: List<GoogleAccount>): String {
+    val count = if (accounts.size == 1) "1 account" else "${accounts.size} accounts"
+    if (accounts.any { it.needsSignIn }) return "Sign in again"
+    if (accounts.all { it.full }) return "Full"
+    val free = accounts.filter { !it.full }.sumOf { a ->
+        val used = a.usedBytes
+        val limit = a.limitBytes
+        if (used != null && limit != null) (limit - used).coerceAtLeast(0L) else 0L
+    }
+    return if (free > 0) "$count · ${DetailsFormat.size(free)} free" else count
+}
+
+/**
+ * The Google accounts, in their own window: each with its space bar (Google's 15 GB is shared with Gmail and Google
+ * Photos), and Add another account. Accounts fill in order: when one is full, the next one is used.
+ */
+@Composable
+private fun AccountsDialog(google: GoogleState, onDismiss: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val scope = rememberCoroutineScope()
+    var removing by remember { mutableStateOf<String?>(null) }
+    GlassDialog(title = "Google accounts", onDismiss = onDismiss, buttons = { GlassButton("Done", primary = true, onClick = onDismiss) }) {
+        Text(
+            if (google.accounts.size > 1) "Filled in this order: when one is full, the next is used." else "Add more accounts for more space: when one is full, the next is used.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+            google.accounts.forEach { a ->
+                Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    val used = a.usedBytes
+                    val limit = a.limitBytes
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(a.email, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            Text(
+                                when {
+                                    a.needsSignIn -> "Needs you to sign in again"
+                                    a.full -> "Full"
+                                    used != null && limit != null -> "${DetailsFormat.size(used)} of ${DetailsFormat.size(limit)} used"
+                                    else -> "Space not read yet"
+                                },
+                                color = if (a.needsSignIn || a.full) com.deepak.photovault.designsystem.DangerColor else theme.onGlassSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (a.needsSignIn) GlassButton("Sign in", onClick = { google.platform.signInAgain(a.email) })
+                        else GlassIconButton(Icons.Rounded.Close, "Stop backing up to ${a.email}", onClick = { removing = a.email })
+                    }
+                    if (used != null && limit != null && limit > 0) {
+                        val share = (used.toFloat() / limit).coerceIn(0f, 1f)
+                        Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(theme.onGlass.copy(alpha = 0.12f))) {
+                            Box(Modifier.fillMaxWidth(share).height(6.dp).clip(RoundedCornerShape(3.dp)).background(if (share > 0.95f) com.deepak.photovault.designsystem.DangerColor else theme.accent))
+                        }
+                    }
+                }
+            }
+        }
+        GlassButton("Add another account", icon = Icons.Rounded.Add, onClick = { google.platform.addAccount() }, modifier = Modifier.padding(top = 12.dp))
+    }
+    removing?.let { email ->
+        ConfirmDialog(
+            title = "Stop backing up to $email?",
+            body = "New photos won't go to this account. What is already there stays in its Pixallery folder.",
+            confirm = "Stop",
+            onDismiss = { removing = null },
+        ) {
+            removing = null
+            scope.launch { google.remove(email) }
         }
     }
 }
