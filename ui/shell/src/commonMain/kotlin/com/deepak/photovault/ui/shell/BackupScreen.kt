@@ -163,7 +163,7 @@ fun BackupScreen(
                     if (settings.freeUpDays == 0) "Off" else "After ${settings.freeUpDays} days",
                     onClick = { freeUpOpen = true },
                 )
-                if (drive.joined != null) {
+                if (drive.joined != null || showGoogle) {
                     SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", onClick = { restoreOpen = true })
                 }
                 if (!backup.notificationsAllowed()) {
@@ -177,7 +177,7 @@ fun BackupScreen(
     }
     if (privacyOpen) PrivacyDialog(state, drive, backup, onDismiss = { privacyOpen = false })
     if (freeUpOpen) FreeUpDialog(backup, actions, onDismiss = { freeUpOpen = false })
-    if (restoreOpen && drive.joined != null) RestoreDialog(drive, backup, gallery, onDismiss = { restoreOpen = false })
+    if (restoreOpen) RestoreDialog(drive, backup, gallery, state.google, fromDrive = drive.joined != null && showDrive, fromGoogle = showGoogle, onDismiss = { restoreOpen = false })
 
     sheet?.let { (what, forGoogle) ->
         val view = if (forGoogle) googleView else settings
@@ -664,47 +664,70 @@ private fun HistoryCard(history: List<BackupRun>) {
     }
 }
 
-/** Restore to this phone in a popup (14 Nov): bring back backed-up photos that aren't on this phone. */
+/**
+ * Restore to this phone in a popup (14 Nov): bring back backed-up photos that aren't on this phone, from the family
+ * drive, Google Drive (15 Nov) or both, following where this phone backs up to.
+ */
 @Composable
-private fun RestoreDialog(drive: DriveState, backup: BackupState, gallery: GalleryState, onDismiss: () -> Unit) {
+private fun RestoreDialog(
+    drive: DriveState,
+    backup: BackupState,
+    gallery: GalleryState,
+    google: GoogleState,
+    fromDrive: Boolean,
+    fromGoogle: Boolean,
+    onDismiss: () -> Unit,
+) {
     val theme = LocalGlassTheme.current
     val scope = rememberCoroutineScope()
-    var missing by remember { mutableStateOf<Int?>(null) }
+    // null while looking; -1 when it couldn't be read.
+    var driveMissing by remember { mutableStateOf<Int?>(null) }
+    var googleMissing by remember { mutableStateOf<List<String>?>(null) }
+    var googleFailed by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(false) }
-    // Look straight away: the popup was opened to restore.
-    LaunchedEffect(Unit) {
-        if (!backup.restoring) {
-            checking = true
-            missing = drive.missingOnPhone(gallery.items) ?: -1
-            checking = false
+    suspend fun look() {
+        checking = true
+        driveMissing = if (fromDrive) (drive.missingOnPhone(gallery.items) ?: -1) else 0
+        if (fromGoogle) {
+            val list = google.platform.missingOnPhone()
+            googleFailed = list == null
+            googleMissing = list.orEmpty()
+        } else {
+            googleMissing = emptyList()
         }
+        checking = false
     }
+    // Look straight away: the popup was opened to restore.
+    LaunchedEffect(Unit) { if (!backup.restoring) look() }
     val rp = backup.restoreProgress
-    val count = missing
+    val d = driveMissing
+    val g = googleMissing
+    val total = (d?.coerceAtLeast(0) ?: 0) + (g?.size ?: 0)
+    val failed = (fromDrive && d == -1) || (fromGoogle && googleFailed)
     GlassDialog(
         title = "Restore to this phone",
         onDismiss = onDismiss,
         buttons = {
             GlassButton(if (backup.restoring) "Close" else "Cancel", onClick = onDismiss)
-            if (!backup.restoring && count != null && count > 0) {
-                GlassButton("Restore ${LibraryCounts.grouped(count)}", primary = true, icon = Icons.Rounded.CloudDownload, onClick = {
-                    backup.restoreMissing()
-                    missing = null
+            if (!backup.restoring && !checking && total > 0) {
+                GlassButton("Restore ${LibraryCounts.grouped(total)}", primary = true, icon = Icons.Rounded.CloudDownload, onClick = {
+                    val googlePaths = g.orEmpty()
+                    val driveToo = (d ?: 0) > 0
+                    when {
+                        googlePaths.isNotEmpty() -> backup.restoreSelected(googlePaths + (if (driveToo) listOf(RESTORE_ALL_FROM_DRIVE) else emptyList()))
+                        driveToo -> backup.restoreMissing()
+                    }
+                    driveMissing = null
+                    googleMissing = null
                 })
             }
-            if (!backup.restoring && count == -1) {
-                GlassButton("Try again", onClick = {
-                    scope.launch {
-                        checking = true
-                        missing = drive.missingOnPhone(gallery.items) ?: -1
-                        checking = false
-                    }
-                })
+            if (!backup.restoring && !checking && failed) {
+                GlassButton("Try again", onClick = { scope.launch { look() } })
             }
         },
     ) {
         Text(
-            "Brings back photos from the family drive that aren't on this phone.",
+            "Brings back backed-up photos that aren't on this phone. They go to the \"Pixallery Restored\" album.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -714,14 +737,34 @@ private fun RestoreDialog(drive: DriveState, backup: BackupState, gallery: Galle
                 if (rp != null && rp.second > 0) GlassProgressBar(rp.first / rp.second.toFloat(), label = "Restore progress")
                 Text("You can close this; it carries on.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
             }
-            checking || count == null -> com.deepak.photovault.designsystem.SkeletonLine(180.dp, 16.dp, label = "Looking at the drive")
-            count == -1 -> WarningNote("Couldn't read the drive. Check you're on the home Wi-Fi and try again.")
-            count == 0 -> Text("Everything on the drive is already on this phone.", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
-            else -> Text("${LibraryCounts.grouped(count)} backed-up photos and videos aren't on this phone.", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+            checking || d == null || g == null -> com.deepak.photovault.designsystem.SkeletonLine(180.dp, 16.dp, label = "Looking for backups")
+            else -> {
+                if (fromDrive) Text(
+                    when (d) {
+                        -1 -> "Family drive: couldn't read it. Check you're on the home Wi-Fi."
+                        0 -> "Family drive: everything is already on this phone."
+                        else -> "Family drive: ${LibraryCounts.grouped(d)} not on this phone."
+                    },
+                    color = if (d == -1) com.deepak.photovault.designsystem.DangerColor else theme.onGlass,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (fromGoogle) Text(
+                    when {
+                        googleFailed -> "Google Drive: couldn't read it. Check the internet."
+                        g.isEmpty() -> "Google Drive: everything is already on this phone."
+                        else -> "Google Drive: ${LibraryCounts.grouped(g.size)} not on this phone."
+                    },
+                    color = if (googleFailed) com.deepak.photovault.designsystem.DangerColor else theme.onGlass,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
         backup.restoreMessage?.let { Text(it, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall) }
     }
 }
+
+/** In a chosen restore list: "and everything missing from the family drive too" (15 Nov). */
+const val RESTORE_ALL_FROM_DRIVE = "*family-drive-all*"
 
 @Composable
 internal fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String) {

@@ -20,10 +20,8 @@ class DriveAwareActions(
 ) : MediaActions by phone {
     private fun List<MediaItem>.paths() = mapNotNull { DriveTimeline.pathOf(it.uri) }.toSet()
 
-    /** A photo saved only to Google (13 Nov). Deleting it and saving it back to the phone come in a later part. */
+    /** A photo saved only to Google (13 Nov). */
     private fun MediaItem.onGoogle() = DriveTimeline.pathOf(uri)?.let(::isGooglePath) == true
-
-    private fun googleNotYet(what: String) = phone.toast("$what photos that are only on Google Drive comes in the next update.")
 
     /** After a change on the drive: re-read the lists so every screen agrees. */
     private suspend fun reread() {
@@ -42,7 +40,7 @@ class DriveAwareActions(
     }
 
     override fun saveToPhone(items: List<MediaItem>) {
-        if (items.any { it.onGoogle() }) return googleNotYet("Saving")
+        // Google's and the family drive's both go through the same restore job (15 Nov).
         val paths = items.filter { it.isDriveOnly }.mapNotNull { DriveTimeline.pathOf(it.uri) }
         if (paths.isEmpty()) return phone.toast("Already on this phone.")
         backup.restoreSelected(paths)
@@ -50,9 +48,14 @@ class DriveAwareActions(
     }
 
     override fun moveToRecentlyDeleted(items: List<MediaItem>, onDone: (Boolean) -> Unit) {
-        if (items.any { it.onGoogle() }) {
-            googleNotYet("Deleting")
-            return onDone(false)
+        // Only on Google (15 Nov): Google has no Recently deleted here, so a popup asks first and they go for good.
+        val (onGoogle, rest) = items.partition { it.onGoogle() }
+        if (onGoogle.isNotEmpty()) {
+            val g = google ?: return onDone(false)
+            g.askDelete(onGoogle.paths()) { ok ->
+                if (rest.isEmpty()) onDone(ok) else moveToRecentlyDeleted(rest, onDone)
+            }
+            return
         }
         val (onDrive, onPhone) = items.partition { it.isDriveOnly }
         if (onDrive.isEmpty()) return phone.moveToRecentlyDeleted(items, onDone)

@@ -268,8 +268,11 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
 private fun GoogleStorage(state: ShellState, zone: TimeZone, onOpen: (String, List<StoredFile>) -> Unit) {
     val theme = LocalGlassTheme.current
     val google = state.google
-    // Read again each time the tab opens: backups and Google's space change all the time.
-    LaunchedEffect(google.accounts.size) { google.loadUsage() }
+    // Last time's numbers at once (kept on the phone), then a fresh check with Google each time the tab opens.
+    LaunchedEffect(google.accounts.size) {
+        google.loadCached()
+        google.loadUsage()
+    }
     val usage = google.usage
     if (usage == null) {
         GlassCard(Modifier.fillMaxWidth()) {
@@ -298,8 +301,17 @@ private fun GoogleStorage(state: ShellState, zone: TimeZone, onOpen: (String, Li
             usage.forEach { u -> GlassChip(u.email.substringBefore('@'), selected = chosenEmail == u.email, onClick = { state.storageGoogleAccount = u.email }) }
         }
     }
-    if (google.usageLoading) {
-        Text("Updating from Google…", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+    // Tells the person it is checking (15 Nov), while the last numbers stay on screen.
+    androidx.compose.animation.AnimatedVisibility(
+        visible = google.usageLoading,
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = theme.onGlassSecondary, strokeWidth = 2.dp)
+            Spacer(Modifier.width(8.dp))
+            Text("Checking Google Drive for new photos…", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+        }
     }
     val photos = files.filterNot { it.isVideo }
     val videos = files.filter { it.isVideo }

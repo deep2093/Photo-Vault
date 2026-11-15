@@ -38,6 +38,7 @@ import com.deepak.photovault.core.media.MediaStoreLibrary
 import com.deepak.photovault.ui.shell.GoogleStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
@@ -84,6 +85,47 @@ object GoogleBackup {
      */
     private val lastGood = java.util.concurrent.ConcurrentHashMap<String, List<BackupRecord>>()
 
+    // Kept on the phone too (15 Nov), so Storage and the timeline show Google's photos the moment the app opens.
+    private fun recordsFile(context: Context, email: String) =
+        java.io.File(context.applicationContext.filesDir, "backup/google-records-${GoogleAccounts.slug(email)}.json")
+
+    private val recordsJson = kotlinx.serialization.builtins.ListSerializer(BackupRecord.serializer())
+
+    private fun remember(context: Context, email: String, list: List<BackupRecord>) {
+        lastGood[email] = list
+        runCatching {
+            val f = recordsFile(context, email)
+            f.parentFile?.mkdirs()
+            val tmp = java.io.File(f.path + ".tmp")
+            tmp.writeText(com.deepak.photovault.core.backup.BackupEngine.json.encodeToString(recordsJson, list))
+            tmp.renameTo(f)
+        }
+    }
+
+    /** The last list read from [email], from memory or the phone; null when never read. */
+    private fun cachedRecords(context: Context, email: String): List<BackupRecord>? = lastGood[email] ?: runCatching {
+        val f = recordsFile(context, email)
+        if (!f.exists()) null else com.deepak.photovault.core.backup.BackupEngine.json.decodeFromString(recordsJson, f.readText()).also { lastGood[email] = it }
+    }.getOrNull()
+
+    /** What Storage showed last time, straight from the phone: no waiting for Google (15 Nov). */
+    fun cachedStorage(context: Context): List<com.deepak.photovault.ui.shell.GoogleUsage>? {
+        val accounts = GoogleAccounts.list(context)
+        if (accounts.isEmpty()) return emptyList()
+        val lists = accounts.map { it to cachedRecords(context, it) }
+        if (lists.all { it.second == null }) return null
+        return lists.map { (email, records) ->
+            val (used, limit) = GoogleAccounts.space(context, email)
+            com.deepak.photovault.ui.shell.GoogleUsage.of(email, limit, used, records.orEmpty()).copy(listRead = records != null)
+        }
+    }
+
+    /** Forgets what was read from an account that was removed. */
+    fun forgetAccount(context: Context, email: String) {
+        lastGood.remove(email)
+        runCatching { recordsFile(context, email).delete() }
+    }
+
     /** One account's records, with timeline paths ("gdrive/<account>/users/me/..."); null when never read. */
     suspend fun accountRecords(context: Context, email: String): List<BackupRecord>? {
         val fs = GoogleAccounts.fs(context, email)
@@ -97,12 +139,29 @@ object GoogleBackup {
                 list = list + BackupCatalog(fs, USER, vaults[1]).records().filter { it.drivePath !in have }
             }
             list.map { it.copy(drivePath = PATH_PREFIX + GoogleAccounts.slug(email) + "/" + it.drivePath) }
-                .also { lastGood[email] = it }
+                .also { remember(context, email, it) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            lastGood[email]
+            cachedRecords(context, email)
         }
+    }
+
+    /**
+     * Google backups (timeline paths) that aren't on this phone (15 Nov): neither the original nor a restored copy,
+     * matched the same way as the family drive's restore. Null when no account could be read.
+     */
+    suspend fun missingOnPhone(context: Context): List<String>? {
+        val phone = withContext(Dispatchers.IO) { MediaStoreLibrary(context).loadAll() }
+        val keys = phone.map(com.deepak.photovault.core.backup.BackupSelection::key).toHashSet()
+        val nameAndSize = phone.map { "${it.displayName}|${it.sizeBytes}" }.toHashSet()
+        val lists = GoogleAccounts.list(context).map { accountRecords(context, it) }
+        if (lists.isNotEmpty() && lists.all { it == null }) return null
+        return lists.filterNotNull().flatten()
+            .filter { it.key !in keys && "${it.fileName}|${it.sizeBytes}" !in nameAndSize }
+            .sortedByDescending { it.takenAtMillis }
+            .map { it.drivePath }
+            .distinct()
     }
 
     /** Every account's space and what Pixallery keeps there, for Settings > Storage (14 Nov). */
@@ -132,13 +191,13 @@ object GoogleBackup {
             for ((email, inner) in byAccount) {
                 val wanted = inner.toSet()
                 val prefix = PATH_PREFIX + GoogleAccounts.slug(email) + "/"
-                val known = (lastGood[email] ?: accountRecords(context, email)).orEmpty()
+                val known = (cachedRecords(context, email) ?: accountRecords(context, email)).orEmpty()
                 val records = known.filter { it.drivePath.removePrefix(prefix) in wanted }.map { it.copy(drivePath = it.drivePath.removePrefix(prefix)) }
                 if (records.isEmpty()) continue
                 BackupCatalog(GoogleAccounts.fs(context, email), USER, privateVault(context)).remove(records, deviceId, System.currentTimeMillis())
                 index(context, email).remove(records.map { it.key }.toSet())
                 val gone = records.map { prefix + it.drivePath }.toSet()
-                lastGood[email]?.let { list -> lastGood[email] = list.filterNot { it.drivePath in gone } }
+                cachedRecords(context, email)?.let { list -> remember(context, email, list.filterNot { it.drivePath in gone }) }
             }
             runCatching { refreshSpace(context) }
             null

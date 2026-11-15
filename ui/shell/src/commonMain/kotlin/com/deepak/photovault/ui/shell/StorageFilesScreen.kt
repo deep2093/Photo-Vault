@@ -458,16 +458,7 @@ private fun FileRow(
             Text("$when_ · ${DetailsFormat.size(file.bytes)}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
         AnimatedVisibility(visible = selecting, enter = fadeIn(motionSpec()) + scaleIn(motionSpec()), exit = fadeOut(motionSpec()) + scaleOut(motionSpec())) {
-            Box(
-                Modifier
-                    .padding(start = 8.dp)
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(if (selected) theme.accentSurface else theme.onGlass.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(24.dp))
-            }
+            SelectionMark(selected, 24.dp, Modifier.padding(start = 8.dp))
         }
     }
 }

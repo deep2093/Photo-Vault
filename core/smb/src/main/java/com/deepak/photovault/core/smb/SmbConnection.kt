@@ -443,6 +443,14 @@ object SmbErrors {
             .sortedBy { it.second }
             .map { it.first }
     }
+    /** The [count] addresses either side of [saved] in its /24 block, nearest first (15 Nov). */
+    fun neighbours(saved: String, count: Int): List<String> {
+        val prefix = saved.substringBeforeLast('.', "")
+        val last = saved.substringAfterLast('.').toIntOrNull() ?: return emptyList()
+        if (prefix.isEmpty()) return emptyList()
+        return (1..count).flatMap { d -> listOf(last + d, last - d) }.filter { it in 1..254 }.map { "$prefix.$it" }
+    }
+
     /** Turns an exception into a message that is useful to show on screen. Never includes the password. */
     fun describe(e: Throwable): String {
         var cause: Throwable? = e

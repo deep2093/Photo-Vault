@@ -100,12 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-14-4"
+    const val ID = "2026-11-15-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Pick, save and delete Google backups", "In Settings > Storage > Google Drive, press and hold to pick backups, then save them to this phone or delete them from Google Drive, like the family drive."),
-        Change(ChangeKind.CHANGED, "Storage shows only what you use", "The Drive and Google Drive buttons show only once they're set up."),
-        Change(ChangeKind.FIXED, "Google numbers stay put", "Storage > Google Drive no longer empties for a moment and fills again while it checks Google, and the rings don't spin again when numbers update."),
+        Change(ChangeKind.NEW, "Delete Google-only photos from Photos", "Photos that are only on Google Drive can now be deleted from the timeline. A popup asks first, because they're deleted for good."),
+        Change(ChangeKind.NEW, "Restore from Google Drive", "Backup > Restore to this phone now also brings back photos from Google Drive."),
+        Change(ChangeKind.CHANGED, "Storage > Google Drive opens at once", "It shows last time's numbers straight away and says \"Checking Google Drive for new photos\" while it updates."),
+        Change(ChangeKind.CHANGED, "Clearer tick when picking photos", "Picked photos show a bright blue circle with a white tick; unpicked ones a white ring."),
+        Change(ChangeKind.FIXED, "Finding the drive after it changes address", "When the drive gets a new address on the home Wi-Fi, Pixallery now also tries the addresses right next to the old one and checks it's really your drive before signing in."),
     )
 }
 

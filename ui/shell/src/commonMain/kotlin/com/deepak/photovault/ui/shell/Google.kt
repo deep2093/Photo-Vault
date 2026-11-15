@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.deepak.photovault.core.backup.BackupRecord
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /** One Google account Pixallery backs up to (Phase 10, 13 Nov). Space is Google's own, shared with Gmail and Photos. */
 data class GoogleAccount(
@@ -70,6 +71,12 @@ interface GooglePlatform {
 
     /** What is in each account, for Settings > Storage (14 Nov). */
     suspend fun storage(): List<GoogleUsage> = emptyList()
+
+    /** Google backups (timeline paths) that aren't on this phone, for Restore (15 Nov); null when Google couldn't be read. */
+    suspend fun missingOnPhone(): List<String>? = emptyList()
+
+    /** What Storage showed last time, kept on the phone (15 Nov); null when nothing was kept yet. */
+    suspend fun cachedStorage(): List<GoogleUsage>? = null
 
     /** Deletes these backups (timeline paths) from Google Drive. Null when it worked, else the problem in plain words. */
     suspend fun deleteBackups(paths: Set<String>): String? = "Not available here."
@@ -138,6 +145,17 @@ class GoogleState(val platform: GooglePlatform = object : GooglePlatform {}) {
     var usageLoading by mutableStateOf(false)
         private set
 
+    /**
+     * Shows what was read last time at once (15 Nov): Storage and the timeline don't wait for Google. [loadUsage] then
+     * checks Google and updates.
+     */
+    suspend fun loadCached() {
+        if (usage != null) return
+        val cached = runCatching { platform.cachedStorage() }.getOrNull() ?: return
+        if (usage == null) usage = cached
+        if (records == null) records = cached.flatMap { it.records }
+    }
+
     suspend fun loadUsage() {
         if (usageLoading) return
         usageLoading = true
@@ -164,6 +182,30 @@ class GoogleState(val platform: GooglePlatform = object : GooglePlatform {}) {
             }
             keys = runCatching { platform.keys() }.getOrDefault(keys)
         }
+        return error
+    }
+
+    /** Photos only on Google waiting for "Delete from Google Drive?" (15 Nov), and what to do after. */
+    var pendingDelete by mutableStateOf<Pair<Set<String>, (Boolean) -> Unit>?>(null)
+        private set
+
+    fun askDelete(paths: Set<String>, onDone: (Boolean) -> Unit) {
+        if (paths.isEmpty()) return onDone(true)
+        pendingDelete = paths to onDone
+    }
+
+    fun cancelDelete() {
+        val p = pendingDelete ?: return
+        pendingDelete = null
+        p.second(false)
+    }
+
+    /** Null when deleted, else the problem. */
+    suspend fun confirmDelete(): String? {
+        val (paths, done) = pendingDelete ?: return null
+        pendingDelete = null
+        val error = deleteBackups(paths)
+        done(error == null)
         return error
     }
 
@@ -229,5 +271,27 @@ internal fun GoogleFullPopup(state: ShellState, backup: BackupState) {
             color = com.deepak.photovault.designsystem.LocalGlassTheme.current.onGlass,
             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
         )
+    }
+}
+
+/** "Delete from Google Drive?" for photos that are only on Google (15 Nov). They are deleted for good. */
+@androidx.compose.runtime.Composable
+internal fun GoogleDeletePopup(state: ShellState) {
+    val google = state.google
+    val pending = google.pendingDelete ?: return
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val toast = LocalToast.current
+    val n = pending.first.size
+    ConfirmDialog(
+        title = "Delete ${if (n == 1) "this photo" else "$n photos"} from Google Drive?",
+        body = (if (n == 1) "It is" else "They are") + " only on Google Drive, not on this phone, so " +
+            (if (n == 1) "it is" else "they are") + " deleted for good. This can't be undone.",
+        confirm = "Delete",
+        onDismiss = { google.cancelDelete() },
+    ) {
+        scope.launch {
+            val error = google.confirmDelete()
+            toast(error ?: "Deleted from Google Drive.")
+        }
     }
 }

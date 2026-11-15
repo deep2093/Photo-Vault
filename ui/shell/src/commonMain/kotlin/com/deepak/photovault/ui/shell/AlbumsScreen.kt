@@ -469,12 +469,7 @@ private fun AlbumCard(
                 exit = androidx.compose.animation.fadeOut(motionSpec()) + androidx.compose.animation.scaleOut(motionSpec()),
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             ) {
-                Box(
-                    Modifier.size(24.dp).clip(CircleShape).background(if (selected) theme.accentSurface else Color.Black.copy(alpha = 0.35f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (selected) Icon(Icons.Rounded.CheckCircle, null, tint = theme.onAccent, modifier = Modifier.size(24.dp))
-                }
+                SelectionMark(selected, 26.dp)
             }
         }
         Row(Modifier.padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 4.dp)) {

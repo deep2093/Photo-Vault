@@ -100,6 +100,7 @@ class AndroidGoogle(
 
     override suspend fun remove(email: String) {
         GoogleAccounts.remove(app, email)
+        GoogleBackup.forgetAccount(app, email)
         GoogleBackup.schedule(app)
     }
 
@@ -127,4 +128,9 @@ class AndroidGoogle(
     override suspend fun storage(): List<com.deepak.photovault.ui.shell.GoogleUsage> = GoogleBackup.storage(app)
 
     override suspend fun deleteBackups(paths: Set<String>): String? = GoogleBackup.deleteBackups(app, paths)
+
+    override suspend fun missingOnPhone(): List<String>? = GoogleBackup.missingOnPhone(app)
+
+    override suspend fun cachedStorage(): List<com.deepak.photovault.ui.shell.GoogleUsage>? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { GoogleBackup.cachedStorage(app) }
 }

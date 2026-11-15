@@ -258,7 +258,13 @@ fun PhotoVaultApp(
         timelineRecords(drive.backupRecords, state.google.records)?.let(gallery::setDriveRecords)
     }
     // Google: read the accounts and what is saved there when the app opens; "backed up" marks follow.
-    LaunchedEffect(state.google) { if (state.google.platform.supported) state.google.refresh(readSpace = true) }
+    LaunchedEffect(state.google) {
+        if (state.google.platform.supported) {
+            // Last time's Google photos first, so they're in the timeline straight away; then check Google.
+            state.google.loadCached()
+            state.google.refresh(readSpace = true)
+        }
+    }
     LaunchedEffect(state.google.keys, backup.settings.destination) { backup.googleKeys = state.google.keys }
     // A Google backup that just finished: read the lists again.
     val googleStatus = state.google.platform.status?.collectAsState()
@@ -283,6 +289,7 @@ fun PhotoVaultApp(
                     // First-time backup questions after joining a family drive (10 Nov).
                     FirstSetupPopups(state, drive, backup)
                     GoogleFullPopup(state, backup)
+                    GoogleDeletePopup(state)
                     // Photos and dates fade out under the status bar instead of showing through its clock and icons.
                     val top = system.calculateTopPadding()
                     // Neutral dark, not the wallpaper's first colour: that showed as a pink band on Vivid Night (29 Oct).
