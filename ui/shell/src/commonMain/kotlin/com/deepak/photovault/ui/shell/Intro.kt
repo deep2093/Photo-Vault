@@ -100,12 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-15-2"
+    const val ID = "2026-11-15-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Restores go back to their folders", "Restored photos now go back to the folder they came from instead of \"Pixallery Restored\". Older backups go to a folder of their album's name."),
-        Change(ChangeKind.CHANGED, "Each page remembers its grid size", "Pinch to a size on Photos, an album, Search or any other page, and it stays that size, even after closing the app."),
-        Change(ChangeKind.FIXED, "Deleting Google Drive photos", "Photos only on Google Drive now leave Photos the moment you delete them, and are removed from Google in the background, even if you close the app."),
+        Change(ChangeKind.NEW, "Remove phone copies with Google Drive only", "Backing up to Google Drive only? Remove phone copies now works there too: each photo is read back from Google and checked before its phone copy can go."),
+        Change(ChangeKind.NEW, "Recovery words for a PIN key", "If you made your Private key with a Google PIN and then joined a family, Backup privacy now offers your 24 recovery words, so the family drive can bring your key back too."),
     )
 }
 

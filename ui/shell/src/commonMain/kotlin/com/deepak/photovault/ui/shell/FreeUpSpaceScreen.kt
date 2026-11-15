@@ -82,7 +82,7 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Bo
         )
         Text(
             if (days == 0) "Turn this on and photos that are already backed up are taken off this phone after that many days. Right now nothing is removed."
-            else "Photos that are already backed up are taken off this phone $days days after their backup. They stay on the drive and in Photos, and sit in Recently deleted for 30 days first.",
+            else "Photos that are already backed up are taken off this phone $days days after their backup. They stay in your backup and in Photos, and sit in Recently deleted for 30 days first.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 8.dp),
@@ -98,7 +98,7 @@ private fun FreeUpCards(backup: BackupState, actions: MediaActions, inDialog: Bo
             val progress = backup.freeUpProgress
             if (backup.freeUpChecking) {
                 Text(
-                    progress?.let { "Checking ${it.first} of ${it.second} against the drive..." } ?: "Looking at what is on the drive...",
+                    progress?.let { "Checking ${it.first} of ${it.second} against your backup..." } ?: "Looking at what is backed up...",
                     color = theme.onGlass,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -165,7 +165,7 @@ private fun summary(r: com.deepak.photovault.core.backup.FreeUpResult): String =
     r.message != null && r.nothingToDo -> "Nothing was checked."
     r.verified.isEmpty() && r.smaller.isEmpty() -> "Nothing is ready to move right now."
     r.verified.isEmpty() -> "Only Storage saver photos are ready."
-    else -> "${r.verified.size} photos are ready: on the drive, read back and checked, with a preview. Moving them frees ${DetailsFormat.size(r.bytes)}."
+    else -> "${r.verified.size} photos are ready: backed up, read back and checked, with a preview. Moving them frees ${DetailsFormat.size(r.bytes)}."
 }
 
 /**

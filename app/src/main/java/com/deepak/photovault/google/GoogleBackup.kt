@@ -267,6 +267,66 @@ object GoogleBackup {
     }
 
     /**
+     * Remove phone copies with Google Drive only (15 Nov): which phone photos may go. Same care as the family drive's:
+     * only backups at least [days] old, and each is read back from Google and checked against the phone's copy before
+     * it counts. Never deletes anything itself.
+     */
+    suspend fun freeUpCheck(context: Context, days: Int, onProgress: (Int, Int) -> Unit): com.deepak.photovault.core.backup.FreeUpResult {
+        fun say(text: String) = com.deepak.photovault.core.backup.FreeUpResult(message = text)
+        val settings = BackupSettingsStore(context).load()
+        val private = settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE
+        if (settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET) return say(FailureReason.PRIVACY_NOT_CHOSEN.plain)
+        val accounts = GoogleAccounts.list(context)
+        if (accounts.isEmpty()) return say("Add a Google account first (Backup > Google Drive).")
+        val metered = context.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered == true
+        if (metered && !settings.forGoogle().mobileData) return say("On mobile data: the check reads your backups from Google, so it waits for Wi-Fi.")
+        val vault = if (private) privateVault(context) ?: return say(FailureReason.NO_PRIVATE_KEY.plain) else null
+        return try {
+            var left = withContext(Dispatchers.IO) { MediaStoreLibrary(context).loadAll() }
+            val hide = pendingDeletes(context)
+            val passed = mutableListOf<com.deepak.photovault.core.backup.FreeUpSpace.Ready>()
+            var waiting = 0
+            var failed = 0
+            val now = System.currentTimeMillis()
+            for (email in accounts) {
+                val prefix = PATH_PREFIX + GoogleAccounts.slug(email) + "/"
+                val records = (rawRecords(context, email) ?: return say("Couldn't read Google Drive. Check the internet and try again."))
+                    .filterNot { it.drivePath in hide }
+                    .map { it.copy(drivePath = it.drivePath.removePrefix(prefix)) }
+                    .associateBy { it.key }
+                val split = com.deepak.photovault.core.backup.FreeUpSpace.split(left, records, days, now)
+                waiting += split.waiting
+                if (split.ready.isEmpty()) continue
+                val engine = BackupEngine(
+                    drive = GoogleAccounts.fs(context, email),
+                    userId = USER,
+                    deviceId = com.deepak.photovault.AndroidDrivePlatform(context).deviceId,
+                    reader = AndroidMediaReader(context),
+                    index = index(context, email),
+                    now = System::currentTimeMillis,
+                    zone = TimeZone.currentSystemDefault(),
+                    classify = { e -> BackupRunner.classify(e) },
+                    vault = vault,
+                )
+                val before = passed.size
+                val (ok, bad) = engine.verifyForRemoval(split.ready) { done, total -> onProgress(before + done, before + total) }
+                passed += ok
+                failed += bad
+                // A photo checked in one account isn't looked for in the next.
+                val done = split.ready.map { it.item.id }.toHashSet()
+                left = left.filterNot { it.id in done }
+            }
+            com.deepak.photovault.core.backup.FreeUpSpace.result(passed, waiting, failed)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GoogleSignInNeeded) {
+            say("Google asked you to sign in again (Backup > Google Drive > Accounts).")
+        } catch (e: Exception) {
+            say("Couldn't check Google Drive. Check the internet and try again.")
+        }
+    }
+
+    /**
      * Saves the chosen Google backups (timeline paths) to this phone's "Restored" album (14 Nov). Each download is
      * checked before it is kept; ones already on the phone are skipped.
      */

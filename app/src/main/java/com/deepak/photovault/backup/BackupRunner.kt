@@ -285,9 +285,9 @@ class BackupRunner(
         if (!lock.tryLock()) return FreeUpResult(message = "A backup or restore is running. Check again when it finishes.")
         try {
             if (!hasPhotoAccess()) return FreeUpResult(message = FailureReason.NO_PHOTO_ACCESS.plain)
-            // Phase 10: freeing space checks the family drive's copies; Google-only backup can't free space yet.
+            // Google Drive only (15 Nov): the same check, against the copies in Google.
             if (settingsStore.load().destination == com.deepak.photovault.core.backup.BackupDestination.GOOGLE) {
-                return FreeUpResult(message = "Free up space works with the family drive for now. With Google Drive only, it comes in a later update.")
+                return com.deepak.photovault.google.GoogleBackup.freeUpCheck(context, days, onProgress)
             }
             val privacy = settingsStore.load().privacy
             if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET) return FreeUpResult(message = FailureReason.PRIVACY_NOT_CHOSEN.plain)

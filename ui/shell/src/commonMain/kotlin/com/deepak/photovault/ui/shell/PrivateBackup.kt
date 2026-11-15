@@ -194,7 +194,7 @@ internal fun PrivateSetupScreen(state: ShellState, drive: DriveState, backup: Ba
                         GlassButton("Restore my key", primary = true, onClick = { state.open(Overlay.RestoreKeys) })
                     }
                 } else item {
-                    GlassButton("Make my key", primary = true, onClick = {
+                    GlassButton(if (enc.keyOnPhone) "Get my recovery words" else "Make my key", primary = true, onClick = {
                         val ctx = drive.keyContext()
                         if (ctx == null) {
                             if (state.google.accounts.isNotEmpty()) state.open(Overlay.PinKey)
@@ -350,13 +350,19 @@ internal fun googleKeyWay(state: ShellState, drive: DriveState): Boolean =
     drive.keyContext() == null && state.google.platform.supported && state.google.accounts.isNotEmpty()
 
 /** Where this person's key can be brought back from when it isn't on this phone: the family drive, Google, or nowhere. */
-private enum class KeyBackup { NONE, FAMILY, GOOGLE }
+private enum class KeyBackup {
+    NONE, FAMILY, GOOGLE,
+
+    /** The key is on this phone (made with a PIN for Google) but the family drive has no recovery file for it yet (15 Nov). */
+    NEEDS_WORDS,
+}
 
 @Composable
 private fun rememberKeyBackup(state: ShellState, drive: DriveState): KeyBackup {
     var where by remember { mutableStateOf(KeyBackup.NONE) }
     LaunchedEffect(drive.joined?.me?.userId, state.encryption.keyOnPhone, state.google.accounts.size) {
         where = when {
+            state.encryption.keyOnPhone && drive.joined != null && drive.keyFilesMissing() -> KeyBackup.NEEDS_WORDS
             state.encryption.keyOnPhone -> KeyBackup.NONE
             drive.joined != null && drive.readKeyFiles() != null -> KeyBackup.FAMILY
             state.google.accounts.isNotEmpty() && state.google.platform.readPinKey() != null -> KeyBackup.GOOGLE
@@ -379,7 +385,7 @@ internal fun PrivacyCard(state: ShellState, drive: DriveState, backup: BackupSta
     val theme = LocalGlassTheme.current
     val privacy = backup.settings.privacy
     val where = rememberKeyBackup(state, drive)
-    val needsRestore = where != KeyBackup.NONE
+    val needsRestore = where == KeyBackup.FAMILY || where == KeyBackup.GOOGLE
     GlassCard(Modifier.cardWidth()) {
         SectionHeader("Backup privacy")
         Text(privacyLine(privacy, needsRestore), color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 8.dp))
@@ -396,7 +402,7 @@ internal fun PrivacyDialog(state: ShellState, drive: DriveState, backup: BackupS
     val theme = LocalGlassTheme.current
     val privacy = backup.settings.privacy
     val where = rememberKeyBackup(state, drive)
-    val needsRestore = where != KeyBackup.NONE
+    val needsRestore = where == KeyBackup.FAMILY || where == KeyBackup.GOOGLE
     GlassDialog(
         title = "Backup privacy",
         onDismiss = onDismiss,
@@ -406,13 +412,20 @@ internal fun PrivacyDialog(state: ShellState, drive: DriveState, backup: BackupS
                 onDismiss()
                 state.open(if (where == KeyBackup.GOOGLE) Overlay.PinKey else Overlay.RestoreKeys)
             })
-            GlassButton(if (privacy == BackupPrivacy.UNSET) "Choose" else "Change", primary = !needsRestore, onClick = {
+            if (where == KeyBackup.NEEDS_WORDS) GlassButton("Get recovery words", primary = true, onClick = {
+                onDismiss()
+                state.open(Overlay.PrivateSetup)
+            })
+            GlassButton(if (privacy == BackupPrivacy.UNSET) "Choose" else "Change", primary = !needsRestore && where != KeyBackup.NEEDS_WORDS, onClick = {
                 onDismiss()
                 state.open(Overlay.PrivacyChoice)
             })
         },
     ) {
         Text(privacyLine(privacy, needsRestore), color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+        if (where == KeyBackup.NEEDS_WORDS) {
+            WarningNote("Your key is kept by your Google PIN only. Get your 24 recovery words too, so the family drive can bring your key back on a new phone.")
+        }
         Text(
             when (privacy) {
                 BackupPrivacy.PRIVATE -> "The same for the family drive and Google Drive: photos are scrambled on this phone before they leave it, and only Pixallery with your key can open them."

@@ -36,7 +36,9 @@ class AndroidEncryption(private val activity: MainActivity) : EncryptionPlatform
     override fun hasLocalKey(): Boolean = root() != null
 
     override fun createKey(householdId: String, memberId: String): NewPrivateKey {
-        val keys = MemberKeys.generate()
+        // A key already on this phone (made with a PIN for Google, 15 Nov) is kept: it only gets its 24 words and its
+        // recovery file for the family drive. A new key would lock the person out of what they already backed up.
+        val keys = root()?.let { MemberKeys(it) } ?: MemberKeys.generate()
         val code = RecoveryCode.generate()
         val identity = MemberIdentity(keys)
         pending = keys
