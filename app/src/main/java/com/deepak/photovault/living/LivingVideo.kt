@@ -26,7 +26,17 @@ internal object LivingVideo {
     private const val FPS = 30
     private const val MIME = MediaFormat.MIMETYPE_VIDEO_AVC
 
-    fun encode(background: Bitmap, subject: Bitmap?, focusX: Float, focusY: Float, ground: Float, out: File, onProgress: (Float) -> Unit) {
+    fun encode(
+        background: Bitmap,
+        subject: Bitmap?,
+        focusX: Float,
+        focusY: Float,
+        ground: Float,
+        out: File,
+        onProgress: (Float) -> Unit,
+        /** The editor's colours (15 Nov), drawn on both layers of every frame. */
+        colour: FloatArray? = null,
+    ) {
         val scale = LONG_SIDE.toFloat() / max(background.width, background.height)
         val w = even16(background.width * scale)
         val h = even16(background.height * scale)
@@ -47,6 +57,7 @@ internal object LivingVideo {
             val frame = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(frame)
             val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+            if (colour != null) paint.colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(colour))
             val pixels = IntArray(w * h)
             val info = MediaCodec.BufferInfo()
             var track = -1

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.exifinterface.media.ExifInterface
 import com.deepak.photovault.core.media.EditMath
+import com.deepak.photovault.core.media.EditPixels
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.PhotoEdit
 import com.deepak.photovault.ui.shell.EditSaved
@@ -51,6 +52,17 @@ class AndroidEditor(context: Context) : EditorPlatform {
         if (quarter == 0 && !flipped) return@withContext base
         val source = base.asAndroidBitmap()
         Bitmap.createBitmap(source, 0, 0, source.width, source.height, shape(quarter, flipped), true).asImageBitmap()
+    }
+
+    /** The preview with the pixel-by-pixel changes (15 Nov); the colour matrix is added by the screen. */
+    override suspend fun pixels(image: ImageBitmap, edit: PhotoEdit): ImageBitmap = withContext(Dispatchers.Default) {
+        if (!edit.needsPixels) return@withContext image
+        val source = image.asAndroidBitmap()
+        val w = source.width
+        val h = source.height
+        val px = IntArray(w * h)
+        source.getPixels(px, 0, w, 0, 0, w, h)
+        Bitmap.createBitmap(EditPixels.all(edit, px, w, h, area = edit.crop), w, h, Bitmap.Config.ARGB_8888).asImageBitmap()
     }
 
     override suspend fun save(item: MediaItem, edit: PhotoEdit): EditSaved = saving.withLock {
@@ -112,8 +124,14 @@ class AndroidEditor(context: Context) : EditorPlatform {
         // A see-through picture (a PNG) gets a white page, as a JPEG has no see-through.
         canvas.drawColor(Color.WHITE)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
-        if (edit.hasColour) paint.colorFilter = ColorMatrixColorFilter(ColorMatrix(EditMath.colourMatrix(edit)))
-        canvas.drawBitmap(photo, matrix, paint)
+        if (edit.needsPixels) {
+            // Pixel by pixel (15 Nov), with the colour matrix last, as the preview does it.
+            canvas.drawBitmap(photo, matrix, paint)
+            EditBands.apply(out, edit, if (edit.hasColour) EditMath.colourMatrix(edit) else null)
+        } else {
+            if (edit.hasColour) paint.colorFilter = ColorMatrixColorFilter(ColorMatrix(EditMath.colourMatrix(edit)))
+            canvas.drawBitmap(photo, matrix, paint)
+        }
         return out
     }
 
@@ -208,5 +226,34 @@ class AndroidEditor(context: Context) : EditorPlatform {
             ExifInterface.TAG_GPS_LONGITUDE_REF, ExifInterface.TAG_GPS_ALTITUDE, ExifInterface.TAG_GPS_ALTITUDE_REF,
             ExifInterface.TAG_GPS_TIMESTAMP, ExifInterface.TAG_GPS_DATESTAMP,
         )
+    }
+}
+
+/**
+ * [EditPixels] on a big picture, a band of rows at a time and in place, so a 50-megapixel photo needs only a little
+ * more memory (15 Nov). The rows just above each band are kept as they were, for sharpness.
+ */
+internal object EditBands {
+    private const val BAND = 256
+
+    fun apply(bitmap: Bitmap, edit: PhotoEdit, matrix: FloatArray?, area: com.deepak.photovault.core.media.CropBox = com.deepak.photovault.core.media.CropBox()) {
+        val w = bitmap.width
+        val h = bitmap.height
+        val halo = EditPixels.halo(w, h)
+        var before = IntArray(0)
+        var y = 0
+        while (y < h) {
+            val rows = minOf(BAND, h - y)
+            val above = minOf(halo, y)
+            val below = minOf(halo, h - y - rows)
+            val src = IntArray(w * (above + rows + below))
+            // Rows above come from the untouched copy kept last time; the rest are not changed yet.
+            if (above > 0) System.arraycopy(before, before.size - above * w, src, 0, above * w)
+            bitmap.getPixels(src, above * w, w, 0, y, w, rows + below)
+            before = src.copyOfRange((above + rows - minOf(halo, rows)) * w, (above + rows) * w)
+            val done = EditPixels.rows(edit, src, w, h, rows, above, below, y, area, matrix)
+            bitmap.setPixels(done, 0, w, 0, y, w, rows)
+            y += rows
+        }
     }
 }

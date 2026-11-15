@@ -386,8 +386,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                                 }
                             }),
                             binModifier = Modifier.trackSpot(bin),
-                            // Make it move (7D-1): photos on this phone.
-                            onLiving = if (current.isVideo || current.isDriveOnly || !state.living.platform.supported) null else ({ state.open(Overlay.Living(current.id)) }),
+                            // Make it move is now Edit > Motion (15 Nov).
                             onMore = if (current.isVideo && (gallery.isExternal(current) || current.isDriveOnly)) null else ({ moreOpen = !moreOpen }),
                             // The photo flies to the More button when it goes to the Secured folder.
                             moreModifier = Modifier.trackSpot(lockSpot),

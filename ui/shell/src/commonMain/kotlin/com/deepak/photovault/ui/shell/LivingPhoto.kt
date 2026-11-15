@@ -94,7 +94,20 @@ interface LivingPlatform {
      * The living photo as a short video (7D-2, 8 Nov): one slow move there and back. [share] true opens the share
      * sheet; false saves it to the phone. Returns a short line to show, or null when nothing needs saying.
      */
-    suspend fun video(item: MediaItem, layers: LivingLayers, share: Boolean, onProgress: (Float) -> Unit): String? = "Videos can't be made here."
+    suspend fun video(
+        item: MediaItem,
+        layers: LivingLayers,
+        share: Boolean,
+        onProgress: (Float) -> Unit,
+        /** From the editor (15 Nov): its colour matrix is drawn on every frame ([layers] already have the rest). */
+        edit: com.deepak.photovault.core.media.PhotoEdit? = null,
+    ): String? = "Videos can't be made here."
+
+    /**
+     * The editor's Motion (15 Nov): [layers] turned, mirrored and cropped like [edit], with its pixel-by-pixel
+     * changes (highlights, shadows, vignette, grain...). The colour matrix is added when drawing.
+     */
+    suspend fun styled(layers: LivingLayers, edit: com.deepak.photovault.core.media.PhotoEdit): LivingLayers = layers
 }
 
 @Stable
@@ -227,7 +240,14 @@ fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState, a
 
 /** The living photo, forever, there and back. Gentler and slower with Reduce motion. [delayMs] staggers cards. */
 @Composable
-fun LivingPhoto(layers: LivingLayers, modifier: Modifier = Modifier, fill: Boolean = false, delayMs: Int = 0) {
+fun LivingPhoto(
+    layers: LivingLayers,
+    modifier: Modifier = Modifier,
+    fill: Boolean = false,
+    delayMs: Int = 0,
+    /** The editor's colours on both layers (15 Nov). */
+    colorFilter: androidx.compose.ui.graphics.ColorFilter? = null,
+) {
     val gentle = LocalGlassSettings.current.reduceMotion
     val loop = rememberInfiniteTransition(label = "livingLoop")
     val t by loop.animateFloat(
@@ -251,7 +271,7 @@ fun LivingPhoto(layers: LivingLayers, modifier: Modifier = Modifier, fill: Boole
         val subject = layers.subject
         if (subject == null) {
             val pivot = Offset(left + drawW * 0.5f, top + drawH * 0.5f)
-            layer(bg, left, top, drawW, drawH, pivot, LivingMotion.driftScale(t, gentle), LivingMotion.driftShift(t, gentle) * drawW)
+            layer(bg, left, top, drawW, drawH, pivot, LivingMotion.driftScale(t, gentle), LivingMotion.driftShift(t, gentle) * drawW, colorFilter)
             return@Canvas
         }
         val pivot = Offset(left + drawW / 2f, top + drawH / 2f)
@@ -263,14 +283,24 @@ fun LivingPhoto(layers: LivingLayers, modifier: Modifier = Modifier, fill: Boole
             val from = top + drawH * y0
             val to = top + drawH * y1
             clipRect(0f, if (i == 0) 0f else from - 0.5f, size.width, if (i == n - 1) size.height else to + 0.5f) {
-                layer(bg, left, top, drawW, drawH, pivot, 1f, -slide)
+                layer(bg, left, top, drawW, drawH, pivot, 1f, -slide, colorFilter)
             }
         }
-        layer(subject, left, top, drawW, drawH, pivot, 1f, 0f)
+        layer(subject, left, top, drawW, drawH, pivot, 1f, 0f, colorFilter)
     }
 }
 
-private fun DrawScope.layer(image: ImageBitmap, left: Float, top: Float, w: Float, h: Float, pivot: Offset, scale: Float, shiftX: Float) {
+private fun DrawScope.layer(
+    image: ImageBitmap,
+    left: Float,
+    top: Float,
+    w: Float,
+    h: Float,
+    pivot: Offset,
+    scale: Float,
+    shiftX: Float,
+    colorFilter: androidx.compose.ui.graphics.ColorFilter? = null,
+) {
     withTransform({
         translate(left = -shiftX)
         scale(scale, scale, pivot)
@@ -282,6 +312,7 @@ private fun DrawScope.layer(image: ImageBitmap, left: Float, top: Float, w: Floa
             dstOffset = IntOffset(left.toInt(), top.toInt()),
             dstSize = IntSize(max(1, w.toInt()), max(1, h.toInt())),
             filterQuality = FilterQuality.High,
+            colorFilter = colorFilter,
         )
     }
 }

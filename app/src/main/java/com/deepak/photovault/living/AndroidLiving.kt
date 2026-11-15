@@ -99,15 +99,24 @@ class AndroidLiving(context: Context) : LivingPlatform {
         }
     }
 
-    override suspend fun video(item: MediaItem, layers: LivingLayers, share: Boolean, onProgress: (Float) -> Unit): String? = lock.withLock {
+    override suspend fun video(
+        item: MediaItem,
+        layers: LivingLayers,
+        share: Boolean,
+        onProgress: (Float) -> Unit,
+        edit: com.deepak.photovault.core.media.PhotoEdit?,
+    ): String? = lock.withLock {
         withContext(Dispatchers.Default) {
             val bg = layers.background?.asAndroidBitmap() ?: return@withContext "Couldn't make the video."
             val dir = File(app.cacheDir, "living").apply { mkdirs() }
-            val file = File(dir, VERSION + hash(BackupSelection.key(item)) + ".mp4")
+            // An edited one (15 Nov) is its own video: the edit is part of its name.
+            val edited = edit != null && !edit.isUnchanged
+            val file = File(dir, VERSION + hash(BackupSelection.key(item) + if (edited) "|" + edit.toString() else "") + ".mp4")
+            val matrix = if (edit != null && edit.hasColour) com.deepak.photovault.core.media.EditMath.colourMatrix(edit) else null
             if (!file.exists() || file.length() == 0L) {
                 val tmp = File(dir, file.name + ".tmp")
                 try {
-                    LivingVideo.encode(bg, layers.subject?.asAndroidBitmap(), layers.focusX, layers.focusY, layers.ground, tmp, onProgress)
+                    LivingVideo.encode(bg, layers.subject?.asAndroidBitmap(), layers.focusX, layers.focusY, layers.ground, tmp, onProgress, matrix)
                 } catch (e: Throwable) {
                     tmp.delete()
                     if (e is kotlinx.coroutines.CancellationException) throw e
@@ -131,6 +140,42 @@ class AndroidLiving(context: Context) : LivingPlatform {
             }
         }
     }
+
+    override suspend fun styled(layers: LivingLayers, edit: com.deepak.photovault.core.media.PhotoEdit): LivingLayers =
+        withContext(Dispatchers.Default) {
+            val bg = layers.background?.asAndroidBitmap() ?: return@withContext layers
+            val turns = ((edit.turns % 4) + 4) % 4
+            if (turns == 0 && !edit.flipped && edit.crop.isFull && !edit.needsPixels) return@withContext layers
+            fun shape(b: Bitmap): Bitmap {
+                val m = android.graphics.Matrix().apply {
+                    postRotate(90f * turns)
+                    if (edit.flipped) postScale(-1f, 1f)
+                }
+                val turned = if (turns == 0 && !edit.flipped) b else Bitmap.createBitmap(b, 0, 0, b.width, b.height, m, true)
+                val cut = com.deepak.photovault.core.media.EditMath.pixels(edit.crop, turned.width, turned.height)
+                val cropped = if (edit.crop.isFull) turned else Bitmap.createBitmap(turned, cut[0], cut[1], cut[2], cut[3])
+                if (!edit.needsPixels) return cropped
+                val w = cropped.width
+                val h = cropped.height
+                val px = IntArray(w * h)
+                cropped.getPixels(px, 0, w, 0, 0, w, h)
+                return Bitmap.createBitmap(com.deepak.photovault.core.media.EditPixels.all(edit, px, w, h), w, h, Bitmap.Config.ARGB_8888)
+            }
+            val back = shape(bg)
+            val front = layers.subject?.asAndroidBitmap()?.let { shape(it) }
+            // Where the subject now meets the ground: its lowest solid row after turning and cropping.
+            val ground = front?.let { f ->
+                val w = f.width
+                val row = IntArray(w)
+                var lowest = -1
+                for (y in f.height - 1 downTo 0) {
+                    f.getPixels(row, 0, w, 0, y, w, 1)
+                    if (row.any { (it ushr 24) > 128 }) { lowest = y; break }
+                }
+                if (lowest < 0) 1f else (lowest + 1).toFloat() / f.height
+            } ?: layers.ground
+            LivingLayers(back.asImageBitmap(), front?.asImageBitmap(), 0.5f, 0.5f, layers.note, ground)
+        }
 
     /** Into Movies > Pixallery, dated like the photo so it sits next to it in the timeline. */
     private fun saveToMovies(file: File, item: MediaItem): String {

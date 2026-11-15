@@ -35,7 +35,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Compare
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Crop
 import androidx.compose.material.icons.rounded.Flip
@@ -113,6 +116,12 @@ interface EditorPlatform {
     /** [base] turned by [turns] quarter turns clockwise, then mirrored left to right when [flipped]. */
     suspend fun turned(base: ImageBitmap, turns: Int, flipped: Boolean): ImageBitmap = base
 
+    /**
+     * [image] with the edit's pixel-by-pixel changes (highlights, shadows, vibrance, sharpness, vignette, grain;
+     * 15 Nov), for the preview. The colour matrix isn't in it: the screen draws that on top, live.
+     */
+    suspend fun pixels(image: ImageBitmap, edit: PhotoEdit): ImageBitmap = image
+
     /** Saves [edit] of [item] as a new photo beside the original. Never writes to the original. */
     suspend fun save(item: MediaItem, edit: PhotoEdit): EditSaved = EditSaved(false, "Editing isn't available here.")
 }
@@ -133,6 +142,8 @@ private enum class EditTab(val label: String, val icon: ImageVector) {
     CROP("Crop", Icons.Rounded.Crop),
     ADJUST("Adjust", Icons.Rounded.Tune),
     FILTERS("Filters", Icons.Rounded.AutoAwesome),
+    // 15 Nov: the living photo moved here from the viewer.
+    MOTION("Motion", Icons.Rounded.Animation),
 }
 
 private val Dim = Color.White.copy(alpha = 0.62f)
@@ -153,6 +164,17 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     var adjust by remember { mutableStateOf(EditAdjust.BRIGHTNESS) }
     var saving by remember { mutableStateOf(false) }
     var turning by remember { mutableStateOf(false) }
+    // The pixel-by-pixel part of the edit on the preview (15 Nov); the colour matrix goes on top, live.
+    var worked by remember { mutableStateOf<ImageBitmap?>(null) }
+    // Holding Compare (or the photo): the original shows.
+    var showOriginal by remember { mutableStateOf(false) }
+    // Motion (15 Nov): on or off, the lifted layers once made, and those layers with the edit.
+    val livingOn = state.living.platform.supported
+    var motion by remember { mutableStateOf(false) }
+    var layers by remember { mutableStateOf<LivingLayers?>(null) }
+    var making by remember { mutableStateOf(false) }
+    var styled by remember { mutableStateOf<LivingLayers?>(null) }
+    var videoProgress by remember { mutableStateOf<Float?>(null) }
 
     LaunchedEffect(item) {
         val opened = item?.let { runCatching { editor.platform.open(it) }.getOrNull() }
@@ -160,7 +182,36 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
         image = opened
         failed = opened == null
     }
-    LaunchedEffect(edit) { editor.changed = !edit.isUnchanged }
+    LaunchedEffect(edit, motion) { editor.changed = !edit.isUnchanged || motion }
+    // The pixel-by-pixel part, a moment after a slider stops moving (it takes a little while on a big preview).
+    val pixelKey = listOf(edit.highlights, edit.shadows, edit.vibrance, edit.sharpness, edit.vignetteAmount, edit.grainAmount, edit.crop)
+    LaunchedEffect(image, pixelKey) {
+        val shown = image ?: return@LaunchedEffect
+        if (!edit.needsPixels) {
+            worked = null
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(60)
+        worked = runCatching { editor.platform.pixels(shown, edit) }.getOrNull()
+    }
+    // Motion: the subject is lifted out once, the first time Motion is turned on.
+    LaunchedEffect(motion) {
+        val photo = item ?: return@LaunchedEffect
+        if (!motion || layers != null || making) return@LaunchedEffect
+        making = true
+        layers = runCatching { state.living.platform.make(photo) }.getOrElse { LivingLayers(null, null, note = "Couldn't make this one move.") }
+        making = false
+    }
+    // The lifted layers turned, cropped and with the pixel-by-pixel changes; colours are added when drawn.
+    LaunchedEffect(layers, motion, edit.turns, edit.flipped, edit.crop, pixelKey) {
+        val l = layers
+        if (!motion || l == null || l.background == null) {
+            styled = null
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(120)
+        styled = runCatching { state.living.platform.styled(l, edit) }.getOrNull() ?: l
+    }
     DisposableEffect(Unit) {
         onDispose {
             editor.changed = false
@@ -213,6 +264,22 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
         }
     }
 
+    /** With Motion on: the moving photo as a short video, with the crop and colours (15 Nov). */
+    fun saveVideo(share: Boolean) {
+        val photo = item ?: return
+        val l = styled ?: return
+        if (saving) return
+        saving = true
+        videoProgress = 0f
+        scope.launch {
+            val said = runCatching { state.living.platform.video(photo, l, share, { videoProgress = it }, edit) }.getOrElse { "Couldn't make the video." }
+            saving = false
+            videoProgress = null
+            said?.let(actions::toast)
+            if (!share && said != null && said.startsWith("Saved")) leave()
+        }
+    }
+
     // The frame's shape while a shape is locked, in frame units (see EditMath.boxRatio).
     val lockedRatio: Float? = image?.let { shown ->
         when (aspect) {
@@ -232,28 +299,52 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                 EditorIcon(Icons.Rounded.Close, "Close without saving") {
                     if (editor.changed) editor.askDiscard = true else leave()
                 }
+                // Hold to see the original (15 Nov).
+                if (image != null && (!edit.isUnchanged || motion)) {
+                    HoldIcon(Icons.Rounded.Compare, "Hold to see the original") { showOriginal = it }
+                }
                 Spacer(Modifier.weight(1f))
-                if (!edit.isUnchanged && !saving) {
+                if ((!edit.isUnchanged || motion) && !saving) {
                     EditorPill("Reset", filled = false) {
                         val from = base
                         edit = PhotoEdit()
                         aspect = CropAspect.FREE
+                        motion = false
                         if (from != null) image = from
                     }
                     Spacer(Modifier.width(8.dp))
                 }
-                EditorPill("Save copy", filled = true, enabled = !edit.isUnchanged && image != null && !saving, onClick = { save() })
+                if (motion) {
+                    val ready = styled != null && !saving
+                    if (ready) EditorIcon(Icons.Rounded.Share, "Share as a video") { saveVideo(share = true) }
+                    EditorPill("Save video", filled = true, enabled = ready, onClick = { saveVideo(share = false) })
+                } else {
+                    EditorPill("Save copy", filled = true, enabled = !edit.isUnchanged && image != null && !saving, onClick = { save() })
+                }
             }
 
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val shown = image
+                val moving = styled
                 when {
+                    shown != null && showOriginal -> OriginalPreview(base ?: shown)
+                    // Motion on: the moving photo, with the colours, everywhere but while cropping.
+                    shown != null && motion && moving != null && tab != EditTab.CROP -> {
+                        val matrix = remember(edit) { EditMath.colourMatrix(edit) }
+                        val colour = remember(matrix) { if (edit.hasColour) ColorFilter.colorMatrix(ColorMatrix(matrix)) else null }
+                        LivingPhoto(
+                            moving,
+                            Modifier.fillMaxSize().padding(11.dp).holdForOriginal { showOriginal = it },
+                            colorFilter = colour,
+                        )
+                    }
                     shown != null -> EditPreview(
-                        image = shown,
+                        image = worked ?: shown,
                         edit = edit,
                         cropping = tab == EditTab.CROP,
                         ratio = lockedRatio,
                         onCrop = { edit = edit.copy(crop = it) },
+                        onHold = { showOriginal = it },
                     )
                     failed -> Text(
                         if (item == null) "This photo isn't here any more." else "This photo can't be opened for editing.",
@@ -282,15 +373,32 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                         onRight = { reshape(edit.turnedRight()) },
                         onMirror = { reshape(edit.mirrored()) },
                     )
-                    EditTab.ADJUST -> AdjustTools(edit, adjust, onPick = { adjust = it }, onChange = { edit = edit.with(adjust, it) })
-                    EditTab.FILTERS -> FilterTools(image, edit, onPick = { edit = edit.copy(filter = it) })
+                    EditTab.ADJUST -> AdjustTools(
+                        edit,
+                        adjust,
+                        // Tapping the slider that is already chosen puts it back to 0 (15 Nov).
+                        onPick = { a -> if (a == adjust) edit = edit.with(a, 0) else adjust = a },
+                        onChange = { edit = edit.with(adjust, it) },
+                    )
+                    EditTab.FILTERS -> FilterTools(
+                        image,
+                        edit,
+                        onPick = { edit = edit.copy(filter = it, filterStrength = if (it == edit.filter) edit.filterStrength else 100) },
+                        onStrength = { edit = edit.copy(filterStrength = it) },
+                    )
+                    EditTab.MOTION -> MotionTools(
+                        on = motion,
+                        busy = making || (motion && styled == null && layers?.background != null),
+                        note = layers?.note?.takeIf { motion },
+                        onChange = { motion = it },
+                    )
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             ) {
-                EditTab.entries.forEach { t -> TabPill(t, selected = t == tab) { tab = t } }
+                EditTab.entries.filter { it != EditTab.MOTION || livingOn }.forEach { t -> TabPill(t, selected = t == tab) { tab = t } }
             }
         }
 
@@ -305,7 +413,12 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                 ) {
                     CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text("Saving a copy…", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                    val p = videoProgress
+                    Text(
+                        if (p != null) "Making the video… ${(p * 100).roundToInt()}%" else "Saving a copy…",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
         }
@@ -340,8 +453,8 @@ private fun place(areaW: Float, areaH: Float, pictureW: Int, pictureH: Int, pad:
  * inside to move). Otherwise: just the part inside the frame, as the copy will look.
  */
 @Composable
-private fun EditPreview(image: ImageBitmap, edit: PhotoEdit, cropping: Boolean, ratio: Float?, onCrop: (CropBox) -> Unit) {
-    val matrix = remember(edit.brightness, edit.contrast, edit.saturation, edit.warmth, edit.filter) { EditMath.colourMatrix(edit) }
+private fun EditPreview(image: ImageBitmap, edit: PhotoEdit, cropping: Boolean, ratio: Float?, onCrop: (CropBox) -> Unit, onHold: (Boolean) -> Unit = {}) {
+    val matrix = remember(edit) { EditMath.colourMatrix(edit) }
     val colour = remember(matrix) { if (edit.hasColour) ColorFilter.colorMatrix(ColorMatrix(matrix)) else null }
     val cropNow by rememberUpdatedState(edit.crop)
     val ratioNow by rememberUpdatedState(ratio)
@@ -349,7 +462,7 @@ private fun EditPreview(image: ImageBitmap, edit: PhotoEdit, cropping: Boolean, 
     val density = LocalDensity.current
     val pad = with(density) { 22.dp.toPx() }
     val reach = with(density) { 40.dp.toPx() }
-    val gestures: Modifier = if (!cropping) Modifier else Modifier.pointerInput(image) {
+    val gestures: Modifier = if (!cropping) Modifier.holdForOriginal(onHold) else Modifier.pointerInput(image) {
         var corner: CropCorner? = null
         var moving = false
         detectDragGestures(
@@ -472,29 +585,97 @@ private fun CropTools(aspect: CropAspect, onAspect: (CropAspect) -> Unit, onLeft
 
 @Composable
 private fun AdjustTools(edit: PhotoEdit, chosen: EditAdjust, onPick: (EditAdjust) -> Unit, onChange: (Int) -> Unit) {
+    val haptics = rememberHaptics()
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val value = edit.value(chosen)
+        // The number: tap it to put the slider back to 0 (15 Nov).
         Text(
-            if (value > 0) "+$value" else "$value",
+            if (value > 0 && chosen.min < 0) "+$value" else "$value",
             color = Color.White,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(percent = 50))
+                .clickable(enabled = value != 0, role = Role.Button, onClickLabel = "Reset ${chosen.label}") {
+                    haptics.detent()
+                    onChange(0)
+                }
+                .padding(horizontal = 12.dp, vertical = 2.dp),
         )
-        CentreSlider(value, label = chosen.label, onChange = onChange, modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 28.dp))
+        CentreSlider(
+            value,
+            label = chosen.label,
+            min = chosen.min,
+            onChange = onChange,
+            modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 28.dp),
+        )
         Row(
             Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             EditAdjust.entries.forEach { a ->
-                // A dot after the name marks a slider that has been moved.
+                // A dot after the name marks a slider that has been moved; tapping the chosen one again resets it.
                 Choice(if (edit.value(a) != 0) a.label + " •" else a.label, selected = a == chosen) { onPick(a) }
             }
         }
     }
 }
 
+/** Motion (15 Nov): makes the photo move, with whatever crop and colours are chosen, in any order. */
 @Composable
-private fun FilterTools(image: ImageBitmap?, edit: PhotoEdit, onPick: (EditFilter) -> Unit) {
+private fun MotionTools(on: Boolean, busy: Boolean, note: String?, onChange: (Boolean) -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Still", selected = !on) { onChange(false) }
+            Choice("Make it move", selected = on) { onChange(true) }
+        }
+        val text = when {
+            busy -> "Lifting out the subject…"
+            note != null -> note
+            on -> "The background drifts behind the subject. Your crop and colours are used; saved as a short video."
+            else -> "Turn on to make the photo move gently, like a 3D photo."
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (busy) {
+                CircularProgressIndicator(Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(text, color = Dim, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun FilterTools(image: ImageBitmap?, edit: PhotoEdit, onPick: (EditFilter) -> Unit, onStrength: (Int) -> Unit) {
+    val haptics = rememberHaptics()
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // How strong the chosen filter is (15 Nov); tap the number for full strength again.
+    if (edit.filter != EditFilter.NONE) {
+        Row(
+            Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "${edit.filterStrength}%",
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .widthIn(min = 52.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .clickable(role = Role.Button, onClickLabel = "Full strength") {
+                        haptics.detent()
+                        onStrength(100)
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            CentreSlider(edit.filterStrength, label = "${edit.filter.label} strength", min = 0, resetTo = 100, onChange = onStrength, modifier = Modifier.weight(1f))
+        }
+    }
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -512,7 +693,7 @@ private fun FilterTools(image: ImageBitmap?, edit: PhotoEdit, onPick: (EditFilte
                 val tile = RoundedCornerShape(16.dp)
                 Box(
                     Modifier
-                        .size(72.dp)
+                        .size(64.dp)
                         .clip(tile)
                         .background(Panel)
                         .border(2.dp, if (selected) Color.White else Color.Transparent, tile),
@@ -545,40 +726,58 @@ private fun FilterTools(image: ImageBitmap?, edit: PhotoEdit, onPick: (EditFilte
             }
         }
     }
+    }
 }
 
 /**
- * A slider from -100 to 100 that starts in the middle: the line fills from the centre towards the thumb, it holds
- * at 0 for a moment (with a tick), and dragging anywhere on it moves the thumb from where it is (no jump).
+ * A slider up to 100 (15 Nov): from -100 with the thumb starting in the middle (the line fills from the centre), or
+ * from 0 with it starting at the left. It holds at 0 for a moment; dragging anywhere moves the thumb from where it is
+ * (no jump). Light ticks while it moves, a firmer click at 0 and at either end; a double tap resets it to [resetTo].
  */
 @Composable
-private fun CentreSlider(value: Int, label: String, onChange: (Int) -> Unit, modifier: Modifier = Modifier) {
+private fun CentreSlider(value: Int, label: String, onChange: (Int) -> Unit, modifier: Modifier = Modifier, min: Int = -100, resetTo: Int = 0) {
     val haptics = rememberHaptics()
     val valueNow by rememberUpdatedState(value)
     val onChangeNow by rememberUpdatedState(onChange)
+    val span = (100 - min).toFloat()
     Canvas(
         modifier
             .height(44.dp)
             .semantics {
                 contentDescription = label
-                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), -100f..100f)
+                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), min.toFloat()..100f)
                 setProgress { target ->
-                    onChangeNow(target.roundToInt().coerceIn(-100, 100))
+                    onChangeNow(target.roundToInt().coerceIn(min, 100))
                     true
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(resetTo) {
+                detectTapGestures(onDoubleTap = {
+                    if (valueNow != resetTo) {
+                        haptics.detent()
+                        onChangeNow(resetTo)
+                    }
+                })
+            }
+            .pointerInput(min) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     val startValue = valueNow
                     val startX = down.position.x
                     val track = (size.width - 24.dp.toPx()).coerceAtLeast(1f)
+                    var lastTick = startValue
                     drag(down.id) { change ->
                         change.consume()
-                        val raw = (startValue + (change.position.x - startX) / track * 200f).roundToInt().coerceIn(-100, 100)
-                        val next = if (abs(raw) <= 3) 0 else raw
+                        val raw = (startValue + (change.position.x - startX) / track * span).roundToInt().coerceIn(min, 100)
+                        val next = if (min < 0 && abs(raw) <= 3) 0 else raw
                         if (next != valueNow) {
-                            if (next == 0) haptics.tick()
+                            if (next == 0 || next == min || next == 100) {
+                                haptics.detent()
+                                lastTick = next
+                            } else if (abs(next - lastTick) >= 5) {
+                                haptics.slide()
+                                lastTick = next
+                            }
                             onChangeNow(next)
                         }
                     }
@@ -589,13 +788,82 @@ private fun CentreSlider(value: Int, label: String, onChange: (Int) -> Unit, mod
         val y = size.height / 2f
         val start = inset
         val end = size.width - inset
-        val middle = (start + end) / 2f
-        val thumb = middle + (end - start) / 2f * (value / 100f)
+        val zero = start + (end - start) * ((0 - min) / span)
+        val thumb = start + (end - start) * ((value - min) / span)
         drawLine(Color.White.copy(alpha = 0.24f), Offset(start, y), Offset(end, y), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
-        drawLine(Color.White, Offset(middle, y), Offset(thumb, y), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
-        drawLine(Color.White.copy(alpha = 0.7f), Offset(middle, y - 7.dp.toPx()), Offset(middle, y + 7.dp.toPx()), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+        drawLine(Color.White, Offset(zero, y), Offset(thumb, y), strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+        if (min < 0) drawLine(Color.White.copy(alpha = 0.7f), Offset(zero, y - 7.dp.toPx()), Offset(zero, y + 7.dp.toPx()), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
         drawCircle(Color.Black.copy(alpha = 0.35f), radius = 12.dp.toPx(), center = Offset(thumb, y + 1.dp.toPx()))
         drawCircle(Color.White, radius = 11.dp.toPx(), center = Offset(thumb, y))
+    }
+}
+
+/** The original photo, whole and untouched, while Compare (or the photo) is held. */
+@Composable
+private fun OriginalPreview(image: ImageBitmap) {
+    Box(Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val pad = with(density) { 11.dp.toPx() }
+        Canvas(Modifier.fillMaxSize().semantics { contentDescription = "Original photo" }) {
+            val p = place(size.width, size.height, image.width, image.height, pad)
+            drawImage(
+                image,
+                dstOffset = IntOffset(p.x.roundToInt(), p.y.roundToInt()),
+                dstSize = IntSize(p.w.roundToInt().coerceAtLeast(1), p.h.roundToInt().coerceAtLeast(1)),
+                filterQuality = FilterQuality.Medium,
+            )
+        }
+        Text(
+            "Original",
+            color = Color.White,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 14.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(Color.Black.copy(alpha = 0.6f))
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** Shows the original while a finger rests on it for a moment; back to the edit when it lifts (15 Nov). */
+private fun Modifier.holdForOriginal(onHold: (Boolean) -> Unit): Modifier = pointerInput(Unit) {
+    detectTapGestures(onPress = {
+        kotlinx.coroutines.coroutineScope {
+            val wait = launch {
+                kotlinx.coroutines.delay(180)
+                onHold(true)
+            }
+            tryAwaitRelease()
+            wait.cancel()
+        }
+        onHold(false)
+    })
+}
+
+/** A round button that shows something only while it is held (Compare). */
+@Composable
+private fun HoldIcon(icon: ImageVector, label: String, onHold: (Boolean) -> Unit) {
+    val haptics = rememberHaptics()
+    val onHoldNow by rememberUpdatedState(onHold)
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .semantics { contentDescription = label }
+            .pointerInput(Unit) {
+                detectTapGestures(onPress = {
+                    haptics.tick()
+                    onHoldNow(true)
+                    tryAwaitRelease()
+                    onHoldNow(false)
+                })
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -651,7 +919,7 @@ private fun Choice(text: String, selected: Boolean, onClick: () -> Unit) {
             .clip(shape)
             .background(if (selected) Color.White else Panel)
             .clickable(role = Role.RadioButton) {
-                haptics.tick()
+                if (selected) haptics.detent() else haptics.tick()
                 onClick()
             }
             .padding(horizontal = 14.dp, vertical = 8.dp),

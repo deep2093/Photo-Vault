@@ -22,6 +22,12 @@ class Haptics(private val feedback: HapticFeedback) {
     /** One step: a chip, a tab, a pinch step, a wheel notch. */
     fun tick() = feedback.performHapticFeedback(HapticFeedbackType.SegmentTick)
 
+    /** A light tick while a slider moves (15 Nov). */
+    fun slide() = feedback.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+
+    /** A firmer click: a slider reaching 0 or its end, or being reset (15 Nov). */
+    fun detent() = feedback.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+
     /** Something long-pressed. */
     fun longPress() = feedback.performHapticFeedback(HapticFeedbackType.LongPress)
 }

@@ -25,17 +25,28 @@ data class CropBox(val left: Float = 0f, val top: Float = 0f, val right: Float =
     }
 }
 
-/** A ready-made look. Each is one colour matrix, so the preview and the saved copy match exactly. */
-enum class EditFilter(val label: String) {
+/**
+ * A ready-made look: one colour matrix (so the preview and the saved copy match exactly), and for a few a touch of
+ * darker corners or film grain. How strong it is comes from [PhotoEdit.filterStrength].
+ */
+enum class EditFilter(val label: String, val vignette: Int = 0, val grain: Int = 0) {
     NONE("Original"),
     VIVID("Vivid"),
     WARM("Warm"),
     COOL("Cool"),
+    GOLDEN("Golden"),
     SOFT("Soft"),
+    PASTEL("Pastel"),
     FADE("Fade"),
+    MATTE("Matte"),
+    FILM("Film", grain = 35),
+    VINTAGE("Vintage", vignette = 40, grain = 15),
+    CINEMA("Cinema", vignette = 15),
+    DRAMA("Drama", vignette = 30),
+    MOODY("Moody", vignette = 20),
     SEPIA("Sepia"),
     MONO("Mono"),
-    NOIR("Noir"),
+    NOIR("Noir", vignette = 20),
 }
 
 /** The crop shapes offered. [ratio] is width over height in pixels; null means any shape. */
@@ -57,12 +68,23 @@ enum class CropCorner(val left: Boolean, val top: Boolean) {
     BOTTOM_RIGHT(false, false),
 }
 
-/** One of the sliders under Adjust. */
-enum class EditAdjust(val label: String) {
+/**
+ * One of the sliders under Adjust (15 Nov: 12 of them). [min] is -100 for one that goes both ways from 0 (the
+ * thumb starts in the middle), or 0 for one that only adds (the thumb starts at the left).
+ */
+enum class EditAdjust(val label: String, val min: Int = -100) {
     BRIGHTNESS("Brightness"),
     CONTRAST("Contrast"),
+    HIGHLIGHTS("Highlights"),
+    SHADOWS("Shadows"),
     SATURATION("Saturation"),
+    VIBRANCE("Vibrance"),
     WARMTH("Warmth"),
+    TINT("Tint"),
+    FADE("Fade", min = 0),
+    SHARPNESS("Sharpness", min = 0),
+    VIGNETTE("Vignette", min = 0),
+    GRAIN("Grain", min = 0),
 }
 
 /**
@@ -78,30 +100,73 @@ data class PhotoEdit(
     val saturation: Int = 0,
     val warmth: Int = 0,
     val filter: EditFilter = EditFilter.NONE,
+    // 15 Nov: more sliders.
+    val highlights: Int = 0,
+    val shadows: Int = 0,
+    val vibrance: Int = 0,
+    val tint: Int = 0,
+    val fade: Int = 0,
+    val sharpness: Int = 0,
+    val vignette: Int = 0,
+    val grain: Int = 0,
+    /** How strong the [filter] is, 0 to 100 (15 Nov). */
+    val filterStrength: Int = 100,
 ) {
     /** Nothing to save: the copy would be the same picture. */
     val isUnchanged: Boolean
         get() = turns % 4 == 0 && !flipped && crop.isFull && !hasColour
 
     val hasColour: Boolean
-        get() = brightness != 0 || contrast != 0 || saturation != 0 || warmth != 0 || filter != EditFilter.NONE
+        get() = EditAdjust.entries.any { value(it) != 0 } || (filter != EditFilter.NONE && filterStrength > 0)
+
+    /** The filter's share, 0 to 1. */
+    val strength: Float get() = if (filter == EditFilter.NONE) 0f else filterStrength.coerceIn(0, 100) / 100f
 
     fun value(of: EditAdjust): Int = when (of) {
         EditAdjust.BRIGHTNESS -> brightness
         EditAdjust.CONTRAST -> contrast
+        EditAdjust.HIGHLIGHTS -> highlights
+        EditAdjust.SHADOWS -> shadows
         EditAdjust.SATURATION -> saturation
+        EditAdjust.VIBRANCE -> vibrance
         EditAdjust.WARMTH -> warmth
+        EditAdjust.TINT -> tint
+        EditAdjust.FADE -> fade
+        EditAdjust.SHARPNESS -> sharpness
+        EditAdjust.VIGNETTE -> vignette
+        EditAdjust.GRAIN -> grain
     }
 
     fun with(of: EditAdjust, value: Int): PhotoEdit {
-        val v = value.coerceIn(-100, 100)
+        val v = value.coerceIn(of.min, 100)
         return when (of) {
             EditAdjust.BRIGHTNESS -> copy(brightness = v)
             EditAdjust.CONTRAST -> copy(contrast = v)
+            EditAdjust.HIGHLIGHTS -> copy(highlights = v)
+            EditAdjust.SHADOWS -> copy(shadows = v)
             EditAdjust.SATURATION -> copy(saturation = v)
+            EditAdjust.VIBRANCE -> copy(vibrance = v)
             EditAdjust.WARMTH -> copy(warmth = v)
+            EditAdjust.TINT -> copy(tint = v)
+            EditAdjust.FADE -> copy(fade = v)
+            EditAdjust.SHARPNESS -> copy(sharpness = v)
+            EditAdjust.VIGNETTE -> copy(vignette = v)
+            EditAdjust.GRAIN -> copy(grain = v)
         }
     }
+
+    /** Only the colour part (no turn, mirror or crop): what a living photo's layers are given. */
+    fun colourOnly(): PhotoEdit = copy(turns = 0, flipped = false, crop = CropBox())
+
+    /** Darker corners in all, slider plus the filter's own, 0 to 1. */
+    val vignetteAmount: Float get() = ((vignette + filter.vignette * strength) / 100f).coerceIn(0f, 1f)
+
+    /** Grain in all, 0 to 1. */
+    val grainAmount: Float get() = ((grain + filter.grain * strength) / 100f).coerceIn(0f, 1f)
+
+    /** Anything that has to be worked out pixel by pixel ([EditPixels]) rather than by the colour matrix. */
+    val needsPixels: Boolean
+        get() = highlights != 0 || shadows != 0 || vibrance != 0 || sharpness != 0 || vignetteAmount > 0f || grainAmount > 0f
 
     /**
      * A quarter turn clockwise as the person sees it; the crop frame turns with the picture. A mirrored picture
@@ -207,14 +272,38 @@ object EditMath {
         EditFilter.VIVID -> concat(contrastMatrix(1.12f), saturationMatrix(1.35f))
         EditFilter.WARM -> concat(scaleMatrix(1.08f, 1.01f, 0.90f), saturationMatrix(1.08f))
         EditFilter.COOL -> concat(scaleMatrix(0.92f, 1.0f, 1.09f), saturationMatrix(1.05f))
+        EditFilter.GOLDEN -> concat(scaleMatrix(1.12f, 1.04f, 0.84f, lift = 6f), saturationMatrix(1.12f))
         EditFilter.SOFT -> concat(scaleMatrix(1f, 1f, 1f, lift = 10f), concat(contrastMatrix(0.9f), saturationMatrix(0.9f)))
+        EditFilter.PASTEL -> concat(scaleMatrix(0.86f, 0.85f, 0.87f, lift = 34f), concat(contrastMatrix(0.92f), saturationMatrix(0.72f)))
         EditFilter.FADE -> concat(scaleMatrix(0.9f, 0.9f, 0.92f, lift = 28f), saturationMatrix(0.75f))
+        EditFilter.MATTE -> concat(scaleMatrix(0.86f, 0.86f, 0.86f, lift = 26f), concat(contrastMatrix(0.95f), saturationMatrix(0.88f)))
+        EditFilter.FILM -> concat(scaleMatrix(1.03f, 0.98f, 0.92f, lift = 14f), concat(contrastMatrix(0.92f), saturationMatrix(0.88f)))
+        EditFilter.VINTAGE -> concat(scaleMatrix(1.0f, 0.95f, 0.78f, lift = 22f), concat(contrastMatrix(0.9f), saturationMatrix(0.68f)))
+        // Teal in the shadows, orange in the light: red and blue tilt opposite ways around the middle.
+        EditFilter.CINEMA -> concat(
+            floatArrayOf(
+                1.16f, 0f, 0f, 0f, -14f,
+                0f, 1.02f, 0f, 0f, 2f,
+                0f, 0f, 0.84f, 0f, 20f,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+            concat(contrastMatrix(1.06f), saturationMatrix(1.1f)),
+        )
+        EditFilter.DRAMA -> concat(scaleMatrix(0.96f, 0.96f, 0.96f), concat(contrastMatrix(1.42f), saturationMatrix(0.82f)))
+        EditFilter.MOODY -> concat(scaleMatrix(0.9f, 0.94f, 1.02f, lift = -6f), concat(contrastMatrix(1.1f), saturationMatrix(0.72f)))
         EditFilter.SEPIA -> concat(contrastMatrix(0.95f), SEPIA.copyOf())
         EditFilter.MONO -> saturationMatrix(0f)
         EditFilter.NOIR -> concat(contrastMatrix(1.35f), saturationMatrix(0f))
     }
 
-    /** The sliders alone, as one matrix. */
+    /** [a] and [b] mixed: [t] = 0 is all [a], 1 is all [b]. For a colour matrix, this mixes the two looks. */
+    fun mix(a: FloatArray, b: FloatArray, t: Float): FloatArray = FloatArray(20) { i -> a[i] + (b[i] - a[i]) * t }
+
+    /** The filter at its strength: 0 = no filter, 1 = full. */
+    fun filterAt(edit: PhotoEdit): FloatArray =
+        if (edit.strength <= 0f) identity() else mix(identity(), filterMatrix(edit.filter), edit.strength)
+
+    /** The sliders that are one colour matrix: brightness, contrast, saturation, warmth, tint and fade. */
     fun adjustMatrix(edit: PhotoEdit): FloatArray {
         var m = identity()
         if (edit.saturation != 0) m = concat(saturationMatrix(1f + edit.saturation / 100f), m)
@@ -222,14 +311,24 @@ object EditMath {
             val w = edit.warmth / 100f
             m = concat(scaleMatrix(1f + 0.16f * w, 1f + 0.02f * w, 1f - 0.16f * w), m)
         }
+        // Tint: + is pinker (less green), - is greener.
+        if (edit.tint != 0) {
+            val t = edit.tint / 100f
+            m = concat(scaleMatrix(1f + 0.05f * t, 1f - 0.14f * t, 1f + 0.05f * t), m)
+        }
         if (edit.contrast != 0) m = concat(contrastMatrix(1f + edit.contrast / 200f), m)
         if (edit.brightness != 0) m = concat(scaleMatrix(1f, 1f, 1f, lift = edit.brightness * 0.7f), m)
+        // Fade: blacks lifted, whites a little lower, colour a little softer.
+        if (edit.fade != 0) {
+            val f = edit.fade / 100f
+            m = concat(concat(scaleMatrix(1f - 0.24f * f, 1f - 0.24f * f, 1f - 0.24f * f, lift = 34f * f), saturationMatrix(1f - 0.2f * f)), m)
+        }
         return m
     }
 
-    /** The whole colour change of [edit]: the look first, then the sliders on top of it. */
+    /** The whole colour matrix of [edit]: the look (at its strength) first, then the sliders on top of it. */
     fun colourMatrix(edit: PhotoEdit): FloatArray =
-        if (!edit.hasColour) identity() else concat(adjustMatrix(edit), filterMatrix(edit.filter))
+        if (!edit.hasColour) identity() else concat(adjustMatrix(edit), filterAt(edit))
 
     /** One pixel through [m]: for tests, and to show what a matrix does. Colours and the answer are 0 to 255. */
     fun apply(m: FloatArray, r: Float, g: Float, b: Float): Triple<Float, Float, Float> {
