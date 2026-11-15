@@ -539,7 +539,7 @@ internal fun DriveCard(
             }
         }
         Spacer(Modifier.height(6.dp))
-        PlaceRows(backup.settings, gallery.albums, open)
+        PlaceRows(backup.settings, gallery.albums, open = open)
     }
 }
 
@@ -973,7 +973,7 @@ internal fun GoogleCard(
         note?.let { WarningNote(it) }
         Spacer(Modifier.height(6.dp))
         SettingRow(Icons.Rounded.Storage, "Accounts", accountsSummary(google.accounts), onClick = { open(BackupSheet.ACCOUNTS) })
-        PlaceRows(view, albums, open)
+        PlaceRows(view, albums, open = open)
         }
     }
 }
