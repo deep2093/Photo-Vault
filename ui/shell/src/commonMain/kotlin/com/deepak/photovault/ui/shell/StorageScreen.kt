@@ -3,7 +3,11 @@ package com.deepak.photovault.ui.shell
 import androidx.compose.material.icons.rounded.CloudUpload
 import com.deepak.photovault.core.backup.isDriveOnly
 import com.deepak.photovault.designsystem.GlassButton
+import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -69,7 +73,14 @@ private enum class StorageSource(val label: String) { PHONE("Phone"), DRIVE("Dri
  * by file type, photos per year, and the albums taking the most space.
  */
 @Composable
-internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: DriveState, actions: MediaActions, startOnDrive: Boolean = false) {
+internal fun StorageContent(
+    state: ShellState,
+    gallery: GalleryState,
+    drive: DriveState,
+    actions: MediaActions,
+    startOnDrive: Boolean = false,
+    backup: BackupState? = null,
+) {
     val theme = LocalGlassTheme.current
     // Remembered across the pages opened from here, so Back returns to the tab you were on.
     // Only places that are set up get a button (14 Nov): the family drive once this phone is in a family, Google once
@@ -114,17 +125,25 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
     }
     var cacheVersion by remember { mutableStateOf(0) }
     var showCache by remember { mutableStateOf(false) }
+    var showFreeUp by remember { mutableStateOf(false) }
+    fun typeOpener(files: List<StoredFile>, types: List<StorageSlice>, onDrive: Boolean, google: Boolean = false) = { i: Int ->
+        types.getOrNull(i)?.let { open(onDrive, google)(it.label, StorageStats.ofType(files, types, it.label)) }
+        Unit
+    }
     Column(Modifier.pageWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (sources.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            sources.forEach { s ->
-                GlassChip(s.label, selected = source == s, onClick = {
-                    state.storageOnDrive = s == StorageSource.DRIVE
-                    state.storageOnGoogle = s == StorageSource.GOOGLE
-                })
-            }
-        }
+        // 15 Nov: a slim switch, like Back up to.
+        if (sources.size > 1) com.deepak.photovault.designsystem.GlassSegmented(
+            sources.map { it.label },
+            sources.indexOf(source).coerceAtLeast(0),
+            { i ->
+                val s = sources[i]
+                state.storageOnDrive = s == StorageSource.DRIVE
+                state.storageOnGoogle = s == StorageSource.GOOGLE
+            },
+            Modifier.fillMaxWidth(),
+        )
         when (source) {
-            StorageSource.GOOGLE -> GoogleStorage(state, zone, open(true, google = true))
+            StorageSource.GOOGLE -> GoogleStorage(state, zone, open(true, google = true)) { files, types -> typeOpener(files, types, true, google = true) }
             StorageSource.PHONE -> {
                 val phone = remember { actions.phoneStorage() }
                 val media = phoneFiles.sumOf { it.bytes }
@@ -133,6 +152,7 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                     val cacheBytes = remember(cacheVersion) { actions.appCacheBytes() }
                     val photoFiles = phoneFiles.filterNot { StorageStats.typeOf(it) == StorageStats.VIDEOS }
                     val videoFiles = phoneFiles.filter { StorageStats.typeOf(it) == StorageStats.VIDEOS }
+                    val types = remember(phoneFiles) { StorageStats.byType(phoneFiles) }
                     SpaceCard(
                         "Phone storage",
                         listOf(
@@ -150,6 +170,9 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                                 2 -> showCache = true
                             }
                         },
+                        types = types,
+                        onType = typeOpener(phoneFiles, types, false),
+                        typesSummary = "${LibraryCounts.grouped(phoneFiles.size)} files · ${DetailsFormat.size(media)}",
                     )
                 } else {
                     GlassCard(Modifier.fillMaxWidth()) {
@@ -157,19 +180,18 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                         Text("Photos and videos: ${DetailsFormat.size(media)}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                // The duplicate finder (Phase 11 part 3, 15 Nov).
-                if (state.duplicates.platform.supported) {
-                    GlassCard(Modifier.fillMaxWidth()) {
-                        SectionHeader("Duplicates")
-                        Text(
-                            "Find copies of the same photo and near-identical shots, and keep just the best one.",
-                            color = theme.onGlassSecondary,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        GlassButton("Find duplicates", primary = true, onClick = { state.open(Overlay.Duplicates) }, modifier = Modifier.padding(top = 10.dp))
-                    }
-                }
                 Breakdown(phoneFiles, zone, open(false))
+                // 15 Nov: the ways to make room, one line each, at the end.
+                GlassCard(Modifier.fillMaxWidth()) {
+                    SectionHeader("Free up space")
+                    if (state.duplicates.platform.supported) {
+                        ToolRow(Icons.Rounded.ContentCopy, "Find duplicates", "Copies and near-identical shots") { state.open(Overlay.Duplicates) }
+                    }
+                    if (backup != null) {
+                        ToolRow(Icons.Rounded.PhoneAndroid, "Remove phone copies", "Photos already backed up") { showFreeUp = true }
+                    }
+                    ToolRow(Icons.Rounded.CleaningServices, "Clear app cache", DetailsFormat.size(remember(cacheVersion) { actions.appCacheBytes() })) { showCache = true }
+                }
             }
             StorageSource.DRIVE -> {
                 val joined = drive.joined
@@ -201,11 +223,16 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                             StorageSlice("Left of your space", (limit - used).coerceAtLeast(0), 0),
                         )
                     }
+                    val df = driveFiles.orEmpty()
+                    val types = remember(df) { StorageStats.byType(df) }
                     SpaceCard(
                         "Your backup on the drive",
                         slices,
                         "${DetailsFormat.size(used)} of your ${joined.me.limitGb} GB" + (space?.takeIf { drive.isOwner }?.let { " · drive ${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}" } ?: ""),
                         onOpen = { i -> if (i == 0) driveFiles?.let { open(true)("Your backup", it) } },
+                        types = types,
+                        onType = typeOpener(df, types, true),
+                        typesSummary = "${LibraryCounts.grouped(df.size)} files · ${DetailsFormat.size(df.sumOf { it.bytes })}",
                     )
                 }
                 val files = driveFiles
@@ -246,6 +273,7 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
             }
         }
     }
+    if (showFreeUp && backup != null) FreeUpDialog(backup, actions, onDismiss = { showFreeUp = false })
     if (showCache) {
         val bytes = remember(cacheVersion, showCache) { actions.appCacheBytes() }
         com.deepak.photovault.designsystem.GlassDialog(
@@ -277,7 +305,12 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
  * with more than one account, each account's bar (tap one to see just it); then types, years and albums like the drive.
  */
 @Composable
-private fun GoogleStorage(state: ShellState, zone: TimeZone, onOpen: (String, List<StoredFile>) -> Unit) {
+private fun GoogleStorage(
+    state: ShellState,
+    zone: TimeZone,
+    onOpen: (String, List<StoredFile>) -> Unit,
+    typeOpener: (List<StoredFile>, List<StorageSlice>) -> (Int) -> Unit,
+) {
     val theme = LocalGlassTheme.current
     val google = state.google
     // Last time's numbers at once (kept on the phone), then a fresh check with Google each time the tab opens.
@@ -327,6 +360,7 @@ private fun GoogleStorage(state: ShellState, zone: TimeZone, onOpen: (String, Li
     }
     val photos = files.filterNot { it.isVideo }
     val videos = files.filter { it.isVideo }
+    val types = remember(files) { StorageStats.byType(files) }
     SpaceCard(
         if (chosenEmail != null) chosenEmail else if (usage.size > 1) "All Google accounts" else usage.first().email,
         listOf(
@@ -347,6 +381,9 @@ private fun GoogleStorage(state: ShellState, zone: TimeZone, onOpen: (String, Li
                 1 -> onOpen("Videos on Google", videos)
             }
         },
+        types = types,
+        onType = typeOpener(files, types),
+        typesSummary = "${LibraryCounts.grouped(files.size)} files · ${DetailsFormat.size(files.sumOf { it.bytes })}",
     )
     // Each account's bar under All, filled in the order they were added.
     if (chosenEmail == null && usage.size > 1) {
@@ -422,22 +459,22 @@ private fun SpaceBar(parts: List<Long>, total: Long) {
     }
 }
 
-/** File types as a ring, photos per year as bars, and the biggest albums. */
+/**
+ * Photos per year as bars and the biggest albums (15 Nov: compact; file types moved into the ring card, one swipe
+ * from the space ring). The last 5 years and the 5 biggest albums show, with Show all for the rest.
+ */
 @Composable
 private fun Breakdown(
     files: List<StoredFile>,
     zone: TimeZone,
     onOpen: (String, List<StoredFile>) -> Unit,
     albumsTitle: String = "Albums",
-    albumsFirst: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
-    val types = remember(files) { StorageStats.byType(files) }
     val years = remember(files) { StorageStats.byYear(files, zone) }
     val albums = remember(files) { StorageStats.byAlbum(files) }
-    fun openType(i: Int) {
-        types.getOrNull(i)?.let { onOpen(it.label, StorageStats.ofType(files, types, it.label)) }
-    }
+    var allYears by remember { mutableStateOf(false) }
+    var allAlbums by remember { mutableStateOf(false) }
     fun openAlbum(i: Int) {
         albums.getOrNull(i)?.let { onOpen(it.label, StorageStats.ofAlbum(files, albums, it.label)) }
     }
@@ -446,39 +483,67 @@ private fun Breakdown(
         GlassCard(Modifier.fillMaxWidth()) {
             SectionHeader(albumsTitle)
             UsageBar(albums, albums.sumOf { it.bytes })
-            Spacer(Modifier.height(8.dp))
-            albums.forEachIndexed { i, s ->
-                Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)} items", onClick = { openAlbum(i) })
+            val shown = if (allAlbums) albums else albums.take(5)
+            shown.forEachIndexed { i, s ->
+                CompactLegend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}", onClick = { openAlbum(i) })
             }
+            if (albums.size > 5) ShowAll(allAlbums, albums.size) { allAlbums = !allAlbums }
             if (albums.isEmpty()) Text("No photos yet.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
         }
     }
     @Composable
-    fun typesAndYears() {
-    GlassCard(Modifier.fillMaxWidth()) {
-        SectionHeader("File types")
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Donut(types, Modifier.size(132.dp), onSlice = ::openType)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                types.forEachIndexed { i, s -> Legend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}", onClick = { openType(i) }) }
+    fun yearsCard() {
+        if (years.size > 1) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                SectionHeader("By year")
+                YearBars(if (allYears) years else years.takeLast(5)) { year -> onOpen(year, StorageStats.ofYear(files, year, zone)) }
+                if (years.size > 5) ShowAll(allYears, years.size) { allYears = !allYears }
             }
         }
     }
-    if (years.size > 1) {
-        GlassCard(Modifier.fillMaxWidth()) {
-            SectionHeader("By year")
-            YearBars(years) { year -> onOpen(year, StorageStats.ofYear(files, year, zone)) }
-        }
-    }
-    }
-    // 13 Nov: on a tablet, types and years on the left and the albums on the right.
+    // 13 Nov: on a tablet, years on the left and the albums on the right.
     if (LocalTablet.current) {
-        TabletColumns(left = { typesAndYears() }, right = { albumsCard() })
+        TabletColumns(left = { yearsCard() }, right = { albumsCard() })
     } else {
-        if (albumsFirst) albumsCard()
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { typesAndYears() }
-        if (!albumsFirst) albumsCard()
+        yearsCard()
+        albumsCard()
+    }
+}
+
+/** "Show all (12)" / "Show less" under a shortened list. */
+@Composable
+private fun ShowAll(open: Boolean, count: Int, onClick: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    Text(
+        if (open) "Show less" else "Show all ($count)",
+        color = theme.accent,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .padding(top = 4.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+}
+
+/** One line in the Free up space card: icon, name, a short note, an arrow. */
+@Composable
+private fun ToolRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, note: String, onClick: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClickLabel = title, onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Icon(icon, null, tint = theme.onGlass, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(title, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f), maxLines = 1)
+        Text(note, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp).widthIn(max = 170.dp))
+        androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = theme.onGlassSecondary)
     }
 }
 
@@ -612,8 +677,13 @@ private fun UsageBar(parts: List<StorageSlice>, total: Long) {
 private fun YearBars(years: List<StorageSlice>, onYear: (String) -> Unit) {
     val theme = LocalGlassTheme.current
     val max = years.maxOf { it.bytes }.coerceAtLeast(1L)
-    val shown = years.takeLast(6)
-    Row(Modifier.fillMaxWidth().height(140.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+    val shown = years
+    val many = shown.size > 6
+    Row(
+        Modifier.fillMaxWidth().height(120.dp).then(if (many) Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState(Int.MAX_VALUE)) else Modifier),
+        horizontalArrangement = if (many) Arrangement.spacedBy(4.dp) else Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.Bottom,
+    ) {
         shown.forEach { y ->
             Column(
                 Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Show ${y.label}") { onYear(y.label) }.padding(horizontal = 6.dp),
@@ -624,7 +694,7 @@ private fun YearBars(years: List<StorageSlice>, onYear: (String) -> Unit) {
                     Modifier
                         .padding(vertical = 4.dp)
                         .width(18.dp)
-                        .height((90f * y.bytes / max).coerceAtLeast(3f).dp)
+                        .height((74f * y.bytes / max).coerceAtLeast(3f).dp)
                         .clip(RoundedCornerShape(9.dp))
                         .background(theme.accent),
                 )
@@ -657,7 +727,10 @@ private fun Legend(color: Color, label: String, detail: String, onClick: (() -> 
     }
 }
 
-/** A card with a ring and its legend, for how full the phone or your drive space is. Tap a part to see it. */
+/**
+ * A card with a ring and its legend, for how full the phone or your drive space is. Tap a part to see it.
+ * 15 Nov: with [types], swipe the ring sideways to see the file types (a second ring); dots show which is showing.
+ */
 @Composable
 private fun SpaceCard(
     title: String,
@@ -665,22 +738,98 @@ private fun SpaceCard(
     summary: String,
     canOpen: (Int, StorageSlice) -> Boolean = { i, s -> i == 0 && s.count > 0 },
     onOpen: (Int) -> Unit,
+    types: List<StorageSlice> = emptyList(),
+    onType: (Int) -> Unit = {},
+    typesSummary: String = "",
 ) {
     val theme = LocalGlassTheme.current
     val colors = SPACE_COLORS.take(slices.size - 1) + theme.onGlass.copy(alpha = 0.10f)
+    val pages = if (types.isEmpty()) 1 else 2
+    val pager = androidx.compose.foundation.pager.rememberPagerState { pages }
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    LaunchedEffect(pager.settledPage) { if (pages > 1) haptics.tick() }
     GlassCard(Modifier.fillMaxWidth()) {
-        SectionHeader(title)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Donut(slices, Modifier.size(132.dp), colors = colors, onSlice = onOpen)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                slices.forEachIndexed { i, s ->
-                    val opens = canOpen(i, s)
-                    Legend(colors[i], s.label, if (s.count > 0) "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}" else DetailsFormat.size(s.bytes), onClick = if (opens) ({ onOpen(i) }) else null)
+            SectionHeader(if (pager.currentPage == 0) title else "File types", Modifier.weight(1f))
+            if (pages > 1) PagerDots(pages, pager.currentPage)
+        }
+        androidx.compose.foundation.pager.HorizontalPager(
+            pager,
+            Modifier.fillMaxWidth(),
+            beyondViewportPageCount = 1,
+            verticalAlignment = Alignment.Top,
+        ) { page ->
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (page == 0) {
+                        Donut(slices, Modifier.size(112.dp), colors = colors, onSlice = onOpen)
+                    } else {
+                        Donut(types, Modifier.size(112.dp), onSlice = onType)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        if (page == 0) {
+                            slices.forEachIndexed { i, s ->
+                                val opens = canOpen(i, s)
+                                CompactLegend(colors[i], s.label, if (s.count > 0) "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}" else DetailsFormat.size(s.bytes), onClick = if (opens) ({ onOpen(i) }) else null)
+                            }
+                        } else {
+                            types.take(6).forEachIndexed { i, s ->
+                                CompactLegend(CHART[i % CHART.size], s.label, "${DetailsFormat.size(s.bytes)} · ${LibraryCounts.grouped(s.count)}", onClick = { onType(i) })
+                            }
+                        }
+                    }
                 }
+                Text(
+                    if (page == 0) summary else typesSummary,
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
             }
         }
-        Text(summary, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** Small dots for the ring card's pages; the current one is wider. */
+@Composable
+private fun PagerDots(count: Int, current: Int) {
+    val theme = LocalGlassTheme.current
+    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(count) { i ->
+            val on = i == current
+            Box(
+                Modifier
+                    .height(6.dp)
+                    .width(if (on) 16.dp else 6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(if (on) theme.onGlass else theme.onGlass.copy(alpha = 0.3f)),
+            )
+        }
+    }
+}
+
+/** One line of a legend (15 Nov): dot, name, size and count on the right, an arrow when it opens a list. */
+@Composable
+private fun CompactLegend(color: Color, label: String, detail: String, onClick: (() -> Unit)? = null) {
+    val theme = LocalGlassTheme.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Show $label", onClick = onClick) else Modifier)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+        if (onClick != null) {
+            androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = theme.onGlassSecondary, modifier = Modifier.size(18.dp))
+        } else {
+            Spacer(Modifier.width(18.dp))
+        }
     }
 }
 

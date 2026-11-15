@@ -84,6 +84,8 @@ data class AppearanceSettings(
     val gridSizes: Map<String, Int> = emptyMap(),
     /** The Albums page's card size from pinching (15 Nov). */
     val albumSize: Int = 2,
+    /** Try out (15 Nov): smaller rows in Storage's file lists. */
+    val compactLists: Boolean = false,
 )
 
 /** The Photos page's grid. */

@@ -306,7 +306,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.settingsPageItems(
         SettingsPage.DRIVE -> item { DriveSection(state, drive) }
         SettingsPage.REMOTE -> item { RemoteAccessContent(state.remote, backup) }
         SettingsPage.OPEN_WITH -> item { OpenWithContent(actions) }
-        SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive) }
+        SettingsPage.STORAGE -> item { StorageContent(state, gallery, drive, actions, startOnDrive, backup) }
         SettingsPage.FEEDBACK -> item { FeedbackContent(drive, actions) }
     }
 }
@@ -648,10 +648,25 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Done")
         // 15 Nov: Phase 11 started before Family roles (10A comes after it).
         InfoRow(Icons.Rounded.Folder, "Photo editor", "Built, being tested")
-        InfoRow(Icons.Rounded.Folder, "Duplicate finder", "Phase 11, next part")
+        InfoRow(Icons.Rounded.Folder, "Duplicate finder", "Built, being tested")
+        InfoRow(Icons.Rounded.Folder, "Straighten, undo, HDR, video trim", "Phase 11, part 4")
         InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10A")
         InfoRow(Icons.Rounded.Schedule, "Smoothness and foldables", "Phase 12")
         InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Release", "Phase 13")
+        // Things to try (15 Nov): switched off unless chosen here.
+        Text(
+            "Try out",
+            color = LocalGlassTheme.current.onGlass,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        com.deepak.photovault.designsystem.GlassSwitchRow(
+            "Compact lists",
+            state.appearance.compactLists,
+            { on -> state.updateAppearance { it.copy(compactLists = on) } },
+            description = "Smaller rows in Storage's file lists, with the count and total size at the top.",
+            icon = Icons.Rounded.Folder,
+        )
         // Credits for the face models (6 Nov). AuraFace's licence asks for the notice and credit.
         Text(
             "Credits",

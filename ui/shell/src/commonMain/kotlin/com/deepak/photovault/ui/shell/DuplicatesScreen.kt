@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -167,10 +168,10 @@ fun DuplicatesScreen(state: ShellState, gallery: GalleryState, actions: MediaAct
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            "The best of each group is kept. Tap a photo to pick or unpick it.",
+                            "Best of each group is kept. Tap a photo to change.",
                             color = theme.onGlassSecondary,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
                         )
                         GlassSegmented(
                             listOf("Exact copies (${exactGroups.size})", "Similar (${similarGroups.size})"),
@@ -248,7 +249,7 @@ private fun GroupCard(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    dateText(items.first().takenAtMillis, zone) + " · " + items.map { it.albumName }.distinct().joinToString(", "),
+                    dateText(items.first().takenAtMillis, zone),
                     color = theme.onGlassSecondary,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
@@ -259,7 +260,7 @@ private fun GroupCard(
             }
         }
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 10.dp),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items.forEach { item ->
@@ -268,7 +269,7 @@ private fun GroupCard(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         Modifier
-                            .size(104.dp)
+                            .size(84.dp)
                             .clip(shape)
                             .border(2.dp, if (item.id == g.keep && !picked) theme.accent else Color.Transparent, shape)
                             .clickable(role = Role.Checkbox, onClickLabel = if (picked) "Keep" else "Remove") {
@@ -279,11 +280,11 @@ private fun GroupCard(
                             model = Thumb(item.uri, item.isVideo, 256),
                             contentDescription = item.displayName,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(104.dp),
+                            modifier = Modifier.size(84.dp),
                         )
                         // Picked to go: a little dimmer.
                         if (picked) Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.28f)))
-                        SelectionMark(picked, 24.dp, Modifier.align(Alignment.TopEnd).padding(6.dp))
+                        SelectionMark(picked, 22.dp, Modifier.align(Alignment.TopEnd).padding(4.dp))
                         if (item.id == g.keep) {
                             Text(
                                 "Best",
@@ -292,18 +293,27 @@ private fun GroupCard(
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
-                                    .padding(6.dp)
+                                    .padding(4.dp)
                                     .clip(RoundedCornerShape(percent = 50))
                                     .background(Color.Black.copy(alpha = 0.6f))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
                             )
                         }
                     }
+                    // Where it is saved (15 Nov): how exact copies are told apart.
                     Text(
-                        "${item.width} × ${item.height} · ${DetailsFormat.size(item.sizeBytes)}",
+                        item.folder?.trim('/')?.takeIf { it.isNotEmpty() } ?: item.albumName,
+                        color = theme.onGlass,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp).width(84.dp),
+                    )
+                    Text(
+                        DetailsFormat.size(item.sizeBytes),
                         color = theme.onGlassSecondary,
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = 4.dp),
+                        maxLines = 1,
                     )
                 }
             }

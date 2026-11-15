@@ -265,12 +265,13 @@ fun StorageFilesScreen(
                 }
             }
         }
+        val compact = state.appearance.compactLists
         val refreshList: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = list,
                 contentPadding = padding,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxSize()
@@ -279,6 +280,15 @@ fun StorageFilesScreen(
             ) {
                 item(key = "sort", contentType = "sort") {
                     Column(Modifier.cardWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Try out (15 Nov): the count and total size at the top.
+                        if (compact) {
+                            Text(
+                                "${LibraryCounts.grouped(files.size)} items · ${DetailsFormat.size(files.sumOf { it.bytes })}",
+                                color = theme.onGlass,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                         SortBar(order) { order = order.tapped(it) }
                         message?.let { WarningNote(it) }
                         if (page.onDrive) {
@@ -302,6 +312,7 @@ fun StorageFilesScreen(
                         selecting = selecting,
                         onThumbPlaced = { thumbs[file.ref] = it },
                         modifier = Modifier.cardWidth().animateItem(),
+                        compact = compact,
                     )
                 }
             }
@@ -425,13 +436,15 @@ private fun FileRow(
     selecting: Boolean,
     onThumbPlaced: (Rect) -> Unit,
     modifier: Modifier = Modifier,
+    /** Try out (15 Nov): a smaller row, name and size on one line. */
+    compact: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
     Row(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (selected) theme.accent.copy(alpha = 0.18f) else theme.glassFallback)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(if (compact) 10.dp else 16.dp))
+            .background(if (selected) theme.accent.copy(alpha = 0.18f) else if (compact) androidx.compose.ui.graphics.Color.Transparent else theme.glassFallback)
+            .padding(horizontal = if (compact) 6.dp else 12.dp, vertical = if (compact) 3.dp else 8.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${file.name}, $when_, ${DetailsFormat.size(file.bytes)}${if (selected) ", selected" else ""}"
             },
@@ -439,8 +452,8 @@ private fun FileRow(
     ) {
         Box(
             Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .size(if (compact) 36.dp else 48.dp)
+                .clip(RoundedCornerShape(if (compact) 8.dp else 10.dp))
                 .background(theme.onGlass.copy(alpha = 0.08f))
                 .onGloballyPositioned { onThumbPlaced(it.boundsInRoot()) },
             contentAlignment = Alignment.Center,
@@ -451,10 +464,18 @@ private fun FileRow(
                 Icon(if (file.isVideo) Icons.Rounded.Movie else Icons.Rounded.Image, null, tint = theme.onGlassSecondary)
             }
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(file.name, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$when_ · ${DetailsFormat.size(file.bytes)}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+        Spacer(Modifier.width(if (compact) 10.dp else 12.dp))
+        if (compact) {
+            Column(Modifier.weight(1f)) {
+                Text(file.name, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(when_.substringBefore(","), color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            }
+            Text(DetailsFormat.size(file.bytes), color = theme.onGlassSecondary, style = MaterialTheme.typography.labelMedium, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+        } else {
+            Column(Modifier.weight(1f)) {
+                Text(file.name, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$when_ · ${DetailsFormat.size(file.bytes)}", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            }
         }
         AnimatedVisibility(visible = selecting, enter = fadeIn(motionSpec()) + scaleIn(motionSpec()), exit = fadeOut(motionSpec()) + scaleOut(motionSpec())) {
             SelectionMark(selected, 24.dp, Modifier.padding(start = 8.dp))
