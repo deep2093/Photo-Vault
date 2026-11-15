@@ -135,6 +135,9 @@ sealed interface Overlay {
     /** One photo made to move (7D-1, 8 Nov). */
     data class Living(val photoId: Long) : Overlay
 
+    /** Exact copies and similar photos on this phone (Phase 11 part 3, 15 Nov). */
+    data object Duplicates : Overlay
+
     /** The photo editor (Phase 11): crop, turn, light and colour, looks; saves a copy. */
     data class Edit(val photoId: Long) : Overlay
 
@@ -495,6 +498,9 @@ class ShellState(private val store: AppearanceStore) {
 
     /** The photo editor (Phase 11). */
     var editor: EditorState = EditorState()
+
+    /** The duplicate finder (Phase 11 part 3, 15 Nov). */
+    var duplicates: DuplicateState = DuplicateState()
 
     /** Google Drive backup (Phase 10). */
     var google: GoogleState = GoogleState()

@@ -297,6 +297,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.living = com.deepak.photovault.ui.shell.LivingState(com.deepak.photovault.living.AndroidLiving(this))
         // The photo editor (Phase 11): crop, turn, light and colour, looks; always saves a copy.
         state.editor = com.deepak.photovault.ui.shell.EditorState(com.deepak.photovault.editor.AndroidEditor(this))
+        state.duplicates = com.deepak.photovault.ui.shell.DuplicateState(com.deepak.photovault.duplicates.AndroidDuplicates(this))
         val google = com.deepak.photovault.google.AndroidGoogle(
             this,
             chooseAccount = { googleChooser.launch(it) },

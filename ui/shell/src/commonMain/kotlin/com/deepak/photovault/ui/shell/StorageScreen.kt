@@ -157,6 +157,18 @@ internal fun StorageContent(state: ShellState, gallery: GalleryState, drive: Dri
                         Text("Photos and videos: ${DetailsFormat.size(media)}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
+                // The duplicate finder (Phase 11 part 3, 15 Nov).
+                if (state.duplicates.platform.supported) {
+                    GlassCard(Modifier.fillMaxWidth()) {
+                        SectionHeader("Duplicates")
+                        Text(
+                            "Find copies of the same photo and near-identical shots, and keep just the best one.",
+                            color = theme.onGlassSecondary,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        GlassButton("Find duplicates", primary = true, onClick = { state.open(Overlay.Duplicates) }, modifier = Modifier.padding(top = 10.dp))
+                    }
+                }
                 Breakdown(phoneFiles, zone, open(false))
             }
             StorageSource.DRIVE -> {

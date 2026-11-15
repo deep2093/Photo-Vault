@@ -100,12 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-15-5"
+    const val ID = "2026-11-15-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "More ways to edit", "New sliders: Highlights, Shadows, Vibrance, Tint, Fade, Sharpness, Vignette and Grain. New filters: Golden, Pastel, Matte, Film, Vintage, Cinema, Drama and Moody, each with a strength slider."),
-        Change(ChangeKind.NEW, "Motion is in Edit", "Make it move is now Edit > Motion. Crop and colour it before or after, in any order; it's saved as a short video with your colours."),
-        Change(ChangeKind.CHANGED, "Sliders that feel right", "Small ticks while you slide and a click at 0. Tap the slider's name or number, or double-tap it, to put it back to 0. Hold Compare (or the photo) to see the original."),
+        Change(ChangeKind.NEW, "Find duplicates", "Settings > Storage > Phone > Find duplicates: exact copies and near-identical shots, in groups. The best of each is kept; the rest are picked to go to Recently deleted, and you can change any of them."),
+        Change(ChangeKind.CHANGED, "Fewer look-alike filters", "Warm, Soft and Fade are gone: Golden, Matte and Pastel do the same, better."),
     )
 }
 

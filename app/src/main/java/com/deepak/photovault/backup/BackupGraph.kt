@@ -86,6 +86,7 @@ class BackupGraph private constructor(context: Context) {
         runCatching { FeedbackCheck.schedule(app) }
         runCatching { com.deepak.photovault.MemoriesNotice.schedule(app) }
         runCatching { com.deepak.photovault.living.LivingPrepWorker.schedule(app) }
+        runCatching { com.deepak.photovault.duplicates.DuplicatePrepWorker.schedule(app) }
         runCatching { com.deepak.photovault.google.GoogleBackup.ensure(app) }
     }
 

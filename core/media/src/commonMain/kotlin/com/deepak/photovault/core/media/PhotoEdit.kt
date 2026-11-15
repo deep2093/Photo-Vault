@@ -30,14 +30,12 @@ data class CropBox(val left: Float = 0f, val top: Float = 0f, val right: Float =
  * darker corners or film grain. How strong it is comes from [PhotoEdit.filterStrength].
  */
 enum class EditFilter(val label: String, val vignette: Int = 0, val grain: Int = 0) {
+    // 15 Nov: Warm (too like Golden), Soft and Fade (too like Matte and Pastel) taken out.
     NONE("Original"),
     VIVID("Vivid"),
-    WARM("Warm"),
     COOL("Cool"),
     GOLDEN("Golden"),
-    SOFT("Soft"),
     PASTEL("Pastel"),
-    FADE("Fade"),
     MATTE("Matte"),
     FILM("Film", grain = 35),
     VINTAGE("Vintage", vignette = 40, grain = 15),
@@ -270,12 +268,9 @@ object EditMath {
     fun filterMatrix(filter: EditFilter): FloatArray = when (filter) {
         EditFilter.NONE -> identity()
         EditFilter.VIVID -> concat(contrastMatrix(1.12f), saturationMatrix(1.35f))
-        EditFilter.WARM -> concat(scaleMatrix(1.08f, 1.01f, 0.90f), saturationMatrix(1.08f))
         EditFilter.COOL -> concat(scaleMatrix(0.92f, 1.0f, 1.09f), saturationMatrix(1.05f))
         EditFilter.GOLDEN -> concat(scaleMatrix(1.12f, 1.04f, 0.84f, lift = 6f), saturationMatrix(1.12f))
-        EditFilter.SOFT -> concat(scaleMatrix(1f, 1f, 1f, lift = 10f), concat(contrastMatrix(0.9f), saturationMatrix(0.9f)))
         EditFilter.PASTEL -> concat(scaleMatrix(0.86f, 0.85f, 0.87f, lift = 34f), concat(contrastMatrix(0.92f), saturationMatrix(0.72f)))
-        EditFilter.FADE -> concat(scaleMatrix(0.9f, 0.9f, 0.92f, lift = 28f), saturationMatrix(0.75f))
         EditFilter.MATTE -> concat(scaleMatrix(0.86f, 0.86f, 0.86f, lift = 26f), concat(contrastMatrix(0.95f), saturationMatrix(0.88f)))
         EditFilter.FILM -> concat(scaleMatrix(1.03f, 0.98f, 0.92f, lift = 14f), concat(contrastMatrix(0.92f), saturationMatrix(0.88f)))
         EditFilter.VINTAGE -> concat(scaleMatrix(1.0f, 0.95f, 0.78f, lift = 22f), concat(contrastMatrix(0.9f), saturationMatrix(0.68f)))
