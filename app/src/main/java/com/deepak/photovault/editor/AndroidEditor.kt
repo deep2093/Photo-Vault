@@ -102,11 +102,12 @@ class AndroidEditor(context: Context) : EditorPlatform {
                 if (!intoGallery(file, item)) return@withContext EditSaved(false, "Couldn't save the copy. The original is unchanged.")
                 EditSaved(
                     true,
+                    // Short (17 Nov): Android shows only two lines of a message, and the longer ones were cut off.
                     when {
-                        shrunk -> "Saved a copy next to the original (a little smaller, to fit this phone's memory)."
-                        hdrKept -> "Saved an HDR copy next to the original."
-                        wasHdr -> "Saved a copy next to the original (HDR couldn't be kept on this one)."
-                        else -> "Saved a copy next to the original."
+                        shrunk -> "Saved a smaller copy (${(width.toLong() * height + 500_000) / 1_000_000} MP) beside the original."
+                        hdrKept -> "Saved an HDR copy beside the original."
+                        wasHdr -> "Saved a copy beside the original, without HDR."
+                        else -> "Saved a copy beside the original."
                     },
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -206,12 +207,17 @@ class AndroidEditor(context: Context) : EditorPlatform {
 
     /**
      * How big a photo can be saved at: the photo and the finished copy are both in memory for a moment (8 bytes a
-     * pixel together), so about half of what the app has free, between 4 and 50 megapixels.
+     * pixel together), between 4 and 50 megapixels.
+     *
+     * 17 Nov: measured against the phone's free memory, not the app's own small allowance. Since Android 8 a
+     * picture's pixels live outside that allowance, so the old sum made even 12 MP photos save a little smaller
+     * ("a little smaller, to fit this phone's memory", Deepak). At most a quarter of what the phone has free.
      */
     private fun pixelBudget(): Long {
-        val runtime = Runtime.getRuntime()
-        val free = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
-        return (free / 2 / 8).coerceIn(MIN_SAVE_PIXELS, MAX_SAVE_PIXELS)
+        val manager = app.getSystemService(android.app.ActivityManager::class.java)
+        val info = android.app.ActivityManager.MemoryInfo().also { manager?.getMemoryInfo(it) }
+        val usable = ((info.availMem - info.threshold) / 4).coerceAtLeast(0L)
+        return (usable / 8).coerceIn(MIN_SAVE_PIXELS, MAX_SAVE_PIXELS)
     }
 
     private companion object {

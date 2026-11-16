@@ -28,6 +28,9 @@ class VideoControls {
     /** Width / height of the video as shown (0 until the player knows), so the picture is laid out once. */
     var aspect by androidx.compose.runtime.mutableFloatStateOf(0f)
 
+    /** The video is HDR (17 Nov): the player then shows it the way HDR screens need, so it keeps its brightness. */
+    var hdr by androidx.compose.runtime.mutableStateOf(false)
+
     /** A position asked for by the scrubber; the player takes it and clears it. */
     var seekRequest by androidx.compose.runtime.mutableStateOf<Long?>(null)
 

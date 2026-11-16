@@ -62,6 +62,15 @@ actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier)
                 }
             }
 
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                // HDR10, HDR10+, HLG or Dolby Vision (17 Nov).
+                val hdr = tracks.groups.any { g ->
+                    g.type == androidx.media3.common.C.TRACK_TYPE_VIDEO &&
+                        (0 until g.length).any { i -> androidx.media3.common.ColorInfo.isTransferHdr(g.getTrackFormat(i).colorInfo) }
+                }
+                if (hdr) controls.hdr = true
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == androidx.media3.common.Player.STATE_ENDED) controls.playing = false
                 if (player.duration > 0) controls.durationMs = player.duration
@@ -100,10 +109,24 @@ actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier)
     // A TextureView, not a SurfaceView (23 Oct): a SurfaceView is a separate layer that can't fade or shrink, so
     // closing the viewer left the video standing solid over the page until it vanished. The viewer sizes this
     // box to the video's own shape, so nothing stretches and the picture doesn't move when playback starts.
-    AndroidView(
-        factory = { ctx -> android.view.TextureView(ctx).also { player.setVideoTextureView(it) } },
-        modifier = modifier,
-    )
+    //
+    // HDR videos (17 Nov, Deepak: "HDR videos play at SDR"): a TextureView can only show ordinary brightness, so
+    // HDR ones go on a SurfaceView, the way YouTube and Samsung's own player show them. It can't fade, so it is
+    // taken away the moment the page starts closing; the flying copy of the photo covers that spot then.
+    val leaving = LocalPageLeaving.current
+    when {
+        controls.hdr && leaving -> androidx.compose.foundation.layout.Box(modifier)
+        controls.hdr -> AndroidView(
+            factory = { ctx -> android.view.SurfaceView(ctx).also { player.setVideoSurfaceView(it) } },
+            onRelease = { player.clearVideoSurfaceView(it) },
+            modifier = modifier,
+        )
+        else -> AndroidView(
+            factory = { ctx -> android.view.TextureView(ctx).also { player.setVideoTextureView(it) } },
+            onRelease = { player.clearVideoTextureView(it) },
+            modifier = modifier,
+        )
+    }
 }
 
 @Composable

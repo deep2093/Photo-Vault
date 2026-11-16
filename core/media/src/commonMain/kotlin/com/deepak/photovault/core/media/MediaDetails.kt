@@ -29,9 +29,77 @@ data class MediaDetails(
     /** Videos. */
     val frameRate: Double? = null,
     val bitrate: Long? = null,
+    /** How the picture is made (17 Nov): see [VideoColour]. Photos: only [VideoColour.range] "HDR" when they are. */
+    val colour: VideoColour? = null,
 ) {
 
     val camera: String? get() = DetailsFormat.camera(cameraMake, cameraModel)
+}
+
+/**
+ * A video's picture (17 Nov, Deepak: "HDR and log videos should show in the details"): [range] is "HDR10",
+ * "HDR10+", "HLG", "Dolby Vision" or "SDR" ("HDR" for a photo with extra brightness), with the colour depth,
+ * colour space and codec. [probablyLog]: 10-bit wide colour with no HDR tag, which is how Log videos (shot flat,
+ * to be colour-graded) are stored; the files don't say "Log" in a way Android reads, so it is a strong guess.
+ */
+data class VideoColour(
+    val range: String,
+    val bitDepth: Int? = null,
+    val space: String? = null,
+    val codec: String? = null,
+    val probablyLog: Boolean = false,
+) {
+    /** "HDR10  |  10-bit  |  BT.2020  |  HEVC", or "Log (probably)  |  10-bit ..." */
+    val line: String get() = listOfNotNull(
+        if (probablyLog) "Log (probably)" else range,
+        bitDepth?.let { "$it-bit" },
+        space,
+        codec,
+    ).joinToString("  |  ")
+
+    companion object {
+        /**
+         * From what Android's MediaFormat says about the video track: [transfer] (KEY_COLOR_TRANSFER), [standard]
+         * (KEY_COLOR_STANDARD), [profile] (KEY_PROFILE); [dolbyVision] when the file has a Dolby Vision track.
+         * Numbers are MediaFormat's and MediaCodecInfo.CodecProfileLevel's; null when the file doesn't say.
+         */
+        fun of(mime: String, transfer: Int?, standard: Int?, profile: Int?, dolbyVision: Boolean): VideoColour {
+            val codec = when (mime) {
+                "video/hevc" -> "HEVC"
+                "video/avc" -> "H.264"
+                "video/av01" -> "AV1"
+                "video/x-vnd.on2.vp9" -> "VP9"
+                "video/dolby-vision" -> "Dolby Vision"
+                else -> mime.substringAfter('/').uppercase().takeIf { it.isNotBlank() }
+            }
+            val tenBitProfile = profile != null && when (mime) {
+                // HEVC Main 10, Main 10 HDR10, Main 10 HDR10+; AV1 Main 10 (and its HDR forms); H.264 High 10.
+                "video/hevc" -> profile == 2 || profile == 4096 || profile == 8192
+                "video/av01" -> profile == 2 || profile == 4096 || profile == 8192
+                "video/x-vnd.on2.vp9" -> profile in setOf(4, 8, 4096, 8192, 16384, 32768)
+                "video/avc" -> profile == 16
+                else -> false
+            }
+            val pq = transfer == 6
+            val hlg = transfer == 7
+            val plus = profile == 8192 || profile == 16384 || profile == 32768
+            val range = when {
+                dolbyVision -> "Dolby Vision"
+                pq && plus -> "HDR10+"
+                pq -> "HDR10"
+                hlg -> "HLG"
+                else -> "SDR"
+            }
+            val bits = if (tenBitProfile || pq || hlg || dolbyVision) 10 else if (profile != null) 8 else null
+            val space = when (standard) {
+                6 -> "BT.2020"
+                1 -> "BT.709"
+                2, 4 -> "BT.601"
+                else -> null
+            }
+            return VideoColour(range, bits, space, codec, probablyLog = range == "SDR" && bits == 10 && standard == 6)
+        }
+    }
 }
 
 /** Reads [MediaDetails] for an item. Android: ExifInterface and MediaMetadataRetriever. */

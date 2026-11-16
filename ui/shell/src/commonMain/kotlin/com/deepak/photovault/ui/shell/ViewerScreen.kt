@@ -669,6 +669,8 @@ private fun DetailsPanel(
             )
         }
         if (exposure.isNotEmpty()) Text(exposure.joinToString("  |  "), color = grey, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // HDR, Log, colour depth and space, codec (17 Nov); for a photo just "HDR" when it is one.
+        d?.colour?.let { c -> Text(if (item.isVideo) c.line else "HDR photo", color = grey, style = body, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 
         PanelLabel("Place", grey)
         val mapLat = d?.latitude
@@ -801,6 +803,31 @@ private fun fullDate(item: MediaItem): String {
     return "${Timeline.dayName(t.dayOfWeek)}, ${t.dayOfMonth} ${Timeline.monthName(t.month)} ${t.year} · ${Timeline.clockTime(t.hour, t.minute)}"
 }
 
+/**
+ * The full photo the viewer shows (17 Nov). One request, the same everywhere, so the copy started the moment a tile
+ * is tapped ([preload], while the photo flies open) is the very one the viewer then finds ready, instead of starting
+ * to decode only once the viewer appears (about half a second, Deepak). Sized to the screen; a short fade over the
+ * small picture.
+ */
+internal object FullPhoto {
+    /** The screen's size in pixels, set by the page host; 0 until known (then the photo's own box sizes it). */
+    var width = 0
+    var height = 0
+
+    fun request(context: coil3.PlatformContext, uri: String): ImageRequest =
+        ImageRequest.Builder(context).data(uri).crossfade(FADE_MS)
+            .apply { if (width > 0 && height > 0) size(width, height) }
+            .scale(coil3.size.Scale.FIT)
+            .build()
+
+    fun preload(context: coil3.PlatformContext, item: MediaItem) {
+        if (item.isVideo || width <= 0 || height <= 0) return
+        coil3.SingletonImageLoader.get(context).enqueue(request(context, item.uri))
+    }
+
+    private const val FADE_MS = 110
+}
+
 /** Pinch to zoom (up to 6x), drag while zoomed, double-tap to zoom in or out, tap to toggle bars. */
 @Composable
 private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit) {
@@ -881,7 +908,7 @@ private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit
         ) {
             AsyncImage(model = Thumb(item.uri, false, 512), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             AsyncImage(
-                model = ImageRequest.Builder(context).data(item.uri).crossfade(true).build(),
+                model = remember(item.uri) { FullPhoto.request(context, item.uri) },
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),

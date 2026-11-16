@@ -122,6 +122,8 @@ Both = Claude prepares, Deepak approves or carries out.
 - [ ] **D15 · Conversion and editor rough edges.** Who: Claude.
   Closing a zoomed photo jumps; the flying photo looks soft for a moment before the full one takes over; the
   status lines for Private-to-Normal are lost when the app closes; a trimmed video can start up to a second early.
+  Added 17 Nov: Log videos are recognised by a guess (10-bit wide colour, no HDR tag), to be checked against a
+  real Log file; messages use Android's toast, which shows only two lines (an in-app message bar would not cut off).
 - [ ] **D16 · A real depth model for living photos.** Who: Deepak decides, Claude builds. Optional: today's
   effect uses a subject cut-out only.
 - [ ] **D17 · Deepak's housekeeping.** Who: Deepak.

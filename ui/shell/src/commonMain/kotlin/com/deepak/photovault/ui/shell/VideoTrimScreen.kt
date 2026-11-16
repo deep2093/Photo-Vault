@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -122,7 +124,8 @@ internal fun VideoTrimScreen(item: MediaItem, state: ShellState, actions: MediaA
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        // One above the other on a tall screen; the video beside the controls on a wide one (16 Nov, as the editor).
+        val topBar: @Composable () -> Unit = {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -141,12 +144,11 @@ internal fun VideoTrimScreen(item: MediaItem, state: ShellState, actions: MediaA
                 }
                 EditorPill("Save copy", filled = true, enabled = changed && !saving, onClick = { save() })
             }
-
+        }
+        val video: @Composable (Modifier) -> Unit = { area ->
             // The video, its own shape; tap to play or pause.
             Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
+                area
                     .padding(11.dp)
                     .pointerInput(Unit) { detectTapGestures { controls.playing = !controls.playing } },
                 contentAlignment = Alignment.Center,
@@ -161,62 +163,85 @@ internal fun VideoTrimScreen(item: MediaItem, state: ShellState, actions: MediaA
                     if (shape > 0f) Modifier.aspectRatio(shape) else Modifier.size(1.dp),
                 )
             }
-
-            // The part kept, in words.
-            Text(
-                if (duration <= 0) "" else "${com.deepak.photovault.core.media.Timeline.duration(start)} – ${com.deepak.photovault.core.media.Timeline.duration(endAt)}  ·  ${length(endAt - start)}",
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 6.dp),
-            )
-            if (duration > 0) {
-                TrimBar(
-                    item = item,
-                    duration = duration,
-                    start = start,
-                    end = endAt,
-                    position = controls.positionMs,
-                    onStart = { t ->
-                        start = t
-                        controls.playing = false
-                        controls.seek(t)
-                    },
-                    onEnd = { t ->
-                        end = if (t >= duration) -1L else t
-                        controls.playing = false
-                        controls.seek(t)
-                    },
-                    onScrub = { t ->
-                        controls.playing = false
-                        controls.seek(t)
-                    },
-                    modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 16.dp).align(Alignment.CenterHorizontally),
+        }
+        val controlsPanel: @Composable () -> Unit = {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                // The part kept, in words.
+                Text(
+                    if (duration <= 0) "" else "${com.deepak.photovault.core.media.Timeline.duration(start)} – ${com.deepak.photovault.core.media.Timeline.duration(endAt)}  ·  ${length(endAt - start)}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 6.dp),
+                )
+                if (duration > 0) {
+                    TrimBar(
+                        item = item,
+                        duration = duration,
+                        start = start,
+                        end = endAt,
+                        position = controls.positionMs,
+                        onStart = { t ->
+                            start = t
+                            controls.playing = false
+                            controls.seek(t)
+                        },
+                        onEnd = { t ->
+                            end = if (t >= duration) -1L else t
+                            controls.playing = false
+                            controls.seek(t)
+                        },
+                        onScrub = { t ->
+                            controls.playing = false
+                            controls.seek(t)
+                        },
+                        modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 16.dp),
+                    )
+            }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    EditorIcon(
+                        if (controls.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        if (controls.playing) "Pause" else "Play",
+                    ) {
+                        if (!controls.playing && (controls.positionMs >= endAt - 100 || controls.positionMs < start)) controls.seek(start)
+                        controls.playing = !controls.playing
+                    }
+                    EditorChoice("Sound on", selected = !mute) { mute = false }
+                    EditorChoice("Sound off", selected = mute) { mute = true }
+            }
+                Text(
+                    "The copy can start up to a second earlier than chosen, where the video allows a clean cut.",
+                    color = EditorDim,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 14.dp),
                 )
             }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                EditorIcon(
-                    if (controls.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    if (controls.playing) "Pause" else "Play",
-                ) {
-                    if (!controls.playing && (controls.positionMs >= endAt - 100 || controls.positionMs < start)) controls.seek(start)
-                    controls.playing = !controls.playing
+        }
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            if (maxWidth > maxHeight) {
+                Row(Modifier.fillMaxSize()) {
+                    video(Modifier.weight(1f).fillMaxHeight())
+                    Column(
+                        Modifier.width(minOf(420.dp, maxWidth * 0.5f)).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        topBar()
+                        controlsPanel()
+                    }
                 }
-                EditorChoice("Sound on", selected = !mute) { mute = false }
-                EditorChoice("Sound off", selected = mute) { mute = true }
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    topBar()
+                    video(Modifier.weight(1f).fillMaxWidth())
+                    controlsPanel()
+                }
             }
-            Text(
-                "The copy can start up to a second earlier than chosen, where the video allows a clean cut.",
-                color = EditorDim,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 14.dp),
-            )
         }
 
         if (saving) {

@@ -366,6 +366,9 @@ private data class Fly(val uri: String, val isVideo: Boolean, val px: Int, val a
     }
 }
 
+/** True on a page that is closing (17 Nov): an HDR video takes itself away at once, as it can't fade with the page. */
+val LocalPageLeaving = staticCompositionLocalOf { false }
+
 /** How deep the page being drawn is: 0 for a section, 1 for the first page on top, and so on (16 Nov). */
 val LocalPageDepth = staticCompositionLocalOf { 0 }
 
@@ -401,6 +404,7 @@ private fun OverlayHost(
     // page closes). Now a copy of the photo's small picture flies between the tile and the photo's place in the
     // viewer while black fades in or out behind it; the real viewer is only shown once the copy has landed.
     val hostOrigin = remember { floatArrayOf(0f, 0f) }
+    val platformContext = coil3.compose.LocalPlatformContext.current
     fun tileOf(id: Long, depthBelow: Int): androidx.compose.ui.geometry.Rect? =
         state.tileRect(id, depthBelow)?.takeIf { it.width >= 8f && it.height >= 8f }?.translate(-hostOrigin[0], -hostOrigin[1])
     fun flyFor(id: Long, tile: androidx.compose.ui.geometry.Rect?, px: Int): Fly? {
@@ -456,6 +460,8 @@ private fun OverlayHost(
             }
         }
         wanted.drop(same).forEachIndexed { i, overlay ->
+            // The full photo starts loading now, while it flies open (17 Nov).
+            if (overlay is Overlay.Viewer) gallery.find(overlay.startId)?.let { FullPhoto.preload(platformContext, it) }
             val entry = PageEntry(overlay, if (reduceMotion) 1f else 0f)
             if (overlay is Overlay.Viewer && !reduceMotion) {
                 val tile = tileOf(overlay.startId, same + i)
@@ -500,7 +506,15 @@ private fun OverlayHost(
             else first.p.value * (1f - pulledAway(entries, state, first))
         }
     }
-    Box(Modifier.fillMaxSize().onGloballyPositioned { val o = it.positionInRoot(); hostOrigin[0] = o.x; hostOrigin[1] = o.y }) {
+    Box(
+        Modifier.fillMaxSize().onGloballyPositioned {
+            val o = it.positionInRoot()
+            hostOrigin[0] = o.x
+            hostOrigin[1] = o.y
+            FullPhoto.width = it.size.width
+            FullPhoto.height = it.size.height
+        },
+    ) {
         entries.forEachIndexed { index, entry ->
             key(entry) {
                 val picture = androidx.compose.ui.graphics.rememberGraphicsLayer()
@@ -552,7 +566,7 @@ private fun OverlayHost(
                             // The viewer with a flying copy: built only once the copy has landed, and kept built
                             // (hidden) while the copy flies back.
                             if (entry.landed) {
-                                CompositionLocalProvider(LocalPageDepth provides index + 1) {
+                                CompositionLocalProvider(LocalPageDepth provides index + 1, LocalPageLeaving provides entry.closing) {
                                     OverlayPage(entry.overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
                                 }
                             }

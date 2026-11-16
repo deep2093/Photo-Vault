@@ -2,6 +2,8 @@ package com.deepak.photovault.core.media
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.test.assertNull
 
 /** The details panel's labels match Samsung Gallery's style (feedback 22 Oct). */
@@ -40,5 +42,29 @@ class DetailsFormatTest {
     @Test
     fun coordinatesReadNaturally() {
         assertEquals("37.76210° S, 144.81230° E", DetailsFormat.coordinates(-37.7621, 144.8123))
+    }
+
+    // ---- HDR and Log in the details (17 Nov) ----
+
+    @Test
+    fun videoColourIsReadPlainly() {
+        // A Samsung HDR10+ clip, an HDR10 one, an iPhone HLG one, and an ordinary one.
+        assertEquals("HDR10+  |  10-bit  |  BT.2020  |  HEVC", VideoColour.of("video/hevc", 6, 6, 8192, false).line)
+        assertEquals("HDR10  |  10-bit  |  BT.2020  |  HEVC", VideoColour.of("video/hevc", 6, 6, 4096, false).line)
+        assertEquals("HLG  |  10-bit  |  BT.2020  |  HEVC", VideoColour.of("video/hevc", 7, 6, 2, false).line)
+        assertEquals("SDR  |  8-bit  |  BT.709  |  H.264", VideoColour.of("video/avc", 3, 1, 8, false).line)
+        assertEquals("Dolby Vision", VideoColour.of("video/hevc", 7, 6, 2, true).range)
+        // Nothing known but the codec.
+        assertEquals("SDR  |  HEVC", VideoColour.of("video/hevc", null, null, null, false).line)
+    }
+
+    @Test
+    fun tenBitWideColourWithoutHdrLooksLikeLog() {
+        val log = VideoColour.of("video/hevc", 3, 6, 2, false)
+        assertTrue(log.probablyLog)
+        assertEquals("Log (probably)  |  10-bit  |  BT.2020  |  HEVC", log.line)
+        // HDR is never called Log, and neither is 10-bit ordinary colour.
+        assertFalse(VideoColour.of("video/hevc", 7, 6, 2, false).probablyLog)
+        assertFalse(VideoColour.of("video/hevc", 3, 1, 2, false).probablyLog)
     }
 }

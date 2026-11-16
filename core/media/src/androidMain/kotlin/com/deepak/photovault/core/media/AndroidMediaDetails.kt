@@ -53,6 +53,7 @@ class AndroidMediaDetails(context: Context) : MediaDetailsSource {
             latitude = latLong?.getOrNull(0),
             longitude = latLong?.getOrNull(1),
             locationHidden = latLong == null && !canReadLocation(),
+            colour = if (isHdrPhoto(uri)) VideoColour("HDR") else null,
         )
     }
 
@@ -63,6 +64,7 @@ class AndroidMediaDetails(context: Context) : MediaDetailsSource {
             runCatching { retriever.setDataSource(app, original) }.recoverCatching { retriever.setDataSource(app, uri) }.getOrThrow()
             val location = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION)?.let(::parseIso6709)
             MediaDetails(
+                colour = runCatching { videoColour(original) }.getOrNull() ?: runCatching { videoColour(uri) }.getOrNull(),
                 cameraMake = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR),
                 frameRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)?.toDoubleOrNull(),
                 bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull(),
@@ -74,6 +76,40 @@ class AndroidMediaDetails(context: Context) : MediaDetailsSource {
             runCatching { retriever.release() }
         }
     }
+
+    /** HDR, colour depth, colour space and codec, from the video track's own description (17 Nov). */
+    private fun videoColour(uri: Uri): VideoColour? {
+        val extractor = android.media.MediaExtractor()
+        return try {
+            extractor.setDataSource(app, uri, null)
+            var video: android.media.MediaFormat? = null
+            var dolbyVision = false
+            for (i in 0 until extractor.trackCount) {
+                val f = extractor.getTrackFormat(i)
+                val mime = f.getString(android.media.MediaFormat.KEY_MIME) ?: continue
+                if (mime == android.media.MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION) dolbyVision = true
+                if (mime.startsWith("video/") && video == null) video = f
+            }
+            val f = video ?: return null
+            fun int(key: String) = if (f.containsKey(key)) runCatching { f.getInteger(key) }.getOrNull() else null
+            VideoColour.of(
+                f.getString(android.media.MediaFormat.KEY_MIME).orEmpty(),
+                int(android.media.MediaFormat.KEY_COLOR_TRANSFER),
+                int(android.media.MediaFormat.KEY_COLOR_STANDARD),
+                int(android.media.MediaFormat.KEY_PROFILE),
+                dolbyVision,
+            )
+        } finally {
+            runCatching { extractor.release() }
+        }
+    }
+
+    /** An HDR ("Ultra HDR") photo carries a brightness map; Android 14 and newer can tell (17 Nov). */
+    private fun isHdrPhoto(uri: Uri): Boolean = android.os.Build.VERSION.SDK_INT >= 34 && runCatching {
+        resolver.openInputStream(uri)?.use { input ->
+            android.graphics.BitmapFactory.decodeStream(input, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = 32 })
+        }?.let { small -> small.hasGainmap().also { small.recycle() } } ?: false
+    }.getOrDefault(false)
 
     /** MediaStore's RELATIVE_PATH ("DCIM/Camera/") shown the way Samsung does ("/Internal storage/DCIM/Camera"). */
     private fun folderOf(uri: Uri): String? = runCatching {

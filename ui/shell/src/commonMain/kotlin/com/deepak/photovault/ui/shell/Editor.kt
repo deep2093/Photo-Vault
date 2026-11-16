@@ -31,6 +31,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -380,135 +382,168 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            // Top: close, then Reset and Save copy once something has changed.
+    // The parts of the page, laid out below: one above the other on a tall screen, the picture beside the tools on a
+    // wide one (16 Nov: in landscape the tools took all the height and left no room for the picture).
+    val topBar: @Composable () -> Unit = {
+        // Top: close, then Reset and Save copy once something has changed.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EditorIcon(Icons.Rounded.Close, "Close without saving") {
+                if (editor.changed) editor.askDiscard = true else leave()
+            }
+            Spacer(Modifier.weight(1f))
+            if ((!edit.isUnchanged || motion) && !saving) {
+                EditorPill("Reset", filled = false) {
+                    val from = base
+                    edit = PhotoEdit()
+                    aspect = CropAspect.FREE
+                    motion = false
+                    if (from != null) image = from
+                }
+                Spacer(Modifier.width(8.dp))
+            }
+            if (motion) {
+                val ready = styled != null && !saving
+                if (ready) EditorIcon(Icons.Rounded.Share, "Share as a video") { saveVideo(share = true) }
+                EditorPill("Save video", filled = true, enabled = ready, onClick = { saveVideo(share = false) })
+            } else {
+                EditorPill("Save copy", filled = true, enabled = !edit.isUnchanged && image != null && !saving, onClick = { save() })
+            }
+        }
+    }
+    val picture: @Composable (Modifier) -> Unit = { area ->
+        Box(area, contentAlignment = Alignment.Center) {
+            val shown = image
+            val moving = styled
+            when {
+                shown != null && showOriginal -> OriginalPreview(base ?: shown)
+                // Motion on: the moving photo, with the colours, everywhere but while cropping.
+                shown != null && motion && moving != null && tab != EditTab.CROP -> {
+                    val matrix = remember(edit) { EditMath.colourMatrix(edit) }
+                    val colour = remember(matrix) { if (edit.hasColour) ColorFilter.colorMatrix(ColorMatrix(matrix)) else null }
+                    LivingPhoto(
+                        moving,
+                        Modifier.fillMaxSize().padding(11.dp).holdForOriginal { showOriginal = it },
+                        colorFilter = colour,
+                    )
+                }
+                shown != null -> EditPreview(
+                    // The finished preview when it is ready; else the turned picture, tilted live on screen.
+                    image = source?.let { s -> worked?.takeIf { edit.needsPixels && workedFrom === s } ?: s } ?: shown,
+                    tilt = if (source == null) edit.straighten else 0f,
+                    edit = edit,
+                    cropping = tab == EditTab.CROP,
+                    ratio = lockedRatio,
+                    onCrop = { edit = edit.copy(crop = it) },
+                    onHold = { showOriginal = it },
+                )
+                failed -> Text(
+                    if (item == null) "This photo isn't here any more." else "This photo can't be opened for editing.",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(32.dp),
+                )
+                else -> CircularProgressIndicator(Modifier.size(28.dp), color = Color.White, strokeWidth = 2.5.dp)
+            }
+        }
+    }
+    val undoBar: @Composable () -> Unit = {
+        // Undo, hold to compare, redo (16 Nov): just above the tools, in reach of a thumb.
+        if (image != null) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                EditorIcon(Icons.Rounded.Close, "Close without saving") {
-                    if (editor.changed) editor.askDiscard = true else leave()
-                }
-                Spacer(Modifier.weight(1f))
-                if ((!edit.isUnchanged || motion) && !saving) {
-                    EditorPill("Reset", filled = false) {
-                        val from = base
-                        edit = PhotoEdit()
-                        aspect = CropAspect.FREE
-                        motion = false
-                        if (from != null) image = from
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
-                if (motion) {
-                    val ready = styled != null && !saving
-                    if (ready) EditorIcon(Icons.Rounded.Share, "Share as a video") { saveVideo(share = true) }
-                    EditorPill("Save video", filled = true, enabled = ready, onClick = { saveVideo(share = false) })
-                } else {
-                    EditorPill("Save copy", filled = true, enabled = !edit.isUnchanged && image != null && !saving, onClick = { save() })
-                }
-            }
-
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                val shown = image
-                val moving = styled
-                when {
-                    shown != null && showOriginal -> OriginalPreview(base ?: shown)
-                    // Motion on: the moving photo, with the colours, everywhere but while cropping.
-                    shown != null && motion && moving != null && tab != EditTab.CROP -> {
-                        val matrix = remember(edit) { EditMath.colourMatrix(edit) }
-                        val colour = remember(matrix) { if (edit.hasColour) ColorFilter.colorMatrix(ColorMatrix(matrix)) else null }
-                        LivingPhoto(
-                            moving,
-                            Modifier.fillMaxSize().padding(11.dp).holdForOriginal { showOriginal = it },
-                            colorFilter = colour,
-                        )
-                    }
-                    shown != null -> EditPreview(
-                        // The finished preview when it is ready; else the turned picture, tilted live on screen.
-                        image = source?.let { s -> worked?.takeIf { edit.needsPixels && workedFrom === s } ?: s } ?: shown,
-                        tilt = if (source == null) edit.straighten else 0f,
-                        edit = edit,
-                        cropping = tab == EditTab.CROP,
-                        ratio = lockedRatio,
-                        onCrop = { edit = edit.copy(crop = it) },
-                        onHold = { showOriginal = it },
-                    )
-                    failed -> Text(
-                        if (item == null) "This photo isn't here any more." else "This photo can't be opened for editing.",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(32.dp),
-                    )
-                    else -> CircularProgressIndicator(Modifier.size(28.dp), color = Color.White, strokeWidth = 2.5.dp)
-                }
-            }
-
-            // Undo, hold to compare, redo (16 Nov): just above the tools, in reach of a thumb.
-            if (image != null) {
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
+                    Modifier.clip(RoundedCornerShape(percent = 50)).background(Panel).padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Row(
-                        Modifier.clip(RoundedCornerShape(percent = 50)).background(Panel).padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    EditorIcon(Icons.AutoMirrored.Rounded.Undo, "Undo", enabled = canUndo, size = 44.dp) { undo() }
+                    if (!edit.isUnchanged || motion) {
+                        HoldIcon(Icons.Rounded.Compare, "Hold to see the original", size = 44.dp) { showOriginal = it }
+                    }
+                    EditorIcon(Icons.AutoMirrored.Rounded.Redo, "Redo", enabled = canRedo, size = 44.dp) { redo() }
+                }
+            }
+        }
+    }
+    val toolsPanel: @Composable () -> Unit = {
+        // The tools of the chosen tab, then the tabs.
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 132.dp),
+            contentAlignment = Alignment.Center,
+            label = "editTools",
+        ) { showing ->
+            when (showing) {
+                EditTab.CROP -> CropTools(
+                    aspect = aspect,
+                    straighten = edit.straighten,
+                    onStraighten = { edit = edit.straightened(it) },
+                    onAspect = { pick(it) },
+                    onLeft = { reshape(edit.turnedLeft()) },
+                    onRight = { reshape(edit.turnedRight()) },
+                    onMirror = { reshape(edit.mirrored()) },
+                )
+                EditTab.ADJUST -> AdjustTools(
+                    edit,
+                    adjust,
+                    // Tapping the slider that is already chosen puts it back to 0 (15 Nov).
+                    onPick = { a -> if (a == adjust) edit = edit.with(a, 0) else adjust = a },
+                    onChange = { edit = edit.with(adjust, it) },
+                )
+                EditTab.FILTERS -> FilterTools(
+                    image,
+                    edit,
+                    onPick = { edit = edit.copy(filter = it, filterStrength = if (it == edit.filter) edit.filterStrength else 100) },
+                    onStrength = { edit = edit.copy(filterStrength = it) },
+                )
+                EditTab.MOTION -> MotionTools(
+                    on = motion,
+                    busy = making || (motion && styled == null && layers?.background != null),
+                    note = layers?.note?.takeIf { motion },
+                    onChange = { motion = it },
+                )
+            }
+        }
+    }
+    val tabBar: @Composable () -> Unit = {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        ) {
+            EditTab.entries.filter { it != EditTab.MOTION || livingOn }.forEach { t -> TabPill(t, selected = t == tab) { tab = t } }
+        }
+    }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            if (maxWidth > maxHeight) {
+                Row(Modifier.fillMaxSize()) {
+                    picture(Modifier.weight(1f).fillMaxHeight())
+                    Column(
+                        Modifier.width(minOf(400.dp, maxWidth * 0.46f)).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
                     ) {
-                        EditorIcon(Icons.AutoMirrored.Rounded.Undo, "Undo", enabled = canUndo, size = 44.dp) { undo() }
-                        if (!edit.isUnchanged || motion) {
-                            HoldIcon(Icons.Rounded.Compare, "Hold to see the original", size = 44.dp) { showOriginal = it }
-                        }
-                        EditorIcon(Icons.AutoMirrored.Rounded.Redo, "Redo", enabled = canRedo, size = 44.dp) { redo() }
+                        topBar()
+                        undoBar()
+                        toolsPanel()
+                        tabBar()
                     }
                 }
-            }
-            // The tools of the chosen tab, then the tabs.
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 132.dp),
-                contentAlignment = Alignment.Center,
-                label = "editTools",
-            ) { showing ->
-                when (showing) {
-                    EditTab.CROP -> CropTools(
-                        aspect = aspect,
-                        straighten = edit.straighten,
-                        onStraighten = { edit = edit.straightened(it) },
-                        onAspect = { pick(it) },
-                        onLeft = { reshape(edit.turnedLeft()) },
-                        onRight = { reshape(edit.turnedRight()) },
-                        onMirror = { reshape(edit.mirrored()) },
-                    )
-                    EditTab.ADJUST -> AdjustTools(
-                        edit,
-                        adjust,
-                        // Tapping the slider that is already chosen puts it back to 0 (15 Nov).
-                        onPick = { a -> if (a == adjust) edit = edit.with(a, 0) else adjust = a },
-                        onChange = { edit = edit.with(adjust, it) },
-                    )
-                    EditTab.FILTERS -> FilterTools(
-                        image,
-                        edit,
-                        onPick = { edit = edit.copy(filter = it, filterStrength = if (it == edit.filter) edit.filterStrength else 100) },
-                        onStrength = { edit = edit.copy(filterStrength = it) },
-                    )
-                    EditTab.MOTION -> MotionTools(
-                        on = motion,
-                        busy = making || (motion && styled == null && layers?.background != null),
-                        note = layers?.note?.takeIf { motion },
-                        onChange = { motion = it },
-                    )
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    topBar()
+                    picture(Modifier.weight(1f).fillMaxWidth())
+                    undoBar()
+                    toolsPanel()
+                    tabBar()
                 }
-            }
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-            ) {
-                EditTab.entries.filter { it != EditTab.MOTION || livingOn }.forEach { t -> TabPill(t, selected = t == tab) { tab = t } }
             }
         }
 

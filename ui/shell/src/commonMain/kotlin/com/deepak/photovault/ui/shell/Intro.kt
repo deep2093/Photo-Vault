@@ -100,11 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-16-10"
+    const val ID = "2026-11-17-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Upright photos open upright", "A photo taken upright no longer flies in as a wide picture and then turns tall."),
-        Change(ChangeKind.FIXED, "Date lines up while selecting", "With photos selected, the date under \"selected\" now lines up with it."),
+        Change(ChangeKind.FIXED, "Editing works sideways", "Turn the phone sideways in the editor or the video trimmer and the picture sits beside the tools, instead of disappearing."),
+        Change(ChangeKind.FIXED, "Edited copies keep their full size", "Saved copies are no longer made smaller on phones with plenty of memory. Only photos over 50 megapixels are reduced, and the message says so."),
+        Change(ChangeKind.FIXED, "Photos sharpen sooner", "The full photo starts loading the moment you tap, so it is sharp almost as soon as it opens."),
+        Change(ChangeKind.FIXED, "HDR videos play in HDR", "HDR videos now keep their extra brightness on screens that can show it."),
+        Change(ChangeKind.NEW, "HDR and Log in Details", "A video's details show whether it is HDR10, HDR10+, HLG, Dolby Vision or ordinary, with its colour depth and codec, and flag likely Log videos. HDR photos say so too."),
     )
 }
 
