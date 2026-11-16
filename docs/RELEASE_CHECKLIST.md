@@ -156,9 +156,9 @@ Both = Claude prepares, Deepak approves or carries out.
 - [ ] **E9 · Crash reports.** Who: Deepak decides.
   Crashes show only on the person's phone. Decide: keep it that way (and add "send to developer" by email), or
   use Play's own crash reports only.
-- [ ] **E10 · Android's own code checks in every build.** Who: Claude. (Added on the recheck, 16 Nov.)
-  The automatic build runs the logic tests but not Android lint, which catches wrong-version calls and missing
-  permissions. Turn it on and fix what it reports.
+- [ ] **E10 · Android's own code checks: review what they let through.** Who: Claude. (Added 16 Nov, corrected 17 Nov.)
+  The automatic build does run Android lint and stops on its errors (it caught one on 17 Nov). Still to do: read
+  its warnings once and decide which should also stop the build (wrong-version calls, missing permissions).
 
 ---
 

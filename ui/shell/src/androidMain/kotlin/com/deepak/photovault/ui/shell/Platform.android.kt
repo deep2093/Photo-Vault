@@ -62,6 +62,8 @@ actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier)
                 }
             }
 
+            // Reading a track's colour is marked "unstable" in Media3 (it may change between versions).
+            @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                 // HDR10, HDR10+, HLG or Dolby Vision (17 Nov).
                 val hdr = tracks.groups.any { g ->
