@@ -78,6 +78,8 @@ data class AppearanceSettings(
      * joined with "|". Another day's list counts as empty.
      */
     val memoriesWatched: String = "",
+    /** Photos > All shows some photos double size (16 Nov, [Mosaic]). */
+    val mixedGrid: Boolean = true,
     /** Settings > Notifications (8 Nov): each kind of notification on or off. On by default. */
     val notifyBackupProblems: Boolean = true,
     val notifyPeople: Boolean = true,

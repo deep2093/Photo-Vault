@@ -31,9 +31,11 @@ Both = Claude prepares, Deepak approves or carries out.
 - [ ] **A4 · Privacy policy leaves things out.** Who: Claude writes, Deepak approves.
   Face matching (People); the offer to save recovery words to the phone's password manager; the cut-out model
   Google Play services downloads; the optional face model from Hugging Face; the VPN.
-- [ ] **A5 · The real release build has never been built or run.** Who: Both.
-  Every build so far is the "preview" type, which keeps code names readable. The release type scrambles names,
-  which can break saved settings, encryption and Google sign-in. Build it and run the whole test plan on it.
+- [ ] **A5 · The real release build has never been installed or run.** Who: Both.
+  Every build installed so far is the "preview" type, which keeps code names readable. The release type scrambles
+  names, which can break saved settings, encryption and Google sign-in. The automatic checks do build an unsigned
+  release each time (so it compiles and shrinks), but nobody has run one. Sign it and run the whole test plan on it.
+  (Corrected 16 Nov: the first version of this list wrongly said it had never been built.)
 - [ ] **A6 · No release signing key, no release Google sign-in.** Who: Deepak (accounts), Claude (build set-up).
   A release key must be made and kept safe outside the repository. Google sign-in needs a second client in the
   Google Cloud project tied to the release package name and that key.
@@ -234,7 +236,7 @@ Order inside the stage:
 3. Deepak: **A6** add the release Google sign-in client in Google Cloud Console (Claude gives the values).
 4. Claude: **B2** target Android version, **B3** 16 KB pages (library updates), **C3** pinned downloads,
    **C4** beta library, **D14** leftovers, **D18** offered only for invite files.
-5. Claude: **A5** a release build in the automatic checks, signed with the release key; **E10** Android lint in the same checks.
+5. Claude: **A5** the release build in the automatic checks signed with the release key; **E10** Android lint in the same checks.
 6. Deepak: installs the release build and does a short run through every section (the full pass is stage 6).
 7. Claude: **B4** long-backup handling (needs the new target version to test against).
 

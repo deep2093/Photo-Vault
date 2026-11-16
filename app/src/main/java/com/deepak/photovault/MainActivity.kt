@@ -905,6 +905,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         themeId = prefs.getString("theme", null) ?: AppearanceSettings().themeId,
         blurOn = prefs.getBoolean("blur", true),
         reduceMotion = prefs.getBoolean("reduce_motion", false),
+        mixedGrid = prefs.getBoolean("mixed_grid", true),
         tabletBottomBar = prefs.getBoolean("tablet_bottom_bar", false),
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
@@ -933,6 +934,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putString("theme", settings.themeId)
             .putBoolean("blur", settings.blurOn)
             .putBoolean("reduce_motion", settings.reduceMotion)
+            .putBoolean("mixed_grid", settings.mixedGrid)
             .putBoolean("tablet_bottom_bar", settings.tabletBottomBar)
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)

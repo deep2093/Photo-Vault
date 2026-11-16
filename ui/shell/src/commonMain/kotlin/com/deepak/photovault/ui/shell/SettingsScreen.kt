@@ -488,6 +488,13 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             icon = Icons.Rounded.PushPin,
         )
         GlassSwitchRow(
+            "Mixed photo sizes",
+            state.appearance.mixedGrid,
+            { on -> state.updateAppearance { it.copy(mixedGrid = on) } },
+            description = "In Photos > All, some photos are shown bigger than the rest. Off: every photo the same size.",
+            icon = Icons.Rounded.PhotoLibrary,
+        )
+        GlassSwitchRow(
             "Reduce motion",
             state.appearance.reduceMotion,
             { on -> state.updateAppearance { it.copy(reduceMotion = on) } },

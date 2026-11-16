@@ -49,6 +49,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -145,6 +148,11 @@ fun MediaGrid(
     onAwayFromTop: ((Boolean) -> Unit)? = null,
     /** The floating date's colour (Photos changes it with the pills). */
     dateColor: Color = Color.White,
+    /**
+     * Mixed sizes (16 Nov): here and there a photo is shown double size ([Mosaic]). Only for a [continuous] grid at
+     * 3 to 5 columns, and only while Settings > Appearance > Mixed photo sizes is on.
+     */
+    mixed: Boolean = false,
 ) {
     // Photos run edge to edge like Samsung Gallery (23 Oct): only the system's own side insets stay
     // (landscape cut-outs); headers and controls keep the screen margin themselves.
@@ -161,6 +169,23 @@ fun MediaGrid(
         val currentColumns by rememberUpdatedState(columns)
         val currentMax by rememberUpdatedState(maxColumns)
         val tileDp = maxWidth / columns
+        // Mixed sizes: the photos cut into plain runs and two-row blocks; null for the plain grid.
+        val flat = remember(sections) { sections.flatMap { it.items } }
+        val mosaic = mixed && continuous && state.appearance.mixedGrid && Mosaic.worksWith(columns)
+        val parts = remember(flat, columns, mosaic) { if (mosaic) Mosaic.plan(flat.map { it.id }, columns) else null }
+        // Each block by its grid key, and for every grid item the first photo it holds (the grid no longer has one
+        // item per photo, so the floating date, the side slider and "jump to" count grid items through this).
+        val blocks = remember(parts, flat) {
+            parts.orEmpty().filterIsInstance<Mosaic.Block>().associateBy { "block-${flat[it.from].id}" }
+        }
+        val gridFirst = remember(parts, flat) {
+            if (parts == null) flat else parts.flatMap { part ->
+                when (part) {
+                    is Mosaic.Run -> flat.subList(part.from, part.to)
+                    is Mosaic.Block -> listOf(flat[part.from])
+                }
+            }
+        }
         val scrollKey = remember { state.scrollKey() }
         val gridState = rememberLazyGridState(
             initialFirstVisibleItemIndex = remember { state.savedScroll[scrollKey]?.first ?: 0 },
@@ -178,6 +203,28 @@ fun MediaGrid(
         val topFade = ScrollToTopEffect(gridState, topTaps)
         LaunchedEffect(jumpTo, sections) {
             val key = jumpTo ?: return@LaunchedEffect
+            val planned = parts
+            if (planned != null) {
+                // Mixed sizes: the grid item that holds the section's first photo.
+                val first = sections.firstOrNull { it.key == key }?.items?.firstOrNull()
+                val at = first?.let { f -> flat.indexOfFirst { it.id == f.id } } ?: -1
+                if (at >= 0) {
+                    var index = headerItems
+                    for (part in planned) {
+                        val (from, to, count) = when (part) {
+                            is Mosaic.Run -> Triple(part.from, part.to, part.to - part.from)
+                            is Mosaic.Block -> Triple(part.from, part.from + Mosaic.photosIn(columns), 1)
+                        }
+                        if (at < to) {
+                            gridState.scrollToItem(index + if (part is Mosaic.Run) at - from else 0)
+                            break
+                        }
+                        index += count
+                    }
+                }
+                onJumped()
+                return@LaunchedEffect
+            }
             var index = headerItems
             for (section in sections) {
                 if (section.key == key) {
@@ -207,7 +254,34 @@ fun MediaGrid(
         val heightPx = with(density) { maxHeight.toPx() }
         val widthPx = with(density) { maxWidth.toPx() }
 
-        val handler = remember(gridState, order, columns, startPadPx, endPadPx, widthPx, heightPx) {
+        /** Every photo on screen with where it is drawn, in the grid's own coordinates (mixed-size blocks opened up). */
+        fun visibleTiles(): List<Pair<Long, androidx.compose.ui.geometry.Rect>> {
+            val info = gridState.layoutInfo
+            val out = ArrayList<Pair<Long, androidx.compose.ui.geometry.Rect>>()
+            for (item in info.visibleItemsInfo) {
+                // Item offsets are measured from the start of the content; the viewport starts above it by the
+                // top padding (viewportStartOffset is negative).
+                val left = item.offset.x.toFloat()
+                val top = (item.offset.y - info.viewportStartOffset).toFloat()
+                val key = item.key
+                if (key is Long) {
+                    out += key to androidx.compose.ui.geometry.Rect(left, top, left + item.size.width, top + item.size.height)
+                } else if (key is String) {
+                    val block = blocks[key] ?: continue
+                    val cell = (item.size.width - spacingPx * (columns - 1)) / columns
+                    Mosaic.slots(columns, block.right).forEachIndexed { k, slot ->
+                        val photo = flat.getOrNull(block.from + k) ?: return@forEachIndexed
+                        val x = left + slot.column * (cell + spacingPx)
+                        val y = top + slot.row * (cell + spacingPx)
+                        val side = cell * slot.span + spacingPx * (slot.span - 1)
+                        out += photo.id to androidx.compose.ui.geometry.Rect(x, y, x + side, y + side)
+                    }
+                }
+            }
+            return out
+        }
+
+        val handler = remember(gridState, order, columns, startPadPx, endPadPx, widthPx, heightPx, blocks) {
             object : PhotoGridGestureHandler {
                 private var anchor = -1
                 private var adding = true
@@ -216,20 +290,10 @@ fun MediaGrid(
                 private var autoScroll: Job? = null
 
                 override fun photoAt(position: Offset): Long? {
-                    val info = gridState.layoutInfo
-                    // Item offsets are measured from the start of the content; the viewport starts above it
-                    // by the top padding (viewportStartOffset is negative).
-                    val rowItems = info.visibleItemsInfo
-                        .filter { it.key is Long }
-                        .filter { item ->
-                            val top = item.offset.y - info.viewportStartOffset
-                            position.y >= top && position.y < top + item.size.height + spacingPx
-                        }
-                        .sortedBy { it.offset.x }
-                    if (rowItems.isEmpty()) return null
-                    val cell = (widthPx - startPadPx - endPadPx + spacingPx) / columns
-                    val column = ((position.x - startPadPx) / cell).toInt().coerceIn(0, columns - 1)
-                    return rowItems.getOrNull(column)?.key as? Long ?: rowItems.last().key as Long
+                    // The photos on the row under the finger (a little slack for the hairline gaps), then the
+                    // nearest of them sideways. Works for plain tiles and for the tiles inside a mixed-size block.
+                    val row = visibleTiles().filter { (_, r) -> position.y >= r.top && position.y < r.bottom + spacingPx }
+                    return row.minByOrNull { (_, r) -> if (position.x < r.left) r.left - position.x else if (position.x > r.right) position.x - r.right else 0f }?.first
                 }
 
                 override fun onTap(id: Long) {
@@ -275,29 +339,17 @@ fun MediaGrid(
         // Tells the delete animation where each photo is drawn (window coordinates).
         val spots = LocalTileSpots.current
         val gridOrigin = remember { floatArrayOf(0f, 0f) }
-        DisposableEffect(spots, gridState) {
+        DisposableEffect(spots, gridState, blocks) {
             spots?.lookup = { ids ->
-                val info = gridState.layoutInfo
-                info.visibleItemsInfo.mapNotNull { item ->
-                    val id = item.key as? Long ?: return@mapNotNull null
-                    if (id !in ids) return@mapNotNull null
-                    val left = gridOrigin[0] + item.offset.x
-                    val top = gridOrigin[1] + item.offset.y - info.viewportStartOffset
-                    id to androidx.compose.ui.geometry.Rect(left, top, left + item.size.width, top + item.size.height)
-                }.toMap()
+                visibleTiles().filter { it.first in ids }.associate { (id, r) -> id to r.translate(gridOrigin[0], gridOrigin[1]) }
             }
             onDispose { spots?.lookup = null }
         }
         // Where one tile is, for the photo opening out of it and closing back into it (16 Nov).
         val depth = LocalPageDepth.current
-        DisposableEffect(state, gridState, depth) {
+        DisposableEffect(state, gridState, depth, blocks) {
             val ask: Pair<Int, (Long) -> androidx.compose.ui.geometry.Rect?> = depth to { id ->
-                val info = gridState.layoutInfo
-                info.visibleItemsInfo.firstOrNull { it.key == id }?.let { item ->
-                    val left = gridOrigin[0] + item.offset.x
-                    val top = gridOrigin[1] + item.offset.y - info.viewportStartOffset
-                    androidx.compose.ui.geometry.Rect(left, top, left + item.size.width, top + item.size.height)
-                }
+                visibleTiles().firstOrNull { it.first == id }?.second?.translate(gridOrigin[0], gridOrigin[1])
             }
             state.tileLookups += ask
             onDispose { state.tileLookups -= ask }
@@ -319,26 +371,55 @@ fun MediaGrid(
                 },
         ) {
             header?.invoke(this)
-            sections.forEach { section ->
+            // One tile, the same in the plain grid and inside a mixed-size block.
+            val tile: @Composable (MediaItem, Dp, Modifier) -> Unit = { item, size, tileModifier ->
+                PhotoTile(
+                    item = item,
+                    tileSize = size,
+                    favourite = gallery.isFavourite(item),
+                    selecting = state.selecting,
+                    selected = item.id in state.selected,
+                    label = tileLabel?.invoke(item),
+                    mark = tileMark?.invoke(item),
+                    onClick = { handler.onTap(item.id) },
+                    onLongClick = { state.toggleSelected(item.id) },
+                    modifier = tileModifier,
+                )
+            }
+            val planned = parts
+            if (planned != null) {
+                planned.forEach { part ->
+                    when (part) {
+                        is Mosaic.Run -> items(flat.subList(part.from, part.to), key = { it.id }, contentType = { "tile" }) { item ->
+                            tile(item, tileDp, if (reduceMotion) Modifier else Modifier.animateItem())
+                        }
+                        is Mosaic.Block -> item(key = "block-${flat[part.from].id}", span = { GridItemSpan(maxLineSpan) }, contentType = "block") {
+                            val slots = remember(columns, part.right) { Mosaic.slots(columns, part.right) }
+                            BoxWithConstraints((if (reduceMotion) Modifier else Modifier.animateItem()).fillMaxWidth()) {
+                                val cell = (maxWidth - GRID_SPACING * (columns - 1)) / columns
+                                val step = cell + GRID_SPACING
+                                Box(Modifier.fillMaxWidth().height(cell * 2 + GRID_SPACING)) {
+                                    slots.forEachIndexed { k, slot ->
+                                        val photo = flat.getOrNull(part.from + k) ?: return@forEachIndexed
+                                        val side = cell * slot.span + GRID_SPACING * (slot.span - 1)
+                                        androidx.compose.runtime.key(photo.id) {
+                                            tile(photo, side, Modifier.offset(x = step * slot.column, y = step * slot.row).size(side))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else sections.forEach { section ->
                 if (!continuous) item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
                     // 13 Nov: where most of the section was taken, after the date ("7 Nov 2026 · Melbourne").
                     val where = remember(section.key, section.items.size, state.places.photos) { topPlace(section.items, state.places.photos) }
                     SectionHeader(if (where != null) "${section.label} · $where" else section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
                 }
                 items(section.items, key = { it.id }, contentType = { "tile" }) { item ->
-                    PhotoTile(
-                        item = item,
-                        tileSize = tileDp,
-                        favourite = gallery.isFavourite(item),
-                        selecting = state.selecting,
-                        selected = item.id in state.selected,
-                        label = tileLabel?.invoke(item),
-                        mark = tileMark?.invoke(item),
-                        onClick = { handler.onTap(item.id) },
-                        onLongClick = { state.toggleSelected(item.id) },
-                        // Photos glide to their new place when the grid changes size (instant with reduce motion).
-                        modifier = if (reduceMotion) Modifier else Modifier.animateItem(),
-                    )
+                    // Photos glide to their new place when the grid changes size (instant with reduce motion).
+                    tile(item, tileDp, if (reduceMotion) Modifier else Modifier.animateItem())
                 }
             }
             footer?.invoke(this)
@@ -346,7 +427,7 @@ fun MediaGrid(
 
         if (continuous) FloatingDate(
             grid = gridState,
-            photos = remember(sections) { sections.flatMap { it.items } },
+            photos = gridFirst,
             headerItems = headerItems,
             places = state.places.photos,
             color = dateColor,
@@ -357,7 +438,20 @@ fun MediaGrid(
             onClick = { topTaps++ },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp),
         )
-        FastScroller(
+        if (parts != null) {
+            // Mixed sizes: the slider counts grid items, and names the day of the first photo in each.
+            val starts = remember(gridFirst, sections, headerItems) {
+                val labelOf = HashMap<Long, String>()
+                sections.forEach { sec -> sec.items.forEach { labelOf[it.id] = sec.label } }
+                val out = ArrayList<Pair<Int, String>>()
+                gridFirst.forEachIndexed { k, item ->
+                    val label = labelOf[item.id].orEmpty()
+                    if (out.lastOrNull()?.second != label) out += (headerItems + k) to label
+                }
+                out
+            }
+            FastScroller(gridState, starts, headerItems + gridFirst.size, contentPadding.calculateTopPadding(), contentPadding.calculateBottomPadding(), Modifier.align(Alignment.TopEnd))
+        } else FastScroller(
             grid = gridState,
             sections = sections,
             headerItems = headerItems,

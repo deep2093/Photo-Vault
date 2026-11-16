@@ -197,6 +197,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             onJumped = { gallery.jumpTo = null },
                             onZoomOutPastMax = { gallery.view = LibraryView.MONTHS },
                             continuous = true,
+                            mixed = true,
                             onAwayFromTop = { scrolled = it },
                             dateColor = if (baseTheme.isDark) androidx.compose.ui.graphics.Color.White else ink,
                             header = {
