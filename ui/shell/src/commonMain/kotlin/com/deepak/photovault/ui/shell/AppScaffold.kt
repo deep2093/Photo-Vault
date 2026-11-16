@@ -329,6 +329,16 @@ private class PageEntry(val overlay: Overlay, shown: Float) {
      * Null: no flying copy (reduce motion, or the photo can't be found), and the page grows and fades as before.
      */
     var fly by mutableStateOf<Fly?>(null)
+
+    /**
+     * Smoothness (16 Nov, from Deepak's recordings beside Google Photos): building the viewer during the flight made
+     * the phone drop frames, so the flight looked like a jump. With a flying copy the viewer is only built once the
+     * copy has [landed], then fades in under it ([reveal]); the copy stays on top ([copyOn]) until then. On closing,
+     * the viewer stays built but hidden while the copy flies back, and is only taken apart after the flight.
+     */
+    var landed by mutableStateOf(true)
+    val reveal = Animatable(1f)
+    var copyOn by mutableStateOf(false)
 }
 
 /**
@@ -429,16 +439,15 @@ private fun OverlayHost(
                 // photo is gone the moment it closes), in the same spot, before anything moves.
                 val viewer = entry.overlay as? Overlay.Viewer
                 val showing = viewer?.let { v -> state.viewerShowing?.takeIf { it in v.ids } ?: v.startId } ?: 0L
-                if (viewer != null) entry.fly = flyFor(showing, null, entry.fly?.px ?: 256)
+                // The page under a viewer is kept built, so its tile can be asked for at once.
+                if (viewer != null) {
+                    entry.fly = flyFor(showing, tileOf(showing, depthBelow), entry.fly?.px ?: 256)
+                    entry.copyOn = entry.fly != null
+                }
                 entry.slide = scope.launch {
-                    if (viewer != null && entry.fly != null) {
-                        // The page underneath wasn't being drawn while covered: give it a few frames to lay its grid
-                        // out again, then find the tile of the photo that is showing now.
-                        withFrameNanos { }
-                        withFrameNanos { }
-                        withFrameNanos { }
-                        entry.fly = entry.fly?.copy(tile = tileOf(showing, depthBelow))
-                    }
+                    // The viewer's buttons fade away quickly under the copy; the viewer itself is taken apart only
+                    // after the flight, so nothing heavy happens while the photo moves.
+                    if (entry.fly != null) launch { entry.reveal.animateTo(0f, tween(90)) }
                     entry.p.animateTo(0f, pageSpec(entry.overlay))
                     entries.remove(entry)
                 }
@@ -450,14 +459,32 @@ private fun OverlayHost(
                 val tile = tileOf(overlay.startId, same + i)
                 entry.fly = flyFor(overlay.startId, tile, tile?.let { thumbBucket(it.width.toInt()) } ?: 256)
             }
+            val flying = entry.fly != null
+            if (flying) {
+                entry.landed = false
+                entry.copyOn = true
+                entry.reveal.snapTo(0f)
+            }
             entries.add(entry)
             if (!reduceMotion) {
                 entry.slide = scope.launch {
-                    // Let the new page be built first, so building it never eats into the movement.
-                    withFrameNanos { }
-                    withFrameNanos { }
+                    if (!flying) {
+                        // Let the new page be built first, so building it never eats into the movement.
+                        withFrameNanos { }
+                        withFrameNanos { }
+                    }
                     // Closed again before it even started (a very quick tap in and out): leave it to the closing slide.
                     if (!entry.closing) entry.p.animateTo(1f, pageSpec(overlay))
+                    if (flying && !entry.closing) {
+                        // Landed: now the viewer is built (out of sight, under the copy), given a few frames to
+                        // draw itself, and faded in; then the copy steps aside.
+                        entry.landed = true
+                        withFrameNanos { }
+                        withFrameNanos { }
+                        withFrameNanos { }
+                        entry.reveal.animateTo(1f, tween(140))
+                        if (!entry.closing) entry.copyOn = false
+                    }
                 }
             }
         }
@@ -479,7 +506,9 @@ private fun OverlayHost(
                 val covered by remember(entry) {
                     derivedStateOf {
                         val at = entries.indexOf(entry)
-                        val full = entries.drop(at + 1).filter { !it.closing && it.p.value >= 1f }
+                        // A viewer doesn't count as covering (16 Nov): the page under it stays built, so closing a
+                        // photo has nothing to rebuild and its tile can be found at once.
+                        val full = entries.drop(at + 1).filter { !it.closing && it.p.value >= 1f && it.overlay !is Overlay.Viewer }
                         val top = entries.lastOrNull { !it.closing }
                         full.isNotEmpty() && !(state.pageBack.value > 0f && full.size == 1 && full[0] === top)
                     }
@@ -487,7 +516,8 @@ private fun OverlayHost(
                 if (!covered) {
                     val sideways = entry.overlay.slidesSideways()
                     // Black comes in behind the flying photo (and goes out again on closing).
-                    if (entry.fly != null) Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black, alpha = entry.p.value.coerceIn(0f, 1f)) })
+                    // It also takes the taps while the viewer isn't built yet, so they don't reach the grid.
+                    if (entry.fly != null) Box(Modifier.fillMaxSize().blockTouchesBelow().drawBehind { drawRect(Color.Black, alpha = entry.p.value.coerceIn(0f, 1f)) })
                     Box(
                         Modifier
                             .fillMaxSize()
@@ -503,9 +533,9 @@ private fun OverlayHost(
                                 } else {
                                     val p = entry.p.value
                                     if (entry.fly != null) {
-                                        // The viewer with a flying copy: the page stays put and only fades, late on
-                                        // the way in and early on the way out, under the copy.
-                                        alpha = ((p - PAGE_UNDER_COPY) / (1f - PAGE_UNDER_COPY)).coerceIn(0f, 1f)
+                                        // The viewer with a flying copy: the page stays put and only fades, in
+                                        // after the copy has landed and out as it leaves, under the copy.
+                                        alpha = entry.reveal.value
                                     } else {
                                         val scale = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * p
                                         scaleX = scale
@@ -516,7 +546,15 @@ private fun OverlayHost(
                             }
                             .dimmedBy { if (sideways) coverAbove(entries, state, entries.indexOf(entry)) * PAGE_DIM else 0f },
                     ) {
-                        if (!entry.closing) {
+                        if (entry.fly != null) {
+                            // The viewer with a flying copy: built only once the copy has landed, and kept built
+                            // (hidden) while the copy flies back.
+                            if (entry.landed) {
+                                CompositionLocalProvider(LocalPageDepth provides index + 1) {
+                                    OverlayPage(entry.overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                                }
+                            }
+                        } else if (!entry.closing) {
                             // Drawn through a picture that is kept, so the closing slide can show it without the page.
                             Box(
                                 Modifier.fillMaxSize().drawWithContent {
@@ -547,8 +585,7 @@ private fun OverlayHost(
                     }
                     // The flying copy, on top until it has landed (then the viewer's own photo is under it, in place).
                     val fly = entry.fly
-                    val flying by remember(entry) { derivedStateOf { entry.closing || entry.p.value < 1f } }
-                    if (fly != null && flying) FlyingCopy(fly) { entry.p.value }
+                    if (fly != null && entry.copyOn) FlyingCopy(fly) { entry.p.value }
                 }
             }
         }
@@ -581,11 +618,13 @@ private fun FlyingCopy(fly: Fly, progress: () -> Float) {
     )
 }
 
-/** The viewer page under a flying copy is invisible until the copy is this far in, then fades up to full. */
-private const val PAGE_UNDER_COPY = 0.6f
+/** A photo's flight between its tile and the viewer: short, quick off the mark and soft at the end, like Google Photos. */
+private const val VIEWER_MS = 250
+private val ViewerEasing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 private fun pageSpec(overlay: Overlay): androidx.compose.animation.core.FiniteAnimationSpec<Float> =
-    if (overlay.slidesSideways()) tween(PAGE_MS, easing = PageEasing) else tween(OVERLAY_MS, easing = FastOutSlowInEasing)
+    if (overlay is Overlay.Viewer) tween(VIEWER_MS, easing = ViewerEasing)
+    else if (overlay.slidesSideways()) tween(PAGE_MS, easing = PageEasing) else tween(OVERLAY_MS, easing = FastOutSlowInEasing)
 
 /** How much of the page the finger has pulled away, when [entry] is the top page. */
 private fun pulledAway(entries: List<PageEntry>, state: ShellState, entry: PageEntry): Float =
