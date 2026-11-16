@@ -524,10 +524,11 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             if (maxWidth > maxHeight) {
+                val panel = minOf(400.dp, maxWidth * 0.46f)
                 Row(Modifier.fillMaxSize()) {
                     picture(Modifier.weight(1f).fillMaxHeight())
                     Column(
-                        Modifier.width(minOf(400.dp, maxWidth * 0.46f)).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        Modifier.width(panel).fillMaxHeight().verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.Center,
                     ) {
                         topBar()

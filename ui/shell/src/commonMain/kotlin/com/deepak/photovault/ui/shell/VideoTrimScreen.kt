@@ -225,10 +225,11 @@ internal fun VideoTrimScreen(item: MediaItem, state: ShellState, actions: MediaA
         }
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             if (maxWidth > maxHeight) {
+                val panel = minOf(420.dp, maxWidth * 0.5f)
                 Row(Modifier.fillMaxSize()) {
                     video(Modifier.weight(1f).fillMaxHeight())
                     Column(
-                        Modifier.width(minOf(420.dp, maxWidth * 0.5f)).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                        Modifier.width(panel).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()),
                         verticalArrangement = Arrangement.Center,
                     ) {
                         topBar()
