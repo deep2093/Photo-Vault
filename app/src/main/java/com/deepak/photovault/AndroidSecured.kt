@@ -265,15 +265,10 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         for (id in ids) {
             val entry = entries[id] ?: continue
             // Back to the album it came from (Camera goes to DCIM/Camera; a missing album is made again).
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, entry.name)
-                put(MediaStore.MediaColumns.MIME_TYPE, entry.mimeType)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, SecuredPaths.relativePath(entry.album, entry.isVideo))
-                put(MediaStore.MediaColumns.DATE_TAKEN, entry.takenAtMillis)
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-            }
             val collection = if (entry.isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            val uri = resolver.insert(collection, values) ?: continue
+            val uri = GallerySave.begin(
+                resolver, collection, entry.name, entry.mimeType, listOf(SecuredPaths.relativePath(entry.album, entry.isVideo)), entry.takenAtMillis,
+            ) ?: continue
             val ok = try {
                 val hasher = newSha256()
                 var size = 0L
@@ -291,15 +286,12 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
             } catch (_: Exception) {
                 false
             }
-            if (ok) {
-                val release = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
-                if (runCatching { resolver.update(uri, release, null, null) }.getOrDefault(0) > 0) {
-                    st.remove(listOf(id))
-                    done++
-                    continue
-                }
+            if (ok && GallerySave.finish(resolver, uri)) {
+                st.remove(listOf(id))
+                done++
+                continue
             }
-            runCatching { resolver.delete(uri, null, null) }
+            GallerySave.discard(resolver, uri)
         }
         done
     }

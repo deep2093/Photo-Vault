@@ -161,26 +161,9 @@ class AndroidEditor(context: Context) : EditorPlatform {
     /** Into the original's own folder (so it sits beside it in its album), else Pictures > Pixallery. */
     private fun intoGallery(file: File, item: MediaItem): Boolean {
         val folders = listOfNotNull(item.folder?.trim('/')?.takeIf { it.isNotEmpty() }, "Pictures/Pixallery").distinct()
-        for (folder in folders) {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, EditMath.copyName(item.displayName))
-                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                put(MediaStore.Images.Media.RELATIVE_PATH, folder)
-                put(MediaStore.Images.Media.DATE_TAKEN, item.takenAtMillis)
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            }
-            // Android refuses some folders (Download, another app's): the next one is tried.
-            val uri = runCatching {
-                resolver.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
-            }.getOrNull() ?: continue
-            val written = runCatching {
-                resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream")
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
-            }.isSuccess
-            if (written) return true
-            runCatching { resolver.delete(uri, null, null) }
-        }
-        return false
+        return com.deepak.photovault.GallerySave.save(
+            resolver, com.deepak.photovault.GallerySave.photos, EditMath.copyName(item.displayName), "image/jpeg", folders, item.takenAtMillis,
+        ) { out -> file.inputStream().use { it.copyTo(out) } }
     }
 
     /** Date, camera and place from the original onto the copy. The copy is already the right way up. */

@@ -181,24 +181,15 @@ class AndroidLiving(context: Context) : LivingPlatform {
 
     /** Into Movies > Pixallery, dated like the photo so it sits next to it in the timeline. */
     private fun saveToMovies(file: File, item: MediaItem): String {
-        val resolver = app.contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, "Living_" + item.displayName.substringBeforeLast('.') + ".mp4")
-            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Pixallery")
-            put(MediaStore.Video.Media.DATE_TAKEN, item.takenAtMillis)
-            put(MediaStore.Video.Media.IS_PENDING, 1)
-        }
-        val uri = resolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
-            ?: return "Couldn't save the video."
-        return try {
-            resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream")
-            resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
-            "Saved to Movies > Pixallery, next to the photo in your timeline."
-        } catch (e: Throwable) {
-            runCatching { resolver.delete(uri, null, null) }
-            "Couldn't save the video."
-        }
+        val saved = com.deepak.photovault.GallerySave.save(
+            app.contentResolver,
+            com.deepak.photovault.GallerySave.videos,
+            "Living_" + item.displayName.substringBeforeLast('.') + ".mp4",
+            "video/mp4",
+            listOf("Movies/Pixallery"),
+            item.takenAtMillis,
+        ) { out -> file.inputStream().use { it.copyTo(out) } }
+        return if (saved) "Saved to Movies > Pixallery, next to the photo in your timeline." else "Couldn't save the video."
     }
 
     private fun readBack(bg: File, fg: File, info: File): LivingLayers? {

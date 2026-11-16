@@ -159,22 +159,12 @@ class AndroidMediaWriter(context: Context) : MediaWriter {
     private val resolver = context.applicationContext.contentResolver
 
     override fun begin(record: BackupRecord): RestoreTarget {
-        val collection = if (record.isVideo) {
-            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        } else {
-            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        }
-        fun values(folder: String) = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, record.fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, record.mimeType)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, folder)
-            put(MediaStore.MediaColumns.DATE_TAKEN, record.takenAtMillis)
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
         // Back where it came from (15 Nov); Android may refuse some folders, then the Restored folder is used.
-        val uri = RestoreFolders.choices(record).firstNotNullOfOrNull { folder ->
-            runCatching { resolver.insert(collection, values(folder)) }.getOrNull()
-        } ?: throw FileNotFoundException("Couldn't create the photo")
+        val uri = com.deepak.photovault.GallerySave.begin(
+            resolver,
+            if (record.isVideo) com.deepak.photovault.GallerySave.videos else com.deepak.photovault.GallerySave.photos,
+            record.fileName, record.mimeType, RestoreFolders.choices(record), record.takenAtMillis,
+        ) ?: throw FileNotFoundException("Couldn't create the photo")
         val out: OutputStream = resolver.openOutputStream(uri) ?: run {
             resolver.delete(uri, null, null)
             throw FileNotFoundException("Couldn't write the photo")

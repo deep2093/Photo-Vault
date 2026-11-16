@@ -141,25 +141,9 @@ internal class VideoTrimmer(context: Context) {
     private fun intoGallery(file: File, item: MediaItem, made: Made): Boolean {
         val name = item.displayName.substringBeforeLast('.').ifBlank { "Video" }.removeSuffix("_trimmed") + "_trimmed" + if (made.webm) ".webm" else ".mp4"
         val folders = listOfNotNull(item.folder?.trim('/')?.takeIf { it.isNotEmpty() }, "Movies/Pixallery").distinct()
-        for (folder in folders) {
-            val values = ContentValues().apply {
-                put(MediaStore.Video.Media.DISPLAY_NAME, name)
-                put(MediaStore.Video.Media.MIME_TYPE, if (made.webm) "video/webm" else "video/mp4")
-                put(MediaStore.Video.Media.RELATIVE_PATH, folder)
-                put(MediaStore.Video.Media.DATE_TAKEN, item.takenAtMillis)
-                put(MediaStore.Video.Media.IS_PENDING, 1)
-            }
-            val uri = runCatching {
-                resolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
-            }.getOrNull() ?: continue
-            val written = runCatching {
-                resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream")
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
-            }.isSuccess
-            if (written) return true
-            runCatching { resolver.delete(uri, null, null) }
-        }
-        return false
+        return com.deepak.photovault.GallerySave.save(
+            resolver, com.deepak.photovault.GallerySave.videos, name, if (made.webm) "video/webm" else "video/mp4", folders, item.takenAtMillis,
+        ) { out -> file.inputStream().use { it.copyTo(out) } }
     }
 
     private companion object {
