@@ -27,6 +27,16 @@ private fun item(
 )
 
 class TimelineTest {
+    @Test
+    fun clockTimeAndHexAreWrittenOneWay() {
+        assertEquals("12:00 am", Timeline.clockTime(0, 0))
+        assertEquals("3:05 pm", Timeline.clockTime(15, 5))
+        assertEquals("12:30 pm", Timeline.clockTime(12, 30))
+        assertEquals("11:59 am", Timeline.clockTime(11, 59))
+        assertEquals("000a7fff80", Hex.of(byteArrayOf(0, 10, 127, -1, -128)))
+        assertEquals("", Hex.of(ByteArray(0)))
+    }
+
     private val items = listOf(
         item(1, at(2026, 10, 22, 9)),
         item(2, at(2026, 10, 22, 18)),

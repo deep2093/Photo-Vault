@@ -164,7 +164,7 @@ internal fun VideoTrimScreen(item: MediaItem, state: ShellState, actions: MediaA
 
             // The part kept, in words.
             Text(
-                if (duration <= 0) "" else "${clock(start)} – ${clock(endAt)}  ·  ${length(endAt - start)}",
+                if (duration <= 0) "" else "${com.deepak.photovault.core.media.Timeline.duration(start)} – ${com.deepak.photovault.core.media.Timeline.duration(endAt)}  ·  ${length(endAt - start)}",
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
@@ -289,7 +289,7 @@ private fun TrimBar(
         Canvas(
             Modifier
                 .fillMaxSize()
-                .semantics { contentDescription = "Part to keep: ${clock(start)} to ${clock(end)}" }
+                .semantics { contentDescription = "Part to keep: ${com.deepak.photovault.core.media.Timeline.duration(start)} to ${com.deepak.photovault.core.media.Timeline.duration(end)}" }
                 .pointerInput(duration) {
                     val handle = HANDLE_W.toPx()
                     val reach = 28.dp.toPx()
@@ -360,15 +360,6 @@ private fun TrimBar(
             }
         }
     }
-}
-
-/** 0:07, 1:05, 1:02:09. */
-private fun clock(ms: Long): String {
-    val s = (ms.coerceAtLeast(0L) / 1000L)
-    val h = s / 3600
-    val m = (s % 3600) / 60
-    val sec = s % 60
-    return if (h > 0) "$h:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}" else "$m:${sec.toString().padStart(2, '0')}"
 }
 
 /** "4.5 s", "12 s", "1 min 5 s". */

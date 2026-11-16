@@ -46,14 +46,14 @@ bar option on tablets only; short setup tips now; videos off by default).
       and the owner can set one for anyone. Stored as a small cropped picture (about 256 px) on the drive next to the
       family file, so it appears on every phone. Open question: who may change a photo, see the question to the owner.
 
-- [ ] Invites (later, not this build): see ROADMAP.md. Invite file + QR locked with a code, one-use, expires in days,
+- [x] Invites (later, not this build): see ROADMAP.md. Invite file + QR locked with a code, one-use, expires in days,
       cancel before use; after Phase 9. Play Store link version at release. The owner attaches a per-person
       WireGuard config made on the router (the app cannot create router users).
 
 - [ ] In-app "How to set this up" guide (Phase 13, see ROADMAP.md): drive, WireGuard on the router, importing the config,
       adding family. Reachable from the drive setup screen.
 
-- [ ] (Phase 5) Plan change (24 Oct): Remote access (old Phase 9) and Invites are merged into Phase 5 so 1-2 other people can
+- [x] (Phase 5) Plan change (24 Oct): Remote access (old Phase 9) and Invites are merged into Phase 5 so 1-2 other people can
       join and see the library sooner. WireGuard rules: connects only while the app is on screen; disconnects as soon
       as the app is minimised, left or closed; Settings options "Use VPN for this app only" and "Connect
       automatically". Decided: per-phone toggle "Back up away from home in background" (off by default) lets scheduled backup start the VPN by itself and stop it after.
@@ -67,10 +67,10 @@ bar option on tablets only; short setup tips now; videos off by default).
       the plain icon for a moment first). Respects reduce motion (no animation). Decided 24 Oct: about 1 second;
       plays only on a fresh start (not when coming back from the background); no tap to skip.
 
-- [ ] Album cover (asked 24 Oct, next build): on an album, "Choose cover" lets you pick 1 to 4 photos from it. One
+- [x] Album cover (asked 24 Oct, next build): on an album, "Choose cover" lets you pick 1 to 4 photos from it. One
       photo fills the card; 2 to 4 make a small mosaic. Saved on this phone; "Use newest" goes back to automatic.
 
-- [ ] First What's new notes (features from 23-24 Oct, for when What's new is built): Storage pages you can tap
+- [x] First What's new notes (features from 23-24 Oct, for when What's new is built): Storage pages you can tap
       into (sort by name, date or size, select and act on files, delete backups from the drive or save them to
       the phone); Send feedback; delete animation (genie) and Pixallery's own delete pop-up; open photos from
       Recently deleted; full screen viewer; owner's new phone joins with the PIN; Leaf icon by default; finding
@@ -79,12 +79,12 @@ bar option on tablets only; short setup tips now; videos off by default).
       drive; experimental Aurora Glass and Crystal Glass themes (light and dark); pages that slide in like a sliding door and follow your finger on the back swipe; themes sorted into Light, Dark and Photo sections; lens glass bottom bar for the Clear themes (experimental).
 - [x] Album covers of 1 to 4 photos (built 24 Oct, in the press-and-hold Albums bar).
 - [x] Point 8 of the 24 Oct list: answered 24 Oct (it was the album header and bar, already built).
-- [ ] What's new (asked 24 Oct, next build, then every build with a feature change): when the app opens after an
+- [x] What's new (asked 24 Oct, next build, then every build with a feature change): when the app opens after an
       update that added or changed features, a small pop-up says so (features only, never fixes) with "See what's
       new" and "Skip". "See what's new" opens a page explaining each change. Once seen or skipped it doesn't come
       back for that update, and there is no permanent What's new menu. The notes live in the app, numbered, so only
       builds that add notes trigger the pop-up.
-- [ ] Welcome tour (asked 24 Oct, next build): on a fresh install, a pop-up (with Skip) leads to a short tour of what
+- [x] Welcome tour (asked 24 Oct, next build): on a fresh install, a pop-up (with Skip) leads to a short tour of what
       Pixallery already does and what is coming, each feature with an icon picture (for example backup with a cloud,
       family with people, places with a pin; "Coming soon" labelled). Shown once after installing, like What's new;
       after it, What's new takes over for updates.
@@ -96,3 +96,5 @@ bar option on tablets only; short setup tips now; videos off by default).
 - Lens also on the Years/Months/All and Search pills, album back pill and top bars (each screen records its own content).
 - Clear themes and lens tint more see-through; labels and icons on bars/pills get a soft shadow ("depth") in lens glass.
 - New Settings switch "Keep the bottom bar in place" (pins the bar so it no longer tucks away while scrolling).
+
+Ticked on 16 Nov 2026 (code audit): invites, remote access in Phase 5, album covers, What's new (and its first notes) and the Welcome tour were built in later builds; ROADMAP.md has the dates. The in-app set-up guide is still open, for Phase 13.

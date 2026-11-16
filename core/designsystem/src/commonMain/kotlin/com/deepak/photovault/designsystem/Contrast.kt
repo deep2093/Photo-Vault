@@ -69,8 +69,4 @@ object Contrast {
     /** The lowest contrast [foreground] reaches on glass. */
     fun worstOnGlass(theme: GlassTheme, foreground: Color): Double =
         glassBackgrounds(theme).minOf { ratio(foreground, it) }
-
-    /** The lowest contrast [foreground] reaches anywhere text is drawn, glass or bare wallpaper. */
-    fun worstAnywhere(theme: GlassTheme, foreground: Color): Double =
-        allTextBackgrounds(theme).minOf { ratio(foreground, it) }
 }

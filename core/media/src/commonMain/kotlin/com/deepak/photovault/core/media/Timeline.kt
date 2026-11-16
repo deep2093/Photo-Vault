@@ -62,6 +62,12 @@ object Timeline {
 
     fun dayName(day: DayOfWeek): String = day.name.lowercase().replaceFirstChar { it.uppercase() }
 
+    /** "3:05 pm", "12:00 am": the time of day as it is written everywhere in the app (shared 16 Nov). */
+    fun clockTime(hour: Int, minute: Int): String {
+        val h = if (hour % 12 == 0) 12 else hour % 12
+        return "$h:${minute.toString().padStart(2, '0')} ${if (hour < 12) "am" else "pm"}"
+    }
+
     /** "0:42", "12:05", "1:02:33". */
     fun duration(millis: Long): String {
         val total = (millis / 1000).coerceAtLeast(0)

@@ -315,7 +315,7 @@ class AndroidLiving(context: Context) : LivingPlatform {
     }
 
     private fun hash(s: String): String =
-        MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
+        com.deepak.photovault.core.media.Hex.of(MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).copyOf(12))
 
     /** Keeps the cache to the newest 40 photos. */
     private fun trimCache(dir: File) {

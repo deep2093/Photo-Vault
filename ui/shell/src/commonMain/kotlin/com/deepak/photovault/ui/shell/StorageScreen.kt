@@ -704,29 +704,6 @@ private fun YearBars(years: List<StorageSlice>, onYear: (String) -> Unit) {
     }
 }
 
-@Composable
-private fun Legend(color: Color, label: String, detail: String, onClick: (() -> Unit)? = null) {
-    val theme = LocalGlassTheme.current
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Show $label", onClick = onClick) else Modifier)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(label, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(detail, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
-        }
-        if (onClick != null) {
-            androidx.compose.material3.Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = theme.onGlassSecondary)
-        }
-    }
-}
-
 /**
  * A card with a ring and its legend, for how full the phone or your drive space is. Tap a part to see it.
  * 15 Nov: with [types], swipe the ring sideways to see the file types (a second ring); dots show which is showing.

@@ -30,7 +30,6 @@ data class MediaDetails(
     val frameRate: Double? = null,
     val bitrate: Long? = null,
 ) {
-    val hasLocation: Boolean get() = latitude != null && longitude != null
 
     val camera: String? get() = DetailsFormat.camera(cameraMake, cameraModel)
 }

@@ -8,7 +8,6 @@ object NotifyPrefs {
     const val PEOPLE = "notify_people"
     const val FAMILY = "notify_family"
     const val FEEDBACK = "notify_feedback"
-    const val MEMORIES = "memories_notice"
 
     fun on(context: Context, key: String): Boolean =
         context.applicationContext.getSharedPreferences("appearance", Context.MODE_PRIVATE).getBoolean(key, true)

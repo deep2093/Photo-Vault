@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
 
 /** [PrivateVault] with Google Tink streaming encryption (core:crypto). Nothing is held whole in memory. */
 class TinkVault(private val keys: MemberKeys, private val context: KeyContext) : PrivateVault {
-    override fun newObjectId(): String = randomBytes(16).joinToString("") { "%02x".format(it) }
+    override fun newObjectId(): String = com.deepak.photovault.core.media.Hex.of(randomBytes(16))
 
     private fun tag(kind: ObjectKind, id: String) = "${kind.name}|$id"
 

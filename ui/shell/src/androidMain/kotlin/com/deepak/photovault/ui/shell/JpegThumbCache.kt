@@ -22,7 +22,7 @@ object JpegThumbCache {
     }
 
     fun key(vararg parts: Any): String =
-        MessageDigest.getInstance("SHA-256").digest(parts.joinToString("|").toByteArray()).take(16).joinToString("") { "%02x".format(it) }
+        com.deepak.photovault.core.media.Hex.of(MessageDigest.getInstance("SHA-256").digest(parts.joinToString("|").toByteArray()).copyOf(16))
 
     fun get(key: String): Bitmap? {
         val file = File(dir ?: return null, "$key.jpg")

@@ -571,11 +571,8 @@ class MainActivity : ComponentActivity(), MediaActions {
         android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
     }
 
-    /** Photos that are only on the drive have no phone file to hand over yet; say so instead of failing. */
-    private fun phoneOnly(all: List<MediaItem>): List<MediaItem> {
-        val phone = all.filterNot { it.isDriveOnly }
-        return phone
-    }
+    /** Only the photos with a file on this phone: ones that are only on the drive have nothing to hand over. */
+    private fun phoneOnly(all: List<MediaItem>): List<MediaItem> = all.filterNot { it.isDriveOnly }
 
     override fun share(all: List<MediaItem>) {
         val items = phoneOnly(all)

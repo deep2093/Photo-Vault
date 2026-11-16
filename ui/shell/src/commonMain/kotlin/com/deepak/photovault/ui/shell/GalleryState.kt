@@ -324,11 +324,6 @@ class GalleryState(
     fun orderedCards(): List<String> =
         AlbumOrder.apply(listOf(FAVOURITES_CARD, VIDEOS_CARD) + allAlbums.map { it.id }, albumOrder)
 
-    fun moveAlbum(from: Int, to: Int) {
-        albumOrder = AlbumOrder.move(orderedCards(), from, to)
-        layoutStore.saveOrder(albumOrder)
-    }
-
     /** How Albums is sorted now; moving a card by hand switches back to [AlbumSort.MINE]. */
     var albumSort by mutableStateOf(AlbumSorting.decode(layoutStore.loadSort()).first)
         private set
@@ -534,9 +529,6 @@ class GalleryState(
         allAlbums = PhoneAlbums.from(all + driveOnly)
         applyVisible()
     }
-
-    /** Is the Favourites or Videos card (or an album) hidden in Albums? */
-    fun isHidden(id: String) = id in hiddenAlbums
 
     /**
      * Takes deleted photos off screen at once, as they fly into the bin (23 Oct); the next reload from the

@@ -352,29 +352,6 @@ fun WarningNote(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Where a photo is. Shown on gallery tiles; always has a spoken description. */
-enum class BackupStatus(val description: String) {
-    BACKED_UP("Backed up"),
-    PHONE_ONLY("Only on this phone"),
-    ON_DRIVE("Only on the drive"),
-}
-
-@Composable
-fun StatusBadge(status: BackupStatus, modifier: Modifier = Modifier) {
-    val theme = LocalGlassTheme.current
-    val (fill, icon) = when (status) {
-        BackupStatus.BACKED_UP -> theme.badgeBackedUp to Icons.Rounded.CloudDone
-        BackupStatus.PHONE_ONLY -> theme.badgePhoneOnly to Icons.Rounded.PhoneAndroid
-        BackupStatus.ON_DRIVE -> theme.badgeOnDrive to Icons.Rounded.CloudQueue
-    }
-    Box(
-        modifier.size(22.dp).clip(CircleShape).background(fill).semantics { contentDescription = status.description },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = null, tint = theme.onBadge, modifier = Modifier.size(14.dp))
-    }
-}
-
 /** Linear progress on glass. Animates unless reduce motion is on. */
 @Composable
 fun GlassProgressBar(fraction: Float, modifier: Modifier = Modifier, label: String) {

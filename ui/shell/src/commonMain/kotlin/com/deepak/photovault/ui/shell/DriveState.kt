@@ -163,7 +163,6 @@ class DriveState(private val platform: DrivePlatform) {
             return ownerPin != null && platform.now() - ownerUnlockedAt < OWNER_UNLOCK_MS
         }
 
-    fun pinLockedForMillis(): Long = pinAttempts.lockedForMillis()
 
     // ---- Connecting ----
 
@@ -1022,12 +1021,6 @@ class DriveState(private val platform: DrivePlatform) {
         val me = joined?.me ?: return null
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
         return runCatching { RestoreEngine(fs, me.userId, vault = myVault()).missing(onPhone).size }.getOrNull()
-    }
-
-    suspend fun renameMe(name: String): String? = guarded {
-        val me = joined?.me ?: return@guarded
-        ensureStore()!!.rename(platform.deviceId, me.userId, name)
-        refreshLocked()
     }
 
     private suspend fun ownerAction(block: suspend (HouseholdStore) -> Unit): String? = guarded {

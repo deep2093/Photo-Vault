@@ -376,20 +376,6 @@ internal fun DriveCard(
 ) {
     val soloScope = rememberCoroutineScope()
     val theme = LocalGlassTheme.current
-    var note by remember { mutableStateOf<String?>(null) }
-    var taps by remember { mutableStateOf(0) }
-    // Tapping Back up now must never look like nothing happened (25 Oct): if it hasn't started in a few seconds, say why.
-    LaunchedEffect(taps) {
-        if (taps == 0) return@LaunchedEffect
-        kotlinx.coroutines.delay(4000)
-        if (!backup.running) {
-            note = if (backup.onMobileData() && !backup.settings.mobileData) {
-                "Waiting for Wi-Fi. You're on mobile data, which backup doesn't use unless you allow it in Backup settings."
-            } else {
-                "Waiting to start. Backup needs a Wi-Fi connection and the drive on; it starts by itself as soon as they are."
-            }
-        }
-    }
     // Your place in line (28 Oct): shown once when this phone has to wait behind another family phone.
     var hideLine by remember { mutableStateOf(false) }
     LaunchedEffect(backup.queuePlace) { if (backup.queuePlace == 0) hideLine = false }
@@ -462,42 +448,8 @@ internal fun DriveCard(
                 Text("Allow access to your photos so they can be backed up.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
                 GlassButton("Allow access", primary = true, onClick = actions::requestAccess, modifier = Modifier.padding(top = 8.dp))
             }
-            else -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            if (eligible > 0 && done == eligible) "All backed up" else "${LibraryCounts.grouped(eligible - done)} to back up",
-                            color = theme.onGlass,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            "${LibraryCounts.grouped(done)} of ${LibraryCounts.grouped(eligible)} saved and checked",
-                            color = theme.onGlassSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    GlassButton("Back up now", primary = true, icon = Icons.Rounded.Upload, onClick = {
-                        note = if (backup.onMobileData() && !backup.settings.mobileData) "On mobile data: it starts once you're on Wi-Fi." else null
-                        if (!backup.notificationsAllowed()) actions.requestNotifications()
-                        backup.backUpNow()
-                        taps++
-                    })
-                }
-                Spacer(Modifier.height(10.dp))
-                GlassProgressBar(if (eligible == 0) 0f else done / eligible.toFloat(), label = "$done of $eligible backed up")
-                val last = backup.history.firstOrNull()
-                val next = backup.nextRunMillis()
-                val line = listOfNotNull(
-                    last?.let { "Last ${whenText(it.finishedAtMillis, backup.now())}" },
-                    next?.let { "next ${whenText(it, backup.now())}" },
-                ).joinToString(" · ")
-                if (line.isNotEmpty()) {
-                    Text(line.replaceFirstChar { it.uppercase() }, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-                }
-                if (last != null && !last.succeeded) last.failureMessage?.let { WarningNote(it) }
-                note?.let { WarningNote(it) }
-            }
+            // Ready (joined, photos allowed): the ring card shows that, not this card (16 Nov clean-up).
+            else -> Unit
         }
         Spacer(Modifier.height(6.dp))
         PlaceRows(backup.settings, gallery.albums, open = open)
@@ -539,11 +491,6 @@ private fun ScheduleControls(schedule: BackupSchedule, change: ((BackupSchedule)
     )
 }
 
-private fun BackupSchedule.shiftMinutes(delta: Int): BackupSchedule {
-    val total = ((hour * 60 + minute + delta) % (24 * 60) + 24 * 60) % (24 * 60)
-    return copy(hour = total / 60, minute = total % 60)
-}
-
 @Composable
 private fun Stepper(title: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
     val theme = LocalGlassTheme.current
@@ -582,59 +529,6 @@ private fun FolderPicker(albums: List<PhoneAlbum>, current: Set<String>?, onDism
                     { on -> chosen = if (on) chosen + album.id else chosen - album.id },
                     description = "${LibraryCounts.grouped(album.count)} items",
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SpaceAndPhonesCard(drive: DriveState, backup: BackupState, eligible: Int, done: Int) {
-    val theme = LocalGlassTheme.current
-    val me = drive.joined?.me ?: return
-    var last by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
-    LaunchedEffect(me.userId, backup.history.size) { last = drive.lastBackups() }
-    GlassCard(Modifier.cardWidth()) {
-        SectionHeader("Your phones")
-        me.devices.forEach { device ->
-            val isThis = device.deviceId == drive.deviceId
-            Column(Modifier.padding(vertical = 6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Icon(Icons.Rounded.PhoneAndroid, null, tint = theme.onGlassSecondary)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(device.name + if (isThis) " (this phone)" else "", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            last[device.deviceId]?.let { "Last backup ${whenText(it, backup.now())}" } ?: "No backups yet",
-                            color = theme.onGlassSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HistoryCard(history: List<BackupRun>) {
-    val theme = LocalGlassTheme.current
-    GlassCard(Modifier.cardWidth()) {
-        SectionHeader("History")
-        history.take(3).forEach { run ->
-            Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
-                androidx.compose.material3.Icon(Icons.Rounded.History, null, tint = if (run.succeeded) theme.onGlassSecondary else theme.accent)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("${run.trigger.label} · ${dateText(run.finishedAtMillis)}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        buildString {
-                            append(if (run.uploaded == 0) "Nothing new" else "${LibraryCounts.grouped(run.uploaded)} saved (${DetailsFormat.size(run.bytes)})")
-                            run.failureMessage?.let { append(". ").append(it) }
-                        },
-                        color = theme.onGlassSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
             }
         }
     }
@@ -786,79 +680,6 @@ internal fun dateText(millis: Long, zone: TimeZone = TimeZone.currentSystemDefau
 
 private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
-/** Real figures once this phone has joined the family. */
-@Composable
-private fun YourSpace(drive: DriveState) {
-    val theme = LocalGlassTheme.current
-    val joined = drive.joined
-    if (joined == null) {
-        Text(
-            if (drive.isSetUp) "Join your family on the drive to see your space." else "Connect your drive to see your space.",
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        return
-    }
-    val mine = drive.usage[joined.me.userId]
-    val limit = mine?.limitBytes ?: joined.me.limitGb * DriveState.GB
-    val used = mine?.usedBytes
-    // One line: the bar and "used of total" beside it (24 Oct: compact).
-    Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlassProgressBar(
-            ((used ?: 0L) / limit.toFloat()).coerceIn(0f, 1f),
-            modifier = Modifier.weight(1f),
-            label = "Your space, ${used?.let(DetailsFormat::size) ?: "counting"} of ${joined.me.limitGb} gigabytes used",
-        )
-        Spacer(Modifier.width(12.dp))
-        if (used == null) com.deepak.photovault.designsystem.SkeletonLine(96.dp, 14.dp, label = "Counting your space") else Text(
-            "${DetailsFormat.size(used)} of ${joined.me.limitGb} GB",
-            color = theme.onGlass,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-    // The whole drive is the owner's business only (24 Oct).
-    if (drive.isOwner) {
-        drive.space?.let {
-            Text(
-                "Drive: ${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}",
-                color = theme.onGlassSecondary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}
-
-
-/** Family drive, Google Drive or both (Phase 10). With both, a photo counts as backed up once it is in both. */
-@Composable
-private fun DestinationCard(backup: BackupState) {
-    val theme = LocalGlassTheme.current
-    val choice = backup.settings.destination
-    val options = listOf(
-        com.deepak.photovault.core.backup.BackupDestination.DRIVE to "Family drive",
-        com.deepak.photovault.core.backup.BackupDestination.GOOGLE to "Google Drive",
-        com.deepak.photovault.core.backup.BackupDestination.BOTH to "Both",
-    )
-    GlassCard(Modifier.cardWidth()) {
-        SectionHeader("Back up to")
-        com.deepak.photovault.designsystem.GlassSegmented(
-            options.map { it.second },
-            options.indexOfFirst { it.first == choice }.coerceAtLeast(0),
-            { i -> backup.update { it.copy(destination = options[i].first) } },
-            Modifier.fillMaxWidth().padding(top = 8.dp),
-        )
-        Text(
-            when (choice) {
-                com.deepak.photovault.core.backup.BackupDestination.DRIVE -> "Kept on the family drive at home."
-                com.deepak.photovault.core.backup.BackupDestination.GOOGLE -> "Kept in your Google account, away from home."
-                com.deepak.photovault.core.backup.BackupDestination.BOTH -> "Kept in both places. Each has its own schedule and choices below."
-            },
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-    }
-}
 
 /**
  * Google Drive (Phase 10; tidied 14 Nov): how much is on Google, Back up now, then short rows: the accounts (in their
@@ -874,68 +695,17 @@ internal fun GoogleCard(
     open: (BackupSheet) -> Unit,
 ) {
     val theme = LocalGlassTheme.current
-    val status = google.platform.status?.collectAsState()?.value ?: GoogleStatus()
-    var note by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { google.refresh(readSpace = true, readRecords = false) }
-    // The count follows a run that just ended.
-    LaunchedEffect(status.running) { if (!status.running) google.refresh(readRecords = false) }
-    val onGoogle = remember(eligible, google.keys) { eligible.count { BackupSelection.key(it) in google.keys } }
     GlassCard(Modifier.cardWidth()) {
         SectionHeader("Google Drive")
-        if (google.accounts.isEmpty()) {
-            Text(
-                "Add a Google account to keep a copy of your photos away from home. Pixallery can only see the files it saves there, nothing else in the account.",
-                color = theme.onGlassSecondary,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            GlassButton("Add Google account", icon = Icons.Rounded.Add, primary = true, onClick = { google.platform.addAccount() }, modifier = Modifier.padding(top = 12.dp))
-        } else {
-        val total = eligible.size
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    when {
-                        status.running -> "Backing up"
-                        total > 0 && onGoogle == total -> "All backed up"
-                        else -> "${LibraryCounts.grouped(total - onGoogle)} to back up"
-                    },
-                    color = theme.onGlass,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    if (status.running) (if (status.total == 0) "Getting ready..." else "${status.done} of ${status.total}")
-                    else "${LibraryCounts.grouped(onGoogle)} of ${LibraryCounts.grouped(total)} on Google",
-                    color = theme.onGlassSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (!status.running) {
-                GlassButton("Back up now", primary = true, icon = Icons.Rounded.CloudUpload, onClick = {
-                    note = if (backup.onMobileData() && !view.mobileData) "On mobile data: it starts once you're on Wi-Fi." else null
-                    google.platform.backUpNow()
-                })
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        GlassProgressBar(
-            if (status.running) (if (status.total == 0) 0f else status.done / status.total.toFloat()) else if (total == 0) 0f else onGoogle / total.toFloat(),
-            label = "$onGoogle of $total on Google",
+        // Only shown before an account is added (16 Nov clean-up): with one, the ring card takes over.
+        Text(
+            "Add a Google account to keep a copy of your photos away from home. Pixallery can only see the files it saves there, nothing else in the account.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 4.dp),
         )
-        val line = listOfNotNull(
-            status.lastAtMillis?.let { "Last ${whenText(it, backup.now())}" },
-            backup.nextGoogleRunMillis()?.let { "next ${whenText(it, backup.now())}" },
-        ).joinToString(" · ")
-        if (line.isNotEmpty()) {
-            Text(line.replaceFirstChar { it.uppercase() }, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-        }
-        status.message?.let { WarningNote(it) }
-        note?.let { WarningNote(it) }
-        Spacer(Modifier.height(6.dp))
-        SettingRow(Icons.Rounded.Storage, "Accounts", accountsSummary(google.accounts), onClick = { open(BackupSheet.ACCOUNTS) })
-        PlaceRows(view, albums, open = open)
-        }
+        GlassButton("Add Google account", icon = Icons.Rounded.Add, primary = true, onClick = { google.platform.addAccount() }, modifier = Modifier.padding(top = 12.dp))
     }
 }
 

@@ -41,7 +41,7 @@ object DriveMedia {
 
     private fun name(path: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray())
-        return digest.take(12).joinToString("") { "%02x".format(it) } + "." + path.substringAfterLast('.', "bin").take(5)
+        return com.deepak.photovault.core.media.Hex.of(digest.copyOf(12)) + "." + path.substringAfterLast('.', "bin").take(5)
     }
 
     /** The full file if it is already on the phone; never downloads. */

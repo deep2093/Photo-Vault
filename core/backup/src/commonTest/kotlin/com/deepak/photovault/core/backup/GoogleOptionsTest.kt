@@ -41,4 +41,33 @@ class GoogleOptionsTest {
         // And a later change to the family drive no longer moves Google.
         assertEquals(setOf("a", "b"), changed.copy(folders = setOf("z")).forGoogle().folders)
     }
+
+    // Google's choices are listed in three places (GoogleOptions, forGoogle, withGoogleFrom). These fail if a choice
+    // is ever added or changed in one and forgotten in another (16 Nov audit).
+    @Test
+    fun everyGoogleChoiceSurvivesTheRoundTrip() {
+        val one = GoogleOptions(
+            schedule = BackupSchedule(frequency = Frequency.MONTHLY, hour = 7, minute = 30),
+            photos = false, videos = true, folders = setOf("x"),
+            chargingOnly = true, mobileData = true, videosOnMobile = true, storageSaver = true,
+        )
+        val other = one.copy(photos = true, videos = false, folders = null, chargingOnly = false, mobileData = false, videosOnMobile = false, storageSaver = false)
+        for (options in listOf(one, other)) {
+            // Start from family-drive settings that are the opposite, so a forgotten choice can't pass by luck.
+            val opposite = BackupSettings(
+                photos = !options.photos, videos = !options.videos, folders = setOf("family"),
+                chargingOnly = !options.chargingOnly, mobileData = !options.mobileData,
+                videosOnMobile = !options.videosOnMobile, storageSaver = !options.storageSaver,
+            )
+            val view = opposite.copy(google = options).forGoogle()
+            assertEquals(options, opposite.withGoogleFrom(view).google)
+        }
+    }
+
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    @Test
+    fun aNewGoogleChoiceMustBeAddedEverywhere() {
+        // Adding a choice? Add it to forGoogle, withGoogleFrom and the test above, then raise this number.
+        assertEquals(8, GoogleOptions.serializer().descriptor.elementsCount)
+    }
 }

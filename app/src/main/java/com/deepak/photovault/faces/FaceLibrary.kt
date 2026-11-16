@@ -616,7 +616,7 @@ object FaceLibrary {
                     }
                 }
             }
-            val hex = digest.digest().joinToString("") { "%02x".format(it) }
+            val hex = com.deepak.photovault.core.media.Hex.of(digest.digest())
             if (hex != FaceEngine.AURA_SHA256) {
                 part.delete()
                 return@withContext "The downloaded model didn't pass its check, so it wasn't used."

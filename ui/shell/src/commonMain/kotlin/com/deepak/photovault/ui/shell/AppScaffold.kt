@@ -770,9 +770,6 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
     }
 }
 
-/** The app's name as people see it (renamed from Veyra Photos on 24 Oct). */
-const val APP_NAME = "Pixallery"
-
 private const val CHROME_MS = 220
 
 private val NAV_ITEM_HEIGHT = 58.dp

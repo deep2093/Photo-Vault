@@ -89,7 +89,7 @@ class AndroidDuplicates(context: Context) : DuplicatePlatform {
                 digest.update(buf, 0, n)
             }
         } ?: error("can't open")
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return com.deepak.photovault.core.media.Hex.of(digest.digest())
     }
 
     /** Fingerprint and sharpness from the phone's small thumbnail. */

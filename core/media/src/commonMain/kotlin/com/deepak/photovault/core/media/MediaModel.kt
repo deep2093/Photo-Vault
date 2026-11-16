@@ -57,11 +57,3 @@ interface FavouritesStore {
 
     fun save(ids: Set<Long>)
 }
-
-class MemoryFavouritesStore(private var ids: Set<Long> = emptySet()) : FavouritesStore {
-    override fun load() = ids
-
-    override fun save(ids: Set<Long>) {
-        this.ids = ids
-    }
-}

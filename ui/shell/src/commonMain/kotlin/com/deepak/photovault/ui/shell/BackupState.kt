@@ -50,31 +50,6 @@ interface BackupPlatform {
     fun now(): Long
 }
 
-/** For previews and tests. */
-class MemoryBackupPlatform(private var settings: BackupSettings = BackupSettings()) : BackupPlatform {
-    var nowMillis = 0L
-    val started = mutableListOf<String>()
-    override fun loadSettings() = settings
-    override fun saveSettings(settings: BackupSettings) {
-        this.settings = settings
-    }
-    override fun loadHistory(): List<BackupRun> = emptyList()
-    override suspend fun backedUpKeys(): Set<String> = emptySet()
-    override fun backUpNow() {
-        started += "now"
-    }
-    override fun stop() {
-        started += "stop"
-    }
-    override fun restoreMissing() {
-        started += "restore"
-    }
-    override fun onMobileData() = false
-    override fun notificationsAllowed() = true
-    override fun batteryRestricted() = false
-    override fun now() = nowMillis
-}
-
 /**
  * Backup as the screens see it. The backup itself runs in the background (Android WorkManager) and writes its
  * progress and results here, so the screen shows them live.

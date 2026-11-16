@@ -79,10 +79,7 @@ data class BackupSchedule(
             return minutes / 60 to minutes % 60
         }
 
-        fun timeLabel(hour: Int, minute: Int): String {
-            val h = if (hour % 12 == 0) 12 else hour % 12
-            return "$h:${minute.toString().padStart(2, '0')} ${if (hour < 12) "am" else "pm"}"
-        }
+        fun timeLabel(hour: Int, minute: Int): String = com.deepak.photovault.core.media.Timeline.clockTime(hour, minute)
     }
 }
 

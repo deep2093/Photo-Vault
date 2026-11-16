@@ -57,7 +57,7 @@ import com.deepak.photovault.designsystem.WarningNote
 private val RING = listOf(Color(0xFF34A853), Color(0xFFF2A60C))
 
 /**
- * The new Backup layout, to try (15 Nov; Settings > About > New Backup layout): Back up to as a slim switch; a ring
+ * The Backup layout (15 Nov; the only one since 16 Nov): Back up to as a slim switch; a ring
  * card like Storage's (backed up, waiting, skipped; swipe between the family drive and Google Drive when backing up to
  * both); one settings card (with a small switch for whose settings when both); warnings only when they need you; the
  * same last card (privacy, remove phone copies, restore).

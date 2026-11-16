@@ -1,12 +1,14 @@
 # Pixallery (code name PhotoVault)
 
 An Android 11+ photo and video gallery that backs up each family member's phone into their own folder
-on one shared SMB drive (for example a USB drive on the home router). Built on the SMB and WireGuard
+on one shared SMB drive (for example a USB drive on the home router), and optionally to their own Google Drive. Built on the SMB and WireGuard
 code from Veyra (`deep2093/SmbVideoPlayer`).
 
-**Status: Phase 4 (verified backup), built and waiting for testing.** Each phone backs up into its person's folder:
-every file is read back and checked before it counts, nothing on the drive is ever overwritten, scheduled
-backups (Sunday 2 am by default) wait for Wi-Fi and a charger, and backed-up photos can be restored.
+**Status (16 Nov 2026): Phases 0 to 11 and Family roles are built and on `main`, being tested on phones.** That
+covers the gallery, verified backup to the family drive, backup to the person's own Google Drive (optional; the
+app only sees the files it saves there), the family with roles, Family Album, remote access by WireGuard, People,
+Places, Memories, the Secured folder, the photo editor with video trim, and the duplicate finder. Still to come:
+smoothness and foldables (Phase 12) and release (Phase 13).
 The app was renamed Pixallery on 24 Oct 2026; the repository, package and code keep the PhotoVault name for now.
 See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/BACKUP_PROTOCOL.md](docs/BACKUP_PROTOCOL.md).
 

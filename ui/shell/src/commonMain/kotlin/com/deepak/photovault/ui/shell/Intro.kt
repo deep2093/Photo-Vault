@@ -100,17 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-16-2"
+    const val ID = "2026-11-16-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Straighten", "In Edit > Crop, a slider tilts the photo up to 45 degrees either way to level a horizon. Tap the number to make it level again."),
-        Change(ChangeKind.NEW, "Undo and redo", "Two arrows above the editing tools step back and forward through your changes. Hold the middle button to see the original."),
-        Change(ChangeKind.NEW, "HDR photos stay HDR", "Editing an HDR photo on Android 14 or newer keeps its extra brightness in the saved copy."),
-        Change(ChangeKind.NEW, "Trim videos", "Edit on a video: drag the two handles to keep just the part you want, and turn the sound off if you like. Saves a copy; the original stays."),
-        Change(ChangeKind.NEW, "Family roles", "The owner can set someone to View only: they see the Family Album but can't add to it. Open a person in Family to choose."),
-        Change(ChangeKind.CHANGED, "Removing someone is more thorough", "A removed person's phones forget the drive's details, spare keys left for them are deleted, and the owner can delete their backup too."),
-        Change(ChangeKind.CHANGED, "The new Backup layout is now the only one", "The ring card and single settings card stay; the switch in About is gone."),
-        Change(ChangeKind.FIXED, "Backup ring number centred", "The percentage now sits in the middle of the ring's hole."),
+        Change(ChangeKind.CHANGED, "A tidy-up inside", "Unused parts left over from older layouts were removed and a few repeated pieces now share one copy. Nothing should look or work differently."),
+        Change(ChangeKind.FIXED, "Welcome tour brought up to date", "It now mentions backing up to your own Google Drive, instead of saying nothing goes to the internet."),
     )
 }
 
@@ -121,9 +115,9 @@ object Tour {
     val pages = listOf(
         Page(Icons.Rounded.PhotoLibrary, "All your photos, one place", "Photos shows your phone's pictures and videos. Pinch to make them bigger or smaller, or switch between Years, Months and All."),
         Page(Icons.Rounded.PhotoAlbum, "Albums that are yours", "Pick covers, drag albums into your order and hide the ones you don't want to see."),
-        Page(Icons.Rounded.CloudDone, "Backed up at home", "Pixallery copies your photos to the family drive on your router and checks every copy before counting it as saved. Nothing goes to the internet."),
+        Page(Icons.Rounded.CloudDone, "Backed up where you choose", "Pixallery copies your photos to the family drive at home, to your own Google Drive, or both, and checks every copy before counting it as saved."),
         Page(Icons.Rounded.Groups, "Your family, your own space", "Everyone gets their own folder and a space limit on the shared drive. A Family Album holds what you all want to share."),
-        Page(Icons.Rounded.Lock, "Private by design", "No accounts, no cloud, no ads. You can open this tour again any time from Settings > About."),
+        Page(Icons.Rounded.Lock, "Private by design", "No ads and no tracking. Your photos go only where you choose. You can open this tour again any time from Settings > About."),
     )
 }
 

@@ -66,9 +66,6 @@ class PlacesState(val platform: PlacesPlatform = object : PlacesPlatform {}) {
     /** Where the Places map opens next (the photo details' small map was tapped); used once. */
     var focus: MapStart? = null
 
-    /** Where the map was left, so coming back shows the same spot. */
-    var lastView: MapStart? = null
-
     suspend fun refresh() {
         photos = platform.load().photos
         loaded = true

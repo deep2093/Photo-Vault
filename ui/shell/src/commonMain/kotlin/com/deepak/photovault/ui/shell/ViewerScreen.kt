@@ -796,9 +796,7 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
 /** "Saturday, 29 August 2026 · 3:53 pm", as Samsung shows it. */
 private fun fullDate(item: MediaItem): String {
     val t = Instant.fromEpochMilliseconds(item.takenAtMillis).toLocalDateTime(TimeZone.currentSystemDefault())
-    val hour = if (t.hour % 12 == 0) 12 else t.hour % 12
-    val suffix = if (t.hour < 12) "am" else "pm"
-    return "${Timeline.dayName(t.dayOfWeek)}, ${t.dayOfMonth} ${Timeline.monthName(t.month)} ${t.year} · $hour:${t.minute.toString().padStart(2, '0')} $suffix"
+    return "${Timeline.dayName(t.dayOfWeek)}, ${t.dayOfMonth} ${Timeline.monthName(t.month)} ${t.year} · ${Timeline.clockTime(t.hour, t.minute)}"
 }
 
 /** Pinch to zoom (up to 6x), drag while zoomed, double-tap to zoom in or out, tap to toggle bars. */
@@ -1115,8 +1113,6 @@ private fun whenTaken(item: MediaItem): String {
     val zone = TimeZone.currentSystemDefault()
     val time = Instant.fromEpochMilliseconds(item.takenAtMillis).toLocalDateTime(zone)
     val today = Timeline.localDate(kotlinx.datetime.Clock.System.now().toEpochMilliseconds(), zone)
-    val hour = if (time.hour % 12 == 0) 12 else time.hour % 12
-    val suffix = if (time.hour < 12) "am" else "pm"
-    return "${Timeline.dayLabel(time.date, today)}, $hour:${time.minute.toString().padStart(2, '0')} $suffix"
+    return "${Timeline.dayLabel(time.date, today)}, ${Timeline.clockTime(time.hour, time.minute)}"
 }
 

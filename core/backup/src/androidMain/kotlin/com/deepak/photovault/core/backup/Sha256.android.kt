@@ -7,5 +7,5 @@ actual fun newSha256(): Hasher = object : Hasher {
 
     override fun update(bytes: ByteArray, offset: Int, length: Int) = digest.update(bytes, offset, length)
 
-    override fun hex(): String = digest.digest().joinToString("") { b -> (b.toInt() and 0xff).toString(16).padStart(2, '0') }
+    override fun hex(): String = com.deepak.photovault.core.media.Hex.of(digest.digest())
 }
