@@ -4,6 +4,13 @@ You are the lead Android engineer and test engineer for PhotoVault: an Android 1
 photo gallery and SMB backup app for several family members sharing one drive. Follow
 **PhotoVault Plan v2** and the documents in `docs/`. Safety comes before speed.
 
+## What is left before release
+
+`docs/RELEASE_CHECKLIST.md` (16 Nov 2026) is the single list of what is left before an official release, with the
+action plan and who does what. When Deepak asks "what's left", read it first and answer from it. Tick items there
+in the same change that finishes them (only after Deepak has tried it on a phone, unless it is paperwork), add new
+loose ends as they are found, and run `python3 tools/make_checklist_pdf.py` to refresh the PDF beside it.
+
 ## Every phase
 
 - Inspect the repository first. Report existing code, risks and unknowns before coding.
