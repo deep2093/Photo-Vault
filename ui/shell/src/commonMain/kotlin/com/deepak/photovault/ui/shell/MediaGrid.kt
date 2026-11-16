@@ -431,7 +431,8 @@ fun MediaGrid(
             headerItems = headerItems,
             places = state.places.photos,
             color = dateColor,
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 24.dp + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
+            // While selecting, the date sits under "N selected" in the top bar: moved in a little to line up with it (16 Nov).
+            modifier = Modifier.align(Alignment.TopStart).padding(start = (if (state.selecting) 30.dp else 24.dp) + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
         )
         if (topButton) BackToTopButton(
             grid = gridState,
@@ -621,6 +622,13 @@ internal fun FastScroller(
 /** Main colours of loaded thumbnails, so adaptive themes don't re-read the same photo. */
 private val mainColors = mutableStateMapOf<Long, Int>()
 
+/**
+ * Each photo's real shape (width / height) as its small picture was drawn (16 Nov). The phone's own record of
+ * width and height ignores how the camera was held, so a portrait photo can be listed as landscape; the small
+ * picture is already the right way up. The opening animation uses this so the photo flies in its true shape.
+ */
+internal val thumbShapes = HashMap<Long, Float>()
+
 @Composable
 private fun PhotoTile(
     item: MediaItem,
@@ -669,7 +677,10 @@ private fun PhotoTile(
             onSuccess = { result ->
                 if (adaptive && item.id !in mainColors) mainColorOf(result.result.image)?.let { mainColors[item.id] = it }
                 val img = result.result.image
-                if (img.height > 0) shape = img.width.toFloat() / img.height
+                if (img.height > 0) {
+                    shape = img.width.toFloat() / img.height
+                    thumbShapes[item.id] = shape
+                }
             },
             modifier = Modifier.fillMaxSize().scale(inset).clip(RoundedCornerShape(if (selected) 10.dp else 0.dp)),
         )

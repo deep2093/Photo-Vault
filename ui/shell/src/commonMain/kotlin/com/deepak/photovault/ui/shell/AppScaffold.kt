@@ -405,7 +405,9 @@ private fun OverlayHost(
         state.tileRect(id, depthBelow)?.takeIf { it.width >= 8f && it.height >= 8f }?.translate(-hostOrigin[0], -hostOrigin[1])
     fun flyFor(id: Long, tile: androidx.compose.ui.geometry.Rect?, px: Int): Fly? {
         val item = gallery.find(id) ?: return null
-        val aspect = if (item.width > 0 && item.height > 0) item.width / item.height.toFloat() else 0f
+        // The shape its tile's picture was drawn in (right way up); the phone's listed width and height only when
+        // that isn't known, as they can be sideways for a photo taken upright.
+        val aspect = thumbShapes[id] ?: if (item.width > 0 && item.height > 0) item.width / item.height.toFloat() else 0f
         return Fly(item.uri, item.isVideo, px, aspect, tile)
     }
     LaunchedEffect(wanted) {

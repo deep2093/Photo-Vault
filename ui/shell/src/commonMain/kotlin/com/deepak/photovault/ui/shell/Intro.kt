@@ -100,10 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-16-9"
+    const val ID = "2026-11-16-10"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Mixed photo sizes", "In Photos > All, some photos are now shown double size, on the left or the right, with normal ones beside them. The same photos stay big each time. Turn it off in Settings > Appearance > Mixed photo sizes."),
+        Change(ChangeKind.FIXED, "Upright photos open upright", "A photo taken upright no longer flies in as a wide picture and then turns tall."),
+        Change(ChangeKind.FIXED, "Date lines up while selecting", "With photos selected, the date under \"selected\" now lines up with it."),
     )
 }
 
