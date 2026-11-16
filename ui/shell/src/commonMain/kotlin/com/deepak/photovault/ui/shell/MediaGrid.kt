@@ -288,6 +288,20 @@ fun MediaGrid(
             }
             onDispose { spots?.lookup = null }
         }
+        // Where one tile is, for the photo opening out of it and closing back into it (16 Nov).
+        val depth = LocalPageDepth.current
+        DisposableEffect(state, gridState, depth) {
+            val ask: Pair<Int, (Long) -> androidx.compose.ui.geometry.Rect?> = depth to { id ->
+                val info = gridState.layoutInfo
+                info.visibleItemsInfo.firstOrNull { it.key == id }?.let { item ->
+                    val left = gridOrigin[0] + item.offset.x
+                    val top = gridOrigin[1] + item.offset.y - info.viewportStartOffset
+                    androidx.compose.ui.geometry.Rect(left, top, left + item.size.width, top + item.size.height)
+                }
+            }
+            state.tileLookups += ask
+            onDispose { state.tileLookups -= ask }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,

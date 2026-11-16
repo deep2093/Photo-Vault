@@ -210,6 +210,20 @@ class ShellState(private val store: AppearanceStore) {
     val overlays = mutableStateListOf<Overlay>()
 
     /**
+     * Where photo grids draw their tiles (16 Nov), so a photo can grow out of its tile and shrink back into it. Each
+     * grid on screen adds a way to ask, with how deep its page is (0 = a section, 1 = the first page on top, ...).
+     * Not state: only read at the moment a photo opens or closes.
+     */
+    internal val tileLookups = ArrayList<Pair<Int, (Long) -> androidx.compose.ui.geometry.Rect?>>()
+
+    /** Where the grid on the page at [depth] draws photo [id] now (window coordinates), if it is on screen. */
+    internal fun tileRect(id: Long, depth: Int): androidx.compose.ui.geometry.Rect? =
+        tileLookups.asReversed().firstOrNull { it.first == depth }?.second?.invoke(id)
+
+    /** The photo the viewer is showing (it may have been swiped along since it opened); for the closing animation. */
+    internal var viewerShowing: Long? = null
+
+    /**
      * Where the person was, as text, so a recreated app (rotation, theme or font change, Android reclaiming memory
      * while another app was open) opens on the same section and pages instead of Photos (25 Oct).
      * Pages that depend on a photo list (the viewer, storage files, cover picker) are not restored.

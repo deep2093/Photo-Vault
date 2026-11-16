@@ -74,6 +74,12 @@ class BackupState(private val platform: BackupPlatform) {
     /** Place in line behind other family phones (28 Oct): 0 = not waiting, 2 = one phone ahead, and so on. */
     var queuePlace by mutableStateOf(0)
 
+    /** Private backups being made normal (16 Nov): done and total, while it runs after a backup. */
+    var converting by mutableStateOf<Pair<Int, Int>?>(null)
+
+    /** How the last go at that ended, in words; null when none ran since the app started. */
+    var convertNote by mutableStateOf<String?>(null)
+
     /** A short line about the last restore, shown on the Backup screen. */
     var restoreMessage by mutableStateOf<String?>(null)
 

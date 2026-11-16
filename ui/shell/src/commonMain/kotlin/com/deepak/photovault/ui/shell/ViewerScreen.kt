@@ -173,6 +173,8 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     var videoStarted by remember { mutableStateOf(false) }
     LaunchedEffect(pager.currentPage) { videoStarted = false }
     val current = find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
+    // For the closing animation (16 Nov): which photo to shrink back into its tile.
+    androidx.compose.runtime.SideEffect { state.viewerShowing = current.id }
     val video = remember(current.id) { VideoControls() }
     // 16 Nov: a page opened over the viewer (the video editor) pauses the video here, so two never play at once.
     val covered = state.overlays.lastOrNull() !is Overlay.Viewer

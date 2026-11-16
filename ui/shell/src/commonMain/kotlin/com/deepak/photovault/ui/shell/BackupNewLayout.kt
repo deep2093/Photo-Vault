@@ -107,6 +107,20 @@ internal fun LazyListScope.newBackupItems(
             if (!privacyNeedsYou) {
                 SettingRow(Icons.Rounded.Lock, "Backup privacy", if (settings.privacy == BackupPrivacy.PRIVATE) "Private" else "Normal", dense = true, onClick = openPrivacy)
             }
+            // Private backups being made normal (16 Nov): where it is up to, so no computer is needed to check.
+            if (settings.privacy == BackupPrivacy.NORMAL) {
+                val line = backup.converting?.let { (done, total) -> if (total == 0) "Making private backups normal…" else "Making private backups normal: $done of $total" }
+                    ?: backup.convertNote
+                    ?: if (settings.convertPrivateToNormal) "Your private backups become normal pictures after the next backup to the family drive." else null
+                line?.let {
+                    Text(
+                        it,
+                        color = LocalGlassTheme.current.onGlassSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 6.dp),
+                    )
+                }
+            }
             SettingRow(Icons.Rounded.PhoneAndroid, "Remove phone copies", if (settings.freeUpDays == 0) "Off" else "After ${settings.freeUpDays} days", dense = true, onClick = openFreeUp)
             if (drive.joined != null || showGoogle) SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", dense = true, onClick = openRestore)
         }

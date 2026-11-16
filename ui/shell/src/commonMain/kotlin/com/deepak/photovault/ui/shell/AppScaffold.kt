@@ -99,6 +99,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import com.deepak.photovault.designsystem.AdaptiveLayout
 import com.deepak.photovault.designsystem.GlassBackground
 import com.deepak.photovault.designsystem.LocalGlassTheme
@@ -320,7 +322,16 @@ private class PageEntry(val overlay: Overlay, shown: Float) {
 
     /** The slide in progress. Closing cancels it, so a quick open-then-close can't have the old slide-in win. */
     var slide: kotlinx.coroutines.Job? = null
+
+    /** The photo viewer only (16 Nov): the tile it grows out of or shrinks back into; null = plain grow and fade. */
+    var hero by mutableStateOf<Hero?>(null)
 }
+
+/** A tile on screen (in the page host's own coordinates) and the shape of its photo (width / height, 0 = unknown). */
+private class Hero(val tile: androidx.compose.ui.geometry.Rect, val aspect: Float)
+
+/** How deep the page being drawn is: 0 for a section, 1 for the first page on top, and so on (16 Nov). */
+val LocalPageDepth = staticCompositionLocalOf { 0 }
 
 /**
  * Pages opened on top. Every page except the photo viewer slides in across the screen like a sliding door (24 Oct):
@@ -349,6 +360,16 @@ private fun OverlayHost(
     val scope = rememberCoroutineScope()
     val entries = remember { mutableStateListOf<PageEntry>().also { list -> state.overlays.forEach { list.add(PageEntry(it, 1f)) } } }
     val wanted = state.overlays.toList()
+    // Photos open out of their tile and close back into it (16 Nov). The tile is asked for from the grid on the page
+    // just under the viewer; when it isn't on screen (or the page has no grid) the viewer grows and fades as before.
+    val hostOrigin = remember { floatArrayOf(0f, 0f) }
+    fun heroFor(id: Long, depthBelow: Int): Hero? {
+        val tile = state.tileRect(id, depthBelow) ?: return null
+        if (tile.width < 8f || tile.height < 8f) return null
+        val item = gallery.find(id)
+        val aspect = if (item != null && item.width > 0 && item.height > 0) item.width / item.height.toFloat() else 0f
+        return Hero(tile.translate(-hostOrigin[0], -hostOrigin[1]), aspect)
+    }
     LaunchedEffect(wanted) {
         // The page the back gesture already moved away is removed at once; the rest slide.
         val skip = state.pageBackSkip
@@ -375,14 +396,25 @@ private fun OverlayHost(
                 }
             } else {
                 entry.slide?.cancel()
+                val depthBelow = same + i
                 entry.slide = scope.launch {
+                    val viewer = entry.overlay as? Overlay.Viewer
+                    if (viewer != null) {
+                        // The page underneath wasn't being drawn while covered: give it a few frames to lay its grid
+                        // out again, then find the tile of the photo that is showing now.
+                        withFrameNanos { }
+                        withFrameNanos { }
+                        withFrameNanos { }
+                        entry.hero = heroFor(state.viewerShowing?.takeIf { it in viewer.ids } ?: viewer.startId, depthBelow)
+                    }
                     entry.p.animateTo(0f, pageSpec(entry.overlay))
                     entries.remove(entry)
                 }
             }
         }
-        wanted.drop(same).forEach { overlay ->
+        wanted.drop(same).forEachIndexed { i, overlay ->
             val entry = PageEntry(overlay, if (reduceMotion) 1f else 0f)
+            if (overlay is Overlay.Viewer && !reduceMotion) entry.hero = heroFor(overlay.startId, same + i)
             entries.add(entry)
             if (!reduceMotion) {
                 entry.slide = scope.launch {
@@ -404,7 +436,7 @@ private fun OverlayHost(
             else first.p.value * (1f - pulledAway(entries, state, first))
         }
     }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onGloballyPositioned { val o = it.positionInRoot(); hostOrigin[0] = o.x; hostOrigin[1] = o.y }) {
         entries.forEachIndexed { index, entry ->
             key(entry) {
                 val picture = androidx.compose.ui.graphics.rememberGraphicsLayer()
@@ -432,10 +464,34 @@ private fun OverlayHost(
                                     val drift = -coverAbove(entries, state, entries.indexOf(entry)) * width / DRIFT_DIVISOR
                                     translationX = own + pulled + drift
                                 } else {
-                                    val scale = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * entry.p.value
-                                    scaleX = scale
-                                    scaleY = scale
-                                    alpha = entry.p.value
+                                    val hero = entry.hero
+                                    val p = entry.p.value
+                                    if (hero != null && size.width > 0f && size.height > 0f) {
+                                        // Out of the tile and back (16 Nov). The photo sits fitted in the middle of
+                                        // the page; at the tile end the page is scaled so the photo covers the tile
+                                        // and only the tile-shaped middle shows, so it lines up with the tile's own
+                                        // picture. In between, the size, the place and the opening all grow together.
+                                        val page = size.width / size.height
+                                        val a = if (hero.aspect > 0f) hero.aspect else page
+                                        val fitW = if (a >= page) size.width else size.height * a
+                                        val fitH = fitW / a
+                                        val start = maxOf(hero.tile.width / fitW, hero.tile.height / fitH)
+                                        val scale = start + (1f - start) * p
+                                        scaleX = scale
+                                        scaleY = scale
+                                        translationX = (hero.tile.center.x - size.width / 2f) * (1f - p)
+                                        translationY = (hero.tile.center.y - size.height / 2f) * (1f - p)
+                                        val openW = hero.tile.width / start + (size.width - hero.tile.width / start) * p
+                                        val openH = hero.tile.height / start + (size.height - hero.tile.height / start) * p
+                                        val corner = 6.dp.toPx() / start * (1f - p)
+                                        clip = true
+                                        shape = OpeningShape(openW, openH, corner)
+                                    } else {
+                                        val scale = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * p
+                                        scaleX = scale
+                                        scaleY = scale
+                                        alpha = p
+                                    }
                                 }
                             }
                             .dimmedBy { if (sideways) coverAbove(entries, state, entries.indexOf(entry)) * PAGE_DIM else 0f },
@@ -448,7 +504,10 @@ private fun OverlayHost(
                                     drawLayer(picture)
                                 },
                             ) {
-                                OverlayPage(entry.overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                                // Its depth, so a grid on it can say which page its tiles belong to (16 Nov).
+                                CompositionLocalProvider(LocalPageDepth provides index + 1) {
+                                    OverlayPage(entry.overlay, state, gallery, actions, drive, backup, iconSwitcher, system)
+                                }
                             }
                         } else {
                             // Leaving: only its last picture, which takes no taps.
@@ -469,6 +528,21 @@ private fun OverlayHost(
                 }
             }
         }
+    }
+}
+
+/** A rounded opening in the middle of the page, [w] by [h] (in the page's own, unscaled, pixels). */
+private class OpeningShape(private val w: Float, private val h: Float, private val corner: Float) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density,
+    ): androidx.compose.ui.graphics.Outline {
+        val left = (size.width - w) / 2f
+        val top = (size.height - h) / 2f
+        return androidx.compose.ui.graphics.Outline.Rounded(
+            androidx.compose.ui.geometry.RoundRect(left, top, left + w, top + h, androidx.compose.ui.geometry.CornerRadius(corner)),
+        )
     }
 }
 

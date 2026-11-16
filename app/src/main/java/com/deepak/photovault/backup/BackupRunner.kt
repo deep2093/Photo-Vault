@@ -222,15 +222,29 @@ class BackupRunner(
             if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.NORMAL && settings.convertPrivateToNormal) {
                 try {
                     val key = com.deepak.photovault.PrivateKeys.vault(context, joined.household.householdId, joined.me.userId)
-                    if (key != null) {
+                    if (key == null) {
+                        state.convertNote = "Your private key isn't on this phone, so private backups can't be made normal from here."
+                    } else {
+                        state.converting = 0 to 0
                         val done = com.deepak.photovault.core.backup.PrivateToNormal(
                             fs, joined.me.userId, platform.deviceId, key, System::currentTimeMillis, TimeZone.currentSystemDefault(),
-                        ) { FileSpool(context) }.run()
-                        if (done.finished) settingsStore.save(settingsStore.load().copy(convertPrivateToNormal = false))
+                        ) { FileSpool(context) }.run { finished, total -> state.converting = finished to total }
+                        val left = done.left + done.failed
+                        state.convertNote = when {
+                            done.finished && done.converted > 0 -> "All your private backups are normal pictures now."
+                            done.finished -> null
+                            done.failed > 0 -> "$left private backups still to make normal. ${done.failed} couldn't be checked this time and stay private for now; it tries again after the next backup."
+                            else -> "$left private backups still to make normal. It carries on after the next backup."
+                        }
+                        // Through the screen's own copy of the settings, so the screen and the saved choice agree.
+                        if (done.finished) state.update { it.copy(convertPrivateToNormal = false) }
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Throwable) {
+                    state.convertNote = "Making private backups normal stopped part-way. Nothing is lost; it carries on after the next backup."
+                } finally {
+                    state.converting = null
                 }
             }
             // The Secured folder's encrypted copy goes up after the photos (8A part 2). Never fails the backup.
