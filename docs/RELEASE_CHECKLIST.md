@@ -10,7 +10,7 @@ that was only built: an item is done when it was also tried on a phone, unless i
 **Who.** Claude = code or text Claude can write. Deepak = needs Deepak's own accounts, phone or decision.
 Both = Claude prepares, Deepak approves or carries out.
 
-**Status on 16 Nov 2026.** 0 of 46 items done. Branch `feature/cleanup` holds today's untested work.
+**Status on 16 Nov 2026.** 0 of 50 items done. Branch `feature/cleanup` holds today's untested work.
 
 ---
 
@@ -111,12 +111,24 @@ Both = Claude prepares, Deepak approves or carries out.
 - [ ] **D11 · Secured folder viewer dark theme.** Who: Claude.
 - [ ] **D12 · Tablets and foldables (Phase 12).** Who: Claude. Animations everywhere, foldable layouts, two panes.
 - [ ] **D13 · Old "not done" notes checked.** Who: Claude.
-  Some older roadmap notes for the Secured folder and People say "not done". Check each against today's code
-  and add anything real to this list.
+  Some older roadmap notes for the Secured folder and People say "not done", and one says moving from Photos to
+  Settings can stick on Family while the drive answers. Check each against today's code and add anything real
+  to this list.
 - [ ] **D14 · Leftovers removed.** Who: Claude.
-  8 retired app-icon entries (after checking no phone still uses them), one unused VPN flag. `desktop/` stays.
+  8 retired app-icon entries (after checking no phone still uses them), one unused VPN flag, the last two
+  copies of the bytes-to-text helper. `desktop/` stays.
 - [ ] **D15 · Conversion and editor rough edges.** Who: Claude.
-  Closing a zoomed photo jumps; the status lines for Private-to-Normal are lost when the app closes.
+  Closing a zoomed photo jumps; the flying photo looks soft for a moment before the full one takes over; the
+  status lines for Private-to-Normal are lost when the app closes; a trimmed video can start up to a second early.
+- [ ] **D16 · A real depth model for living photos.** Who: Deepak decides, Claude builds. Optional: today's
+  effect uses a subject cut-out only.
+- [ ] **D17 · Deepak's housekeeping.** Who: Deepak.
+  Delete the nine old, fully merged branches on GitHub (Claude's session is not allowed to); decide what happens
+  to `codex/experimental-preview-glass`, `feature/experimental-preview-glass` and `round5-part2-wip` (they hold
+  work that is not in `main`); set the family drive's address to .250 once on each phone.
+- [ ] **D18 · Pixallery is offered for every unknown file.** Who: Claude. (Added on the recheck, 16 Nov.)
+  So that invite files open, the app lists itself for all files of unknown type. Narrow it to invite files only,
+  or it will look like a nuisance in "Open with" lists.
 
 ### E. Quality and testing
 
@@ -140,6 +152,9 @@ Both = Claude prepares, Deepak approves or carries out.
 - [ ] **E9 · Crash reports.** Who: Deepak decides.
   Crashes show only on the person's phone. Decide: keep it that way (and add "send to developer" by email), or
   use Play's own crash reports only.
+- [ ] **E10 · Android's own code checks in every build.** Who: Claude. (Added on the recheck, 16 Nov.)
+  The automatic build runs the logic tests but not Android lint, which catches wrong-version calls and missing
+  permissions. Turn it on and fix what it reports.
 
 ---
 
@@ -166,6 +181,7 @@ Why first: everything later is built on top of it, and nothing in it has run on 
 1. Deepak installs the latest `feature/cleanup` build and goes through **E1**.
 2. Claude fixes what he reports, one build at a time.
 3. When Deepak is happy, Claude merges `feature/cleanup` into `main`.
+4. Deepak: **D17** housekeeping (old branches, the three experimental branches, the drive address).
 
 Done when: E1 is ticked and `main` holds the work.
 
@@ -181,7 +197,7 @@ Answer these together, in one sitting:
 4. **A1** recovery helper: finish it, or hide it for version 1.
 5. **D1** AuraFace: keep or remove.
 6. **D2** tester feedback: ship or remove.
-7. **D3**, **D4** Google conversion and private photos in the Family Album: version 1 or later.
+7. **D3**, **D4**, **D16** Google conversion, private photos in the Family Album, a real depth model: version 1 or later.
 8. **E8** English only for version 1?
 9. **E9** crash reports: how.
 10. **B7** the support email address.
@@ -217,13 +233,13 @@ Order inside the stage:
    outside the repository, and give the build access to it as secrets.
 3. Deepak: **A6** add the release Google sign-in client in Google Cloud Console (Claude gives the values).
 4. Claude: **B2** target Android version, **B3** 16 KB pages (library updates), **C3** pinned downloads,
-   **C4** beta library, **D14** leftovers.
-5. Claude: **A5** a release build in the automatic checks, signed with the release key.
+   **C4** beta library, **D14** leftovers, **D18** offered only for invite files.
+5. Claude: **A5** a release build in the automatic checks, signed with the release key; **E10** Android lint in the same checks.
 6. Deepak: installs the release build and does a short run through every section (the full pass is stage 6).
 7. Claude: **B4** long-backup handling (needs the new target version to test against).
 
-Done when: a signed release build installs, signs in to Google and backs up, and B2, B3, B4, C3, C4, A5, A6, B8
-and D14 are ticked.
+Done when: a signed release build installs, signs in to Google and backs up, and B2, B3, B4, C3, C4, A5, A6, B8,
+D14, D18 and E10 are ticked.
 
 ### Stage 4. Policy, notices and licences (Claude drafts, Deepak approves; can run alongside stage 3)
 
@@ -248,9 +264,10 @@ Suggested order (biggest risk first, look-and-feel last):
 2. **D8** set-up guide, **D9** Private DNS notice (both are help and first-run pages).
 3. **D3**, **D4** if chosen for version 1.
 4. **D13** check the old "not done" notes; **D15** rough edges.
-5. **D10** People tuning, **D1** AuraFace as decided.
+5. **D10** People tuning, **D1** AuraFace as decided, **D16** depth model if chosen.
 6. **D11** Secured folder dark theme, **D12** tablets and foldables (last: they touch every screen).
-7. **D2** feedback feature as decided.
+7. **D2** feedback feature as decided; **E8** move text out of the code if more languages were chosen; **E9** crash
+   reporting as decided.
 
 Done when: every D item is ticked or marked "not in version 1" with Deepak's agreement.
 
