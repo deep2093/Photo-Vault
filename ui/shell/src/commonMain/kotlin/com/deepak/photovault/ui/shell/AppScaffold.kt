@@ -100,6 +100,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.positionInRoot
 import com.deepak.photovault.designsystem.AdaptiveLayout
 import com.deepak.photovault.designsystem.GlassBackground
@@ -323,12 +324,37 @@ private class PageEntry(val overlay: Overlay, shown: Float) {
     /** The slide in progress. Closing cancels it, so a quick open-then-close can't have the old slide-in win. */
     var slide: kotlinx.coroutines.Job? = null
 
-    /** The photo viewer only (16 Nov): the tile it grows out of or shrinks back into; null = plain grow and fade. */
-    var hero by mutableStateOf<Hero?>(null)
+    /**
+     * The photo viewer only (16 Nov): the copy of the photo that flies between its tile and its place in the viewer.
+     * Null: no flying copy (reduce motion, or the photo can't be found), and the page grows and fades as before.
+     */
+    var fly by mutableStateOf<Fly?>(null)
 }
 
-/** A tile on screen (in the page host's own coordinates) and the shape of its photo (width / height, 0 = unknown). */
-private class Hero(val tile: androidx.compose.ui.geometry.Rect, val aspect: Float)
+/**
+ * A copy of a photo's small picture, flown between its tile in the grid and where the photo sits in the viewer.
+ * [tile] is in the page host's own coordinates; null when the tile isn't on screen (the copy then just grows a
+ * little and fades). [aspect] is the photo's width / height (0 = unknown). [px] is the picture size the grid already
+ * has in memory, so the copy shows at once.
+ */
+private data class Fly(val uri: String, val isVideo: Boolean, val px: Int, val aspect: Float, val tile: androidx.compose.ui.geometry.Rect?) {
+    /** Where the copy is at [p] (0 = on the tile, 1 = in the viewer), on a page [w] by [h]. */
+    fun rect(p: Float, w: Float, h: Float): androidx.compose.ui.geometry.Rect {
+        val page = w / h
+        val a = if (aspect > 0f) aspect else page
+        val fitW = if (a >= page) w else h * a
+        val fitH = fitW / a
+        val left = (w - fitW) / 2f
+        val top = (h - fitH) / 2f
+        val t = tile
+        if (t == null) {
+            val k = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * p
+            return androidx.compose.ui.geometry.Rect(w / 2f - fitW * k / 2f, h / 2f - fitH * k / 2f, w / 2f + fitW * k / 2f, h / 2f + fitH * k / 2f)
+        }
+        fun mix(from: Float, to: Float) = from + (to - from) * p
+        return androidx.compose.ui.geometry.Rect(mix(t.left, left), mix(t.top, top), mix(t.right, left + fitW), mix(t.bottom, top + fitH))
+    }
+}
 
 /** How deep the page being drawn is: 0 for a section, 1 for the first page on top, and so on (16 Nov). */
 val LocalPageDepth = staticCompositionLocalOf { 0 }
@@ -360,15 +386,17 @@ private fun OverlayHost(
     val scope = rememberCoroutineScope()
     val entries = remember { mutableStateListOf<PageEntry>().also { list -> state.overlays.forEach { list.add(PageEntry(it, 1f)) } } }
     val wanted = state.overlays.toList()
-    // Photos open out of their tile and close back into it (16 Nov). The tile is asked for from the grid on the page
-    // just under the viewer; when it isn't on screen (or the page has no grid) the viewer grows and fades as before.
+    // Photos open out of their tile and close back into it (16 Nov; rebuilt the same day after Deepak's recording:
+    // the page itself used to be shrunk, and went black because its photo is drawn on layers that are freed when the
+    // page closes). Now a copy of the photo's small picture flies between the tile and the photo's place in the
+    // viewer while black fades in or out behind it; the real viewer is only shown once the copy has landed.
     val hostOrigin = remember { floatArrayOf(0f, 0f) }
-    fun heroFor(id: Long, depthBelow: Int): Hero? {
-        val tile = state.tileRect(id, depthBelow) ?: return null
-        if (tile.width < 8f || tile.height < 8f) return null
-        val item = gallery.find(id)
-        val aspect = if (item != null && item.width > 0 && item.height > 0) item.width / item.height.toFloat() else 0f
-        return Hero(tile.translate(-hostOrigin[0], -hostOrigin[1]), aspect)
+    fun tileOf(id: Long, depthBelow: Int): androidx.compose.ui.geometry.Rect? =
+        state.tileRect(id, depthBelow)?.takeIf { it.width >= 8f && it.height >= 8f }?.translate(-hostOrigin[0], -hostOrigin[1])
+    fun flyFor(id: Long, tile: androidx.compose.ui.geometry.Rect?, px: Int): Fly? {
+        val item = gallery.find(id) ?: return null
+        val aspect = if (item.width > 0 && item.height > 0) item.width / item.height.toFloat() else 0f
+        return Fly(item.uri, item.isVideo, px, aspect, tile)
     }
     LaunchedEffect(wanted) {
         // The page the back gesture already moved away is removed at once; the rest slide.
@@ -397,15 +425,19 @@ private fun OverlayHost(
             } else {
                 entry.slide?.cancel()
                 val depthBelow = same + i
+                // The viewer: the copy of the photo showing now takes the photo's place at once (the page's own
+                // photo is gone the moment it closes), in the same spot, before anything moves.
+                val viewer = entry.overlay as? Overlay.Viewer
+                val showing = viewer?.let { v -> state.viewerShowing?.takeIf { it in v.ids } ?: v.startId } ?: 0L
+                if (viewer != null) entry.fly = flyFor(showing, null, entry.fly?.px ?: 256)
                 entry.slide = scope.launch {
-                    val viewer = entry.overlay as? Overlay.Viewer
-                    if (viewer != null) {
+                    if (viewer != null && entry.fly != null) {
                         // The page underneath wasn't being drawn while covered: give it a few frames to lay its grid
                         // out again, then find the tile of the photo that is showing now.
                         withFrameNanos { }
                         withFrameNanos { }
                         withFrameNanos { }
-                        entry.hero = heroFor(state.viewerShowing?.takeIf { it in viewer.ids } ?: viewer.startId, depthBelow)
+                        entry.fly = entry.fly?.copy(tile = tileOf(showing, depthBelow))
                     }
                     entry.p.animateTo(0f, pageSpec(entry.overlay))
                     entries.remove(entry)
@@ -414,7 +446,10 @@ private fun OverlayHost(
         }
         wanted.drop(same).forEachIndexed { i, overlay ->
             val entry = PageEntry(overlay, if (reduceMotion) 1f else 0f)
-            if (overlay is Overlay.Viewer && !reduceMotion) entry.hero = heroFor(overlay.startId, same + i)
+            if (overlay is Overlay.Viewer && !reduceMotion) {
+                val tile = tileOf(overlay.startId, same + i)
+                entry.fly = flyFor(overlay.startId, tile, tile?.let { thumbBucket(it.width.toInt()) } ?: 256)
+            }
             entries.add(entry)
             if (!reduceMotion) {
                 entry.slide = scope.launch {
@@ -451,6 +486,8 @@ private fun OverlayHost(
                 }
                 if (!covered) {
                     val sideways = entry.overlay.slidesSideways()
+                    // Black comes in behind the flying photo (and goes out again on closing).
+                    if (entry.fly != null) Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black, alpha = entry.p.value.coerceIn(0f, 1f)) })
                     Box(
                         Modifier
                             .fillMaxSize()
@@ -464,28 +501,11 @@ private fun OverlayHost(
                                     val drift = -coverAbove(entries, state, entries.indexOf(entry)) * width / DRIFT_DIVISOR
                                     translationX = own + pulled + drift
                                 } else {
-                                    val hero = entry.hero
                                     val p = entry.p.value
-                                    if (hero != null && size.width > 0f && size.height > 0f) {
-                                        // Out of the tile and back (16 Nov). The photo sits fitted in the middle of
-                                        // the page; at the tile end the page is scaled so the photo covers the tile
-                                        // and only the tile-shaped middle shows, so it lines up with the tile's own
-                                        // picture. In between, the size, the place and the opening all grow together.
-                                        val page = size.width / size.height
-                                        val a = if (hero.aspect > 0f) hero.aspect else page
-                                        val fitW = if (a >= page) size.width else size.height * a
-                                        val fitH = fitW / a
-                                        val start = maxOf(hero.tile.width / fitW, hero.tile.height / fitH)
-                                        val scale = start + (1f - start) * p
-                                        scaleX = scale
-                                        scaleY = scale
-                                        translationX = (hero.tile.center.x - size.width / 2f) * (1f - p)
-                                        translationY = (hero.tile.center.y - size.height / 2f) * (1f - p)
-                                        val openW = hero.tile.width / start + (size.width - hero.tile.width / start) * p
-                                        val openH = hero.tile.height / start + (size.height - hero.tile.height / start) * p
-                                        val corner = 6.dp.toPx() / start * (1f - p)
-                                        clip = true
-                                        shape = OpeningShape(openW, openH, corner)
+                                    if (entry.fly != null) {
+                                        // The viewer with a flying copy: the page stays put and only fades, late on
+                                        // the way in and early on the way out, under the copy.
+                                        alpha = ((p - PAGE_UNDER_COPY) / (1f - PAGE_UNDER_COPY)).coerceIn(0f, 1f)
                                     } else {
                                         val scale = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * p
                                         scaleX = scale
@@ -525,26 +545,44 @@ private fun OverlayHost(
                             )
                         }
                     }
+                    // The flying copy, on top until it has landed (then the viewer's own photo is under it, in place).
+                    val fly = entry.fly
+                    val flying by remember(entry) { derivedStateOf { entry.closing || entry.p.value < 1f } }
+                    if (fly != null && flying) FlyingCopy(fly) { entry.p.value }
                 }
             }
         }
     }
 }
 
-/** A rounded opening in the middle of the page, [w] by [h] (in the page's own, unscaled, pixels). */
-private class OpeningShape(private val w: Float, private val h: Float, private val corner: Float) : androidx.compose.ui.graphics.Shape {
-    override fun createOutline(
-        size: androidx.compose.ui.geometry.Size,
-        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-        density: androidx.compose.ui.unit.Density,
-    ): androidx.compose.ui.graphics.Outline {
-        val left = (size.width - w) / 2f
-        val top = (size.height - h) / 2f
-        return androidx.compose.ui.graphics.Outline.Rounded(
-            androidx.compose.ui.geometry.RoundRect(left, top, left + w, top + h, androidx.compose.ui.geometry.CornerRadius(corner)),
-        )
-    }
+/** The photo's small picture at its place for now: cropped to the tile's shape at one end, whole at the other. */
+@Composable
+private fun FlyingCopy(fly: Fly, progress: () -> Float) {
+    coil3.compose.AsyncImage(
+        model = com.deepak.photovault.core.media.Thumb(fly.uri, fly.isVideo, fly.px),
+        contentDescription = null,
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        modifier = Modifier
+            .layout { measurable, constraints ->
+                // Sized and placed while laying out, so moving it never rebuilds anything.
+                val r = fly.rect(progress().coerceIn(0f, 1f), constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+                val w = r.width.toInt().coerceAtLeast(1)
+                val h = r.height.toInt().coerceAtLeast(1)
+                val placed = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
+                layout(constraints.maxWidth, constraints.maxHeight) { placed.place(r.left.toInt(), r.top.toInt()) }
+            }
+            .graphicsLayer {
+                val p = progress().coerceIn(0f, 1f)
+                // With no tile to go to it fades as it shrinks a little; with one it stays solid all the way.
+                if (fly.tile == null) alpha = p
+                clip = true
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp * (1f - p))
+            },
+    )
 }
+
+/** The viewer page under a flying copy is invisible until the copy is this far in, then fades up to full. */
+private const val PAGE_UNDER_COPY = 0.6f
 
 private fun pageSpec(overlay: Overlay): androidx.compose.animation.core.FiniteAnimationSpec<Float> =
     if (overlay.slidesSideways()) tween(PAGE_MS, easing = PageEasing) else tween(OVERLAY_MS, easing = FastOutSlowInEasing)

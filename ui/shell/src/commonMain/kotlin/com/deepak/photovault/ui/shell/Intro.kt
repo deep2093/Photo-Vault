@@ -100,11 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-16-5"
+    const val ID = "2026-11-16-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Photos open out of their tile", "Tap a photo or video and it grows from where it sits in the grid to fill the screen. Close it and it shrinks back into its tile. If the tile isn't on screen, it fades as before."),
-        Change(ChangeKind.NEW, "See private backups being made normal", "After switching to Normal with Make them normal, the Backup page shows where it is up to: how many are done, how many are left, and when all are finished."),
+        Change(ChangeKind.FIXED, "Opening and closing a photo is smooth", "The photo itself now lifts out of its tile and grows into place, and shrinks back when you close it. Before, a black box grew and the photo went black on closing."),
+        Change(ChangeKind.CHANGED, "Backup privacy says what happens to old backups", "The Backup privacy window now tells you whether your older private backups stay private or are being made normal, with a button to change that."),
     )
 }
 

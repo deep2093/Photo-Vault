@@ -434,11 +434,38 @@ internal fun PrivacyDialog(state: ShellState, drive: DriveState, backup: BackupS
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
+        // What happens to the older, private backups (16 Nov): said as it is now, with a way to change your mind.
+        // (Before, this was only asked once, at the moment of switching to Normal.)
+        val converting = backup.settings.convertPrivateToNormal
+        val hasOld = privacy == BackupPrivacy.NORMAL && drive.joined != null && (converting || state.encryption.keyOnPhone)
         Text(
-            "Changing it only changes new backups; ones already saved stay as they are.",
+            when {
+                privacy != BackupPrivacy.NORMAL -> "Changing to Normal only changes new backups, unless you choose to make the old ones normal too."
+                hasOld && converting -> "Your older private backups on the family drive are being made normal pictures too, a few after each backup. Private copies in Google Drive stay private."
+                hasOld -> "Your older private backups stay private: only you can open them."
+                else -> "Changing it only changes new backups."
+            },
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
+        if (hasOld) {
+            GlassButton(
+                if (converting) "Keep old backups private" else "Make old backups normal",
+                onClick = {
+                    backup.update { it.copy(convertPrivateToNormal = !converting) }
+                    backup.convertNote = null
+                },
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            if (converting) {
+                Text(
+                    "Stopping keeps what is already normal as normal; the rest stay private.",
+                    color = theme.onGlassSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
     }
 }
 
