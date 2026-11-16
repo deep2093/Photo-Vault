@@ -270,35 +270,6 @@ class HouseholdStoreTest {
         assertIs<Membership.NoHousehold>(store().membership(OWNER_PHONE))
         assertNull(store().load())
     }
-}
-
-class PinTest {
-    @Test
-    fun pinRulesAndHashing() {
-        assertTrue(OwnerPin.isValid("1234"))
-        assertTrue(!OwnerPin.isValid("12a4") && !OwnerPin.isValid("123") && !OwnerPin.isValid("123456789"))
-        val hash = OwnerPin.hash("2468")
-        assertTrue(OwnerPin.matches("2468", hash))
-        assertTrue(!OwnerPin.matches("2469", hash))
-        // Same PIN, different salt.
-        assertTrue(OwnerPin.hash("2468").hashHex != hash.hashHex)
-    }
-
-    @Test
-    fun wrongPinsLockForAWhile() {
-        var now = 0L
-        val attempts = PinAttempts { now }
-        repeat(4) { attempts.recordFailure() }
-        assertEquals(0L, attempts.lockedForMillis())
-        attempts.recordFailure()
-        assertEquals(30_000L, attempts.lockedForMillis())
-        now += 30_000
-        assertEquals(0L, attempts.lockedForMillis())
-        attempts.recordFailure()
-        assertEquals(60_000L, attempts.lockedForMillis())
-        attempts.recordSuccess()
-        assertEquals(0L, attempts.lockedForMillis())
-    }
 
     // ---- Family roles (16 Nov) ----
 
@@ -354,5 +325,34 @@ class PinTest {
         val h = HouseholdStore.json.decodeFromString(Household.serializer(), old)
         assertEquals(MemberRole.CAN_ADD, h.member("s")!!.role)
         assertTrue(h.canAddToAlbum("s"))
+    }
+}
+
+class PinTest {
+    @Test
+    fun pinRulesAndHashing() {
+        assertTrue(OwnerPin.isValid("1234"))
+        assertTrue(!OwnerPin.isValid("12a4") && !OwnerPin.isValid("123") && !OwnerPin.isValid("123456789"))
+        val hash = OwnerPin.hash("2468")
+        assertTrue(OwnerPin.matches("2468", hash))
+        assertTrue(!OwnerPin.matches("2469", hash))
+        // Same PIN, different salt.
+        assertTrue(OwnerPin.hash("2468").hashHex != hash.hashHex)
+    }
+
+    @Test
+    fun wrongPinsLockForAWhile() {
+        var now = 0L
+        val attempts = PinAttempts { now }
+        repeat(4) { attempts.recordFailure() }
+        assertEquals(0L, attempts.lockedForMillis())
+        attempts.recordFailure()
+        assertEquals(30_000L, attempts.lockedForMillis())
+        now += 30_000
+        assertEquals(0L, attempts.lockedForMillis())
+        attempts.recordFailure()
+        assertEquals(60_000L, attempts.lockedForMillis())
+        attempts.recordSuccess()
+        assertEquals(0L, attempts.lockedForMillis())
     }
 }
