@@ -235,6 +235,10 @@ private fun MembersCard(state: ShellState, drive: DriveState) {
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
+                    // Family roles (16 Nov): the owner sees who is View only at a glance.
+                    if (drive.isOwner && member.role == com.deepak.photovault.core.household.MemberRole.VIEW_ONLY && member.userId != joined.household.ownerUserId) {
+                        Text("View only", color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
                 }
             }
         }
@@ -330,6 +334,10 @@ private fun NotConnectedCard(state: ShellState, drive: DriveState) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(vertical = 8.dp),
         )
+        // Removed by the owner (16 Nov): said plainly, once, on this phone.
+        if (drive.removedFromFamily) {
+            WarningNote("The owner removed this phone from the family, so it no longer keeps the drive's details. To join again, ask the owner for a new invite.")
+        }
         drive.problem?.let { WarningNote(it) }
         GlassButton(if (drive.isSetUp) "Continue" else "Connect drive", primary = true, onClick = { state.open(Overlay.DriveSetup) })
     }

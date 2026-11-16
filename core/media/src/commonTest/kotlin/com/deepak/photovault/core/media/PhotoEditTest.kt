@@ -177,4 +177,33 @@ class PhotoEditTest {
         assertEquals("Photo_edited.jpg", EditMath.copyName(""))
         assertEquals("holiday_edited.jpg", EditMath.copyName("holiday"))
     }
+
+    // ---- Straighten (16 Nov) ----
+
+    @Test
+    fun straightenScaleIsOneFlatAndCoversWhenTilted() {
+        near(1f, EditMath.straightenScale(0f, 4000, 3000))
+        // 10 degrees on a 4:3 picture: cos 10 + sin 10 x 4/3.
+        near(0.98481f + 0.17365f * 4f / 3f, EditMath.straightenScale(10f, 4000, 3000))
+        // Either way and either shape give the same enlargement.
+        near(EditMath.straightenScale(10f, 4000, 3000), EditMath.straightenScale(-10f, 3000, 4000))
+        near(1f, EditMath.straightenScale(5f, 0, 100))
+    }
+
+    @Test
+    fun straightenIsKeptInRangeAndCountsAsAChange() {
+        assertEquals(45f, PhotoEdit().straightened(80f).straighten)
+        assertEquals(-2.5f, PhotoEdit().straightened(-2.54f).straighten)
+        assertFalse(PhotoEdit().straightened(1.5f).isUnchanged)
+        assertTrue(PhotoEdit().straightened(0.02f).isUnchanged)
+    }
+
+    @Test
+    fun mirroringTurnsTheTiltTheOtherWayAndTurningKeepsIt() {
+        val tilted = PhotoEdit().straightened(3f)
+        assertEquals(-3f, tilted.mirrored().straighten)
+        assertEquals(3f, tilted.turnedRight().straighten)
+        assertEquals(3f, tilted.turnedLeft().straighten)
+        assertEquals(0f, tilted.colourOnly().straighten)
+    }
 }

@@ -64,8 +64,15 @@ below, the default space and the owner PIN. Settings → Family shows them; othe
 
 - The PIN is 4 to 8 digits, stored as PBKDF2-SHA256 (120,000 rounds, random 16-byte salt) in the household
   file. Wrong PINs lock for 30 seconds after 5 tries, doubling up to 15 minutes.
-- Removing a person keeps their photos on the drive; only their place in the family goes.
-  The owner can't be removed, and a phone can't remove itself.
+- Removing a person keeps their photos on the drive unless the owner also chooses "delete backup"; their place in
+  the family goes, their Family Album additions leave the album, and any `users/<anyone>/keys/helper-<them>.bin`
+  (spare Private keys left for them to help with) are deleted (16 Nov). A removed phone forgets the drive's details
+  the next time it reads a newer family file (never on an older copy). The owner can't be removed, and a phone
+  can't remove itself. A phone taken off a person who stays in the family counts as removed too.
+- **Roles (16 Nov):** each member has `role`: `CAN_ADD` (default; families from before roles read as this) or
+  `VIEW_ONLY`. It only covers the Family Album: View only sees it but can't add new photos (earlier additions stay
+  and they can take those out). Everyone still backs up their own phone. The owner always can add; owner-only, with
+  the PIN, like other owner actions.
 - Space limits are enforced by backup (Phase 4). Phase 3 shows them and how much each folder uses.
 
 ## What this protects against, and what it doesn't

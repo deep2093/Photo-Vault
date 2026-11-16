@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -204,7 +203,9 @@ private fun RingCard(
                             colors = RING + theme.onGlass.copy(alpha = 0.10f),
                         )
                         val pct = if (total == 0) 0 else (saved * 100L / total).toInt()
-                        Text("$pct%", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.offset(y = (-6.5).dp))
+                        Text("$pct%", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        // No nudge (16 Nov): measured on Deepak's screenshot, the clear part of the hole (below the inner
+                        // wall the ring's depth shows) is centred on the whole ring, so the number sits plain in the middle.
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {

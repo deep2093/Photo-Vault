@@ -137,55 +137,16 @@ fun BackupScreen(
                 modifier = Modifier.cardWidth().padding(start = 4.dp, top = 4.dp),
             )
         }
-        if (state.appearance.newBackupLayout) {
-            // Try out (15 Nov): the new layout.
-            newBackupItems(
-                state, drive, backup, gallery, actions, googleOn, showDrive, showGoogle, googleView,
-                eligible.size, done, googleEligible, privacyNeedsYou,
-                open = { what, google -> sheet = what to google },
-                openPrivacy = { privacyOpen = true },
-                openFreeUp = { freeUpOpen = true },
-                openRestore = { restoreOpen = true },
-            )
-            return@GlassListScreen
-        }
-        // Phase 10 (13 Nov): where to back up.
-        if (googleOn) item(key = "where") { DestinationCard(backup) }
-        if (privacyNeedsYou) item(key = "privacy-needed") { PrivacyCard(state, drive, backup) }
-        if (showDrive) item(key = "drive") {
-            DriveCard(drive, backup, gallery, actions, eligible.size, done, titled = googleOn) { sheet = it to false }
-        }
-        if (showGoogle) item(key = "google") {
-            GoogleCard(state.google, backup, googleView, gallery.albums, googleEligible) { sheet = it to true }
-        }
-        item(key = "more") {
-            GlassCard(Modifier.cardWidth()) {
-                // Each opens a popup (14 Nov), not a card at the end of the page.
-                if (!privacyNeedsYou) {
-                    SettingRow(
-                        Icons.Rounded.Lock,
-                        "Backup privacy",
-                        if (settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE) "Private" else "Normal",
-                        onClick = { privacyOpen = true },
-                    )
-                }
-                SettingRow(
-                    Icons.Rounded.PhoneAndroid,
-                    "Remove phone copies",
-                    if (settings.freeUpDays == 0) "Off" else "After ${settings.freeUpDays} days",
-                    onClick = { freeUpOpen = true },
-                )
-                if (drive.joined != null || showGoogle) {
-                    SettingRow(Icons.Rounded.CloudDownload, "Restore to this phone", "", onClick = { restoreOpen = true })
-                }
-                if (!backup.notificationsAllowed()) {
-                    SettingRow(Icons.Rounded.Notifications, "Notifications are off", "Allow", onClick = actions::requestNotifications)
-                }
-                if (backup.batteryRestricted()) {
-                    SettingRow(Icons.Rounded.BatteryChargingFull, "Run on time in background", "Allow", onClick = actions::openBatterySettings)
-                }
-            }
-        }
+        // The new layout is the only one since 16 Nov (Deepak chose it after trying both): a ring card like Storage's,
+        // one settings card and warnings only when they need you.
+        newBackupItems(
+            state, drive, backup, gallery, actions, googleOn, showDrive, showGoogle, googleView,
+            eligible.size, done, googleEligible, privacyNeedsYou,
+            open = { what, google -> sheet = what to google },
+            openPrivacy = { privacyOpen = true },
+            openFreeUp = { freeUpOpen = true },
+            openRestore = { restoreOpen = true },
+        )
     }
     if (privacyOpen) PrivacyDialog(state, drive, backup, onDismiss = { privacyOpen = false })
     if (freeUpOpen) FreeUpDialog(backup, actions, onDismiss = { freeUpOpen = false })

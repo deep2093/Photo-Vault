@@ -649,24 +649,10 @@ private fun AboutSection(state: ShellState) {
         // 15 Nov: Phase 11 started before Family roles (10A comes after it).
         InfoRow(Icons.Rounded.Folder, "Photo editor", "Built, being tested")
         InfoRow(Icons.Rounded.Folder, "Duplicate finder", "Built, being tested")
-        InfoRow(Icons.Rounded.Folder, "Straighten, undo, HDR, video trim", "Phase 11, part 4")
-        InfoRow(Icons.Rounded.Groups, "Family roles", "Phase 10A")
+        InfoRow(Icons.Rounded.Folder, "Straighten, undo, HDR, video trim", "Built, being tested")
+        InfoRow(Icons.Rounded.Groups, "Family roles", "Built, being tested")
         InfoRow(Icons.Rounded.Schedule, "Smoothness and foldables", "Phase 12")
         InfoRow(Icons.AutoMirrored.Rounded.OpenInNew, "Release", "Phase 13")
-        // Things to try (15 Nov): switched off unless chosen here.
-        Text(
-            "Try out",
-            color = LocalGlassTheme.current.onGlass,
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(top = 12.dp),
-        )
-        com.deepak.photovault.designsystem.GlassSwitchRow(
-            "New Backup layout",
-            state.appearance.newBackupLayout,
-            { on -> state.updateAppearance { it.copy(newBackupLayout = on) } },
-            description = "A ring card like Storage's, one settings card, and warnings only when they need you. Turn off to go back.",
-            icon = Icons.Rounded.Folder,
-        )
         // Credits for the face models (6 Nov). AuraFace's licence asks for the notice and credit.
         Text(
             "Credits",

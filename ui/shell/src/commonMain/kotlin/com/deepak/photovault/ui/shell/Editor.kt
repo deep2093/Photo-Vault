@@ -35,6 +35,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Redo
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Compare
@@ -53,6 +55,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,6 +75,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -124,6 +130,15 @@ interface EditorPlatform {
 
     /** Saves [edit] of [item] as a new photo beside the original. Never writes to the original. */
     suspend fun save(item: MediaItem, edit: PhotoEdit): EditSaved = EditSaved(false, "Editing isn't available here.")
+
+    /** [image] tilted by [degrees] (Straighten, 16 Nov), enlarged so no empty corners show; same size as [image]. */
+    suspend fun straightened(image: ImageBitmap, degrees: Float): ImageBitmap = image
+
+    /** Videos can be trimmed and muted (16 Nov). */
+    val trimSupported: Boolean get() = false
+
+    /** Saves the part of [item] from [startMs] to [endMs] as a new video beside it, without sound when [mute]. */
+    suspend fun trim(item: MediaItem, startMs: Long, endMs: Long, mute: Boolean): EditSaved = EditSaved(false, "Trimming isn't available here.")
 }
 
 /** How saving went, in words to show. */
@@ -147,6 +162,16 @@ private enum class EditTab(val label: String, val icon: ImageVector) {
 }
 
 private val Dim = Color.White.copy(alpha = 0.62f)
+
+// Shared with the video page (16 Nov).
+internal val EditorDim get() = Dim
+internal val EditorPanel get() = Panel
+
+@Composable
+internal fun EditorChoice(text: String, selected: Boolean, onClick: () -> Unit) = Choice(text, selected, onClick)
+
+/** Undo goes back this many steps at most. */
+private const val MAX_STEPS = 60
 private val Panel = Color(0xFF1C1C21)
 
 @Composable
@@ -154,6 +179,11 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     val editor = state.editor
     // Held for the whole visit: the library reloads when the copy is saved, and the page must not lose its photo.
     val item = remember(photoId) { gallery.find(photoId) }
+    // Videos get their own page: trim and sound (16 Nov).
+    if (item != null && item.isVideo) {
+        VideoTrimScreen(item, state, actions)
+        return
+    }
     val scope = rememberCoroutineScope()
     var base by remember { mutableStateOf<ImageBitmap?>(null) }
     var image by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -175,6 +205,12 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     var making by remember { mutableStateOf(false) }
     var styled by remember { mutableStateOf<LivingLayers?>(null) }
     var videoProgress by remember { mutableStateOf<Float?>(null) }
+    // Straighten (16 Nov): the picture tilted once the slider rests, with the tilt and the picture it was made from.
+    var straight by remember { mutableStateOf<Triple<ImageBitmap, Float, ImageBitmap>?>(null) }
+    var workedFrom by remember { mutableStateOf<ImageBitmap?>(null) }
+    // Undo and redo (16 Nov): each resting state of the edit, and where we are in that list.
+    val history = remember { mutableStateListOf(PhotoEdit()) }
+    var at by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(item) {
         val opened = item?.let { runCatching { editor.platform.open(it) }.getOrNull() }
@@ -183,16 +219,44 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
         failed = opened == null
     }
     LaunchedEffect(edit, motion) { editor.changed = !edit.isUnchanged || motion }
+    // Straighten: the tilted picture is made a moment after the slider rests; until then the screen tilts it live.
+    LaunchedEffect(image, edit.straighten) {
+        val shown = image ?: return@LaunchedEffect
+        val angle = edit.straighten
+        if (!edit.isTilted) return@LaunchedEffect
+        val made = straight
+        if (made != null && made.second == angle && made.third === shown) return@LaunchedEffect
+        kotlinx.coroutines.delay(90)
+        runCatching { editor.platform.straightened(shown, angle) }.getOrNull()?.let { straight = Triple(it, angle, shown) }
+    }
+    // The picture the rest of the edit works on: as turned, or tilted when Straighten is used (null while making it).
+    val source: ImageBitmap? = image?.let { shown ->
+        if (!edit.isTilted) shown
+        else straight?.takeIf { it.second == edit.straighten && it.third === shown }?.first
+    }
     // The pixel-by-pixel part, a moment after a slider stops moving (it takes a little while on a big preview).
     val pixelKey = listOf(edit.highlights, edit.shadows, edit.vibrance, edit.sharpness, edit.vignetteAmount, edit.grainAmount, edit.crop)
-    LaunchedEffect(image, pixelKey) {
-        val shown = image ?: return@LaunchedEffect
+    LaunchedEffect(source, pixelKey) {
+        val from = source ?: return@LaunchedEffect
         if (!edit.needsPixels) {
             worked = null
             return@LaunchedEffect
         }
         kotlinx.coroutines.delay(60)
-        worked = runCatching { editor.platform.pixels(shown, edit) }.getOrNull()
+        runCatching { editor.platform.pixels(from, edit) }.getOrNull()?.let {
+            worked = it
+            workedFrom = from
+        }
+    }
+    // A new step in the history once the edit has rested for a moment (a slider drag is one step, not hundreds).
+    LaunchedEffect(edit) {
+        kotlinx.coroutines.delay(350)
+        if (edit != history[at]) {
+            while (history.size > at + 1) history.removeAt(history.size - 1)
+            history.add(edit)
+            if (history.size > MAX_STEPS) history.removeAt(0)
+            at = history.size - 1
+        }
     }
     // Motion: the subject is lifted out once, the first time Motion is turned on.
     LaunchedEffect(motion) {
@@ -203,7 +267,7 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
         making = false
     }
     // The lifted layers turned, cropped and with the pixel-by-pixel changes; colours are added when drawn.
-    LaunchedEffect(layers, motion, edit.turns, edit.flipped, edit.crop, pixelKey) {
+    LaunchedEffect(layers, motion, edit.turns, edit.flipped, edit.crop, edit.straighten, pixelKey) {
         val l = layers
         if (!motion || l == null || l.background == null) {
             styled = null
@@ -226,9 +290,9 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     }
 
     /** Turning and mirroring: the picture and its frame change together, so the frame never sits on the old picture. */
-    fun reshape(next: PhotoEdit) {
-        val from = base ?: return
-        if (turning || saving) return
+    fun reshape(next: PhotoEdit): Boolean {
+        val from = base ?: return false
+        if (turning || saving) return false
         turning = true
         scope.launch {
             val turned = runCatching { editor.platform.turned(from, next.turns, next.flipped) }.getOrNull()
@@ -240,6 +304,33 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
             }
             turning = false
         }
+        return true
+    }
+
+    /** Goes to an earlier or later state of the edit; a different turn or mirror needs the picture turned again. */
+    fun goTo(index: Int) {
+        val target = history.getOrNull(index) ?: return
+        if (target.turns != edit.turns || target.flipped != edit.flipped) {
+            if (!reshape(target)) return
+        } else {
+            edit = target
+        }
+        at = index
+    }
+
+    // A change still settling counts as the next step: undo takes it back first.
+    val settling = edit != history[at]
+    val canUndo = settling || at > 0
+    val canRedo = !settling && at < history.size - 1
+
+    fun undo() {
+        if (saving) return
+        if (settling) goTo(at) else goTo(at - 1)
+    }
+
+    fun redo() {
+        if (saving || !canRedo) return
+        goTo(at + 1)
     }
 
     fun pick(shape: CropAspect) {
@@ -299,10 +390,6 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                 EditorIcon(Icons.Rounded.Close, "Close without saving") {
                     if (editor.changed) editor.askDiscard = true else leave()
                 }
-                // Hold to see the original (15 Nov).
-                if (image != null && (!edit.isUnchanged || motion)) {
-                    HoldIcon(Icons.Rounded.Compare, "Hold to see the original") { showOriginal = it }
-                }
                 Spacer(Modifier.weight(1f))
                 if ((!edit.isUnchanged || motion) && !saving) {
                     EditorPill("Reset", filled = false) {
@@ -339,7 +426,9 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                         )
                     }
                     shown != null -> EditPreview(
-                        image = worked ?: shown,
+                        // The finished preview when it is ready; else the turned picture, tilted live on screen.
+                        image = source?.let { s -> worked?.takeIf { edit.needsPixels && workedFrom === s } ?: s } ?: shown,
+                        tilt = if (source == null) edit.straighten else 0f,
                         edit = edit,
                         cropping = tab == EditTab.CROP,
                         ratio = lockedRatio,
@@ -357,6 +446,25 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                 }
             }
 
+            // Undo, hold to compare, redo (16 Nov): just above the tools, in reach of a thumb.
+            if (image != null) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(percent = 50)).background(Panel).padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        EditorIcon(Icons.AutoMirrored.Rounded.Undo, "Undo", enabled = canUndo, size = 44.dp) { undo() }
+                        if (!edit.isUnchanged || motion) {
+                            HoldIcon(Icons.Rounded.Compare, "Hold to see the original", size = 44.dp) { showOriginal = it }
+                        }
+                        EditorIcon(Icons.AutoMirrored.Rounded.Redo, "Redo", enabled = canRedo, size = 44.dp) { redo() }
+                    }
+                }
+            }
             // The tools of the chosen tab, then the tabs.
             AnimatedContent(
                 targetState = tab,
@@ -368,6 +476,8 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                 when (showing) {
                     EditTab.CROP -> CropTools(
                         aspect = aspect,
+                        straighten = edit.straighten,
+                        onStraighten = { edit = edit.straightened(it) },
                         onAspect = { pick(it) },
                         onLeft = { reshape(edit.turnedLeft()) },
                         onRight = { reshape(edit.turnedRight()) },
@@ -453,7 +563,7 @@ private fun place(areaW: Float, areaH: Float, pictureW: Int, pictureH: Int, pad:
  * inside to move). Otherwise: just the part inside the frame, as the copy will look.
  */
 @Composable
-private fun EditPreview(image: ImageBitmap, edit: PhotoEdit, cropping: Boolean, ratio: Float?, onCrop: (CropBox) -> Unit, onHold: (Boolean) -> Unit = {}) {
+private fun EditPreview(image: ImageBitmap, edit: PhotoEdit, cropping: Boolean, ratio: Float?, onCrop: (CropBox) -> Unit, onHold: (Boolean) -> Unit = {}, tilt: Float = 0f) {
     val matrix = remember(edit) { EditMath.colourMatrix(edit) }
     val colour = remember(matrix) { if (edit.hasColour) ColorFilter.colorMatrix(ColorMatrix(matrix)) else null }
     val cropNow by rememberUpdatedState(edit.crop)
@@ -505,14 +615,24 @@ private fun EditPreview(image: ImageBitmap, edit: PhotoEdit, cropping: Boolean, 
     ) {
         if (cropping) {
             val p = place(size.width, size.height, image.width, image.height, pad)
-            drawImage(
-                image,
-                dstOffset = IntOffset(p.x.roundToInt(), p.y.roundToInt()),
-                dstSize = IntSize(p.w.roundToInt().coerceAtLeast(1), p.h.roundToInt().coerceAtLeast(1)),
-                colorFilter = colour,
-                filterQuality = FilterQuality.Medium,
-            )
+            if (tilt != 0f) {
+                drawTilted(image, tilt, p.x, p.y, p.w, p.h, p, colour)
+            } else {
+                drawImage(
+                    image,
+                    dstOffset = IntOffset(p.x.roundToInt(), p.y.roundToInt()),
+                    dstSize = IntSize(p.w.roundToInt().coerceAtLeast(1), p.h.roundToInt().coerceAtLeast(1)),
+                    colorFilter = colour,
+                    filterQuality = FilterQuality.Medium,
+                )
+            }
             drawCropFrame(p, edit.crop)
+        } else if (tilt != 0f) {
+            // The whole picture placed so the part inside the frame fills the space, tilted, and only that part shown.
+            val px = EditMath.pixels(edit.crop, image.width, image.height)
+            val p = place(size.width, size.height, px[2], px[3], pad / 2f)
+            val k = p.w / px[2].coerceAtLeast(1)
+            drawTilted(image, tilt, p.x - px[0] * k, p.y - px[1] * k, image.width * k, image.height * k, p, colour)
         } else {
             val px = EditMath.pixels(edit.crop, image.width, image.height)
             val p = place(size.width, size.height, px[2], px[3], pad / 2f)
@@ -522,6 +642,29 @@ private fun EditPreview(image: ImageBitmap, edit: PhotoEdit, cropping: Boolean, 
                 srcSize = IntSize(px[2], px[3]),
                 dstOffset = IntOffset(p.x.roundToInt(), p.y.roundToInt()),
                 dstSize = IntSize(p.w.roundToInt().coerceAtLeast(1), p.h.roundToInt().coerceAtLeast(1)),
+                colorFilter = colour,
+                filterQuality = FilterQuality.Medium,
+            )
+        }
+    }
+}
+
+/**
+ * Straighten while the slider moves (16 Nov): the picture drawn at x, y, w, h, tilted about its middle and enlarged
+ * to cover, showing only what falls inside [clip]. The same sums as the saved copy, so nothing jumps when it's ready.
+ */
+private fun DrawScope.drawTilted(image: ImageBitmap, tilt: Float, x: Float, y: Float, w: Float, h: Float, clip: Placed, colour: ColorFilter?) {
+    val s = EditMath.straightenScale(tilt, image.width, image.height)
+    val middle = Offset(x + w / 2f, y + h / 2f)
+    clipRect(clip.x, clip.y, clip.x + clip.w, clip.y + clip.h) {
+        withTransform({
+            rotate(tilt, middle)
+            scale(s, s, middle)
+        }) {
+            drawImage(
+                image,
+                dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
+                dstSize = IntSize(w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
                 colorFilter = colour,
                 filterQuality = FilterQuality.Medium,
             )
@@ -561,8 +704,17 @@ private fun DrawScope.drawCropFrame(p: Placed, box: CropBox) {
 }
 
 @Composable
-private fun CropTools(aspect: CropAspect, onAspect: (CropAspect) -> Unit, onLeft: () -> Unit, onRight: () -> Unit, onMirror: () -> Unit) {
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+private fun CropTools(
+    aspect: CropAspect,
+    straighten: Float,
+    onStraighten: (Float) -> Unit,
+    onAspect: (CropAspect) -> Unit,
+    onLeft: () -> Unit,
+    onRight: () -> Unit,
+    onMirror: () -> Unit,
+) {
+    val haptics = rememberHaptics()
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             Modifier.clip(RoundedCornerShape(percent = 50)).background(Panel).padding(horizontal = 6.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -571,6 +723,38 @@ private fun CropTools(aspect: CropAspect, onAspect: (CropAspect) -> Unit, onLeft
             // The same arrow, mirrored, for the other way.
             EditorIcon(Icons.Rounded.Rotate90DegreesCcw, "Turn right", mirrored = true, onClick = onRight)
             EditorIcon(Icons.Rounded.Flip, "Mirror", onClick = onMirror)
+        }
+        // Straighten (16 Nov): tilt by up to 45 degrees either way, in tenths; tap the number to put it level again.
+        Row(
+            Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val tenths = (straighten * 10f).roundToInt()
+            Text(
+                if (tenths == 0) "Straighten" else (if (tenths > 0) "+" else "−") + "${abs(tenths) / 10}.${abs(tenths) % 10}°",
+                color = if (tenths == 0) Dim else Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (tenths == 0) null else FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .widthIn(min = 92.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .clickable(enabled = tenths != 0, role = Role.Button, onClickLabel = "Make level again") {
+                        haptics.detent()
+                        onStraighten(0f)
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            CentreSlider(
+                tenths,
+                label = "Straighten",
+                min = -450,
+                max = 450,
+                tick = 10,
+                snap = 4,
+                onChange = { onStraighten(it / 10f) },
+                modifier = Modifier.weight(1f),
+            )
         }
         Row(
             Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
@@ -735,19 +919,31 @@ private fun FilterTools(image: ImageBitmap?, edit: PhotoEdit, onPick: (EditFilte
  * (no jump). Light ticks while it moves, a firmer click at 0 and at either end; a double tap resets it to [resetTo].
  */
 @Composable
-private fun CentreSlider(value: Int, label: String, onChange: (Int) -> Unit, modifier: Modifier = Modifier, min: Int = -100, resetTo: Int = 0) {
+private fun CentreSlider(
+    value: Int,
+    label: String,
+    onChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    min: Int = -100,
+    resetTo: Int = 0,
+    max: Int = 100,
+    /** A light tick each time it moves this far (16 Nov: Straighten ticks every degree). */
+    tick: Int = 5,
+    /** Within this of 0 it holds at 0. */
+    snap: Int = 3,
+) {
     val haptics = rememberHaptics()
     val valueNow by rememberUpdatedState(value)
     val onChangeNow by rememberUpdatedState(onChange)
-    val span = (100 - min).toFloat()
+    val span = (max - min).toFloat()
     Canvas(
         modifier
             .height(44.dp)
             .semantics {
                 contentDescription = label
-                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), min.toFloat()..100f)
+                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), min.toFloat()..max.toFloat())
                 setProgress { target ->
-                    onChangeNow(target.roundToInt().coerceIn(min, 100))
+                    onChangeNow(target.roundToInt().coerceIn(min, max))
                     true
                 }
             }
@@ -759,7 +955,7 @@ private fun CentreSlider(value: Int, label: String, onChange: (Int) -> Unit, mod
                     }
                 })
             }
-            .pointerInput(min) {
+            .pointerInput(min, max) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     val startValue = valueNow
@@ -768,13 +964,13 @@ private fun CentreSlider(value: Int, label: String, onChange: (Int) -> Unit, mod
                     var lastTick = startValue
                     drag(down.id) { change ->
                         change.consume()
-                        val raw = (startValue + (change.position.x - startX) / track * span).roundToInt().coerceIn(min, 100)
-                        val next = if (min < 0 && abs(raw) <= 3) 0 else raw
+                        val raw = (startValue + (change.position.x - startX) / track * span).roundToInt().coerceIn(min, max)
+                        val next = if (min < 0 && abs(raw) <= snap) 0 else raw
                         if (next != valueNow) {
-                            if (next == 0 || next == min || next == 100) {
+                            if (next == 0 || next == min || next == max) {
                                 haptics.detent()
                                 lastTick = next
-                            } else if (abs(next - lastTick) >= 5) {
+                            } else if (abs(next - lastTick) >= tick) {
                                 haptics.slide()
                                 lastTick = next
                             }
@@ -845,12 +1041,12 @@ private fun Modifier.holdForOriginal(onHold: (Boolean) -> Unit): Modifier = poin
 
 /** A round button that shows something only while it is held (Compare). */
 @Composable
-private fun HoldIcon(icon: ImageVector, label: String, onHold: (Boolean) -> Unit) {
+private fun HoldIcon(icon: ImageVector, label: String, size: androidx.compose.ui.unit.Dp = 48.dp, onHold: (Boolean) -> Unit) {
     val haptics = rememberHaptics()
     val onHoldNow by rememberUpdatedState(onHold)
     Box(
         Modifier
-            .size(48.dp)
+            .size(size)
             .clip(CircleShape)
             .semantics { contentDescription = label }
             .pointerInput(Unit) {
@@ -869,13 +1065,21 @@ private fun HoldIcon(icon: ImageVector, label: String, onHold: (Boolean) -> Unit
 
 /** A round button on the editor's black page: always a white icon, whatever the theme. */
 @Composable
-private fun EditorIcon(icon: ImageVector, label: String, mirrored: Boolean = false, onClick: () -> Unit) {
+internal fun EditorIcon(
+    icon: ImageVector,
+    label: String,
+    mirrored: Boolean = false,
+    enabled: Boolean = true,
+    size: androidx.compose.ui.unit.Dp = 48.dp,
+    onClick: () -> Unit,
+) {
     val haptics = rememberHaptics()
     Box(
         Modifier
-            .size(48.dp)
+            .size(size)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.32f }
             .clip(CircleShape)
-            .clickable(role = Role.Button, onClickLabel = label) {
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = label) {
                 haptics.tap()
                 onClick()
             },
@@ -887,7 +1091,7 @@ private fun EditorIcon(icon: ImageVector, label: String, mirrored: Boolean = fal
 
 /** Reset (outlined) and Save copy (white) at the top of the editor. */
 @Composable
-private fun EditorPill(text: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun EditorPill(text: String, filled: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val haptics = rememberHaptics()
     val shape = RoundedCornerShape(percent = 50)
     Box(

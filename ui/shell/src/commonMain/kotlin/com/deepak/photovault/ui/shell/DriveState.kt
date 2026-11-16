@@ -144,6 +144,16 @@ class DriveState(private val platform: DrivePlatform) {
     val joined: Membership.Joined? get() = membership as? Membership.Joined
     val isOwner: Boolean get() = joined?.isOwner == true
 
+    /** This person may add photos to the Family Album (Family roles, 16 Nov). */
+    val canAddToFamilyAlbum: Boolean get() = joined?.let { it.household.canAddToAlbum(it.me.userId) } == true
+
+    /**
+     * True after this phone found it had been removed from the family (16 Nov), so Family can say so. The drive's
+     * details were forgotten at that moment.
+     */
+    var removedFromFamily by mutableStateOf(false)
+        private set
+
     /** Owner controls are open: PIN entered in the last few minutes, or no PIN required. */
     val ownerUnlocked: Boolean
         get() {
@@ -159,6 +169,7 @@ class DriveState(private val platform: DrivePlatform) {
 
     /** Tries [candidate]; on success saves it and loads the family. Returns an error message or null. */
     suspend fun connect(candidate: DriveConnection): String? = guarded {
+        removedFromFamily = false
         var use = candidate
         var fs = platform.open(use)
         if (use.folder == DriveConnection.DEFAULT_FOLDER) {
@@ -212,7 +223,17 @@ class DriveState(private val platform: DrivePlatform) {
 
     private suspend fun refreshLocked() {
         val s = ensureStore() ?: return
+        val lastSeen = runCatching { platform.rememberedHousehold() }.getOrNull()
         val m = s.membership(platform.deviceId, platform.rememberedUserId())
+        // Removed by the owner (16 Nov): the phone forgets the drive's details, so it can't reach the drive again
+        // without a new invite. Only when the family on the drive is newer than the one this phone was last part of,
+        // so an old copy of the family file read by mistake never wipes anything.
+        if (m is Membership.Removed && lastSeen != null && m.household.householdId == lastSeen.householdId && m.household.revision > lastSeen.revision) {
+            platform.rememberedUserId()?.let { forgetBackupList(it) }
+            forget()
+            removedFromFamily = true
+            return
+        }
         // Someone new in the family may have used an invite (10 Nov): Family reads its invite list again.
         if ((m as? Membership.Joined)?.household?.members?.size != joined?.household?.members?.size) invitesChanged++
         membership = m
@@ -561,7 +582,19 @@ class DriveState(private val platform: DrivePlatform) {
         runCatching { platform.rememberBackupRecords(userId, emptyList()) }
     }
 
-    suspend fun removeMember(userId: String) = ownerAction { it.removeMember(auth(), userId) }
+    /**
+     * Removes a person (16 Nov: properly). Their phones stop backing up and forget the drive's details the next time
+     * they look; the spare copies of anyone's Private key left for them to help with are deleted; their additions
+     * leave the Family Album. With [deleteBackup] their whole backup on the drive is deleted too.
+     */
+    suspend fun removeMember(userId: String, deleteBackup: Boolean = false) = ownerAction { s ->
+        s.removeMember(auth(), userId)
+        runCatching { s.dropHelperKeysFor(userId) }
+        if (deleteBackup) deleteFilesUnder(com.deepak.photovault.core.household.HouseholdStore.userFolder(userId))
+    }
+
+    /** View only or Can add, for the Family Album (Family roles, 16 Nov). */
+    suspend fun setRole(userId: String, role: com.deepak.photovault.core.household.MemberRole) = ownerAction { it.setRole(auth(), userId, role) }
 
     suspend fun removeDevice(deviceId: String) = ownerAction { it.removeDevice(auth(), deviceId) }
 
@@ -727,6 +760,8 @@ class DriveState(private val platform: DrivePlatform) {
      */
     suspend fun addToFamilyAlbum(items: List<MediaItem>): FamilyAddResult {
         val j = joined ?: return FamilyAddResult(0, items.size, "Join your family drive first.")
+        // Family roles (16 Nov): View only can see the album but not add to it.
+        if (!j.household.canAddToAlbum(j.me.userId)) return FamilyAddResult(0, items.size, "The owner has set you to View only, so you can't add photos to the Family Album.")
         val records = backupRecords ?: myBackupRecords() ?: return FamilyAddResult(0, items.size, "Couldn't read the drive.")
         val byPath = records.associateBy { it.drivePath }
         val byKey = records.associateBy { it.key }

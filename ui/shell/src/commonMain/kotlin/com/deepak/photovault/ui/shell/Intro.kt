@@ -100,11 +100,17 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-16-1"
+    const val ID = "2026-11-16-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Duplicates: the Move button stays in reach", "Move to Recently deleted now stays at the top while you scroll the groups. The folder and size under each photo line up."),
-        Change(ChangeKind.FIXED, "New Backup layout tidied", "Even gaps under the switch, shorter rows in the two settings cards, and the percentage sits in the middle of the ring."),
+        Change(ChangeKind.NEW, "Straighten", "In Edit > Crop, a slider tilts the photo up to 45 degrees either way to level a horizon. Tap the number to make it level again."),
+        Change(ChangeKind.NEW, "Undo and redo", "Two arrows above the editing tools step back and forward through your changes. Hold the middle button to see the original."),
+        Change(ChangeKind.NEW, "HDR photos stay HDR", "Editing an HDR photo on Android 14 or newer keeps its extra brightness in the saved copy."),
+        Change(ChangeKind.NEW, "Trim videos", "Edit on a video: drag the two handles to keep just the part you want, and turn the sound off if you like. Saves a copy; the original stays."),
+        Change(ChangeKind.NEW, "Family roles", "The owner can set someone to View only: they see the Family Album but can't add to it. Open a person in Family to choose."),
+        Change(ChangeKind.CHANGED, "Removing someone is more thorough", "A removed person's phones forget the drive's details, spare keys left for them are deleted, and the owner can delete their backup too."),
+        Change(ChangeKind.CHANGED, "The new Backup layout is now the only one", "The ring card and single settings card stay; the switch in About is gone."),
+        Change(ChangeKind.FIXED, "Backup ring number centred", "The percentage now sits in the middle of the ring's hole."),
     )
 }
 

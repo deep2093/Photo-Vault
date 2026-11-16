@@ -299,4 +299,60 @@ class PinTest {
         attempts.recordSuccess()
         assertEquals(0L, attempts.lockedForMillis())
     }
+
+    // ---- Family roles (16 Nov) ----
+
+    @Test
+    fun theOwnerSetsViewOnlyAndCanAlwaysAddThemselves() = runTest {
+        ownerSetUp()
+        store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
+        val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
+        val owner = store().load()!!.ownerUserId
+        // Everyone can add until the owner says otherwise.
+        assertTrue(store().load()!!.canAddToAlbum(sam.userId))
+        val h = store().setRole(OwnerAuth(OWNER_PHONE, "2468"), sam.userId, MemberRole.VIEW_ONLY)
+        assertEquals(MemberRole.VIEW_ONLY, h.member(sam.userId)!!.role)
+        assertTrue(!h.canAddToAlbum(sam.userId))
+        assertTrue(h.canAddToAlbum(owner))
+        // Only the owner, with the PIN, and never on the owner.
+        assertFailsWith<NotAllowed> { store().setRole(OwnerAuth(SAM_PHONE, "2468"), sam.userId, MemberRole.CAN_ADD) }
+        assertFailsWith<NotAllowed> { store().setRole(OwnerAuth(OWNER_PHONE, "0000"), sam.userId, MemberRole.CAN_ADD) }
+        assertFailsWith<IllegalArgumentException> { store().setRole(OwnerAuth(OWNER_PHONE, "2468"), owner, MemberRole.VIEW_ONLY) }
+        assertTrue(store().setRole(OwnerAuth(OWNER_PHONE, "2468"), sam.userId, MemberRole.CAN_ADD).canAddToAlbum(sam.userId))
+    }
+
+    @Test
+    fun aRemovedPhoneOfSomeoneStillInTheFamilyIsRemovedToo() = runTest {
+        ownerSetUp()
+        store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
+        val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
+        store().requestJoin("sam-tablet-0001", "Tab", existingUserId = sam.userId)
+        store().removeDevice(OwnerAuth(OWNER_PHONE, "2468"), SAM_PHONE)
+        assertIs<Membership.Removed>(store().membership(SAM_PHONE, rememberedUserId = sam.userId))
+        assertIs<Membership.Joined>(store().membership("sam-tablet-0001", rememberedUserId = sam.userId))
+        // A phone that never belonged to anyone is simply not joined.
+        assertIs<Membership.NotJoined>(store().membership("new-phone-00001"))
+    }
+
+    @Test
+    fun removingSomeoneDropsTheKeysLeftForThemToHelpWith() = runTest {
+        ownerSetUp()
+        store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
+        val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
+        val owner = store().load()!!.ownerUserId
+        drive.mkdirs("users/$owner/keys")
+        drive.createNew("users/$owner/keys/helper-${sam.userId}.bin", byteArrayOf(1))
+        drive.createNew("users/$owner/keys/helper-someone-else.bin", byteArrayOf(2))
+        assertEquals(1, store().dropHelperKeysFor(sam.userId))
+        assertTrue(!drive.exists("users/$owner/keys/helper-${sam.userId}.bin"))
+        assertTrue(drive.exists("users/$owner/keys/helper-someone-else.bin"))
+    }
+
+    @Test
+    fun familiesFromBeforeRolesReadAsCanAdd() {
+        val old = """{"householdId":"h","revision":3,"ownerUserId":"o","members":[{"userId":"o","name":"O","joinedAtMillis":1},{"userId":"s","name":"S","joinedAtMillis":2}]}"""
+        val h = HouseholdStore.json.decodeFromString(Household.serializer(), old)
+        assertEquals(MemberRole.CAN_ADD, h.member("s")!!.role)
+        assertTrue(h.canAddToAlbum("s"))
+    }
 }

@@ -93,6 +93,9 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
     // Not counted yet (a new member): count now instead of showing "Counting..." until the next hourly check (10 Nov).
     LaunchedEffect(member.userId) { if (drive.usage[member.userId]?.usedBytes == null) drive.refreshUsage(force = true) }
     var removePhone by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Family roles (16 Nov): the choice shows at once and stays until the drive has it.
+    var pendingRole by remember { mutableStateOf<com.deepak.photovault.core.household.MemberRole?>(null) }
+    LaunchedEffect(member.role) { if (pendingRole == member.role) pendingRole = null }
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action
     }
@@ -175,6 +178,44 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                     drive.deletingFiles?.let { n ->
                         Text("Deleting from the drive… $n files", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                     }
+                }
+            }
+        }
+        // Family roles (16 Nov): what this person can do in the Family Album. The owner chooses; the person sees it.
+        if (!isOwnerMember && (drive.isOwner || isMe)) {
+            item {
+                GlassCard(Modifier.cardWidth()) {
+                    SectionHeader("Family Album")
+                    val role = pendingRole ?: member.role
+                    val viewOnly = role == com.deepak.photovault.core.household.MemberRole.VIEW_ONLY
+                    if (drive.isOwner) {
+                        com.deepak.photovault.designsystem.GlassSegmented(
+                            listOf("Can add photos", "View only"),
+                            if (viewOnly) 1 else 0,
+                            { i ->
+                                val next = if (i == 1) com.deepak.photovault.core.household.MemberRole.VIEW_ONLY else com.deepak.photovault.core.household.MemberRole.CAN_ADD
+                                if (next != role) asOwner {
+                                    pendingRole = next
+                                    scope.launch {
+                                        message = drive.setRole(member.userId, next)
+                                        if (message != null) pendingRole = null
+                                        else toast(if (next == com.deepak.photovault.core.household.MemberRole.VIEW_ONLY) "${member.name} can now only look at the Family Album." else "${member.name} can add photos to the Family Album.")
+                                    }
+                                }
+                            },
+                            Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp),
+                        )
+                    }
+                    Text(
+                        when {
+                            isMe && viewOnly -> "You can see the Family Album. The owner has set you to View only, so you can't add photos to it."
+                            isMe -> "You can add your own photos to the Family Album."
+                            viewOnly -> "${member.name} sees the Family Album but can't add photos. Photos they added before stay, and they can still take those out."
+                            else -> "${member.name} sees the Family Album and can add their own photos to it."
+                        },
+                        color = theme.onGlassSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
         }
@@ -335,23 +376,47 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
         }
     }
     if (confirmRemove) {
-        ConfirmDialog(
-            title = "Remove ${member.name}?",
-            body = "${member.name}'s phones stop backing up to this drive. Their photos already on the drive are kept.",
-            confirm = "Remove",
-            onDismiss = { confirmRemove = false },
-        ) {
+        // 16 Nov: removing someone properly, with the same choice about their backup as leaving.
+        fun remove(deleteBackup: Boolean) {
+            confirmRemove = false
             scope.launch {
-                message = drive.removeMember(member.userId)
-                confirmRemove = false
+                message = drive.removeMember(member.userId, deleteBackup)
                 if (message == null) { toast("Removed from the family."); state.back() }
             }
+        }
+        GlassDialog(
+            title = "Remove ${member.name}?",
+            onDismiss = { confirmRemove = false },
+            buttons = {
+                GlassButton("Cancel", onClick = { confirmRemove = false })
+                GlassButton("Remove, keep backup", onClick = { remove(false) })
+                GlassButton("Remove and delete backup", danger = true, onClick = { remove(true) })
+            },
+        ) {
+            Text(
+                "${member.name}'s phones stop backing up, forget the drive's details and no longer see the Family Album. " +
+                    "Photos they added to the Family Album leave it. Spare keys others left for them are deleted, so they can't open anyone's Private photos.",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Keep backup: their photos stay on the drive and you can still see them. Delete backup: all of their photos and videos on the drive are deleted for good.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                "To be completely sure, you can also change the drive's own password later. Everyone else then enters the new one once.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
     removePhone?.let { (id, name) ->
         ConfirmDialog(
             title = "Remove $name?",
-            body = "This phone stops backing up to the drive. Photos already backed up are kept.",
+            body = "This phone stops backing up and forgets the drive's details the next time it opens Pixallery. Photos already backed up are kept.",
             confirm = "Remove",
             onDismiss = { removePhone = null },
         ) {

@@ -274,7 +274,7 @@ fun PhotoVaultApp(
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }
         val deletePrompt = remember { DeletePrompt() }
-        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides (drive.joined != null), LocalToast provides actions::toast) {
+        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides drive.canAddToFamilyAlbum, LocalToast provides actions::toast) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     // Bars and cut-outs only, not the keyboard (24 Oct): reading the keyboard here re-laid out the whole

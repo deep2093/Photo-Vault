@@ -109,10 +109,19 @@ data class PhotoEdit(
     val grain: Int = 0,
     /** How strong the [filter] is, 0 to 100 (15 Nov). */
     val filterStrength: Int = 100,
+    /**
+     * Straighten (16 Nov): a small tilt in degrees, -45 to 45, clockwise when above 0. It comes after the turn and
+     * mirror and before the crop; the picture is enlarged just enough that no empty corners show
+     * ([EditMath.straightenScale]), so the crop frame works on a picture of the same size as before.
+     */
+    val straighten: Float = 0f,
 ) {
     /** Nothing to save: the copy would be the same picture. */
     val isUnchanged: Boolean
-        get() = turns % 4 == 0 && !flipped && crop.isFull && !hasColour
+        get() = turns % 4 == 0 && !flipped && crop.isFull && !hasColour && !isTilted
+
+    /** Straightened by more than a hair. */
+    val isTilted: Boolean get() = abs(straighten) >= 0.05f
 
     val hasColour: Boolean
         get() = EditAdjust.entries.any { value(it) != 0 } || (filter != EditFilter.NONE && filterStrength > 0)
@@ -154,7 +163,7 @@ data class PhotoEdit(
     }
 
     /** Only the colour part (no turn, mirror or crop): what a living photo's layers are given. */
-    fun colourOnly(): PhotoEdit = copy(turns = 0, flipped = false, crop = CropBox())
+    fun colourOnly(): PhotoEdit = copy(turns = 0, flipped = false, crop = CropBox(), straighten = 0f)
 
     /** Darker corners in all, slider plus the filter's own, 0 to 1. */
     val vignetteAmount: Float get() = ((vignette + filter.vignette * strength) / 100f).coerceIn(0f, 1f)
@@ -181,17 +190,38 @@ data class PhotoEdit(
         crop = CropBox(crop.top, 1f - crop.right, crop.bottom, 1f - crop.left),
     )
 
-    /** Mirrored left to right as the person sees it; the crop frame mirrors too. */
+    /** Mirrored left to right as the person sees it; the crop frame mirrors too, and a tilt goes the other way. */
     fun mirrored(): PhotoEdit = copy(
         flipped = !flipped,
         crop = CropBox(1f - crop.right, crop.top, 1f - crop.left, crop.bottom),
+        straighten = -straighten,
     )
+
+    /** With the tilt set to [degrees], kept between -45 and 45 and rounded to a tenth of a degree. */
+    fun straightened(degrees: Float): PhotoEdit =
+        copy(straighten = (kotlin.math.round(degrees.coerceIn(-MAX_TILT, MAX_TILT) * 10f) / 10f))
 
     /** Whether the picture as seen is lying on its side compared with the original (width and height swap). */
     val sideways: Boolean get() = turns % 2 != 0
+
+    companion object {
+        const val MAX_TILT = 45f
+    }
 }
 
 object EditMath {
+    /**
+     * How much a [w] x [h] picture tilted by [degrees] must be enlarged so it still covers a [w] x [h] frame with no
+     * empty corners (16 Nov): cos a + sin a x (long side / short side). 1 when not tilted.
+     */
+    fun straightenScale(degrees: Float, w: Int, h: Int): Float {
+        if (w <= 0 || h <= 0) return 1f
+        val a = abs(degrees) * (kotlin.math.PI.toFloat() / 180f)
+        val long = max(w, h).toFloat()
+        val short = min(w, h).toFloat()
+        return kotlin.math.cos(a) + kotlin.math.sin(a) * (long / short)
+    }
+
     /** The crop frame never gets smaller than this share of a side, so its corners can always be grabbed. */
     const val MIN_SIDE = 0.08f
 

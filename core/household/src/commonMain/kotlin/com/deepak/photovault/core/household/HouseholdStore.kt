@@ -46,7 +46,11 @@ class HouseholdStore(
         val household = load() ?: return Membership.NoHousehold
         household.memberForDevice(deviceId)?.let { return Membership.Joined(household, it) }
         request(deviceId)?.let { return Membership.Pending(household, it) }
-        if (rememberedUserId != null && household.member(rememberedUserId) == null) return Membership.Removed(household)
+        // Removed (16 Nov: also when only this phone was taken off the person, not the person themselves).
+        if (rememberedUserId != null) {
+            val was = household.member(rememberedUserId)
+            if (was == null || was.devices.none { it.deviceId == deviceId }) return Membership.Removed(household)
+        }
         return Membership.NotJoined(household)
     }
 
@@ -184,6 +188,34 @@ class HouseholdStore(
             require(h.member(userId) != null) { "That person is not in the family" }
             h.copy(members = h.members.map { if (it.userId == userId) it.copy(limitGb = limitGb) else it })
         }
+    }
+
+    /**
+     * Sets what a person can do in the Family Album (Family roles, 16 Nov). The owner's own role can't be changed:
+     * they can always add.
+     */
+    suspend fun setRole(auth: OwnerAuth, userId: String, role: MemberRole): Household {
+        authorize(auth)
+        return commit { h ->
+            require(h.member(userId) != null) { "That person is not in the family" }
+            require(userId != h.ownerUserId) { "The owner can always add photos" }
+            h.copy(members = h.members.map { if (it.userId == userId) it.copy(role = role) else it })
+        }
+    }
+
+    /**
+     * After someone is removed (16 Nov): the spare copies of other people's Private keys that were left for them
+     * to help with (users/<anyone>/keys/helper-<them>.bin) are deleted, so they can't open anyone's Private photos
+     * later, even with the drive's password. Returns how many were deleted.
+     */
+    suspend fun dropHelperKeysFor(removedUserId: String): Int {
+        val household = load() ?: return 0
+        var dropped = 0
+        for (m in household.members) {
+            val path = DrivePaths.join(userFolder(m.userId), "keys/helper-$removedUserId.bin")
+            if (runCatching { drive.exists(path) }.getOrDefault(false) && runCatching { drive.delete(path) }.isSuccess) dropped++
+        }
+        return dropped
     }
 
     /** Removes a person (or one of their phones) from the family. Their photos on the drive are kept. */

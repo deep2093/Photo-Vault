@@ -115,5 +115,5 @@ fun DeletePromptHost(prompt: DeletePrompt) {
     }
 }
 
-/** Whether this phone is in a family on the drive, so "Share to Family Album" is offered (Phase 5A). */
+/** Whether this phone is in a family and may add to its album (16 Nov: not View only), so "Share to Family Album" is offered. */
 val LocalFamilyAlbum = staticCompositionLocalOf { false }

@@ -25,6 +25,12 @@ data class Household(
 
     fun memberForDevice(deviceId: String): Member? = members.firstOrNull { m -> m.devices.any { it.deviceId == deviceId } }
 
+    /** Whether [userId] may add photos to the Family Album (16 Nov): the owner always, others unless View only. */
+    fun canAddToAlbum(userId: String): Boolean {
+        val m = member(userId) ?: return false
+        return userId == ownerUserId || m.role == MemberRole.CAN_ADD
+    }
+
     companion object {
         const val FORMAT_VERSION = 1
     }
@@ -50,7 +56,22 @@ data class Member(
     val devices: List<Device> = emptyList(),
     /** Profile picture on the drive (system/people/...jpg), about 256 px, or null for the first letter. */
     val photo: String? = null,
+    /** What they can do in the Family Album (Family roles, 16 Nov); the owner always can add. */
+    val role: MemberRole = MemberRole.CAN_ADD,
 )
+
+/**
+ * Family roles (Phase 10A, 16 Nov). Everyone backs up their own phone to their own folder either way; the role is
+ * only about the shared Family Album. Families made before roles read as CAN_ADD (the default), as before.
+ */
+@Serializable
+enum class MemberRole {
+    /** Sees the Family Album and adds their own photos to it. */
+    CAN_ADD,
+
+    /** Sees the Family Album but can't add to it (they can still take out photos they added before). */
+    VIEW_ONLY,
+}
 
 @Serializable
 data class Device(val deviceId: String, val name: String, val addedAtMillis: Long)

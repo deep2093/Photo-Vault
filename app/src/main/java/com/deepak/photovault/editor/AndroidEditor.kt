@@ -54,6 +54,16 @@ class AndroidEditor(context: Context) : EditorPlatform {
         Bitmap.createBitmap(source, 0, 0, source.width, source.height, shape(quarter, flipped), true).asImageBitmap()
     }
 
+    /** The picture tilted for Straighten (16 Nov), enlarged so no empty corners show. */
+    override suspend fun straightened(image: ImageBitmap, degrees: Float): ImageBitmap = withContext(Dispatchers.Default) {
+        if (kotlin.math.abs(degrees) < 0.05f) image else Straighten.apply(image.asAndroidBitmap(), degrees).asImageBitmap()
+    }
+
+    override val trimSupported: Boolean get() = true
+
+    override suspend fun trim(item: MediaItem, startMs: Long, endMs: Long, mute: Boolean): EditSaved =
+        saving.withLock { VideoTrimmer(app).save(item, startMs, endMs, mute) }
+
     /** The preview with the pixel-by-pixel changes (15 Nov); the colour matrix is added by the screen. */
     override suspend fun pixels(image: ImageBitmap, edit: PhotoEdit): ImageBitmap = withContext(Dispatchers.Default) {
         if (!edit.needsPixels) return@withContext image
@@ -73,6 +83,7 @@ class AndroidEditor(context: Context) : EditorPlatform {
             val shrunk = item.width.toLong() * item.height > 0 && photo.width.toLong() * photo.height < item.width.toLong() * item.height * 9 / 10
             val file = File(File(app.cacheDir, "edits").apply { mkdirs() }, "edit-${System.nanoTime()}.jpg")
             try {
+                val wasHdr = Hdr.has(photo)
                 val made = try {
                     render(photo, edit)
                 } catch (e: OutOfMemoryError) {
@@ -82,14 +93,21 @@ class AndroidEditor(context: Context) : EditorPlatform {
                 }
                 val width = made.width
                 val height = made.height
+                // An HDR photo's brightness map goes with the copy (16 Nov): Android writes it into the JPEG itself.
+                val hdr = Hdr.has(made)
                 file.outputStream().use { made.compress(Bitmap.CompressFormat.JPEG, QUALITY, it) }
                 made.recycle()
                 runCatching { copyDetails(from, file, width, height) }
+                val hdrKept = hdr && Hdr.inFile(file)
                 if (!intoGallery(file, item)) return@withContext EditSaved(false, "Couldn't save the copy. The original is unchanged.")
                 EditSaved(
                     true,
-                    if (shrunk) "Saved a copy next to the original (a little smaller, to fit this phone's memory)."
-                    else "Saved a copy next to the original.",
+                    when {
+                        shrunk -> "Saved a copy next to the original (a little smaller, to fit this phone's memory)."
+                        hdrKept -> "Saved an HDR copy next to the original."
+                        wasHdr -> "Saved a copy next to the original (HDR couldn't be kept on this one)."
+                        else -> "Saved a copy next to the original."
+                    },
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -116,7 +134,10 @@ class AndroidEditor(context: Context) : EditorPlatform {
         val seenW = if (turns % 2 != 0) photo.height else photo.width
         val seenH = if (turns % 2 != 0) photo.width else photo.height
         val cut = EditMath.pixels(edit.crop, seenW, seenH)
-        matrix.postTranslate(-seen.left - cut[0], -seen.top - cut[1])
+        matrix.postTranslate(-seen.left, -seen.top)
+        // Straighten (16 Nov): tilted about the middle and enlarged to cover, before the crop.
+        if (edit.isTilted) matrix.postConcat(Straighten.matrix(seenW, seenH, edit.straighten))
+        matrix.postTranslate(-cut[0].toFloat(), -cut[1].toFloat())
         val space = photo.colorSpace
         val out = if (space != null) Bitmap.createBitmap(cut[2], cut[3], Bitmap.Config.ARGB_8888, false, space)
         else Bitmap.createBitmap(cut[2], cut[3], Bitmap.Config.ARGB_8888)
@@ -132,6 +153,8 @@ class AndroidEditor(context: Context) : EditorPlatform {
             if (edit.hasColour) paint.colorFilter = ColorMatrixColorFilter(ColorMatrix(EditMath.colourMatrix(edit)))
             canvas.drawBitmap(photo, matrix, paint)
         }
+        // Never stops the save: a copy without HDR is still a good copy.
+        runCatching { Hdr.carry(photo, out, matrix) }
         return out
     }
 
@@ -227,6 +250,68 @@ class AndroidEditor(context: Context) : EditorPlatform {
             ExifInterface.TAG_GPS_TIMESTAMP, ExifInterface.TAG_GPS_DATESTAMP,
         )
     }
+}
+
+/** Straighten (16 Nov): a picture tilted about its middle and enlarged just enough to cover its own frame. */
+internal object Straighten {
+    fun matrix(w: Int, h: Int, degrees: Float): Matrix = Matrix().apply {
+        val s = EditMath.straightenScale(degrees, w, h)
+        postRotate(degrees, w / 2f, h / 2f)
+        postScale(s, s, w / 2f, h / 2f)
+    }
+
+    /** A new picture the same size as [source], tilted by [degrees]. */
+    fun apply(source: Bitmap, degrees: Float): Bitmap {
+        val space = source.colorSpace
+        val out = if (space != null) Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888, true, space)
+        else Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        Canvas(out).drawBitmap(source, matrix(source.width, source.height, degrees), Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG))
+        return out
+    }
+}
+
+/**
+ * HDR photos (16 Nov). Since Android 14 an HDR ("Ultra HDR") photo carries a small brightness map that tells HDR
+ * screens how much brighter each part may glow. The copy gets the same map, turned, tilted and cropped the same way
+ * as the picture, so it still glows. Older Android, or a photo without one: nothing happens.
+ */
+internal object Hdr {
+    fun has(bitmap: Bitmap): Boolean = android.os.Build.VERSION.SDK_INT >= 34 && bitmap.hasGainmap()
+
+    /** Gives [out] the brightness map of [photo]; [geometry] takes [photo]'s pixels to [out]'s. */
+    fun carry(photo: Bitmap, out: Bitmap, geometry: Matrix) {
+        if (android.os.Build.VERSION.SDK_INT < 34) return
+        val gain = photo.gainmap ?: return
+        val map = gain.gainmapContents
+        // The map covers the whole photo at a smaller size.
+        val sx = map.width / photo.width.toFloat()
+        val sy = map.height / photo.height.toFloat()
+        val w = (out.width * sx).toInt().coerceAtLeast(1)
+        val h = (out.height * sy).toInt().coerceAtLeast(1)
+        val m = Matrix().apply {
+            postScale(1f / sx, 1f / sy)
+            postConcat(geometry)
+            postScale(w / out.width.toFloat(), h / out.height.toFloat())
+        }
+        val config = if (map.config == Bitmap.Config.ALPHA_8) Bitmap.Config.ALPHA_8 else Bitmap.Config.ARGB_8888
+        val contents = Bitmap.createBitmap(w, h, config)
+        Canvas(contents).drawBitmap(map, m, Paint(Paint.FILTER_BITMAP_FLAG))
+        val copy = android.graphics.Gainmap(contents)
+        gain.ratioMin.let { copy.setRatioMin(it[0], it[1], it[2]) }
+        gain.ratioMax.let { copy.setRatioMax(it[0], it[1], it[2]) }
+        gain.gamma.let { copy.setGamma(it[0], it[1], it[2]) }
+        gain.epsilonSdr.let { copy.setEpsilonSdr(it[0], it[1], it[2]) }
+        gain.epsilonHdr.let { copy.setEpsilonHdr(it[0], it[1], it[2]) }
+        copy.displayRatioForFullHdr = gain.displayRatioForFullHdr
+        copy.minDisplayRatioForHdrTransition = gain.minDisplayRatioForHdrTransition
+        out.gainmap = copy
+    }
+
+    /** Whether the saved JPEG still has its brightness map (after the date and place were written into it). */
+    fun inFile(file: File): Boolean = android.os.Build.VERSION.SDK_INT >= 34 && runCatching {
+        val small = android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = 16 })
+        (small?.hasGainmap() == true).also { small?.recycle() }
+    }.getOrDefault(false)
 }
 
 /**

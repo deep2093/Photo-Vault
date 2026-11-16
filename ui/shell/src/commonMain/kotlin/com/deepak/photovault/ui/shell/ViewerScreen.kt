@@ -174,6 +174,9 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     LaunchedEffect(pager.currentPage) { videoStarted = false }
     val current = find(ids[pager.currentPage.coerceIn(0, ids.lastIndex)]) ?: return
     val video = remember(current.id) { VideoControls() }
+    // 16 Nov: a page opened over the viewer (the video editor) pauses the video here, so two never play at once.
+    val covered = state.overlays.lastOrNull() !is Overlay.Viewer
+    LaunchedEffect(covered) { if (covered) video.playing = false }
     // The frame strip opens only when the playing video's own thumbnail in the photo strip is tapped (24 Oct).
     var scrubbing by remember(current.id) { mutableStateOf(false) }
     if (videoStarted && current.isVideo) {
@@ -402,8 +405,9 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 solid = true,
                 bottom = system.calculateBottomPadding() + 12.dp + 60.dp + 8.dp,
             ) {
-                // Edit (Phase 11): photos on this phone; the editor saves a copy, the original stays.
-                if (!moreItem.isVideo && !moreItem.isDriveOnly && !gallery.isExternal(moreItem) && state.editor.platform.supported) {
+                // Edit (Phase 11): photos and (16 Nov) videos on this phone; it saves a copy, the original stays.
+                val editable = if (moreItem.isVideo) state.editor.platform.trimSupported else state.editor.platform.supported
+                if (!moreItem.isDriveOnly && !gallery.isExternal(moreItem) && editable) {
                     GlassMenuItem(Icons.Rounded.Tune, "Edit", onClick = { moreOpen = false; state.open(Overlay.Edit(moreItem.id)) })
                 }
                 if (!moreItem.isVideo) {

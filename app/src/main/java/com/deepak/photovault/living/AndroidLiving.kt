@@ -145,13 +145,15 @@ class AndroidLiving(context: Context) : LivingPlatform {
         withContext(Dispatchers.Default) {
             val bg = layers.background?.asAndroidBitmap() ?: return@withContext layers
             val turns = ((edit.turns % 4) + 4) % 4
-            if (turns == 0 && !edit.flipped && edit.crop.isFull && !edit.needsPixels) return@withContext layers
+            if (turns == 0 && !edit.flipped && edit.crop.isFull && !edit.needsPixels && !edit.isTilted) return@withContext layers
             fun shape(b: Bitmap): Bitmap {
                 val m = android.graphics.Matrix().apply {
                     postRotate(90f * turns)
                     if (edit.flipped) postScale(-1f, 1f)
                 }
-                val turned = if (turns == 0 && !edit.flipped) b else Bitmap.createBitmap(b, 0, 0, b.width, b.height, m, true)
+                val upright = if (turns == 0 && !edit.flipped) b else Bitmap.createBitmap(b, 0, 0, b.width, b.height, m, true)
+                // Straighten (16 Nov), as on the photo.
+                val turned = if (edit.isTilted) com.deepak.photovault.editor.Straighten.apply(upright, edit.straighten) else upright
                 val cut = com.deepak.photovault.core.media.EditMath.pixels(edit.crop, turned.width, turned.height)
                 val cropped = if (edit.crop.isFull) turned else Bitmap.createBitmap(turned, cut[0], cut[1], cut[2], cut[3])
                 if (!edit.needsPixels) return cropped
