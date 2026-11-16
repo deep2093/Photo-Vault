@@ -151,7 +151,8 @@ class PrivateToNormal(
         val to = NormalThumbs.pathFor(normalPath) ?: return
         try {
             var bytes = ByteArray(0)
-            vault.decryptFile(drive, from, ObjectKind.THUMB) { b, n -> bytes += b.copyOf(n) }
+            // The preview is stored under the photo's own ID (its file ends .pxt, not .pxo).
+            vault.decrypt(ObjectKind.THUMB, PrivatePaths.idOf(privatePath), { sink -> drive.readStream(from, sink) }) { b, n -> bytes += b.copyOf(n) }
             if (bytes.isEmpty()) return
             drive.mkdirs(DrivePaths.parent(to))
             drive.createNew(to, bytes)
