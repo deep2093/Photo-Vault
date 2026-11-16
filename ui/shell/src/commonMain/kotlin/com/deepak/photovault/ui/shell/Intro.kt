@@ -100,10 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-16-7"
+    const val ID = "2026-11-16-8"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Opening and closing a photo no longer jumps", "The photo starts moving the moment you tap, and the rest of the viewer appears once it has landed. It is also a little quicker."),
+        Change(ChangeKind.NEW, "Memories at the top of Photos", "Today's memories show as a row of cards above your photos. One you've played leaves the row until tomorrow; the Memories button still has them all."),
+        Change(ChangeKind.NEW, "Memories play like a story", "Tap a memory and it plays full screen, one picture after the other. Tap right for the next, left for the one before, hold to pause, swipe down to close."),
     )
 }
 

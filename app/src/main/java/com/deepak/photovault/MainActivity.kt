@@ -914,6 +914,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         pinBottomBar = prefs.getBoolean("pin_bottom_bar", false),
         memoriesNotice = prefs.getBoolean("memories_notice", true),
         memoriesSeen = prefs.getString("memories_seen", null).orEmpty(),
+        memoriesWatched = prefs.getString("memories_watched", null).orEmpty(),
         notifyBackupProblems = prefs.getBoolean(NotifyPrefs.BACKUP_PROBLEMS, true),
         notifyPeople = prefs.getBoolean(NotifyPrefs.PEOPLE, true),
         notifyFamily = prefs.getBoolean(NotifyPrefs.FAMILY, true),
@@ -940,6 +941,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("pin_bottom_bar", settings.pinBottomBar)
             .putBoolean("memories_notice", settings.memoriesNotice)
             .putString("memories_seen", settings.memoriesSeen)
+            .putString("memories_watched", settings.memoriesWatched)
             .putBoolean(NotifyPrefs.BACKUP_PROBLEMS, settings.notifyBackupProblems)
             .putBoolean(NotifyPrefs.PEOPLE, settings.notifyPeople)
             .putBoolean(NotifyPrefs.FAMILY, settings.notifyFamily)

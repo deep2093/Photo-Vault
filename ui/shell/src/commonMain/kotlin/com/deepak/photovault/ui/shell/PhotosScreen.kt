@@ -201,11 +201,15 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             dateColor = if (baseTheme.isDark) androidx.compose.ui.graphics.Color.White else ink,
                             header = {
                                 item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
+                                    // Memories not played yet today, as a row above the photos (16 Nov).
+                                    androidx.compose.foundation.layout.Column {
+                                    MemoriesStrip(state, gallery)
                                     androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = SCREEN_MARGIN)) {
                                         if (gallery.access == MediaAccess.PARTIAL) {
                                             WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
                                             GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
                                         }
+                                    }
                                     }
                                 }
                             },

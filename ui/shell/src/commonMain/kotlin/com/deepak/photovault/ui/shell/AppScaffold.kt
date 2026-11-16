@@ -667,6 +667,8 @@ private fun OverlayPage(
         Box(Modifier.fillMaxSize().blockTouchesBelow()) {
             if (overlay is Overlay.Viewer) {
                 ViewerScreen(overlay, state, gallery, actions)
+            } else if (overlay is Overlay.Story) {
+                StoryScreen(overlay, state, gallery, actions)
             } else {
                 GlassBackground(Modifier.fillMaxSize()) {
                     when (overlay) {
@@ -699,6 +701,7 @@ private fun OverlayPage(
                         Overlay.Duplicates -> DuplicatesScreen(state, gallery, actions)
                         Overlay.HiddenAlbums -> HiddenAlbumsScreen(state, gallery)
                         is Overlay.Viewer -> Unit
+                        is Overlay.Story -> Unit
                     }
                 }
             }
@@ -707,7 +710,7 @@ private fun OverlayPage(
 }
 
 /** Every page except the photo viewer slides in from the edge like a sliding door (24 Oct; before: only Settings pages). */
-internal fun Overlay?.slidesSideways(): Boolean = this != null && this !is Overlay.Viewer
+internal fun Overlay?.slidesSideways(): Boolean = this != null && this !is Overlay.Viewer && this !is Overlay.Story
 
 /** Takes part in touch hit-testing everywhere it covers, so siblings drawn underneath never receive touches. */
 private fun Modifier.blockTouchesBelow(): Modifier = pointerInput(Unit) {

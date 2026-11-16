@@ -14,6 +14,9 @@ data class Memory(val year: Int, val yearsAgo: Int, val sameDay: Boolean, val id
     val title: String get() = if (month > 0) "${Timeline.monthName(kotlinx.datetime.Month.entries[month - 1])} $year" else
         (if (yearsAgo == 1) "1 year ago" else "$yearsAgo years ago") + if (sameDay) " today" else " this week"
 
+    /** Tells one of today's memories from another: the year, and the month for a "this month" one. */
+    val key: String get() = "$year-$month"
+
     /** "1 year ago", "3 years ago". */
     val ago: String get() = if (yearsAgo == 1) "1 year ago" else "$yearsAgo years ago"
 }

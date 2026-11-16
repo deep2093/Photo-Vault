@@ -143,14 +143,14 @@ fun MemoriesScreen(state: ShellState, gallery: GalleryState) {
             // The newest year large, the rest in a row below.
             item(key = "dayHero") {
                 MemoryCard(day.first(), byId, width = null, height = 260.dp, big = true, modifier = Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN), living = state.living) {
-                    state.open(Overlay.Photos(day.first().title, day.first().ids))
+                    state.open(Overlay.Story(day + month, 0))
                 }
             }
-            if (day.size > 1) item(key = "dayRow") { MemoryRow(day.drop(1), byId, state) }
+            if (day.size > 1) item(key = "dayRow") { MemoryRow(day.drop(1), byId, state, day + month) }
         }
         if (month.isNotEmpty()) {
             item(key = "monthTitle") { SectionTitle("This month in other years") }
-            item(key = "monthRow") { MemoryRow(month, byId, state) }
+            item(key = "monthRow") { MemoryRow(month, byId, state, day + month) }
         }
         item(key = "end") { Spacer(Modifier.height(8.dp)) }
     }
@@ -169,7 +169,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun MemoryRow(list: List<Memory>, byId: Map<Long, MediaItem>, state: ShellState) {
+private fun MemoryRow(list: List<Memory>, byId: Map<Long, MediaItem>, state: ShellState, all: List<Memory>) {
     LazyRow(
         Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = SCREEN_MARGIN),
@@ -181,7 +181,33 @@ private fun MemoryRow(list: List<Memory>, byId: Map<Long, MediaItem>, state: She
                 m, byId, width = 150.dp, height = 200.dp, big = false, modifier = Modifier.animateItem(),
                 living = state.living, makeNow = false, delayMs = (list.indexOf(m) % 4) * 1500,
             ) {
-                state.open(Overlay.Photos(m.title, m.ids))
+                // Plays like a story (16 Nov), carrying on into the memories after it.
+                state.open(Overlay.Story(all, all.indexOf(m).coerceAtLeast(0)))
+            }
+        }
+    }
+}
+
+/**
+ * Memories at the top of Photos (16 Nov, like Google Photos): one small card per memory not played yet today. Tap one
+ * and it plays like a story; a played one leaves the row until tomorrow (the Memories button still has them all).
+ * Nothing at all when there are none.
+ */
+@Composable
+internal fun MemoriesStrip(state: ShellState, gallery: GalleryState) {
+    val (day, month) = rememberTodayMemories(gallery)
+    val watched = state.memoriesWatchedToday
+    val fresh = remember(day, month, watched) { (day + month).filter { it.key !in watched } }
+    if (fresh.isEmpty()) return
+    val byId = remember(gallery.items) { gallery.items.associateBy { it.id } }
+    LazyRow(
+        Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        contentPadding = PaddingValues(horizontal = SCREEN_MARGIN),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(fresh, key = { it.key }) { m ->
+            MemoryCard(m, byId, width = 112.dp, height = 156.dp, big = false, modifier = Modifier.animateItem()) {
+                state.open(Overlay.Story(fresh, fresh.indexOf(m).coerceAtLeast(0)))
             }
         }
     }

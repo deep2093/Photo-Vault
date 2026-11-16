@@ -73,6 +73,11 @@ data class AppearanceSettings(
     val memoriesNotice: Boolean = true,
     /** The day the Memories page was last opened ("2026-11-08"); the dot on Photos' Memories button waits for the next day. */
     val memoriesSeen: String = "",
+    /**
+     * Memories already played today (16 Nov), so they leave the row on Photos: today's date, then one key per memory,
+     * joined with "|". Another day's list counts as empty.
+     */
+    val memoriesWatched: String = "",
     /** Settings > Notifications (8 Nov): each kind of notification on or off. On by default. */
     val notifyBackupProblems: Boolean = true,
     val notifyPeople: Boolean = true,
@@ -151,6 +156,9 @@ sealed interface Overlay {
 
     /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
     data class Viewer(val ids: List<Long>, val startId: Long, val trash: Boolean = false) : Overlay
+
+    /** Memories played like a story (16 Nov): [memories] one after the other, starting at [index]. */
+    data class Story(val memories: List<Memory>, val index: Int = 0) : Overlay
 
     data object Search : Overlay
 
@@ -345,6 +353,18 @@ class ShellState(private val store: AppearanceStore) {
 
     /** How far the first open page covers the section underneath (0 to 1). Set by the page host, read while drawing. */
     var sectionCover: () -> Float = { 0f }
+
+    /** The memories played today (their keys), for the row on Photos. */
+    val memoriesWatchedToday: Set<String>
+        get() = appearance.memoriesWatched.split('|').let { if (it.firstOrNull() == todayKey()) it.drop(1).toSet() else emptySet() }
+
+    /** A memory that was opened leaves the row until tomorrow; the dot on the Memories button goes too. */
+    fun markMemoryWatched(memory: Memory) {
+        val watched = memoriesWatchedToday
+        if (memory.key in watched) return
+        val today = todayKey()
+        updateAppearance { it.copy(memoriesWatched = (listOf(today) + watched + memory.key).joinToString("|"), memoriesSeen = today) }
+    }
 
     /** A back gesture moves the top page itself only when nothing smaller (a selection, the details) would close first. */
     val canDragBack: Boolean
