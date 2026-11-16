@@ -112,8 +112,8 @@ data class BackupSettings(
     /** Free up space (29 Oct): 0 = Off (default); otherwise a phone copy may go to Recently deleted this many days after its backup, once checked again. */
     val freeUpDays: Int = 0,
     /**
-     * Switched from Private to Normal and asked for the private backups to become normal pictures too (7 Nov). The
-     * converting itself comes in Phase 10A; until then this only remembers the choice.
+     * Switched from Private to Normal and asked for the private backups to become normal pictures too (7 Nov). Since
+     * 16 Nov [PrivateToNormal] does it after a family drive backup and clears this when nothing private is left.
      */
     val convertPrivateToNormal: Boolean = false,
     /** The first-time questions (privacy, quality, videos) were answered after joining (10 Nov). */

@@ -100,11 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-16-3"
+    const val ID = "2026-11-16-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "A tidy-up inside", "Unused parts left over from older layouts were removed and a few repeated pieces now share one copy. Nothing should look or work differently."),
-        Change(ChangeKind.FIXED, "Welcome tour brought up to date", "It now mentions backing up to your own Google Drive, instead of saying nothing goes to the internet."),
+        Change(ChangeKind.NEW, "Private backups can become normal pictures", "If you switch Backup privacy from Private to Normal and choose Make them normal, Pixallery now does it: after a backup to the family drive, each private file is checked and saved as an ordinary picture in your albums. Private copies in Google Drive stay private."),
+        Change(ChangeKind.CHANGED, "A tidy-up inside", "Saving a photo or video into your gallery (edited copies, trimmed videos, restores, the Secured folder) now uses one shared piece. Nothing should look or work differently."),
     )
 }
 

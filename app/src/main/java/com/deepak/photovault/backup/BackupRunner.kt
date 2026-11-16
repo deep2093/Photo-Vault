@@ -216,6 +216,23 @@ class BackupRunner(
             } finally {
                 withContext(NonCancellable) { turn.finish() }
             }
+            // Private made normal (Phase 10A, 16 Nov): for someone who went back to Normal and chose "Make them
+            // normal", their private backups become ordinary pictures, one checked file at a time. Never fails the
+            // backup; what isn't done this time is done after a later one. Needs the private key on this phone.
+            if (privacy == com.deepak.photovault.core.backup.BackupPrivacy.NORMAL && settings.convertPrivateToNormal) {
+                try {
+                    val key = com.deepak.photovault.PrivateKeys.vault(context, joined.household.householdId, joined.me.userId)
+                    if (key != null) {
+                        val done = com.deepak.photovault.core.backup.PrivateToNormal(
+                            fs, joined.me.userId, platform.deviceId, key, System::currentTimeMillis, TimeZone.currentSystemDefault(),
+                        ) { FileSpool(context) }.run()
+                        if (done.finished) settingsStore.save(settingsStore.load().copy(convertPrivateToNormal = false))
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                }
+            }
             // The Secured folder's encrypted copy goes up after the photos (8A part 2). Never fails the backup.
             if (com.deepak.photovault.SecuredKeys.driveCopyOn(context) && com.deepak.photovault.SecuredKeys.store(context) != null) {
                 try {

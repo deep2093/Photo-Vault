@@ -416,37 +416,10 @@ class BackupEngine(
     }
 
     /** Renames [temp] to [name] in [folder] without replacing; "name (2).jpg" and so on when taken. */
-    private suspend fun publish(temp: String, folder: String, name: String, sha256: String, size: Long): String {
-        val dot = name.lastIndexOf('.').takeIf { it > 0 } ?: name.length
-        val base = name.substring(0, dot)
-        val ext = name.substring(dot)
-        for (n in 1..MAX_NAME_TRIES) {
-            val candidate = DrivePaths.join(folder, if (n == 1) name else "$base ($n)$ext")
-            if (drive.rename(temp, candidate)) return candidate
-            if (isSameFile(candidate, sha256, size)) {
-                // Backed up before (by this phone before a reinstall, or another phone of the same person).
-                drive.delete(temp)
-                return candidate
-            }
-        }
-        error("Too many files with the name $name")
-    }
+    private suspend fun publish(temp: String, folder: String, name: String, sha256: String, size: Long): String =
+        DrivePublish.publish(drive, temp, folder, name, sha256, size)
 
-    private suspend fun isSameFile(path: String, sha256: String, size: Long): Boolean {
-        val entry = drive.list(DrivePaths.parent(path)).firstOrNull { it.name == path.substringAfterLast('/') } ?: return false
-        if (entry.isFolder || entry.size != size) return false
-        return checksumOnDrive(path).first == sha256
-    }
-
-    private suspend fun checksumOnDrive(path: String): Pair<String, Long> {
-        val hasher = newSha256()
-        var size = 0L
-        drive.readStream(path) { buffer, n ->
-            hasher.update(buffer, 0, n)
-            size += n
-        }
-        return hasher.hex() to size
-    }
+    private suspend fun checksumOnDrive(path: String): Pair<String, Long> = DrivePublish.checksum(drive, path)
 
     /** users/<id>/albums/<phone album>/YYYY/MM (24 Oct: the drive mirrors the phone's albums). */
     private fun folderFor(item: MediaItem): String {
@@ -496,7 +469,6 @@ class BackupEngine(
         /** Stop before the drive is completely full, so the router and other phones still work. */
         const val DRIVE_MARGIN_BYTES = 1_000_000_000L
         const val MANIFEST_BATCH = 25
-        private const val MAX_NAME_TRIES = 200
 
         internal val json = Json {
             ignoreUnknownKeys = true

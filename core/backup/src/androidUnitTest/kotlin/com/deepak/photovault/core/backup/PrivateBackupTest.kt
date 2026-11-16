@@ -165,4 +165,63 @@ class PrivateBackupTest {
         drive.delete(stored)
         assertEquals(1, e.verifyForRemoval(ready).second)
     }
+
+    // ---- Private made normal (Phase 10A, 16 Nov) ----
+
+    private fun converter() = PrivateToNormal(drive, USER, PHONE, vault, { tick() }, TimeZone.UTC)
+
+    @Test
+    fun privateBackupsBecomeNormalPicturesAnyoneCanRead() = runTest {
+        backUp(photo(1, "IMG_1.jpg", 2_500_000), photo(2, "IMG_2.jpg", 10))
+        val before = BackupCatalog(drive, USER, vault).records()
+        val result = converter().run()
+        assertEquals(PrivateToNormal.Result(converted = 2, failed = 0, left = 0), result)
+        assertTrue(result.finished)
+        // Readable without the key now, as ordinary files in the albums, byte for byte the same.
+        val records = BackupCatalog(drive, USER).records()
+        assertEquals(setOf("users/$USER/albums/Camera/2026/10/IMG_1.jpg", "users/$USER/albums/Camera/2026/10/IMG_2.jpg"), records.map { it.drivePath }.toSet())
+        assertTrue(records.none { it.encrypted })
+        assertTrue(files[1]!!.contentEquals(drive.read("users/$USER/albums/Camera/2026/10/IMG_1.jpg")))
+        // Everything else about each backup is kept (which photo it is, checksum, date).
+        assertEquals(before.map { Triple(it.key, it.sha256, it.takenAtMillis) }.toSet(), records.map { Triple(it.key, it.sha256, it.takenAtMillis) }.toSet())
+        // The private files and their previews are gone; normal previews took their place.
+        val all = drive.allFiles()
+        assertTrue(all.none { it.endsWith(".pxo") || it.endsWith(".pxt") || it.endsWith(".part") }, all.toString())
+        assertEquals("thumb-1", drive.read("users/$USER/thumbs/Camera/2026/10/IMG_1.jpg.jpg").decodeToString())
+        // The key-holder sees the same two, and there is nothing left to do.
+        assertEquals(2, BackupCatalog(drive, USER, vault).records().size)
+        assertEquals(PrivateToNormal.Result(0, 0, 0), converter().run())
+    }
+
+    @Test
+    fun aDamagedPrivateFileStaysPrivateAndTheRestStillConvert() = runTest {
+        backUp(photo(1, "IMG_1.jpg", 1_200_000), photo(2, "IMG_2.jpg", 500))
+        val bad = BackupCatalog(drive, USER, vault).records().single { it.originalName == "IMG_1.jpg" }
+        val bytes = drive.read(bad.drivePath)
+        bytes[bytes.size / 2] = (bytes[bytes.size / 2] + 1).toByte()
+        drive.delete(bad.drivePath)
+        drive.createNew(bad.drivePath, bytes)
+        val result = converter().run()
+        assertEquals(PrivateToNormal.Result(converted = 1, failed = 1, left = 0), result)
+        assertFalse(result.finished)
+        val records = BackupCatalog(drive, USER, vault).records()
+        assertEquals(true, records.single { it.originalName == "IMG_1.jpg" }.encrypted)
+        assertEquals(false, records.single { it.drivePath.endsWith("IMG_2.jpg") }.encrypted)
+        assertTrue(drive.exists(bad.drivePath))
+        assertTrue(drive.allFiles().none { it.endsWith(".part") })
+    }
+
+    @Test
+    fun stoppingPartWayLosesNothingAndGoingOnDoesNotDoubleAnything() = runTest {
+        backUp(photo(1, "IMG_1.jpg", 4000), photo(2, "IMG_2.jpg", 5000), photo(3, "IMG_3.jpg", 6000))
+        val first = converter().run(limit = 1)
+        assertEquals(1, first.converted)
+        assertEquals(2, first.left)
+        assertEquals(3, BackupCatalog(drive, USER, vault).records().size)
+        val second = converter().run()
+        assertEquals(PrivateToNormal.Result(2, 0, 0), second)
+        val records = BackupCatalog(drive, USER).records()
+        assertEquals(3, records.size)
+        assertEquals(3, drive.allFiles().count { it.startsWith("users/$USER/albums/") })
+    }
 }

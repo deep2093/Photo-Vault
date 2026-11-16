@@ -125,7 +125,7 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
                 modifier = Modifier.padding(top = 8.dp),
             )
             Text(
-                "Making them normal comes in a later update. Pixallery remembers your choice and does it then, on home Wi-Fi while charging.",
+                "Making them normal happens after your next backups to the family drive, one checked file at a time; it can take a few backups. Private copies in Google Drive stay private.",
                 color = theme.onGlassSecondary,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp),
