@@ -354,7 +354,7 @@ fun SelectableScreen(
                     val ids = selectedItems.map { it.id }.toSet()
                     gallery.toggleFavourite(selectedItems)
                     // 18 Nov: Undo puts each one back exactly as it was.
-                    state.say(if (removing) "Removed from Favourites." else "Added to Favourites.", "Undo") { gallery.restoreFavourites(ids, before) }
+                    state.say(if (removing) "Removed from Favourites." else "Added to Favourites.", if (removing) "Undo remove" else "Undo favourite") { gallery.restoreFavourites(ids, before) }
                     state.selected = emptySet()
                 })
                 GlassIconButton(

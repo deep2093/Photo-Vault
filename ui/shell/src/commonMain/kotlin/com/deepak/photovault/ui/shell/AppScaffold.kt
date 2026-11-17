@@ -81,6 +81,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -288,7 +290,7 @@ fun PhotoVaultApp(
                 // ask again). Not for photos only on the drive, which go back from the drive's own Recently deleted.
                 prompt.onTrashed = { trashActions, items ->
                     val words = if (items.size == 1) (if (items[0].isVideo) "1 video" else "1 photo") else "${items.size} items"
-                    if (items.none { it.isDriveOnly }) state.say("Moved $words to Recently deleted.", "Undo") { trashActions.restore(items) }
+                    if (items.none { it.isDriveOnly }) state.say("Moved $words to Recently deleted.", "Undo delete") { trashActions.restore(items) }
                     else state.say("Moved $words to Recently deleted.")
                 }
             }
@@ -355,6 +357,32 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
     ) {
         val shown = last ?: return@AnimatedVisibility
         val theme = LocalGlassTheme.current
+        val act = shown.action
+        val label = shown.actionLabel
+        if (act != null && label != null) {
+            // 18 Nov (Deepak: "just Undo delete, short, with an undo arrow, in the centre"): a small pill in the middle,
+            // the whole pill the button. TalkBack reads the full sentence, then the button.
+            Row(
+                Modifier
+                    .glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                        state.dismissMessage(shown)
+                        act()
+                    }
+                    .semantics(mergeDescendants = true) {
+                        liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite
+                        contentDescription = "${shown.text} $label"
+                    }
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.Undo, null, tint = theme.onGlass, modifier = Modifier.size(20.dp))
+                Text(label, color = theme.onGlass, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            }
+            return@AnimatedVisibility
+        }
         val shape = RoundedCornerShape(24.dp)
         Row(
             Modifier
@@ -365,27 +393,10 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
                 .clickable(onClickLabel = "Close message") { state.dismissMessage(shown) }
                 .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }
                 .heightIn(min = 52.dp)
-                .padding(start = 18.dp, end = if (shown.action != null) 6.dp else 18.dp),
+                .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(shown.text, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 14.dp))
-            val act = shown.action
-            if (act != null && shown.actionLabel != null) {
-                // Undo (18 Nov): the bar's one button, in bold so it reads as a button on any theme.
-                Box(
-                    Modifier
-                        .heightIn(min = 48.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button) {
-                            state.dismissMessage(shown)
-                            act()
-                        }
-                        .padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(shown.actionLabel, color = theme.onGlass, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                }
-            }
         }
     }
 }

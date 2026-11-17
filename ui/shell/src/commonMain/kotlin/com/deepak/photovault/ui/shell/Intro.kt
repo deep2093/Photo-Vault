@@ -100,14 +100,15 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-4"
+    const val ID = "2026-11-18-5"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
+        Change(ChangeKind.FIXED, "Clear main buttons", "Buttons like Move to bin are now solid in the theme's colour, so they no longer look greyed out."),
+        Change(ChangeKind.CHANGED, "Back to top looks like the back button", "The arrow sits on frosted glass in the theme's own colours: light by day, dark at night."),
+        Change(ChangeKind.CHANGED, "Short Undo", "After deleting, a small Undo delete button appears in the middle at the bottom. Favourites and hidden albums get the same."),
         Change(ChangeKind.CHANGED, "Four themes that look their own", "Liquid is sky blue by day and a deep sea at night; Luminous an aurora, lilac and mint or violet and green; Photo warm paper or graphite; Vivid bold colours from your photos."),
-        Change(ChangeKind.NEW, "Undo", "After moving photos to Recently deleted, changing Favourites or hiding an album, the message at the bottom has Undo."),
         Change(ChangeKind.NEW, "Save works for HEIC photos too", "Photos that can't be changed in place (HEIC and the like) are saved as a JPEG with the same name, date, place and camera details, and keep their favourite mark. Android asks before the original goes to Recently deleted."),
         Change(ChangeKind.FIXED, "The date in Photos is easy to read", "It sits on its own frosted bar over the photos, lined up with Years / Months / All."),
-        Change(ChangeKind.FIXED, "Back to top is easy to see", "A solid button with a clear arrow, on photos and on the page alike."),
     )
 }
 

@@ -101,6 +101,9 @@ fun GlassButton(
             .then(
                 when {
                     danger -> Modifier.clip(shape).background(DangerColor).glassDepth().glassRim(shape)
+                    // Calm glass (18 Nov, Deepak: "Move to bin isn't correct in any theme"): the main button is solid in
+                    // the theme's accent colour, not a soft shade that looked greyed out.
+                    primary && GlassFinish.CALM -> Modifier.clip(shape).background(theme.accent)
                     primary -> Modifier.clip(shape).background(theme.accentSurface).glassDepth().glassRim(shape)
                     else -> Modifier.glassPanel(shape)
                 },
@@ -113,7 +116,7 @@ fun GlassButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (centered) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
     ) {
-        val fg = if (danger) Color.White else if (primary) theme.onAccent else theme.onGlass
+        val fg = if (danger) Color.White else if (primary && GlassFinish.CALM) readableOn(theme.accent) else if (primary) theme.onAccent else theme.onGlass
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
         Text(text, color = fg, style = MaterialTheme.typography.labelLarge)
     }

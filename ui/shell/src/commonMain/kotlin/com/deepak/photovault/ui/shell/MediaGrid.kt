@@ -493,23 +493,18 @@ internal fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier:
     }
     val show = away && !(goingDown && grid.isScrollInProgress)
     AnimatedVisibility(visible = show, enter = fadeIn(motionSpec()) + scaleIn(motionSpec(), initialScale = 0.8f), exit = fadeOut(motionSpec()) + scaleOut(motionSpec(), targetScale = 0.8f), modifier = modifier) {
-        // 18 Nov (Deepak: "arrow hard to see everywhere"): a solid button in the theme's text colour with the arrow in
-        // the opposite one (dark with a white arrow by day, white with a dark arrow at night), ringed in that opposite
-        // colour so it stands out on photos and on the page alike. It was see-through glass, which can't blur inside
-        // the scrolling page and left a faint ring. No drop shadow: under a fading circle it showed as a square.
+        // 18 Nov (Deepak: "same like the back arrow"): the back button's look, the arrow in the theme's text colour
+        // on frosted glass, light by day and dark at night. Solid frost, since blur can't be drawn inside the scrolling
+        // page (the see-through version left only a faint ring). No drop shadow: under a fading circle it showed as a square.
         val theme = LocalGlassTheme.current
-        val fill = theme.onGlass
-        val arrow = if (theme.isDark) Color(0xFF14171C) else Color.White
         Box(
             Modifier
                 .size(48.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(fill)
-                .border(1.5.dp, arrow.copy(alpha = 0.7f), androidx.compose.foundation.shape.CircleShape)
+                .solidGlass(androidx.compose.foundation.shape.CircleShape)
                 .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Rounded.ArrowUpward, "Back to top", tint = arrow, modifier = Modifier.size(26.dp))
+            Icon(Icons.Rounded.ArrowUpward, "Back to top", tint = theme.onGlass, modifier = Modifier.size(24.dp))
         }
     }
 }
