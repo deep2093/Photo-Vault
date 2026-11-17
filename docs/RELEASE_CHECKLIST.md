@@ -169,6 +169,9 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   tests. (Added 17 Nov, Deepak.) HDR photos open in HDR (Android 14+); the editor has Save beside Save copy (the
   original goes to Recently deleted for 30 days); a saved copy shows in the viewer at once. Built 17 Nov on
   `feature/cleanup`, not yet tried on a phone.
+  Next build (Deepak, 18 Nov): photos that can't be written back in their own kind (HEIC and the rest) get Save
+  too: the edit is saved as a JPEG with the same name in the same album, with the date, place and camera details;
+  the original goes to Recently deleted for 30 days (Android asks first); its favourite mark is carried over.
 - [ ] **D19 · Finding a drive that moved: a switch, explained during set-up.** Who: Claude built it, Deepak tests.
   (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
   Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to
