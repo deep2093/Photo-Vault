@@ -55,16 +55,44 @@ internal object GallerySave {
         folders: List<String>,
         takenAtMillis: Long?,
         write: (OutputStream) -> Unit,
-    ): Boolean {
+    ): Boolean = saveUri(resolver, collection, name, mime, folders, takenAtMillis, write = write) != null
+
+    /** What [saveUri] made: the new entry, and whether it went straight into Recently deleted. */
+    class Saved(val uri: Uri, val trashed: Boolean)
+
+    /**
+     * As [save], but returns the new entry (17 Nov: the viewer shows a saved copy at once). With [trashed] the entry
+     * goes straight into Recently deleted, where Android keeps it for 30 days (the original kept when an edit is
+     * saved over a photo); if Android won't put it there, it is shown normally and [Saved.trashed] is false.
+     */
+    fun saveUri(
+        resolver: ContentResolver,
+        collection: Uri,
+        name: String,
+        mime: String,
+        folders: List<String>,
+        takenAtMillis: Long?,
+        trashed: Boolean = false,
+        write: (OutputStream) -> Unit,
+    ): Saved? {
         for (folder in folders) {
             val uri = begin(resolver, collection, name, mime, listOf(folder), takenAtMillis) ?: continue
-            val written = runCatching {
-                resolver.openOutputStream(uri)?.use(write) ?: error("no stream")
-                resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
-            }.isSuccess
-            if (written) return true
+            val written = runCatching { resolver.openOutputStream(uri)?.use(write) ?: error("no stream") }.isSuccess
+            if (written) {
+                if (trashed) {
+                    val inBin = runCatching {
+                        resolver.update(uri, ContentValues().apply {
+                            put(MediaStore.MediaColumns.IS_PENDING, 0)
+                            put(MediaStore.MediaColumns.IS_TRASHED, 1)
+                        }, null, null)
+                    }.getOrDefault(0) > 0
+                    if (inBin) return Saved(uri, trashed = true)
+                }
+                val shown = runCatching { resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null) }.isSuccess
+                if (shown) return Saved(uri, trashed = false)
+            }
             discard(resolver, uri)
         }
-        return false
+        return null
     }
 }

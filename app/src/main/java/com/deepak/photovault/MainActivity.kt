@@ -173,6 +173,36 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
     }
 
+    /** Waiting for Android's "allow changes" answer before saving an edit over a photo (17 Nov). */
+    private var pendingChange: kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+
+    private val changeLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        pendingChange?.complete(result.resultCode == RESULT_OK)
+        pendingChange = null
+    }
+
+    /** Asks Android for leave to change [uri]; true when the person allowed it (or Pixallery may manage media). */
+    private suspend fun askToChange(uri: Uri): Boolean = withContext(Dispatchers.Main) {
+        pendingChange?.complete(false)
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>().also { pendingChange = it }
+        val asked = runCatching {
+            val request = MediaStore.createWriteRequest(contentResolver, listOf(uri))
+            changeLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+        }.isSuccess
+        if (!asked) {
+            pendingChange = null
+            return@withContext false
+        }
+        answer.await()
+    }
+
+    /** The screen in HDR while an HDR photo is open (17 Nov). Android 14 and later draw a photo's HDR map. */
+    override fun showHdr(on: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT < 34) return
+        val mode = if (on) android.content.pm.ActivityInfo.COLOR_MODE_HDR else android.content.pm.ActivityInfo.COLOR_MODE_DEFAULT
+        if (window.colorMode != mode) window.colorMode = mode
+    }
+
     /** Waiting for Android's "allow changes" answer before moving photos to another album. */
     private class PendingMove(val items: List<MediaItem>, val destPath: String?, val newName: String?, val done: (String?) -> Unit)
     private var pendingMove: PendingMove? = null
@@ -295,8 +325,8 @@ class MainActivity : ComponentActivity(), MediaActions {
         state.tags = com.deepak.photovault.ui.shell.TagsState(AndroidTags(this))
         lifecycleScope.launch { runCatching { state.tags.refresh() } }
         state.living = com.deepak.photovault.ui.shell.LivingState(com.deepak.photovault.living.AndroidLiving(this))
-        // The photo editor (Phase 11): crop, turn, light and colour, looks; always saves a copy.
-        state.editor = com.deepak.photovault.ui.shell.EditorState(com.deepak.photovault.editor.AndroidEditor(this))
+        // The photo editor (Phase 11): crop, turn, light and colour, looks; saves a copy, or over the photo (17 Nov).
+        state.editor = com.deepak.photovault.ui.shell.EditorState(com.deepak.photovault.editor.AndroidEditor(this) { askToChange(it) })
         state.duplicates = com.deepak.photovault.ui.shell.DuplicateState(com.deepak.photovault.duplicates.AndroidDuplicates(this))
         val google = com.deepak.photovault.google.AndroidGoogle(
             this,

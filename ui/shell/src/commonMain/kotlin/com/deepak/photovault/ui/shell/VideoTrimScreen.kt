@@ -73,7 +73,7 @@ import kotlin.math.roundToInt
  * part plays round and round while you choose.
  */
 @Composable
-internal fun VideoTrimScreen(item: MediaItem, state: ShellState, actions: MediaActions) {
+internal fun VideoTrimScreen(item: MediaItem, state: ShellState, gallery: GalleryState, actions: MediaActions) {
     val editor = state.editor
     val scope = rememberCoroutineScope()
     val controls = remember(item.uri) { VideoControls() }
@@ -117,6 +117,11 @@ internal fun VideoTrimScreen(item: MediaItem, state: ShellState, actions: MediaA
         controls.playing = false
         scope.launch {
             val saved = runCatching { editor.platform.trim(item, start, endAt, mute) }.getOrElse { EditSaved(false, "Couldn't save the copy.") }
+            if (saved.ok) {
+                // 17 Nov: the viewer underneath shows the new copy straight away, next to the original.
+                saved.newId?.let { state.copySaved(item.id, it) }
+                kotlinx.coroutines.withTimeoutOrNull(3_000) { gallery.refresh() }
+            }
             saving = false
             actions.toast(saved.message)
             if (saved.ok) leave()

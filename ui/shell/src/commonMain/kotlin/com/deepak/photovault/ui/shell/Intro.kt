@@ -100,9 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-17-3"
+    const val ID = "2026-11-17-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
+        Change(ChangeKind.NEW, "HDR photos in HDR", "On Android 14 or later with an HDR screen, HDR photos open in the viewer with their full brightness."),
+        Change(ChangeKind.NEW, "Save over the original", "The editor has Save beside Save copy. Save puts your edit on the photo itself; the original goes to Recently deleted for 30 days."),
+        Change(ChangeKind.FIXED, "Saved copies show at once", "After Save copy or a video trim, the viewer goes straight to the new copy, next to the original."),
         Change(ChangeKind.FIXED, "Back to top is smooth again in Photos", "Tapping Photos again glides up evenly, as it does in Albums. It slowed down far too early since mixed photo sizes and the Memories row arrived."),
         Change(ChangeKind.NEW, "Find the drive if its address changes", "A switch in Settings > Drive. On: if the drive gets a new address, Pixallery checks the nearby ones, above and below."),
         Change(ChangeKind.FIXED, "Fewer copies left behind", "Copies the app makes for a moment (opening a private photo, sharing, editing, making private backups normal) are cleared when the app starts, even if it was closed part-way."),

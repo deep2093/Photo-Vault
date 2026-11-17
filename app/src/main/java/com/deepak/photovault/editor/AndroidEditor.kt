@@ -32,9 +32,14 @@ import java.io.File
 /**
  * The photo editor on Android (Phase 11, 15 Nov). The page edits a small copy of the photo so sliders stay smooth;
  * saving opens the full photo again, applies the same turn, mirror, crop and colours once, and writes a new JPEG
- * beside the original with its date, place and camera details. The original file is only ever read.
+ * beside the original with its date, place and camera details. "Save" (17 Nov) writes over the photo instead, after
+ * putting the untouched original in Recently deleted.
  */
-class AndroidEditor(context: Context) : EditorPlatform {
+class AndroidEditor(
+    context: Context,
+    /** Asks Android for leave to change [Uri] (the "Allow Pixallery to modify this photo?" question); true when given. */
+    private val permit: suspend (Uri) -> Boolean = { false },
+) : EditorPlatform {
     private val app = context.applicationContext
     private val resolver = app.contentResolver
 
@@ -77,38 +82,21 @@ class AndroidEditor(context: Context) : EditorPlatform {
 
     override suspend fun save(item: MediaItem, edit: PhotoEdit): EditSaved = saving.withLock {
         withContext(Dispatchers.Default) {
-            val from = Uri.parse(item.uri)
-            val budget = pixelBudget()
-            val photo = decode(from, budget) ?: return@withContext EditSaved(false, "Couldn't open this photo to save the copy.")
-            val shrunk = item.width.toLong() * item.height > 0 && photo.width.toLong() * photo.height < item.width.toLong() * item.height * 9 / 10
-            val file = File(File(app.cacheDir, "edits").apply { mkdirs() }, "edit-${System.nanoTime()}.jpg")
+            val file = tempFile("jpg")
             try {
-                val wasHdr = Hdr.has(photo)
-                val made = try {
-                    render(photo, edit)
-                } catch (e: OutOfMemoryError) {
-                    return@withContext EditSaved(false, "This photo is too big to edit on this phone right now.")
-                } finally {
-                    photo.recycle()
-                }
-                val width = made.width
-                val height = made.height
-                // An HDR photo's brightness map goes with the copy (16 Nov): Android writes it into the JPEG itself.
-                val hdr = Hdr.has(made)
-                file.outputStream().use { made.compress(Bitmap.CompressFormat.JPEG, QUALITY, it) }
-                made.recycle()
-                runCatching { copyDetails(from, file, width, height) }
-                val hdrKept = hdr && Hdr.inFile(file)
-                if (!intoGallery(file, item)) return@withContext EditSaved(false, "Couldn't save the copy. The original is unchanged.")
+                val made = make(item, edit, file, Bitmap.CompressFormat.JPEG)
+                if (made.problem != null) return@withContext EditSaved(false, made.problem)
+                val saved = intoGallery(file, item) ?: return@withContext EditSaved(false, "Couldn't save the copy. The original is unchanged.")
                 EditSaved(
                     true,
                     // Short (17 Nov): Android shows only two lines of a message, and the longer ones were cut off.
                     when {
-                        shrunk -> "Saved a smaller copy (${(width.toLong() * height + 500_000) / 1_000_000} MP) beside the original."
-                        hdrKept -> "Saved an HDR copy beside the original."
-                        wasHdr -> "Saved a copy beside the original, without HDR."
+                        made.shrunk -> "Saved a smaller copy (${(made.width.toLong() * made.height + 500_000) / 1_000_000} MP) beside the original."
+                        made.hdrKept -> "Saved an HDR copy beside the original."
+                        made.wasHdr -> "Saved a copy beside the original, without HDR."
                         else -> "Saved a copy beside the original."
                     },
+                    newId = runCatching { android.content.ContentUris.parseId(saved) }.getOrNull(),
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -118,6 +106,106 @@ class AndroidEditor(context: Context) : EditorPlatform {
                 file.delete()
             }
         }
+    }
+
+    /** Photos on this phone in a kind that can be written again as it is: JPEG, PNG and WebP (17 Nov). */
+    override fun canReplace(item: MediaItem): Boolean =
+        !item.isVideo && item.uri.startsWith("content://media/") && formatOf(item.mimeType) != null
+
+    /**
+     * Saves the edit over the photo itself (17 Nov, Deepak). Android asks the person first. Before anything is
+     * written, the untouched original is put in Recently deleted, where it stays for 30 days, so it can always be
+     * brought back. A photo that would have to be made smaller to fit the phone's memory is not saved over.
+     */
+    override suspend fun replace(item: MediaItem, edit: PhotoEdit): EditSaved = saving.withLock {
+        val target = Uri.parse(item.uri)
+        val format = formatOf(item.mimeType) ?: return@withLock EditSaved(false, "This kind of photo can't be saved over. Save a copy instead.")
+        if (!permit(target)) return@withLock EditSaved(false, "Not saved. The original is unchanged.")
+        withContext(Dispatchers.Default) {
+            val file = tempFile(item.displayName.substringAfterLast('.', "jpg").take(5))
+            try {
+                val made = make(item, edit, file, format)
+                if (made.problem != null) return@withContext EditSaved(false, made.problem)
+                if (made.shrunk) return@withContext EditSaved(false, "This photo is too big to save over on this phone. Save a copy instead.")
+                // 1. The original, untouched, into Recently deleted (or beside the photo, if Android won't take it there).
+                val kept = keepOriginal(item, target)
+                    ?: return@withContext EditSaved(false, "Couldn't keep the original, so nothing was changed. Save a copy instead.")
+                // 2. The edit written over the photo. Android notices the change and makes its preview again.
+                val written = runCatching {
+                    resolver.openOutputStream(target, "wt")?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream")
+                }.isSuccess
+                val where = if (kept.trashed) "The original is in Recently deleted for 30 days." else "The original is kept beside it."
+                if (!written) return@withContext EditSaved(false, "Couldn't save over the photo. $where")
+                EditSaved(
+                    true,
+                    when {
+                        made.hdrKept -> "Saved in HDR. $where"
+                        made.wasHdr -> "Saved, without HDR. $where"
+                        else -> "Saved. $where"
+                    },
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                EditSaved(false, "Couldn't save over the photo.")
+            } finally {
+                file.delete()
+            }
+        }
+    }
+
+    /** A plain copy of the original photo, straight into Recently deleted; null when it couldn't be made. */
+    private fun keepOriginal(item: MediaItem, from: Uri): com.deepak.photovault.GallerySave.Saved? {
+        val folders = listOfNotNull(item.folder?.trim('/')?.takeIf { it.isNotEmpty() }, "Pictures/Pixallery").distinct()
+        return com.deepak.photovault.GallerySave.saveUri(
+            resolver, com.deepak.photovault.GallerySave.photos, item.displayName, item.mimeType, folders, item.takenAtMillis, trashed = true,
+        ) { out ->
+            // The untouched file, place included when Android allows it.
+            val input = runCatching { resolver.openInputStream(MediaStore.setRequireOriginal(from)) }.getOrNull() ?: resolver.openInputStream(from)
+            (input ?: error("can't read the original")).use { it.copyTo(out) }
+        }
+    }
+
+    /** What [make] produced, or why it couldn't. */
+    private class Made(
+        val width: Int = 0,
+        val height: Int = 0,
+        val shrunk: Boolean = false,
+        val wasHdr: Boolean = false,
+        val hdrKept: Boolean = false,
+        val problem: String? = null,
+    )
+
+    /** The full photo with [edit], written to [file] as [format] with the original's date, place and camera details. */
+    private fun make(item: MediaItem, edit: PhotoEdit, file: File, format: Bitmap.CompressFormat): Made {
+        val from = Uri.parse(item.uri)
+        val photo = decode(from, pixelBudget()) ?: return Made(problem = "Couldn't open this photo to save it.")
+        val shrunk = item.width.toLong() * item.height > 0 && photo.width.toLong() * photo.height < item.width.toLong() * item.height * 9 / 10
+        val wasHdr = Hdr.has(photo)
+        val made = try {
+            render(photo, edit)
+        } catch (e: OutOfMemoryError) {
+            return Made(problem = "This photo is too big to edit on this phone right now.")
+        } finally {
+            photo.recycle()
+        }
+        val width = made.width
+        val height = made.height
+        // An HDR photo's brightness map goes with it (16 Nov): Android writes it into the JPEG itself.
+        val hdr = Hdr.has(made)
+        file.outputStream().use { made.compress(format, QUALITY, it) }
+        made.recycle()
+        runCatching { copyDetails(from, file, width, height) }
+        return Made(width, height, shrunk, wasHdr, hdrKept = hdr && Hdr.inFile(file))
+    }
+
+    private fun tempFile(extension: String) = File(File(app.cacheDir, "edits").apply { mkdirs() }, "edit-${System.nanoTime()}.$extension")
+
+    private fun formatOf(mime: String): Bitmap.CompressFormat? = when (mime.lowercase()) {
+        "image/jpeg", "image/jpg" -> Bitmap.CompressFormat.JPEG
+        "image/png" -> Bitmap.CompressFormat.PNG
+        "image/webp" -> Bitmap.CompressFormat.WEBP_LOSSY
+        else -> null
     }
 
     /** [turns] quarter turns clockwise, then a mirror left to right: the same order as [PhotoEdit]. */
@@ -160,11 +248,11 @@ class AndroidEditor(context: Context) : EditorPlatform {
     }
 
     /** Into the original's own folder (so it sits beside it in its album), else Pictures > Pixallery. */
-    private fun intoGallery(file: File, item: MediaItem): Boolean {
+    private fun intoGallery(file: File, item: MediaItem): Uri? {
         val folders = listOfNotNull(item.folder?.trim('/')?.takeIf { it.isNotEmpty() }, "Pictures/Pixallery").distinct()
-        return com.deepak.photovault.GallerySave.save(
+        return com.deepak.photovault.GallerySave.saveUri(
             resolver, com.deepak.photovault.GallerySave.photos, EditMath.copyName(item.displayName), "image/jpeg", folders, item.takenAtMillis,
-        ) { out -> file.inputStream().use { it.copyTo(out) } }
+        ) { out -> file.inputStream().use { it.copyTo(out) } }?.uri
     }
 
     /** Date, camera and place from the original onto the copy. The copy is already the right way up. */

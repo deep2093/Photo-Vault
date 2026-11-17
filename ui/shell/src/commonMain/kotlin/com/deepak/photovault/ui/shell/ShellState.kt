@@ -234,6 +234,19 @@ class ShellState(private val store: AppearanceStore) {
     internal var viewerShowing: Long? = null
 
     /**
+     * Copies saved from the editor or the video trimmer (17 Nov, Deepak: the copy didn't show in the viewer's strip
+     * until the viewer was opened again): each original's copies, newest first. The open viewer puts them just before
+     * their original, and goes to [showCopy] once the library has it.
+     */
+    internal val savedCopies = mutableStateMapOf<Long, List<Long>>()
+    internal var showCopy by mutableStateOf<Long?>(null)
+
+    internal fun copySaved(originalId: Long, copyId: Long) {
+        savedCopies[originalId] = listOf(copyId) + savedCopies[originalId].orEmpty()
+        showCopy = copyId
+    }
+
+    /**
      * Where the person was, as text, so a recreated app (rotation, theme or font change, Android reclaiming memory
      * while another app was open) opens on the same section and pages instead of Photos (25 Oct).
      * Pages that depend on a photo list (the viewer, storage files, cover picker) are not restored.

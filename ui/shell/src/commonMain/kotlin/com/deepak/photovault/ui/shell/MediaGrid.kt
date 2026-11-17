@@ -679,7 +679,7 @@ private fun PhotoTile(
             },
     ) {
         AsyncImage(
-            model = Thumb(item.uri, item.isVideo, bucket),
+            model = Thumb(item.uri, item.isVideo, bucket, item.sizeBytes),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             onSuccess = { result ->

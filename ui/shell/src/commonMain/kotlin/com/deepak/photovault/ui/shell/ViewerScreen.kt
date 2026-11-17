@@ -153,7 +153,12 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     // Recently deleted photos aren't in the library, so they are looked up among the deleted ones.
     val trashedById = remember(gallery.trashed) { gallery.trashed.associate { it.item.id to it.item } }
     val find: (Long) -> MediaItem? = if (viewer.trash) ({ trashedById[it] }) else gallery::find
-    val ids = remember(viewer.ids, gallery.items, trashedById) { viewer.ids.filter { find(it) != null } }
+    // Copies saved from the editor while the viewer was open go just before their original (17 Nov).
+    val copies = if (viewer.trash) emptyMap() else state.savedCopies.toMap()
+    val ids = remember(viewer.ids, gallery.items, trashedById, copies) {
+        val listed = viewer.ids.toHashSet()
+        viewer.ids.flatMap { id -> copies[id].orEmpty().filter { it !in listed } + id }.distinct().filter { find(it) != null }
+    }
     val flight = LocalDeleteFlight.current
     val prompt = LocalDeletePrompt.current
     val photoSpot = remember { ScreenSpot() }
@@ -167,6 +172,15 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     }
     val start = ids.indexOf(viewer.startId).coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = start) { ids.size }
+    // A copy just saved: shown as soon as the library has it.
+    LaunchedEffect(state.showCopy, ids) {
+        val target = state.showCopy ?: return@LaunchedEffect
+        val at = ids.indexOf(target)
+        if (at >= 0) {
+            state.showCopy = null
+            pager.animateScrollToPage(at)
+        }
+    }
     var barsVisible by rememberSaveable { mutableStateOf(true) }
     // A video that has been started on this page (24 Oct, Samsung-style): its controls and frame strip replace the
     // photo strip; a tap shows them, and while it plays they go away again after 3 seconds without a touch.
@@ -179,6 +193,11 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     // 16 Nov: a page opened over the viewer (the video editor) pauses the video here, so two never play at once.
     val covered = state.overlays.lastOrNull() !is Overlay.Viewer
     LaunchedEffect(covered) { if (covered) video.playing = false }
+    // HDR photos (17 Nov): the screen goes into HDR only while one is showing here, and back when it isn't.
+    val hdrPhotos = remember { androidx.compose.runtime.mutableStateMapOf<Long, Boolean>() }
+    val wantHdr = !covered && !LocalPageLeaving.current && !current.isVideo && hdrPhotos[current.id] == true
+    LaunchedEffect(wantHdr) { actions.showHdr(wantHdr) }
+    DisposableEffect(Unit) { onDispose { actions.showHdr(false) } }
     // The frame strip opens only when the playing video's own thumbnail in the photo strip is tapped (24 Oct).
     var scrubbing by remember(current.id) { mutableStateOf(false) }
     if (videoStarted && current.isVideo) {
@@ -266,7 +285,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                         },
                     )
                 } else {
-                    ZoomablePhoto(item, isCurrent = page == pager.currentPage, onTap = onTap)
+                    ZoomablePhoto(item, isCurrent = page == pager.currentPage, onTap = onTap, onHdr = { hdrPhotos[item.id] = it })
                 }
             }
 
@@ -513,7 +532,7 @@ private fun Filmstrip(ids: List<Long>, find: (Long) -> MediaItem?, pager: PagerS
     ) { index ->
         find(ids[index])?.let { item ->
             AsyncImage(
-                model = Thumb(item.uri, item.isVideo, 160),
+                model = Thumb(item.uri, item.isVideo, 160, item.sizeBytes),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -814,15 +833,16 @@ internal object FullPhoto {
     var width = 0
     var height = 0
 
-    fun request(context: coil3.PlatformContext, uri: String): ImageRequest =
+    fun request(context: coil3.PlatformContext, uri: String, version: Long = 0): ImageRequest =
         ImageRequest.Builder(context).data(uri).crossfade(FADE_MS)
             .apply { if (width > 0 && height > 0) size(width, height) }
+            .apply { if (version != 0L) memoryCacheKeyExtra("v", version.toString()) }
             .scale(coil3.size.Scale.FIT)
             .build()
 
     fun preload(context: coil3.PlatformContext, item: MediaItem) {
         if (item.isVideo || width <= 0 || height <= 0) return
-        coil3.SingletonImageLoader.get(context).enqueue(request(context, item.uri))
+        coil3.SingletonImageLoader.get(context).enqueue(request(context, item.uri, item.sizeBytes))
     }
 
     private const val FADE_MS = 110
@@ -830,7 +850,7 @@ internal object FullPhoto {
 
 /** Pinch to zoom (up to 6x), drag while zoomed, double-tap to zoom in or out, tap to toggle bars. */
 @Composable
-private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit) {
+private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit, onHdr: (Boolean) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val scale = remember(item.id) { Animatable(1f) }
     val offset = remember(item.id) { Animatable(Offset.Zero, Offset.VectorConverter) }
@@ -906,12 +926,15 @@ private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit
                     translationY = offset.value.y
                 },
         ) {
-            AsyncImage(model = Thumb(item.uri, false, 512), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+            AsyncImage(model = Thumb(item.uri, false, 512, item.sizeBytes), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             AsyncImage(
-                model = remember(item.uri) { FullPhoto.request(context, item.uri) },
+                // 17 Nov: the size is part of the request, so a photo saved over (same address, new pixels) loads again.
+                model = remember(item.uri, item.sizeBytes) { FullPhoto.request(context, item.uri, item.sizeBytes) },
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
+                // Whether the loaded photo carries an HDR brightness map; the page turns HDR on for it.
+                onState = { st -> if (st is coil3.compose.AsyncImagePainter.State.Success) onHdr(st.result.image.hasHdrMap()) },
             )
         }
     }
@@ -1145,3 +1168,16 @@ private fun whenTaken(item: MediaItem): String {
     return "${Timeline.dayLabel(time.date, today)}, ${Timeline.clockTime(time.hour, time.minute)}"
 }
 
+/** True when a loaded picture carries an HDR brightness map (Ultra HDR, 17 Nov). */
+internal expect fun coil3.Image.hasHdrMap(): Boolean
+
+/**
+ * Pictures kept in memory for a photo, at every size (17 Nov): forgotten when the photo is saved over, so nothing
+ * shows the old picture. Keys are the address alone (full photo) or the address with a size or time after it.
+ */
+internal object PictureCache {
+    fun forget(context: coil3.PlatformContext, uri: String) {
+        val cache = coil3.SingletonImageLoader.get(context).memoryCache ?: return
+        cache.keys.filter { k -> k.key == uri || k.key.startsWith("$uri#") || k.key.startsWith("$uri@") }.forEach { cache.remove(it) }
+    }
+}

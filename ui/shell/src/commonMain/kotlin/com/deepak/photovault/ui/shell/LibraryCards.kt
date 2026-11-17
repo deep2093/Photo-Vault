@@ -151,7 +151,7 @@ private fun LevelCard(photos: List<MediaItem>, title: String, detail: String, bi
 @Composable
 private fun Cover(item: MediaItem, modifier: Modifier) {
     AsyncImage(
-        model = Thumb(item.uri, item.isVideo, 512),
+        model = Thumb(item.uri, item.isVideo, 512, item.sizeBytes),
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = modifier,

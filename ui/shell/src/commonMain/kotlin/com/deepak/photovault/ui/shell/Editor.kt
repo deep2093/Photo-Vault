@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,7 +111,8 @@ import kotlin.math.roundToInt
 
 /**
  * The photo editor (Phase 11, part 1, 15 Nov): crop, turn, mirror, light and colour, and ready-made looks, for
- * photos on this phone. It always saves a new copy next to the original; the original is never changed.
+ * photos on this phone. "Save copy" saves a new copy next to the original; "Save" (17 Nov) saves over the photo,
+ * after putting the untouched original in Recently deleted for 30 days.
  *
  * The page only draws: the sums are in core:media ([PhotoEdit], [EditMath], unit tested) and the phone's part
  * (opening the photo, saving the copy with its date, place and camera details) is behind [EditorPlatform].
@@ -133,6 +135,12 @@ interface EditorPlatform {
     /** Saves [edit] of [item] as a new photo beside the original. Never writes to the original. */
     suspend fun save(item: MediaItem, edit: PhotoEdit): EditSaved = EditSaved(false, "Editing isn't available here.")
 
+    /** [item] can be saved over (17 Nov): a photo on this phone, in a kind that can be written again as it is. */
+    fun canReplace(item: MediaItem): Boolean = false
+
+    /** Saves [edit] over [item] itself; the untouched original goes to Recently deleted first. */
+    suspend fun replace(item: MediaItem, edit: PhotoEdit): EditSaved = EditSaved(false, "Saving over photos isn't available here.")
+
     /** [image] tilted by [degrees] (Straighten, 16 Nov), enlarged so no empty corners show; same size as [image]. */
     suspend fun straightened(image: ImageBitmap, degrees: Float): ImageBitmap = image
 
@@ -143,8 +151,8 @@ interface EditorPlatform {
     suspend fun trim(item: MediaItem, startMs: Long, endMs: Long, mute: Boolean): EditSaved = EditSaved(false, "Trimming isn't available here.")
 }
 
-/** How saving went, in words to show. */
-class EditSaved(val ok: Boolean, val message: String)
+/** How saving went, in words to show; [newId] is the new copy in the library, when one was made (17 Nov). */
+class EditSaved(val ok: Boolean, val message: String, val newId: Long? = null)
 
 @Stable
 class EditorState(val platform: EditorPlatform = object : EditorPlatform {}) {
@@ -183,7 +191,7 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     val item = remember(photoId) { gallery.find(photoId) }
     // Videos get their own page: trim and sound (16 Nov).
     if (item != null && item.isVideo) {
-        VideoTrimScreen(item, state, actions)
+        VideoTrimScreen(item, state, gallery, actions)
         return
     }
     val scope = rememberCoroutineScope()
@@ -195,6 +203,11 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     var aspect by remember { mutableStateOf(CropAspect.FREE) }
     var adjust by remember { mutableStateOf(EditAdjust.BRIGHTNESS) }
     var saving by remember { mutableStateOf(false) }
+    // "Save" over the original (17 Nov): asked first, and the saving note says which save is running.
+    var askReplace by remember { mutableStateOf(false) }
+    var replacing by remember { mutableStateOf(false) }
+    val canReplace = remember(item) { item != null && editor.platform.canReplace(item) }
+    val pictures = coil3.compose.LocalPlatformContext.current
     var turning by remember { mutableStateOf(false) }
     // The pixel-by-pixel part of the edit on the preview (15 Nov); the colour matrix goes on top, live.
     var worked by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -351,7 +364,32 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
         saving = true
         scope.launch {
             val saved = runCatching { editor.platform.save(photo, edit) }.getOrElse { EditSaved(false, "Couldn't save the copy.") }
+            if (saved.ok) {
+                // 17 Nov: the viewer underneath shows the new copy straight away, next to the original.
+                saved.newId?.let { state.copySaved(photo.id, it) }
+                kotlinx.coroutines.withTimeoutOrNull(3_000) { gallery.refresh() }
+            }
             saving = false
+            actions.toast(saved.message)
+            if (saved.ok) leave()
+        }
+    }
+
+    /** "Save": the edit over the photo itself, after the person said yes (17 Nov). */
+    fun replaceOriginal() {
+        val photo = item ?: return
+        if (saving || edit.isUnchanged) return
+        saving = true
+        replacing = true
+        scope.launch {
+            val saved = runCatching { editor.platform.replace(photo, edit) }.getOrElse { EditSaved(false, "Couldn't save over the photo.") }
+            if (saved.ok) {
+                // The same photo with new pixels: nothing may show the old picture from memory.
+                PictureCache.forget(pictures, photo.uri)
+                kotlinx.coroutines.withTimeoutOrNull(3_000) { gallery.refresh() }
+            }
+            saving = false
+            replacing = false
             actions.toast(saved.message)
             if (saved.ok) leave()
         }
@@ -409,7 +447,12 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                 if (ready) EditorIcon(Icons.Rounded.Share, "Share as a video") { saveVideo(share = true) }
                 EditorPill("Save video", filled = true, enabled = ready, onClick = { saveVideo(share = false) })
             } else {
-                EditorPill("Save copy", filled = true, enabled = !edit.isUnchanged && image != null && !saving, onClick = { save() })
+                val ready = !edit.isUnchanged && image != null && !saving
+                if (canReplace) {
+                    SaveChoice(enabled = ready, onSave = { askReplace = true }, onSaveCopy = { save() })
+                } else {
+                    EditorPill("Save copy", filled = true, enabled = ready, onClick = { save() })
+                }
             }
         }
     }
@@ -561,13 +604,31 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
                     Spacer(Modifier.width(12.dp))
                     val p = videoProgress
                     Text(
-                        if (p != null) "Making the video… ${(p * 100).roundToInt()}%" else "Saving a copy…",
+                        when {
+                            p != null -> "Making the video… ${(p * 100).roundToInt()}%"
+                            replacing -> "Saving…"
+                            else -> "Saving a copy…"
+                        },
                         color = Color.White,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
         }
+    }
+
+    if (askReplace) {
+        ConfirmDialog(
+            title = "Save over the original?",
+            body = "The photo is replaced by your edit. The original goes to Recently deleted, where you can bring it back for 30 days.",
+            confirm = "Save",
+            danger = false,
+            onDismiss = { askReplace = false },
+            onConfirm = {
+                askReplace = false
+                replaceOriginal()
+            },
+        )
     }
 
     if (editor.askDiscard) {
@@ -1122,6 +1183,52 @@ internal fun EditorIcon(
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, label, tint = Color.White, modifier = Modifier.size(24.dp).graphicsLayer { scaleX = if (mirrored) -1f else 1f })
+    }
+}
+
+/**
+ * "Save" and "Save copy" as one rounded control (17 Nov, Deepak: both buttons, side by side, not odd or confusing):
+ * Save copy, the safe choice that keeps the original, is the white half; Save, which writes over the photo, is
+ * the outlined half and asks first. A thin line splits the two.
+ */
+@Composable
+private fun SaveChoice(enabled: Boolean, onSave: () -> Unit, onSaveCopy: () -> Unit) {
+    val haptics = rememberHaptics()
+    val shape = RoundedCornerShape(percent = 50)
+    Row(
+        Modifier
+            .heightIn(min = 40.dp)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.38f }
+            .clip(shape)
+            .border(1.dp, Color.White.copy(alpha = 0.4f), shape)
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .clickable(enabled = enabled, role = Role.Button, onClickLabel = "Save over the original") {
+                    haptics.tap()
+                    onSave()
+                }
+                .padding(start = 18.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Save", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        }
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .background(Color.White)
+                .clickable(enabled = enabled, role = Role.Button, onClickLabel = "Save as a new copy") {
+                    haptics.tap()
+                    onSaveCopy()
+                }
+                .padding(start = 14.dp, end = 18.dp, top = 10.dp, bottom = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("Save copy", color = Color.Black, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 

@@ -36,7 +36,8 @@ data class TrashedItem(val item: MediaItem, val expiresAtMillis: Long)
 enum class MediaAccess { NONE, PARTIAL, FULL }
 
 /** A photo for the thumbnail loader: the platform turns this into a fast, cached thumbnail. */
-data class Thumb(val uri: String, val isVideo: Boolean, val sizePx: Int)
+/** [version] changes when the photo's file changes in place (17 Nov: saved over by the editor), so a new picture is made. */
+data class Thumb(val uri: String, val isVideo: Boolean, val sizePx: Int, val version: Long = 0)
 
 /**
  * Where photos come from. Android: MediaStore. A future PC app: chosen folders.

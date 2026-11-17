@@ -31,6 +31,9 @@ import kotlinx.coroutines.flow.collectLatest
 enum class WallpaperTarget(val label: String) { HOME("Home screen"), LOCK("Lock screen"), BOTH("Home and lock screens") }
 
 interface MediaActions {
+    /** The screen in HDR while an HDR photo is open in the viewer (17 Nov); off again otherwise. */
+    fun showHdr(on: Boolean) = Unit
+
     /** Sets a photo as the phone's wallpaper. [onDone] gets null on success or a message to show. */
     fun setWallpaper(item: MediaItem, target: WallpaperTarget, onDone: (String?) -> Unit) = onDone("Not supported here.")
 

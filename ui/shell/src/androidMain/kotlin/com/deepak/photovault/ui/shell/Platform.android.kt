@@ -337,7 +337,7 @@ private object VideoFrameKeyer : Keyer<VideoFrame> {
 
 /** Lets Coil keep thumbnails in its memory cache, so scrolling back is instant. */
 private object ThumbKeyer : Keyer<Thumb> {
-    override fun key(data: Thumb, options: Options): String = "${data.uri}#${data.sizePx}"
+    override fun key(data: Thumb, options: Options): String = "${data.uri}#${data.sizePx}" + if (data.version != 0L) "~${data.version}" else ""
 }
 
 @Composable
@@ -367,3 +367,7 @@ actual fun AppIconPreview(choice: AppIconChoice, modifier: Modifier) {
         androidx.compose.foundation.Image(bitmap, contentDescription = null, modifier = modifier)
     }
 }
+
+/** An HDR brightness map rides on the bitmap itself (Android 14 and later). */
+internal actual fun coil3.Image.hasHdrMap(): Boolean =
+    android.os.Build.VERSION.SDK_INT >= 34 && (this as? coil3.BitmapImage)?.bitmap?.hasGainmap() == true

@@ -33,8 +33,12 @@ internal class VideoTrimmer(context: Context) {
         try {
             val made = copyPart(from, file, startMs * 1000, endMs * 1000, mute)
                 ?: return@withContext EditSaved(false, "This video can't be trimmed here. The original is unchanged.")
-            if (!intoGallery(file, item, made)) return@withContext EditSaved(false, "Couldn't save the copy. The original is unchanged.")
-            EditSaved(true, if (mute && made.wholeLength) "Saved a copy without sound next to the original." else "Saved a trimmed copy next to the original.")
+            val saved = intoGallery(file, item, made) ?: return@withContext EditSaved(false, "Couldn't save the copy. The original is unchanged.")
+            EditSaved(
+                true,
+                if (mute && made.wholeLength) "Saved a copy without sound next to the original." else "Saved a trimmed copy next to the original.",
+                newId = runCatching { android.content.ContentUris.parseId(saved) }.getOrNull(),
+            )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -138,12 +142,12 @@ internal class VideoTrimmer(context: Context) {
     }
 
     /** Into the original's own folder (so it sits beside it), else Movies > Pixallery. */
-    private fun intoGallery(file: File, item: MediaItem, made: Made): Boolean {
+    private fun intoGallery(file: File, item: MediaItem, made: Made): Uri? {
         val name = item.displayName.substringBeforeLast('.').ifBlank { "Video" }.removeSuffix("_trimmed") + "_trimmed" + if (made.webm) ".webm" else ".mp4"
         val folders = listOfNotNull(item.folder?.trim('/')?.takeIf { it.isNotEmpty() }, "Movies/Pixallery").distinct()
-        return com.deepak.photovault.GallerySave.save(
+        return com.deepak.photovault.GallerySave.saveUri(
             resolver, com.deepak.photovault.GallerySave.videos, name, if (made.webm) "video/webm" else "video/mp4", folders, item.takenAtMillis,
-        ) { out -> file.inputStream().use { it.copyTo(out) } }
+        ) { out -> file.inputStream().use { it.copyTo(out) } }?.uri
     }
 
     private companion object {
