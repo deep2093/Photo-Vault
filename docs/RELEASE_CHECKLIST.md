@@ -44,10 +44,13 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
 - [ ] **A7 · Private-to-Normal leftovers after an interruption.** Who: Claude.
   One unscrambled photo can be left in the app's private storage, and a few scrambled files can be orphaned on
   the drive. Clear the phone folder at the start of every run; remove private files already recorded as converted.
+  Built 17 Nov on `feature/cleanup` (with tests), waiting for a phone test: turn the drive or Wi-Fi off part-way
+  through a conversion, then let it carry on.
 - [ ] **A8 · Unscrambled copies kept on the phone.** Who: Claude.
   Private drive-only photos that are opened, Secured folder items being played or shared, edits and trims are
   written unscrambled into cache folders. Check each folder: give it a size limit and a guaranteed clean-up
-  (when the app starts, and when the Secured folder locks).
+  (when the app starts, and when the Secured folder locks). Built 17 Nov on `feature/cleanup`, waiting for a phone
+  test. Found on the way: shared Secured folder copies and shared drive photos were never deleted; now after 15 minutes.
 - [ ] **A9 · Moving each phone from the test app to the release app.** Who: Claude, then Deepak tests. (Added 17 Nov.)
   The family phones run the test app (`com.deepak.photovault.preview`). To Android the release app is a different
   app, whatever its package name, so nothing kept only inside the test app comes across: settings, the drive
@@ -166,9 +169,8 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
   Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to
   type the new address or turn the switch on. Built 17 Nov on `feature/cleanup`, not yet tried on a phone.
-  For the next build (Deepak, 17 Nov): make the text under the switches much shorter and simpler; say it looks
-  both above and below the drive's address (the search already does: nearest first, either side, the whole
-  .1 to .254 range); make clear .120 is only an example.
+  17 Nov (Deepak): text made much shorter and simpler; it says the search goes above and below (it always did:
+  nearest first, either side, the whole .1 to .254 range). Built on `feature/cleanup`, waiting for a phone test.
 
 ### E. Quality and testing
 

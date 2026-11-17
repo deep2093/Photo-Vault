@@ -168,11 +168,10 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
 }
 
 internal const val FIND_MOVED_TITLE = "Find the drive if its address changes"
+// 17 Nov (Deepak): short and plain; the search goes both ways from whatever the drive's address is.
 internal const val FIND_MOVED_NOTE =
-    "Routers sometimes give the drive a new address (for example .120 becomes .121). When this is on and the drive " +
-        "stops answering, Pixallery checks the nearby addresses on your home Wi-Fi and only uses one if it is the same " +
-        "drive. When it is off, you type the new address yourself. Best of all: give the drive a fixed address in " +
-        "your router's settings. You can change this later in Settings > Drive."
+    "If the drive gets a new address, Pixallery checks the nearby ones, above and below, and only uses your drive. " +
+        "Off: you type the new address yourself."
 
 /**
  * The drive has no family in this folder (24 Oct: a tablet joining landed straight on "Create family" because its

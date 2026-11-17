@@ -52,6 +52,9 @@ class MemorySpool : Spool {
  * deleted. A file that fails any check stays private and is counted. Stopping part-way loses nothing: what was done
  * is done, the rest is found again next time, and a picture published just before a stop is recognised, not doubled.
  * Private files in Recently deleted are left as they are.
+ *
+ * Leftovers of a stop (A7, 17 Nov): each run first deletes this phone's own temporary files on the drive, and the
+ * private files that its last list already took off but a stop kept it from deleting.
  */
 @OptIn(ExperimentalUuidApi::class)
 class PrivateToNormal(
@@ -73,15 +76,19 @@ class PrivateToNormal(
     }
 
     /** The person's private backups that are still private. */
-    suspend fun waiting(): List<BackupRecord> =
-        catalog.records().filter { it.encrypted && it.drivePath.startsWith("$userFolder/") && PrivatePaths.isObject(it.drivePath) }
+    suspend fun waiting(): List<BackupRecord> = catalog.records().filter(::isWaiting)
+
+    private fun isWaiting(r: BackupRecord) = r.encrypted && r.drivePath.startsWith("$userFolder/") && PrivatePaths.isObject(r.drivePath)
 
     /**
      * Converts up to [limit] files, newest first, while [keepGoing] says so. Throws only for cancellation or when the
      * drive itself fails (what was finished before that is already saved).
      */
     suspend fun run(limit: Int = Int.MAX_VALUE, keepGoing: () -> Boolean = { true }, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): Result {
-        val all = waiting().sortedByDescending { it.takenAtMillis }
+        val records = catalog.records()
+        DrivePublish.clearOwnTemporaryFiles(drive, incoming, deviceId)
+        clearLeftovers(records.mapTo(HashSet()) { it.drivePath })
+        val all = records.filter(::isWaiting).sortedByDescending { it.takenAtMillis }
         var converted = 0
         var failed = 0
         val batch = ArrayList<Pair<BackupRecord, BackupRecord>>()
@@ -179,14 +186,78 @@ class PrivateToNormal(
         batch.clear()
     }
 
+    /**
+     * A stop inside [settle] after the list was written (the phone switched off, 17 Nov) leaves private files that no
+     * list points to any more. This phone's newest conversion list is found again, and each private file it took off
+     * is deleted, but only when its normal copy is still listed and the private one is not.
+     */
+    private suspend fun clearLeftovers(current: Set<String>) {
+        val folder = DrivePaths.join(userFolder, BackupEngine.MANIFESTS, deviceId)
+        val names = try {
+            drive.list(folder).filter { !it.isFolder && it.name.endsWith(".json") }.map { it.name }.sortedDescending().take(LOOK_BACK)
+        } catch (_: DriveNotFound) {
+            return
+        }
+        for (name in names) {
+            val manifest = try {
+                BackupEngine.json.decodeFromString(Manifest.serializer(), drive.read(DrivePaths.join(folder, name)).decodeToString())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                continue
+            }
+            if (!isConversion(manifest)) continue
+            for ((locked, normal) in manifest.removed.zip(manifest.records)) {
+                if (locked in current || normal.drivePath !in current) continue
+                deleteQuietly(locked)
+                PrivatePaths.thumbFor(locked)?.let { deleteQuietly(it) }
+            }
+            return
+        }
+    }
+
+    /** A list written by [settle]: each normal picture paired with the private file it replaced. */
+    private fun isConversion(m: Manifest) = m.removed.isNotEmpty() && m.removed.size == m.records.size &&
+        m.records.none { it.encrypted } && m.removed.all { it.startsWith("$userFolder/") && PrivatePaths.isObject(it) }
+
+    private suspend fun deleteQuietly(path: String) {
+        try {
+            drive.delete(path)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Already gone, or the drive is busy: tried again next run.
+        }
+    }
+
     private companion object {
         const val BATCH = 20
+
+        /** How many of this phone's newest lists are read to find its last conversion list. */
+        const val LOOK_BACK = 12
     }
 }
 
 /** Giving a checked temporary file its real name on the drive (shared by backup and [PrivateToNormal]). */
 internal object DrivePublish {
     private const val MAX_NAME_TRIES = 200
+
+    /** Leftovers from an upload that was cut off: this phone's only, since another phone may be uploading now. */
+    suspend fun clearOwnTemporaryFiles(drive: DriveFileSystem, incoming: String, deviceId: String) {
+        val leftovers = try {
+            drive.list(incoming).filter { !it.isFolder && it.name.startsWith("$deviceId-") && it.name.endsWith(BackupEngine.TEMP_SUFFIX) }
+        } catch (_: DriveNotFound) {
+            return
+        }
+        for (entry in leftovers) {
+            try {
+                drive.delete(DrivePaths.join(incoming, entry.name))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            }
+        }
+    }
 
     /**
      * Moves [temp] into [folder] as [name], or "name (2)" and so on when taken by a different file. When the same

@@ -304,7 +304,7 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
     init {
         // Anything left from an earlier run (a crash, or the app closed while a video played) is erased at start.
         clearTemp()
-        runCatching { shareDir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > SHARE_KEEP_MS }?.forEach { it.delete() } }
+        runCatching { CacheCleaner.deleteOlder(shareDir, System.currentTimeMillis() - SHARE_KEEP_MS) }
     }
 
     override suspend fun videoFile(id: String): String? = withContext(Dispatchers.IO) {
@@ -312,7 +312,11 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         val entry = runCatching { st.list() }.getOrNull()?.firstOrNull { it.id == id } ?: return@withContext null
         val ext = entry.name.substringAfterLast('.', "mp4").take(5).filter { it.isLetterOrDigit() }.ifEmpty { "mp4" }
         val target = File(playDir, "$id.$ext")
-        if (!target.exists() && !st.decryptTo(id, target)) return@withContext null
+        if (!target.exists()) {
+            // Only the newest few played videos are kept while the folder is open (17 Nov, A8); the rest go now.
+            playDir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(PLAY_KEEP - 1)?.forEach { it.delete() }
+            if (!st.decryptTo(id, target)) return@withContext null
+        }
         Uri.fromFile(target).toString()
     }
 
@@ -321,7 +325,7 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         val entries = runCatching { st.list() }.getOrNull()?.filter { it.id in ids } ?: return@withContext false
         if (entries.isEmpty()) return@withContext false
         // Short-lived plain copies, shared once; erased on the next start or after a quarter of an hour.
-        runCatching { shareDir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > SHARE_KEEP_MS }?.forEach { it.delete() } }
+        runCatching { CacheCleaner.deleteOlder(shareDir, System.currentTimeMillis() - SHARE_KEEP_MS) }
         val uris = entries.mapNotNull { e ->
             val dir = File(shareDir, e.id)
             val file = File(dir, e.name.replace('/', '_'))
@@ -351,6 +355,8 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
 
     override fun clearTemp() {
         runCatching { playDir.deleteRecursively() }
+        // Shared copies older than a quarter of an hour go too, when the folder locks or is left (17 Nov, A8).
+        runCatching { CacheCleaner.deleteOlder(shareDir, System.currentTimeMillis() - SHARE_KEEP_MS) }
     }
 
     /** The secret that opens a recovery: the 24 words, or the own code with its salt. A message when the words are wrong. */
@@ -446,7 +452,10 @@ class AndroidSecured(private val activity: MainActivity) : SecuredPlatform {
         const val UNTIL = "until"
         const val PIN_ITERATIONS = 150_000
         const val CODE_ITERATIONS = 600_000
-        const val SHARE_KEEP_MS = 15 * 60 * 1000L
+        const val SHARE_KEEP_MS = CacheCleaner.SHARE_KEEP_MS
+
+        /** Played videos kept decrypted while the folder is open. */
+        const val PLAY_KEEP = 3
     }
 }
 

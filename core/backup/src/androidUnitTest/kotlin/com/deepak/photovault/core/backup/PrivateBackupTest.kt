@@ -224,4 +224,44 @@ class PrivateBackupTest {
         assertEquals(3, records.size)
         assertEquals(3, drive.allFiles().count { it.startsWith("users/$USER/albums/") })
     }
+
+    @Test
+    fun privateFilesLeftByAStopAfterTheListAreDeletedNextTime() = runTest {
+        backUp(photo(1, "IMG_1.jpg", 3000), photo(2, "IMG_2.jpg", 4000))
+        // The phone switches off after the list is written, before the private files are deleted (17 Nov, A7).
+        val stopped = object : com.deepak.photovault.core.drive.DriveFileSystem by drive {
+            override suspend fun delete(path: String) {
+                if (path.endsWith(".pxo") || path.endsWith(".pxt")) throw java.io.IOException("switched off")
+                drive.delete(path)
+            }
+        }
+        assertEquals(2, PrivateToNormal(stopped, USER, PHONE, vault, { tick() }, TimeZone.UTC).run().converted)
+        assertEquals(2, drive.allFiles().count { it.endsWith(".pxo") })
+        // Nothing lists them any more; the next run deletes them and changes nothing else.
+        assertEquals(PrivateToNormal.Result(0, 0, 0), converter().run())
+        assertTrue(drive.allFiles().none { it.endsWith(".pxo") || it.endsWith(".pxt") }, drive.allFiles().toString())
+        assertEquals(2, BackupCatalog(drive, USER).records().size)
+        assertEquals(2, drive.allFiles().count { it.startsWith("users/$USER/albums/") })
+    }
+
+    @Test
+    fun aRunClearsThisPhonesHalfWrittenFilesButNotAnotherPhones() = runTest {
+        backUp(photo(1, "IMG_1.jpg", 3000))
+        val incoming = "users/$USER/${BackupEngine.INCOMING}"
+        drive.createNew("$incoming/$PHONE-left.part", ByteArray(10))
+        drive.createNew("$incoming/other-phone-busy.part", ByteArray(10))
+        converter().run()
+        assertFalse(drive.exists("$incoming/$PHONE-left.part"))
+        assertTrue(drive.exists("$incoming/other-phone-busy.part"))
+    }
+
+    @Test
+    fun aPrivateFileStillListedIsNeverTouchedByTheClearUp() = runTest {
+        backUp(photo(1, "IMG_1.jpg", 3000), photo(2, "IMG_2.jpg", 4000))
+        // One converted, one still private: the clear-up on the next run must leave the private one alone.
+        converter().run(limit = 1)
+        val stillPrivate = BackupCatalog(drive, USER, vault).records().single { it.encrypted }
+        converter().run(limit = 0)
+        assertTrue(drive.exists(stillPrivate.drivePath))
+    }
 }

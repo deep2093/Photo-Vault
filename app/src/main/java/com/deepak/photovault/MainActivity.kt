@@ -582,6 +582,10 @@ class MainActivity : ComponentActivity(), MediaActions {
     override fun shareDrive(items: List<MediaItem>) {
         android.widget.Toast.makeText(this, "Getting the file from the drive…", android.widget.Toast.LENGTH_SHORT).show()
         lifecycleScope.launch {
+            // Earlier shared copies (plain, even of private photos) go once they are a quarter of an hour old (17 Nov, A8).
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { CacheCleaner.deleteOlder(java.io.File(cacheDir, "drive-shared"), System.currentTimeMillis() - CacheCleaner.SHARE_KEEP_MS) }
+            }
             val uris = items.mapNotNull { item ->
                 val path = com.deepak.photovault.core.backup.DriveTimeline.pathOf(item.uri) ?: return@mapNotNull null
                 val source = DriveMedia.file(path) ?: return@mapNotNull null

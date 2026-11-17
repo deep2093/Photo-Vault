@@ -428,10 +428,7 @@ class BackupEngine(
     }
 
     /** Leftovers from a backup that was cut off (this phone's only; another phone may be uploading now). */
-    private suspend fun cleanUpOwnTemporaryFiles() {
-        drive.list(incoming).filter { !it.isFolder && it.name.startsWith("$deviceId-") && it.name.endsWith(TEMP_SUFFIX) }
-            .forEach { runCatching { drive.delete(DrivePaths.join(incoming, it.name)) } }
-    }
+    private suspend fun cleanUpOwnTemporaryFiles() = DrivePublish.clearOwnTemporaryFiles(drive, incoming, deviceId)
 
     /** Saves finished records as a new manifest file on the drive. */
     private suspend fun flush(pending: MutableList<BackupRecord>) {

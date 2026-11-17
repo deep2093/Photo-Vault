@@ -618,14 +618,14 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
             state.appearance.autoDriveCheck,
             { on -> state.updateAppearance { it.copy(autoDriveCheck = on) } },
             icon = Icons.Rounded.Dns,
-            description = "On: when the app opens and once an hour while it is open. Off: only when you open Family, Backup or the drive, or pull down on Photos. Fewer checks let the drive sleep.",
+            description = "On: when the app opens and every hour. Off: only when you open Family or Backup, or pull down on Photos, so the drive can sleep.",
         )
         GlassSwitchRow(
             FIND_MOVED_TITLE,
             drive.findMoved,
             { drive.updateFindMoved(it) },
             icon = Icons.Rounded.Explore,
-            description = FIND_MOVED_NOTE.substringBefore(" You can change this later"),
+            description = FIND_MOVED_NOTE,
         )
     }
     if (confirmForget) {

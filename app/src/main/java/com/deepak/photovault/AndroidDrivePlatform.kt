@@ -257,8 +257,8 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
 
     override fun describe(error: Throwable): String = when (error) {
         is AlreadySetUp -> "This drive already has a Pixallery family. Join it instead."
-        is DriveNotAtAddress -> "Nothing answered at ${error.host}. The drive may be switched off, or its address may have " +
-            "changed: type the new address, or turn on \"Find the drive if its address changes\" in Settings > Drive."
+        is DriveNotAtAddress -> "The drive didn't answer at ${error.host}. If its address changed, type the new one, or turn on " +
+            "\"Find the drive if its address changes\" in Settings > Drive."
         is DriveNotFound -> "Something on the drive is missing. Refresh and try again."
         is IllegalStateException -> error.message?.takeIf { it.startsWith("The family settings are busy") } ?: SmbErrors.describe(error)
         else -> SmbErrors.describe(error)

@@ -8,8 +8,13 @@ import java.io.File
 /** Sets up backup when the app process starts (also when Android starts it just to run a scheduled backup). */
 class PixalleryApplication : Application() {
     override fun onCreate() {
+        val startedAt = System.currentTimeMillis()
         super.onCreate()
         CrashNote.install(this)
+        // Plain copies left by an earlier run that was cut off (A8, 17 Nov). In the background: never slows the start.
+        kotlin.concurrent.thread(name = "cache-sweep", isDaemon = true, priority = Thread.MIN_PRIORITY) {
+            runCatching { CacheCleaner.sweep(this, startedAt) }
+        }
         BackupGraph.get(this).start()
         com.deepak.photovault.family.OwnerCheckWorker.schedule(this)
     }
