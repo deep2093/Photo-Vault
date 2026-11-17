@@ -249,7 +249,7 @@ private fun ViewButtons(gallery: GalleryState) {
                 motionSpec(),
                 label = "view",
             )
-            val line by androidx.compose.animation.animateFloatAsState(if (selected && underline) 1f else 0f, motionSpec(), label = "viewLine")
+            val line by androidx.compose.animation.core.animateFloatAsState(if (selected && underline) 1f else 0f, motionSpec(), label = "viewLine")
             Box(
                 Modifier
                     .heightIn(min = 32.dp)

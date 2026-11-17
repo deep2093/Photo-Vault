@@ -504,15 +504,13 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             { on -> state.updateAppearance { it.copy(pinBottomBar = on) } },
             icon = Icons.Rounded.PushPin,
         )
-        GlassSwitchRow(
+        // Not offered in Darkroom (18 Nov): there each day has its own heading and every photo is the same size, so the
+        // switch would do nothing. It comes back with the other styles, as it was left.
+        if (state.appStyle.dates != com.deepak.photovault.designsystem.DateStyle.MAGAZINE) GlassSwitchRow(
             "Mixed photo sizes",
             state.appearance.mixedGrid,
             { on -> state.updateAppearance { it.copy(mixedGrid = on) } },
-            description = if (state.appStyle.dates == com.deepak.photovault.designsystem.DateStyle.MAGAZINE) {
-                "Not in Darkroom: it shows each day under its own heading, every photo the same size."
-            } else {
-                "In Photos > All, some photos are shown bigger than the rest. Off: every photo the same size."
-            },
+            description = "In Photos > All, some photos are shown bigger than the rest. Off: every photo the same size.",
             icon = Icons.Rounded.PhotoLibrary,
         )
         GlassSwitchRow(

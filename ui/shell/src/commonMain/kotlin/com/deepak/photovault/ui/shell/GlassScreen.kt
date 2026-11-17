@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -185,22 +186,28 @@ fun GlassScreen(
             }
         } else {
         // With a bottom bar, the top bar is only the count and Cancel; it doesn't slide away.
+        // Material You and Darkroom (18 Nov): a flat bar across the top, under the status bar, as their pages are flat;
+        // Classic and Clear Glass keep the floating glass bar.
+        val flat = com.deepak.photovault.designsystem.LocalAppStyle.current.nav != com.deepak.photovault.designsystem.NavStyle.CAPSULE
         GlassTopBar(
             title = title,
             subtitle = subtitle,
             onBack = onBack,
             actions = actions,
             titleContent = titleContent,
+            flatInsets = if (flat) insets else null,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset { androidx.compose.ui.unit.IntOffset(0, offset.toInt()) }
                 .graphicsLayer {
                     alpha = 1f - (-offset / hidePx).coerceIn(0f, 1f) * 0.6f
                 }
-                .padding(
-                    start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
-                    end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
-                    top = insets.calculateTopPadding() + 8.dp,
+                .then(
+                    if (flat) Modifier else Modifier.padding(
+                        start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
+                        end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
+                        top = insets.calculateTopPadding() + 8.dp,
+                    ),
                 ),
         )
         }
@@ -235,13 +242,43 @@ private fun GlassTopBar(
     actions: @Composable RowScope.() -> Unit,
     modifier: Modifier,
     titleContent: (@Composable () -> Unit)? = null,
+    /** A flat bar from the very top of the screen (Material You, Darkroom), padded inside for these system bars. */
+    flatInsets: PaddingValues? = null,
 ) {
     val theme = LocalGlassTheme.current
+    val style = com.deepak.photovault.designsystem.LocalAppStyle.current
+    val bar = if (flatInsets == null) {
+        Modifier
+            .heightIn(min = TopBarHeight)
+            .glassChrome(RoundedCornerShape(24.dp), elevation = 0.dp)
+    } else {
+        Modifier
+            .background(theme.glassFallback)
+            .then(
+                if (!style.hairlines) Modifier else Modifier.drawWithContent {
+                    drawContent()
+                    val h = 1.dp.toPx()
+                    drawRect(theme.glassRim, topLeft = Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
+                },
+            )
+            .padding(
+                start = flatInsets.calculateStartPadding(LayoutDirection.Ltr) + 4.dp,
+                end = flatInsets.calculateEndPadding(LayoutDirection.Ltr) + 4.dp,
+                top = flatInsets.calculateTopPadding(),
+            )
+            .heightIn(min = TopBarHeight + 8.dp)
+    }
+    // Material You's title is its plain 22 sp; Darkroom's is set in its serif.
+    val titleStyle = if (flatInsets != null) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium
+    val titleWeight = when {
+        flatInsets == null -> FontWeight.SemiBold
+        style.nav == com.deepak.photovault.designsystem.NavStyle.TABS -> FontWeight.Medium
+        else -> FontWeight.Normal
+    }
     Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = TopBarHeight)
-            .glassChrome(RoundedCornerShape(24.dp), elevation = 0.dp)
+            .then(bar)
             .padding(start = if (onBack != null) 4.dp else 18.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -256,8 +293,8 @@ private fun GlassTopBar(
             Text(
                 title,
                 color = theme.onGlass,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = titleStyle,
+                fontWeight = titleWeight,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() },

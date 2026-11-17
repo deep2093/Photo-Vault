@@ -90,6 +90,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -971,7 +972,7 @@ private fun MagazineHeading(section: TimelineSection, where: String?, modifier: 
         modifier
             .fillMaxWidth()
             .height(MAGAZINE_HEADING)
-            .semantics(mergeDescendants = true) { androidx.compose.ui.semantics.heading() },
+            .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

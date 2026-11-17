@@ -46,6 +46,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.roundToInt
@@ -570,6 +571,34 @@ private fun ViewerActions(
     onMore: (() -> Unit)? = null,
     moreModifier: Modifier = Modifier,
 ) {
+    // Darkroom (18 Nov): a row of labelled actions on a hairline, as its design shows, instead of icons in a capsule.
+    if (com.deepak.photovault.designsystem.LocalAppStyle.current.nav == com.deepak.photovault.designsystem.NavStyle.TABS) {
+        val theme = LocalGlassTheme.current
+        Row(
+            modifier
+                .fillMaxWidth()
+                .drawWithContent {
+                    drawContent()
+                    drawRect(theme.glassRim, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
+                }
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LabelledAction(Icons.Rounded.Share, "Share", onClick = onShare)
+            if (onSave != null) LabelledAction(Icons.Rounded.Download, "Save", onClick = onSave, description = "Save to this phone")
+            if (onFamily != null) LabelledAction(Icons.Rounded.Groups, "Family", onClick = onFamily, description = "Share to Family Album")
+            if (onFavourite != null) LabelledAction(
+                if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                "Favourite",
+                onClick = onFavourite,
+                description = if (favourite) "Remove from favourites" else "Add to favourites",
+            )
+            if (onLiving != null) LabelledAction(Icons.Rounded.AutoAwesome, "Move", onClick = onLiving, description = "Make it move")
+            if (onDelete != null) LabelledAction(Icons.Rounded.Delete, "Delete", onClick = onDelete, modifier = binModifier, description = "Move to Recently deleted")
+            if (onMore != null) LabelledAction(Icons.Rounded.MoreVert, "More", onClick = onMore, modifier = moreModifier)
+        }
+        return
+    }
     // Same size buttons with the same gap (8 Nov: seven didn't fit and the last was cut off); the rarer ones are in More.
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(horizontal = 8.dp, vertical = 6.dp),
@@ -584,6 +613,42 @@ private fun ViewerActions(
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
         // More (8 Nov): Set as wallpaper and Move to Secured folder.
         if (onMore != null) GlassIconButton(Icons.Rounded.MoreVert, "More", onClick = onMore, modifier = moreModifier)
+    }
+}
+
+/** One of Darkroom's viewer actions: an icon with its word under it, sharing the row equally with the others. */
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.LabelledAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** What TalkBack says, when the short word needs more ("Save" is "Save to this phone"). */
+    description: String? = null,
+) {
+    val theme = LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    Column(
+        modifier
+            .weight(1f)
+            .heightIn(min = 60.dp)
+            .clickable(role = Role.Button) {
+                haptics.tap()
+                onClick()
+            }
+            .then(if (description != null) Modifier.semantics(mergeDescendants = true) { contentDescription = description } else Modifier),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = theme.onGlass, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(5.dp))
+        Text(
+            label,
+            color = theme.onGlass,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
