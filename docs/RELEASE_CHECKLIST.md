@@ -166,6 +166,9 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
   Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to
   type the new address or turn the switch on. Built 17 Nov on `feature/cleanup`, not yet tried on a phone.
+  For the next build (Deepak, 17 Nov): make the text under the switches much shorter and simpler; say it looks
+  both above and below the drive's address (the search already does: nearest first, either side, the whole
+  .1 to .254 range); make clear .120 is only an example.
 
 ### E. Quality and testing
 
