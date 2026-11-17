@@ -65,6 +65,37 @@ interface EncryptionPlatform {
     /** Opens the spare copy from Google with the PIN and keeps the key on this phone. Null when it worked. */
     fun restorePinKey(pin: String, envelope: ByteArray): String? = "Not available on this device."
 
+    /** The key already on this phone sealed under a new Google password (18 Nov, A2: changing it). Null without a key. */
+    fun rewrapPinKey(pin: String): ByteArray? = null
+
+    /** The Google password was set, or last opened, under the stronger rules (18 Nov); false for an older short PIN. */
+    fun pinStrong(): Boolean = true
+
+    fun markPinStrong(strong: Boolean) = Unit
+
+    // ---- The recovery helper hands the key back (18 Nov, A1) ----
+
+    /**
+     * Starts asking the recovery helper for the key: a one-time public key for the family drive. The matching private
+     * part stays on this phone (locked in the Keystore) until [finishKeyRequest] or [cancelKeyRequest]; asking again
+     * before then gives the same key, so the code on screen doesn't change.
+     */
+    fun startKeyRequest(): ByteArray? = null
+
+    /**
+     * Opens the helper's [answer] and keeps the key on this phone, after checking it really is this person's key
+     * ([expectedFingerprint], from their public identity on the drive). Null when it worked, else the problem.
+     */
+    fun finishKeyRequest(answer: ByteArray, householdId: String, memberId: String, expectedFingerprint: String): String? = "Not available on this device."
+
+    fun cancelKeyRequest() = Unit
+
+    /**
+     * As the helper: [ownerId]'s key, opened from the helper copy [wrapped] with this phone's own key and sealed to
+     * their request [requestPublic], so only the asking phone can open it. Null when it can't be opened here.
+     */
+    fun answerKeyRequest(wrapped: ByteArray, requestPublic: ByteArray, householdId: String, ownerId: String): ByteArray? = null
+
     /** Forgets the key on this phone only. The drive's recovery file stays. */
     fun forgetKey() = Unit
 }

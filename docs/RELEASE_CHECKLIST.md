@@ -24,10 +24,15 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   Private setup lets a person pick a family member as "recovery helper" and saves a key for them on the drive, but
   no screen lets the helper hand the key back. Someone relying on it could lose their backup. Finish it, or hide
   the option until it is finished.
+  Built 18 Nov on `feature/redesign`, waiting for a phone test: "Lost your words? Ask your recovery helper" on the
+  restore page; the helper sees the request on the Family page with a 6-digit code that must match on both phones;
+  the key is checked before it is kept. Test: two phones, one restoring, the other its helper.
 - [ ] **A2 · Google PIN is too easy to guess.** Who: Claude.
   A Google-only Private backup is locked by a PIN of 6 or more characters; six digits is allowed. Anyone inside the
   Google account can copy the locked key and try every 6-digit PIN on a fast computer in hours. Require a longer
   passphrase (or many more digits), show its strength, and let existing users change it.
+  Built 18 Nov on `feature/redesign`, waiting for a phone test: 8+ characters with a strength line; an old short PIN
+  still opens the key but asks for a new password ("Change your Google password", also in Backup privacy).
 - [ ] **A3 · Privacy policy says the wrong thing.** Who: Claude writes, Deepak approves.
   It says Private backups can be opened by "members of your family". In the app only the person themselves can.
 - [ ] **A4 · Privacy policy leaves things out.** Who: Claude writes, Deepak approves.
@@ -58,6 +63,11 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   in the app's own folder, so uninstalling the test app deletes them). Claude: list everything that lives only on
   the phone, then add a way to carry it over (for example a locked export to the drive) or a plain
   "before you uninstall" guide. Must be ready before the first phone moves to the release app.
+  18 Nov: moved to stage 3, beside the package change (B8), so it can be tested from the real test app to the real
+  release app. What lives only on the phone (listed 18 Nov): settings (appearance, albums, backup, VPN, tags, place
+  names, memories, intro, Google backup, favourites), the drive's saved password, the Secured folder (its key and
+  its files), People (names and faces), the private key's phone copy, the backup lists (`backup/*.json`), and the
+  owner check.
 
 ### B. Store rules (can block the Play listing)
 
@@ -173,13 +183,16 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   too: the edit is saved as a JPEG with the same name in the same album, with the date, place and camera details;
   the original goes to Recently deleted for 30 days (Android asks first); its favourite mark is carried over.
   Built 18 Nov on `feature/redesign` (`AndroidEditor.saveAsJpeg`): the JPEG is saved first, then Android is asked
-  to move the original to Recently deleted; if the person says no, both stay. Not yet tried on a phone.
+  to move the original to Recently deleted; if the person says no, both stay.
+  18 Nov (Deepak): HEIC saved as JPEG works on his phone. HDR and the other Save cases still to try.
 - [ ] **D19 · Finding a drive that moved: a switch, explained during set-up.** Who: Claude built it, Deepak tests.
   (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
   Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to
   type the new address or turn the switch on. Built 17 Nov on `feature/cleanup`, not yet tried on a phone.
   17 Nov (Deepak): text made much shorter and simpler; it says the search goes above and below (it always did:
   nearest first, either side, the whole .1 to .254 range). Built on `feature/cleanup`, waiting for a phone test.
+  18 Nov (Deepak): the switch shows in Settings > Drive; he will test a moved drive in a few days (the drive's
+  address hasn't changed yet). Left till the end.
 
 ### E. Quality and testing
 
@@ -193,6 +206,10 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   Six background jobs run every 3 to 24 hours. Measure a week of battery use; merge or slow the jobs if needed.
 - [ ] **E5 · Hidden errors reviewed.** Who: Claude.
   46 places ignore errors on purpose. Check each one cannot hide a failed backup, restore or delete.
+  Done 18 Nov on `feature/redesign` (77 places by then). Two could hide a failure and are fixed: a backup whose
+  last list couldn't be saved counted its last photos as backed up (now they go again and the run says it failed),
+  and a failed Secured folder copy to the drive kept showing the older "copied" line. Waiting for CI and a phone
+  test (turn the drive off right at the end of a backup).
 - [ ] **E6 · Old and new versions together.** Who: Claude.
   Test an older app version against a drive written by a newer one (and the other way) with real files.
 - [ ] **E7 · On-device automated tests for the riskiest paths.** Who: Claude.
@@ -269,11 +286,13 @@ Build together (all touch keys and temporary files):
 4. **A1** finish the recovery helper (decided 17 Nov).
 5. **E5** review of ignored errors (same files, done while there).
 6. **A9** carry-over from the test app to the release app (it touches the same keys and phone-only files).
+   18 Nov: moved to stage 3, beside B8, so it is tested end to end.
 
 Then Deepak tests: Private backup set-up on Google only, a conversion interrupted on purpose (turn the drive
 off part-way), the Secured folder after locking.
 
-Done when: A1, A2, A7, A8, A9 and E5 are ticked.
+Done when: A1, A2, A7, A8 and E5 are ticked (A9 now in stage 3).
+18 Nov: all five built; waiting for Deepak's phone test.
 
 ### Stage 3. Release build foundations (Both)
 

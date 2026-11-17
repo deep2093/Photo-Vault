@@ -17,6 +17,8 @@ kotlin {
             api(project(":core:media"))
             api(project(":core:household"))
             api(project(":core:backup"))
+            // Password strength for the Google key (18 Nov, A2) and the recovery helper's code (A1). Pure code only.
+            implementation(project(":core:crypto"))
             // Thumbnails and full photos. Coil 3 is multiplatform, so this stays shared code.
             implementation("io.coil-kt.coil3:coil-compose:3.2.0")
         }

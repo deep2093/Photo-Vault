@@ -32,6 +32,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -83,6 +84,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
@@ -921,9 +923,19 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
     }
     if (text.isEmpty()) return
     if (com.deepak.photovault.designsystem.GlassFinish.CALM) {
-        // 18 Nov: on a frosted bar of its own, so it reads over any photo, in the title serif; its words start where
-        // "Years" starts above it. Solid frost, not blur: inside the scrolling photos the blur drew nothing (Deepak's
-        // screenshot: the words sat straight on the photos).
+        // 18 Nov (Deepak, option 2): only once the photos have reached the top (never over Memories), and only while
+        // scrolling: it fades away 2 seconds after the photos stop, and comes back as soon as they move.
+        val atPhotos by remember(headerItems) { derivedStateOf { grid.firstVisibleItemIndex >= headerItems } }
+        var moving by remember { mutableStateOf(false) }
+        LaunchedEffect(grid) {
+            snapshotFlow { grid.isScrollInProgress }.collectLatest { scrolling ->
+                if (scrolling) moving = true else { delay(DATE_LINGER_MS); moving = false }
+            }
+        }
+        val shown by animateFloatAsState(if (atPhotos && moving) 1f else 0f, motionSpec(220), label = "date")
+        if (shown <= 0f) return
+        // On a frosted bar of its own, so it reads over any photo, in the title serif; its words start where "Years"
+        // starts above it. Solid frost, not blur: inside the scrolling photos the blur drew nothing.
         Text(
             text,
             color = theme.onGlass,
@@ -931,6 +943,7 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             modifier = modifier
+                .graphicsLayer { alpha = shown }
                 .solidGlass(RoundedCornerShape(percent = 50))
                 .padding(horizontal = FLOATING_PILL_TEXT_INSET, vertical = 5.dp),
         )
@@ -945,6 +958,9 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         modifier = modifier,
     )
 }
+
+/** How long the date stays after the photos stop moving (18 Nov). */
+private const val DATE_LINGER_MS = 2000L
 
 /** The town most of [items] were taken in, with "and N more" when there are others; null when none is known. */
 internal fun topPlace(items: List<MediaItem>, places: Map<Long, PhotoPlace>): String? {

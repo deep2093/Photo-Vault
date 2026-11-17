@@ -87,6 +87,7 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
     // fresh numbers and new requests (the dot on Family still comes from the hourly check). Only a phone that has
     // never read its family asks once.
     val onScreen = state.destination == Destination.FAMILY
+    val keyRequests = rememberKeyRequests(drive, onScreen)
     LaunchedEffect(drive.connection, onScreen) {
         if (onScreen && drive.isSetUp && drive.membership == null) {
             drive.refresh()
@@ -123,6 +124,10 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
         }
         message?.let { item { WarningNote(it, Modifier.cardWidth()) } }
         drive.problem?.let { item { WarningNote("Can't reach the drive: $it", Modifier.cardWidth()) } }
+        // 18 Nov (A1): someone who chose this person as their recovery helper is asking for their key back.
+        keyRequests.value.forEach { r ->
+            item(key = "key-request-${r.userId}") { KeyRequestCard(state, drive, r) { keyRequests.value = keyRequests.value.filter { it.userId != r.userId } } }
+        }
         if (drive.isOwner && drive.requests.isNotEmpty()) {
             item {
                 GlassCard(Modifier.cardWidth()) {

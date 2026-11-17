@@ -126,12 +126,20 @@ class BackupEngine(
             // Previews for older backups (28 Oct). Best effort; never changes the result of the backup.
             if (failure == null) runCatching { addMissingThumbnails(items) }.onFailure { if (it is CancellationException) throw it }
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { runCatching { flush(pending) } }
+            withContext(NonCancellable) { flushOrForget(pending) }
             throw e
         } catch (e: Throwable) {
             failure = classify(e)
         } finally {
-            withContext(NonCancellable) { runCatching { flush(pending) } }
+            withContext(NonCancellable) {
+                val waiting = pending.toList()
+                val problem = flushOrForget(pending)
+                if (problem != null) {
+                    uploaded -= waiting.size
+                    bytes -= waiting.sumOf { it.sizeBytes }
+                    if (failure == null) failure = classify(problem)
+                }
+            }
         }
         return BackupRun(
             trigger = trigger,
@@ -429,6 +437,18 @@ class BackupEngine(
 
     /** Leftovers from a backup that was cut off (this phone's only; another phone may be uploading now). */
     private suspend fun cleanUpOwnTemporaryFiles() = DrivePublish.clearOwnTemporaryFiles(drive, incoming, deviceId)
+
+    /**
+     * E5 (18 Nov): the last list of new backups must reach the drive. If it can't be saved, this phone forgets those
+     * photos so the next backup sends them again, rather than counting them as safe when the drive doesn't list them.
+     */
+    private suspend fun flushOrForget(pending: MutableList<BackupRecord>): Throwable? {
+        if (pending.isEmpty()) return null
+        val problem = runCatching { flush(pending) }.exceptionOrNull() ?: return null
+        runCatching { index.remove(pending.map { it.key }.toSet()) }
+        pending.clear()
+        return problem
+    }
 
     /** Saves finished records as a new manifest file on the drive. */
     private suspend fun flush(pending: MutableList<BackupRecord>) {

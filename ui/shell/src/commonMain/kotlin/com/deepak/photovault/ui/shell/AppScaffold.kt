@@ -788,6 +788,8 @@ private fun OverlayPage(
                         Overlay.PrivateSetup -> PrivateSetupScreen(state, drive, backup)
                         Overlay.RestoreKeys -> RestoreKeysScreen(state, drive, backup)
                         Overlay.PinKey -> PinKeyScreen(state, backup)
+                        Overlay.ChangeGooglePassword -> ChangeGooglePasswordScreen(state)
+                        Overlay.AskHelper -> AskHelperScreen(state, drive)
                         is Overlay.Settings -> SettingsPageScreen(overlay.page, state, drive, iconSwitcher, gallery, actions, backup, overlay.startOnDrive)
                         is Overlay.StorageFiles -> StorageFilesScreen(overlay, state, gallery, drive, backup, actions)
                         is Overlay.CoverPicker -> CoverPickerScreen(overlay, state, gallery)

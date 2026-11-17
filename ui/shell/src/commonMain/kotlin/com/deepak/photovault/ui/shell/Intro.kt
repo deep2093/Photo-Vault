@@ -100,15 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-5"
+    const val ID = "2026-11-18-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "Clear main buttons", "Buttons like Move to bin are now solid in the theme's colour, so they no longer look greyed out."),
-        Change(ChangeKind.CHANGED, "Back to top looks like the back button", "The arrow sits on frosted glass in the theme's own colours: light by day, dark at night."),
-        Change(ChangeKind.CHANGED, "Short Undo", "After deleting, a small Undo delete button appears in the middle at the bottom. Favourites and hidden albums get the same."),
-        Change(ChangeKind.CHANGED, "Four themes that look their own", "Liquid is sky blue by day and a deep sea at night; Luminous an aurora, lilac and mint or violet and green; Photo warm paper or graphite; Vivid bold colours from your photos."),
-        Change(ChangeKind.NEW, "Save works for HEIC photos too", "Photos that can't be changed in place (HEIC and the like) are saved as a JPEG with the same name, date, place and camera details, and keep their favourite mark. Android asks before the original goes to Recently deleted."),
-        Change(ChangeKind.FIXED, "The date in Photos is easy to read", "It sits on its own frosted bar over the photos, lined up with Years / Months / All."),
+        Change(ChangeKind.CHANGED, "The date shows only while you scroll", "In Photos the date appears once the photos reach the top, never over Memories, and fades away 2 seconds after you stop."),
+        Change(ChangeKind.NEW, "A stronger password for Google backups", "Private backups to Google now need a password of 8 or more characters, with a strength line as you type. If yours is short, Backup asks you to change it. Your photos stay as they are."),
+        Change(ChangeKind.NEW, "Lost your recovery words? Ask your helper", "Your recovery helper in the family can hand your private key back to you. You both see the same 6-digit code, so you know it's really you."),
+        Change(ChangeKind.FIXED, "Backups counted more carefully", "If the drive goes away just as a backup ends, those last photos no longer count as saved; they go again next time. The Secured folder also says when its copy to the drive didn't work."),
     )
 }
 

@@ -525,6 +525,77 @@ class DriveState(private val platform: DrivePlatform) {
         fs.createNew("${keysFolder(me)}/helper-$helperUserId.bin", wrapped)
     }
 
+    // ---- The recovery helper hands the key back (18 Nov, A1) ----
+    // users/<person>/keys/helper-<helper>.bin   the person's key sealed to the helper (made at Private set-up)
+    // users/<person>/keys/key-request.bin       a one-time public key from the person's new phone, asking for it back
+    // users/<person>/keys/key-answer.bin        the helper's reply: the key sealed to that one-time key
+
+    /** The names of the family members holding a helper copy of my key. */
+    suspend fun myHelpers(): List<String> {
+        val j = joined ?: return emptyList()
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return emptyList()
+        return j.household.members.filter { it.userId != j.me.userId }.filter { m ->
+            runCatching { fs.exists("${keysFolder(j.me.userId)}/helper-${m.userId}.bin") }.getOrDefault(false)
+        }.map { it.name }
+    }
+
+    /** Leaves my one-time public key on the drive, asking my helper for my key. Returns a problem, or null. */
+    suspend fun postKeyRequest(requestPublic: ByteArray): String? = guarded {
+        val me = joined?.me?.userId ?: throw NotAllowed("Join the family first")
+        val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+        fs.mkdirs(keysFolder(me))
+        val path = "${keysFolder(me)}/$KEY_REQUEST"
+        // The same request again keeps its file; a new one replaces an old one. An old answer is dropped.
+        val same = runCatching { fs.exists(path) && fs.read(path).contentEquals(requestPublic) }.getOrDefault(false)
+        if (!same) {
+            if (fs.exists(path)) fs.delete(path)
+            if (fs.exists("${keysFolder(me)}/$KEY_ANSWER")) fs.delete("${keysFolder(me)}/$KEY_ANSWER")
+            if (!fs.createNew(path, requestPublic)) throw IllegalStateException("The request couldn't be saved")
+        }
+    }
+
+    /** My helper's answer, once there is one. */
+    suspend fun readKeyAnswer(): ByteArray? {
+        val me = joined?.me?.userId ?: return null
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
+        return runCatching { "${keysFolder(me)}/$KEY_ANSWER".let { if (fs.exists(it)) fs.read(it) else null } }.getOrNull()
+    }
+
+    /** Removes my request and its answer (done, or given up). */
+    suspend fun clearKeyRequest() {
+        val me = joined?.me?.userId ?: return
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
+        listOf(KEY_REQUEST, KEY_ANSWER).forEach { name ->
+            runCatching { "${keysFolder(me)}/$name".let { if (fs.exists(it)) fs.delete(it) } }
+        }
+    }
+
+    /** Someone asking me, as their recovery helper, for their key back. */
+    class KeyRequest(val userId: String, val name: String, val requestPublic: ByteArray, val wrapped: ByteArray)
+
+    /** Requests waiting for me: I hold their helper copy, they left a request, and nobody has answered it yet. */
+    suspend fun keyRequestsForMe(): List<KeyRequest> {
+        val j = joined ?: return emptyList()
+        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return emptyList()
+        return j.household.members.filter { it.userId != j.me.userId }.mapNotNull { m ->
+            runCatching {
+                val folder = keysFolder(m.userId)
+                val wrap = "$folder/helper-${j.me.userId}.bin"
+                val request = "$folder/$KEY_REQUEST"
+                if (!fs.exists(wrap) || !fs.exists(request) || fs.exists("$folder/$KEY_ANSWER")) return@runCatching null
+                KeyRequest(m.userId, m.name, fs.read(request), fs.read(wrap))
+            }.getOrNull()
+        }
+    }
+
+    /** Leaves my answer for [ownerId]: their key, sealed to their request. Returns a problem, or null. */
+    suspend fun answerKeyRequest(ownerId: String, answer: ByteArray): String? = guarded {
+        val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
+        val path = "${keysFolder(ownerId)}/$KEY_ANSWER"
+        if (fs.exists(path)) fs.delete(path)
+        if (!fs.createNew(path, answer)) throw IllegalStateException("The answer couldn't be saved")
+    }
+
     /**
      * The person leaves the family from this phone. [deleteBackup] (10 Nov): their backup is deleted from the drive
      * too (every file in their own folder, nobody else's); otherwise it stays and the owner can still see it.
@@ -1104,3 +1175,6 @@ class DriveState(private val platform: DrivePlatform) {
         const val OWNER_UNLOCK_MS = 5 * 60_000L
     }
 }
+
+private const val KEY_REQUEST = "key-request.bin"
+private const val KEY_ANSWER = "key-answer.bin"

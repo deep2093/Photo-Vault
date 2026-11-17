@@ -13,6 +13,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,7 +81,7 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
                 selected = current == BackupPrivacy.PRIVATE,
                 lines = if (googleOnly) listOf(
                     "Photos are scrambled on your phone before they leave it. Google, or anyone who gets into your Google account, sees only scrambled files.",
-                    "You choose a PIN. A locked spare copy of your key is kept in your Google Drive, so a new phone gets it back with the PIN.",
+                    "You choose a password. A locked spare copy of your key is kept in your Google Drive, so a new phone gets it back with the password.",
                     "If you forget the PIN and lose this phone, the backup can't be opened by anyone.",
                     "Photos open only inside Pixallery, not on drive.google.com.",
                 ) else listOf(
@@ -339,6 +346,173 @@ internal fun RestoreKeysScreen(state: ShellState, drive: DriveState, backup: Bac
                 }
             })
         }
+        // 18 Nov (A1): lost the words too? The recovery helper, if one was chosen, can hand the key back.
+        item {
+            GlassButton("Lost your words? Ask your recovery helper", onClick = { state.open(Overlay.AskHelper) }, modifier = Modifier.cardWidth())
+        }
+    }
+}
+
+/**
+ * Asking the recovery helper for the key back (18 Nov, A1), for someone who has lost both their phone and their 24
+ * words. This phone leaves a one-time key on the family drive and shows a six-digit code. The helper's phone shows the
+ * same code; once they have checked it with the person (in person or on a call) and tapped Help, their phone seals the
+ * key to this one. This phone checks it is really the person's own key before keeping it.
+ */
+@Composable
+internal fun AskHelperScreen(state: ShellState, drive: DriveState) {
+    val theme = LocalGlassTheme.current
+    val scope = rememberCoroutineScope()
+    val enc = state.encryption
+    var helpers by remember { mutableStateOf<List<String>?>(null) }
+    var code by remember { mutableStateOf<String?>(null) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    var done by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        helpers = drive.myHelpers()
+        if (helpers.isNullOrEmpty()) return@LaunchedEffect
+        val request = enc.platform.startKeyRequest() ?: run { problem = "This phone can't ask for the key."; return@LaunchedEffect }
+        problem = drive.postKeyRequest(request)
+        if (problem != null) return@LaunchedEffect
+        code = com.deepak.photovault.core.crypto.KeyRequestCode.of(request)
+        // Looks for the helper's answer every few seconds while this page is open.
+        val ctx = drive.keyContext() ?: return@LaunchedEffect
+        val expected = drive.readKeyFiles()?.identity?.let { PublicIdentity.parse(it)?.fingerprint }.orEmpty()
+        while (!done) {
+            val answer = drive.readKeyAnswer()
+            if (answer != null) {
+                val failed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    enc.platform.finishKeyRequest(answer, ctx.first, ctx.second, expected)
+                }
+                drive.clearKeyRequest()
+                if (failed == null) {
+                    done = true
+                    enc.refresh()
+                    state.say("Your key is back on this phone.")
+                    state.back()
+                    if (state.overlays.lastOrNull() == Overlay.RestoreKeys) state.back()
+                } else {
+                    problem = failed
+                }
+                break
+            }
+            kotlinx.coroutines.delay(4_000)
+        }
+    }
+    GlassListScreen(title = "Ask your recovery helper", subtitle = null, onBack = { state.back() }) {
+        item {
+            GlassCard(Modifier.cardWidth()) {
+                val list = helpers
+                when {
+                    list == null -> Text("Looking on the family drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                    list.isEmpty() -> {
+                        Text("No recovery helper", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "You didn't choose a recovery helper when you set up Private backup, so only your 24 words can bring your key back.",
+                            color = theme.onGlassSecondary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    else -> {
+                        val who = list.joinToString(" or ")
+                        Text("Ask $who", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        listOf(
+                            "Ask $who to open Pixallery on their phone, on the family drive. They'll see that you're asking for your key.",
+                            "Their phone shows a code. Check together, in person or on a call, that it is the same as this one.",
+                            "When they tap Help, your key comes to this phone by itself. Keep this page open.",
+                        ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
+                        code?.let {
+                            Text(
+                                it,
+                                color = theme.onGlass,
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 16.dp).semantics { contentDescription = "Code ${it.replace(" ", "")}" },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        item { problem?.let { WarningNote(it, Modifier.cardWidth()) } }
+        if (!helpers.isNullOrEmpty()) item {
+            GlassButton("Stop asking", onClick = {
+                done = true
+                enc.platform.cancelKeyRequest()
+                scope.launch { drive.clearKeyRequest() }
+                state.back()
+            })
+        }
+    }
+}
+
+/**
+ * Requests waiting for this phone as someone's recovery helper (18 Nov, A1). Looked for only while the Family page is
+ * on screen ([onScreen]): when it opens and once a minute while it stays open. The person asking calls their helper
+ * and asks them to open Family, so nothing reads the drive in the background for this.
+ */
+@Composable
+internal fun rememberKeyRequests(drive: DriveState, onScreen: Boolean): androidx.compose.runtime.MutableState<List<DriveState.KeyRequest>> {
+    val requests = remember { mutableStateOf<List<DriveState.KeyRequest>>(emptyList()) }
+    LaunchedEffect(drive.joined?.me?.userId, onScreen) {
+        while (onScreen && drive.joined != null) {
+            requests.value = drive.keyRequestsForMe()
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    return requests
+}
+
+/**
+ * On the helper's phone (18 Nov, A1): someone in the family has asked for their Private backup key back. Shows the
+ * code to check with them, and hands the key over on Help. [onGone] when answered or put off.
+ */
+@Composable
+internal fun KeyRequestCard(state: ShellState, drive: DriveState, r: DriveState.KeyRequest, onGone: () -> Unit) {
+    val theme = LocalGlassTheme.current
+    val scope = rememberCoroutineScope()
+    var working by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader("${r.name} is asking for their key")
+        Text(
+            "${r.name} has lost their phone and recovery words and chose you as their recovery helper. Only help if ${r.name} asked you, in person or on a call.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        val code = remember(r.requestPublic) { com.deepak.photovault.core.crypto.KeyRequestCode.of(r.requestPublic) }
+        Text("Check ${r.name}'s phone shows this code:", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp))
+        Text(
+            code,
+            color = theme.onGlass,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 4.dp).semantics { contentDescription = "Code ${code.replace(" ", "")}" },
+        )
+        if (working) Text("Sending...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
+        problem?.let { WarningNote(it, Modifier.padding(top = 6.dp)) }
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlassButton("Not now", onClick = onGone)
+            GlassButton("The code matches: Help", primary = true, onClick = {
+                if (working) return@GlassButton
+                val ctx = drive.keyContext() ?: return@GlassButton
+                if (!state.encryption.keyOnPhone) { problem = "Your own key isn't on this phone. Restore it first, then you can help."; return@GlassButton }
+                working = true
+                problem = null
+                scope.launch {
+                    val answer = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        state.encryption.platform.answerKeyRequest(r.wrapped, r.requestPublic, ctx.first, r.userId)
+                    }
+                    problem = if (answer == null) "Your phone couldn't open the copy of ${r.name}'s key." else drive.answerKeyRequest(r.userId, answer)
+                    working = false
+                    if (problem == null) {
+                        state.say("Sent. ${r.name}'s phone will have their key in a moment.")
+                        onGone()
+                    }
+                }
+            })
+        }
     }
 }
 
@@ -403,6 +577,10 @@ internal fun PrivacyDialog(state: ShellState, drive: DriveState, backup: BackupS
     val privacy = backup.settings.privacy
     val where = rememberKeyBackup(state, drive)
     val needsRestore = where == KeyBackup.FAMILY || where == KeyBackup.GOOGLE
+    var googleSpare by remember { mutableStateOf(false) }
+    LaunchedEffect(state.encryption.keyOnPhone, state.google.accounts.size) {
+        googleSpare = state.encryption.keyOnPhone && state.google.accounts.isNotEmpty() && state.google.platform.readPinKey() != null
+    }
     GlassDialog(
         title = "Backup privacy",
         onDismiss = onDismiss,
@@ -416,6 +594,11 @@ internal fun PrivacyDialog(state: ShellState, drive: DriveState, backup: BackupS
                 onDismiss()
                 state.open(Overlay.PrivateSetup)
             })
+            // 18 Nov (A2): the spare key in Google can get a stronger password at any time.
+            if (googleSpare) GlassButton("Google password", onClick = {
+                onDismiss()
+                state.open(Overlay.ChangeGooglePassword)
+            })
             GlassButton(if (privacy == BackupPrivacy.UNSET) "Choose" else "Change", primary = !needsRestore && where != KeyBackup.NEEDS_WORDS, onClick = {
                 onDismiss()
                 state.open(Overlay.PrivacyChoice)
@@ -424,7 +607,10 @@ internal fun PrivacyDialog(state: ShellState, drive: DriveState, backup: BackupS
     ) {
         Text(privacyLine(privacy, needsRestore), color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
         if (where == KeyBackup.NEEDS_WORDS) {
-            WarningNote("Your key is kept by your Google PIN only. Get your 24 recovery words too, so the family drive can bring your key back on a new phone.")
+            WarningNote("Your key is kept by your Google password only. Get your 24 recovery words too, so the family drive can bring your key back on a new phone.")
+        }
+        if (googleSpare && !state.encryption.platform.pinStrong()) {
+            WarningNote("Your Google password is short. Tap Google password to choose a stronger one.")
         }
         Text(
             when (privacy) {
@@ -509,23 +695,24 @@ internal fun PinKeyScreen(state: ShellState, backup: BackupState) {
                 if (restoring) {
                     Text("Your key is in Google", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "You set up Private backup before. Type the PIN you chose then to bring your key to this phone.",
+                        "You set up Private backup before. Type the password (or PIN) you chose then to bring your key to this phone.",
                         color = theme.onGlassSecondary,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 } else {
-                    Text("Choose a PIN", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Choose a password", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     listOf(
                         "Your photos are scrambled on this phone before they go to Google. Only Pixallery with your key can open them.",
-                        "A spare copy of your key is kept in your Google Drive, locked with this PIN, so a new phone can get it back.",
-                        "Numbers or letters, at least ${PIN_MIN} long. Longer is safer.",
-                        "If you forget the PIN and lose this phone, nobody can open your backup. Pixallery can't reset it.",
+                        "A spare copy of your key is kept in your Google Drive, locked with this password, so a new phone can get it back.",
+                        PASSWORD_RULE,
+                        "If you forget the password and lose this phone, nobody can open your backup. Pixallery can't reset it.",
                     ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
                 }
-                GlassTextField(pin, { pin = it.trim() }, "PIN", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 12.dp))
+                GlassTextField(pin, { pin = it.trim() }, "Password", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 12.dp))
                 if (!restoring) {
-                    GlassTextField(again, { again = it.trim() }, "PIN again", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 8.dp))
+                    PasswordStrengthLine(pin)
+                    GlassTextField(again, { again = it.trim() }, "Password again", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 8.dp))
                 }
             }
         }
@@ -540,8 +727,10 @@ internal fun PinKeyScreen(state: ShellState, backup: BackupState) {
                 primary = true,
                 onClick = {
                     if (working) return@GlassButton
-                    if (pin.length < PIN_MIN) { problem = "The PIN needs at least $PIN_MIN numbers or letters."; return@GlassButton }
-                    if (!restoring && pin != again) { problem = "The two PINs aren't the same."; return@GlassButton }
+                    // Restoring takes any older PIN (6 or more); a new one must pass the stronger rules (18 Nov, A2).
+                    if (restoring && pin.length < OLD_PIN_MIN) { problem = "That's too short to be your password."; return@GlassButton }
+                    if (!restoring && !com.deepak.photovault.core.crypto.PasswordStrength.acceptable(pin)) { problem = passwordProblem(pin); return@GlassButton }
+                    if (!restoring && pin != again) { problem = "The two passwords aren't the same."; return@GlassButton }
                     working = true
                     problem = null
                     scope.launch {
@@ -549,7 +738,13 @@ internal fun PinKeyScreen(state: ShellState, backup: BackupState) {
                         if (envelope != null) {
                             // Slow on purpose (about a second): kept off the screen's thread.
                             problem = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { enc.platform.restorePinKey(pin, envelope) }
-                            if (problem == null) done()
+                            if (problem == null) {
+                                // An older short PIN: straight on to choosing a stronger password (18 Nov, A2).
+                                val strong = com.deepak.photovault.core.crypto.PasswordStrength.acceptable(pin)
+                                enc.platform.markPinStrong(strong)
+                                done()
+                                if (!strong) state.open(Overlay.ChangeGooglePassword)
+                            }
                         } else {
                             val sealed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { enc.platform.createPinKey(pin) }
                             if (sealed == null) {
@@ -562,6 +757,7 @@ internal fun PinKeyScreen(state: ShellState, backup: BackupState) {
                                     !enc.platform.commitKey() -> "The key couldn't be kept on this phone. Nothing was changed."
                                     else -> null
                                 }
+                                if (problem == null) enc.platform.markPinStrong(true)
                                 if (problem == null) { enc.clearPending(); done() }
                             }
                         }
@@ -573,4 +769,123 @@ internal fun PinKeyScreen(state: ShellState, backup: BackupState) {
     }
 }
 
-private const val PIN_MIN = 6
+/** Older Google PINs (before 18 Nov) could be 6 characters; they still open the key, then a stronger one is asked for. */
+private const val OLD_PIN_MIN = 6
+
+private const val PASSWORD_RULE = "At least 8 characters: a few words, or letters and numbers mixed. Twelve random digits work too."
+
+private fun passwordProblem(password: String): String = when (com.deepak.photovault.core.crypto.PasswordStrength.level(password)) {
+    com.deepak.photovault.core.crypto.PasswordStrength.Level.TOO_SHORT -> "Use at least ${com.deepak.photovault.core.crypto.PasswordStrength.MIN_LENGTH} characters."
+    else -> "That's too easy to guess. Add another word, or mix letters and numbers."
+}
+
+/** How strong the typed password is, as you type (18 Nov, A2). */
+@Composable
+private fun PasswordStrengthLine(password: String) {
+    if (password.isEmpty()) return
+    val theme = LocalGlassTheme.current
+    val level = com.deepak.photovault.core.crypto.PasswordStrength.level(password)
+    val (text, ok) = when (level) {
+        com.deepak.photovault.core.crypto.PasswordStrength.Level.TOO_SHORT -> "Too short" to false
+        com.deepak.photovault.core.crypto.PasswordStrength.Level.WEAK -> "Too easy to guess" to false
+        com.deepak.photovault.core.crypto.PasswordStrength.Level.GOOD -> "Good" to true
+        com.deepak.photovault.core.crypto.PasswordStrength.Level.STRONG -> "Strong" to true
+    }
+    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(
+            if (ok) Icons.Rounded.CheckCircle else Icons.Rounded.ErrorOutline,
+            contentDescription = null,
+            tint = if (ok) theme.badgeBackedUp else com.deepak.photovault.designsystem.DangerColor,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(text, color = theme.onGlass, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+/**
+ * A stronger password for the spare key in Google (18 Nov, A2). The key on this phone is locked again under the new
+ * password and the copy in every Google account is replaced. The key itself stays the same, so nothing has to be
+ * backed up again.
+ */
+@Composable
+internal fun ChangeGooglePasswordScreen(state: ShellState) {
+    val theme = LocalGlassTheme.current
+    val scope = rememberCoroutineScope()
+    val enc = state.encryption
+    var pin by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    var problem by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+    GlassListScreen(title = "Google password", subtitle = null, onBack = { state.back() }) {
+        item {
+            GlassCard(Modifier.cardWidth()) {
+                Text("Choose a stronger password", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                listOf(
+                    "The spare copy of your key in Google Drive is locked with this password. A short one could be guessed by someone who gets into your Google account.",
+                    PASSWORD_RULE,
+                    "Your backups stay as they are; only the lock on the spare key changes.",
+                ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
+                GlassTextField(pin, { pin = it.trim() }, "New password", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 12.dp))
+                PasswordStrengthLine(pin)
+                GlassTextField(again, { again = it.trim() }, "New password again", password = true, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+        item { problem?.let { WarningNote(it, Modifier.cardWidth()) } }
+        item {
+            GlassButton(
+                if (working) "Saving..." else "Save new password",
+                primary = true,
+                onClick = {
+                    if (working) return@GlassButton
+                    if (!enc.keyOnPhone) { problem = "This phone doesn't have your key yet. Restore it first."; return@GlassButton }
+                    if (!com.deepak.photovault.core.crypto.PasswordStrength.acceptable(pin)) { problem = passwordProblem(pin); return@GlassButton }
+                    if (pin != again) { problem = "The two passwords aren't the same."; return@GlassButton }
+                    working = true
+                    problem = null
+                    scope.launch {
+                        val sealed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { enc.platform.rewrapPinKey(pin) }
+                        val failed = if (sealed == null) "This phone doesn't have your key." else state.google.platform.savePinKey(sealed)
+                        working = false
+                        if (failed != null) {
+                            problem = failed
+                        } else {
+                            enc.platform.markPinStrong(true)
+                            state.say("Google password changed.")
+                            state.back()
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+/**
+ * An older, short Google PIN (18 Nov, A2): true when this phone has the key, a spare copy is in Google, and its
+ * password was set before the stronger rules. Read once when the Backup page opens.
+ */
+@Composable
+internal fun rememberWeakGooglePassword(state: ShellState): Boolean {
+    var weak by remember { mutableStateOf(false) }
+    LaunchedEffect(state.encryption.keyOnPhone, state.google.accounts.size) {
+        weak = state.encryption.keyOnPhone && state.google.accounts.isNotEmpty() && !state.encryption.platform.pinStrong() &&
+            state.google.platform.readPinKey() != null
+    }
+    return weak
+}
+
+/** The nudge on the Backup page for [rememberWeakGooglePassword]. */
+@Composable
+internal fun WeakGooglePasswordCard(state: ShellState) {
+    val theme = LocalGlassTheme.current
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader("Make your Google password stronger")
+        Text(
+            "The spare copy of your key in Google Drive is locked with a short PIN, which could be guessed by someone who gets into your Google account.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        GlassButton("Choose a stronger password", primary = true, onClick = { state.open(Overlay.ChangeGooglePassword) }, modifier = Modifier.padding(top = 10.dp))
+    }
+}
+

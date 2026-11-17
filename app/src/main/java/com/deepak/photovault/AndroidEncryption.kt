@@ -80,8 +80,55 @@ class AndroidEncryption(private val activity: MainActivity) : EncryptionPlatform
 
     override fun restorePinKey(pin: String, envelope: ByteArray): String? {
         val rootBytes = com.deepak.photovault.core.crypto.PinEnvelope.unwrap(envelope, pin)
-            ?: return "That PIN doesn't open your key. Check it and try again."
+            ?: return "That password doesn't open your key. Check it and try again."
         return if (keep(MemberKeys(rootBytes))) null else "The key couldn't be kept on this phone."
+    }
+
+    override fun rewrapPinKey(pin: String): ByteArray? = root()?.let { com.deepak.photovault.core.crypto.PinEnvelope.wrap(it.root, pin) }
+
+    override fun pinStrong(): Boolean = prefs.getBoolean(PIN_STRONG, false)
+
+    override fun markPinStrong(strong: Boolean) {
+        prefs.edit().putBoolean(PIN_STRONG, strong).apply()
+    }
+
+    /** The one-time key for asking the recovery helper, while a request is open (sealed in the Keystore like the root). */
+    private fun requestKeys(): MemberKeys? =
+        prefs.getString(REQUEST, null)?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
+            ?.let { box.open(it) }?.takeIf { it.size == 32 }?.let { MemberKeys(it) }
+
+    override fun startKeyRequest(): ByteArray? = runCatching {
+        val keys = requestKeys() ?: MemberKeys.generate().also { fresh ->
+            prefs.edit().putString(REQUEST, Base64.encodeToString(box.seal(fresh.root), Base64.NO_WRAP)).commit()
+        }
+        MemberIdentity(keys).exchangePublic
+    }.getOrNull()
+
+    override fun finishKeyRequest(answer: ByteArray, householdId: String, memberId: String, expectedFingerprint: String): String? {
+        val asking = requestKeys() ?: return "This request was cancelled on this phone. Ask again."
+        val root = runCatching { HelperWrap.unwrap(answer, MemberIdentity(asking), KeyContext(householdId, memberId)) }.getOrNull()
+            ?: return "Your helper's answer couldn't be opened. Ask again."
+        val keys = MemberKeys(root)
+        // Only your own key is kept: it must match your public identity on the drive.
+        if (expectedFingerprint.isNotBlank() && MemberIdentity(keys).fingerprint != expectedFingerprint) {
+            return "That isn't your key, so it wasn't kept. Ask your helper again."
+        }
+        if (!keep(keys)) return "The key couldn't be kept on this phone."
+        cancelKeyRequest()
+        return null
+    }
+
+    override fun cancelKeyRequest() {
+        prefs.edit().remove(REQUEST).apply()
+    }
+
+    override fun answerKeyRequest(wrapped: ByteArray, requestPublic: ByteArray, householdId: String, ownerId: String): ByteArray? {
+        val mine = root() ?: return null
+        return runCatching {
+            val context = KeyContext(householdId, ownerId)
+            val theirs = HelperWrap.unwrap(wrapped, MemberIdentity(mine), context) ?: return null
+            HelperWrap.wrap(theirs, requestPublic, context)
+        }.getOrNull()
     }
 
     override fun wrapForHelper(helperExchangePublic: ByteArray, householdId: String, memberId: String): ByteArray? {
@@ -105,5 +152,7 @@ class AndroidEncryption(private val activity: MainActivity) : EncryptionPlatform
 
     private companion object {
         const val KEY = "root"
+        const val PIN_STRONG = "pin_strong"
+        const val REQUEST = "helper_request"
     }
 }

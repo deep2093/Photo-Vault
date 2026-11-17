@@ -254,6 +254,7 @@ class BackupRunner(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Throwable) {
+                    com.deepak.photovault.SecuredKeys.noteUploadFailed(context)
                 }
             }
             // People's encrypted copy (names and faces, 7A-3) goes up too. Never fails the backup.

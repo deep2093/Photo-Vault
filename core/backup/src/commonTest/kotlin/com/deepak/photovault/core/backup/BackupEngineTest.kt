@@ -279,16 +279,18 @@ class BackupEngineTest {
             BackupFailure(FailureReason.DRIVE_UNREACHABLE)
         }).run(items, BackupSettings(), 100 * GB, BackupTrigger.SCHEDULED)
         assertEquals(FailureReason.DRIVE_UNREACHABLE, first.failure)
-        assertEquals(2, first.uploaded)
-        assertEquals(2, index.records.size)
-        // Back online: the rest goes up, nothing twice. The manifest for the first two was saved... once the drive came back
-        // it may be missing, but the index remembers them.
+        // E5 (18 Nov): two photos reached the drive, but it went before the list of them was saved, so they don't count
+        // as backed up yet (before, the phone counted them while the drive never listed them).
+        assertEquals(0, first.uploaded)
+        assertEquals(0, index.records.size)
+        // Back online: all four are listed, and the two already there aren't stored twice.
         drive.offline = false
         drive.failAfterWrites = null
         val second = run(engine(index), items)
         assertTrue(second.succeeded, second.toString())
-        assertEquals(2, second.uploaded)
+        assertEquals(4, second.uploaded)
         assertEquals(4, drive.allFiles().count { it.contains("/albums/") })
+        assertEquals(4, BackupCatalog(drive, USER).records().size)
     }
 
     @Test

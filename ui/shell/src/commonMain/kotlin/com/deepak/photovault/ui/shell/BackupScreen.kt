@@ -125,6 +125,8 @@ fun BackupScreen(
     // Backup waits for this choice, and a Private backup needs its key: shown in full until sorted.
     val privacyNeedsYou = settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.UNSET ||
         (settings.privacy == com.deepak.photovault.core.backup.BackupPrivacy.PRIVATE && !state.encryption.keyOnPhone)
+    // 18 Nov (A2): an older, short Google PIN gets a nudge to choose a stronger password.
+    val weakGooglePassword = rememberWeakGooglePassword(state)
 
     // Opened from Settings since 24 Oct, so it has a title and a back button.
     GlassListScreen(title = if (onBack != null) "Backup" else null, subtitle = null, onBack = onBack) {
@@ -139,6 +141,7 @@ fun BackupScreen(
         }
         // The new layout is the only one since 16 Nov (Deepak chose it after trying both): a ring card like Storage's,
         // one settings card and warnings only when they need you.
+        if (weakGooglePassword) item(key = "weak-google-password") { WeakGooglePasswordCard(state) }
         newBackupItems(
             state, drive, backup, gallery, actions, googleOn, showDrive, showGoogle, googleView,
             eligible.size, done, googleEligible, privacyNeedsYou,

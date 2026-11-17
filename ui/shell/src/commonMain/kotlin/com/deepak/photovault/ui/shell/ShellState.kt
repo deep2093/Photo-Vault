@@ -203,6 +203,12 @@ sealed interface Overlay {
 
     /** Private backup with Google only (14 Nov): make the key and lock a spare copy in Google with a PIN, or get it back. */
     data object PinKey : Overlay
+
+    /** A stronger password for the spare key in Google (18 Nov, A2). */
+    data object ChangeGooglePassword : Overlay
+
+    /** Getting the key back from the recovery helper, when the 24 words are lost too (18 Nov, A1). */
+    data object AskHelper : Overlay
 }
 
 sealed interface AlbumKind {

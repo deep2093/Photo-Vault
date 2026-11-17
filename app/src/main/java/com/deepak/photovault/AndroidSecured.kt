@@ -521,4 +521,10 @@ object SecuredKeys {
         prefs(context).edit().putString("drive_status", line).apply()
         return line
     }
+
+    /** E5 (18 Nov): the copy couldn't be made this time; say so instead of leaving an older "all copied" line showing. */
+    fun noteUploadFailed(context: Context) {
+        val time = java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+        prefs(context).edit().putString("drive_status", "Couldn't copy to the family drive at $time. It tries again with the next backup.").apply()
+    }
 }
