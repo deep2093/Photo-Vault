@@ -200,6 +200,17 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
         .then(if (noRim) Modifier else Modifier.glassRim(shape))
 }
 
+/**
+ * Glass for a control that floats inside a scrolling page (Photos' date, 18 Nov). The page itself is what the blur
+ * reads, so blur can't be drawn inside it (it drew nothing at all, leaving the words straight on the photos): this is
+ * the solid frosted fill instead, always opaque enough for the words on it, with the glass edge.
+ */
+@Composable
+fun Modifier.solidGlass(shape: Shape): Modifier {
+    val theme = LocalGlassTheme.current
+    return this.clip(shape).background(theme.glassFallback).glassRim(shape)
+}
+
 /** Glass for panels and cards that sit on the wallpaper. No blur needed: the wallpaper is calm. */
 @Composable
 fun Modifier.glassPanel(shape: Shape): Modifier {

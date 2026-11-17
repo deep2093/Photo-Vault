@@ -350,8 +350,11 @@ fun SelectableScreen(
                 GlassIconButton(Icons.Rounded.FavoriteBorder, "Favourite", onClick = {
                     // Said after (13 Nov): all already favourites means they come off, otherwise they go on.
                     val removing = selectedItems.isNotEmpty() && selectedItems.all { gallery.isFavourite(it) }
+                    val before = selectedItems.filter { gallery.isFavourite(it) }.map { it.id }.toSet()
+                    val ids = selectedItems.map { it.id }.toSet()
                     gallery.toggleFavourite(selectedItems)
-                    actions.toast(if (removing) "Removed from Favourites." else "Added to Favourites.")
+                    // 18 Nov: Undo puts each one back exactly as it was.
+                    state.say(if (removing) "Removed from Favourites." else "Added to Favourites.", "Undo") { gallery.restoreFavourites(ids, before) }
                     state.selected = emptySet()
                 })
                 GlassIconButton(

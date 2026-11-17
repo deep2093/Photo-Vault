@@ -39,6 +39,8 @@ class AndroidEditor(
     context: Context,
     /** Asks Android for leave to change [Uri] (the "Allow Pixallery to modify this photo?" question); true when given. */
     private val permit: suspend (Uri) -> Boolean = { false },
+    /** Asks Android to move [Uri] to Recently deleted (18 Nov); true when it went. */
+    private val trash: suspend (Uri) -> Boolean = { false },
 ) : EditorPlatform {
     private val app = context.applicationContext
     private val resolver = app.contentResolver
@@ -108,9 +110,14 @@ class AndroidEditor(
         }
     }
 
-    /** Photos on this phone in a kind that can be written again as it is: JPEG, PNG and WebP (17 Nov). */
+    /**
+     * Photos on this phone (17 Nov). JPEG, PNG and WebP are written again as they are; every other kind (HEIC, AVIF,
+     * DNG...) is saved as a JPEG in its place (18 Nov, Deepak: "whichever format can't be saved the same").
+     */
     override fun canReplace(item: MediaItem): Boolean =
-        !item.isVideo && item.uri.startsWith("content://media/") && formatOf(item.mimeType) != null
+        !item.isVideo && item.uri.startsWith("content://media/") && item.mimeType.lowercase().startsWith("image/")
+
+    override fun savesAsJpeg(item: MediaItem): Boolean = canReplace(item) && formatOf(item.mimeType) == null
 
     /**
      * Saves the edit over the photo itself (17 Nov, Deepak). Android asks the person first. Before anything is
@@ -119,7 +126,7 @@ class AndroidEditor(
      */
     override suspend fun replace(item: MediaItem, edit: PhotoEdit): EditSaved = saving.withLock {
         val target = Uri.parse(item.uri)
-        val format = formatOf(item.mimeType) ?: return@withLock EditSaved(false, "This kind of photo can't be saved over. Save a copy instead.")
+        val format = formatOf(item.mimeType) ?: return@withLock saveAsJpeg(item, edit, target)
         if (!permit(target)) return@withLock EditSaved(false, "Not saved. The original is unchanged.")
         withContext(Dispatchers.Default) {
             val file = tempFile(item.displayName.substringAfterLast('.', "jpg").take(5))
@@ -152,6 +159,45 @@ class AndroidEditor(
                 file.delete()
             }
         }
+    }
+
+    /**
+     * "Save" for a kind that can't be written again (18 Nov, Deepak): the edit as a JPEG with the same name (IMG_1234.HEIC
+     * becomes IMG_1234.jpg) in the same album, with the original's date, place and camera details. Then Android is asked
+     * to move the original to Recently deleted (30 days to bring it back). Said no: both stay, and the message says so.
+     * The new photo's id goes back, so the viewer can show it and carry the favourite mark over.
+     */
+    private suspend fun saveAsJpeg(item: MediaItem, edit: PhotoEdit, target: Uri): EditSaved {
+        val kind = item.mimeType.substringAfter('/').uppercase().let { if (it == "HEIF") "HEIC" else it }
+        val saved = withContext(Dispatchers.Default) {
+            val file = tempFile("jpg")
+            try {
+                val made = make(item, edit, file, Bitmap.CompressFormat.JPEG)
+                if (made.problem != null) return@withContext made.problem
+                if (made.shrunk) return@withContext "This photo is too big to save on this phone. Save a copy instead."
+                val name = item.displayName.substringBeforeLast('.', item.displayName) + ".jpg"
+                val folders = listOfNotNull(item.folder?.trim('/')?.takeIf { it.isNotEmpty() }, "Pictures/Pixallery").distinct()
+                com.deepak.photovault.GallerySave.saveUri(
+                    resolver, com.deepak.photovault.GallerySave.photos, name, "image/jpeg", folders, item.takenAtMillis,
+                ) { out -> file.inputStream().use { it.copyTo(out) } }?.uri ?: "Couldn't save the photo. The original is unchanged."
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                "Couldn't save the photo. The original is unchanged."
+            } finally {
+                file.delete()
+            }
+        }
+        if (saved is String) return EditSaved(false, saved)
+        val newUri = saved as Uri
+        val newId = runCatching { android.content.ContentUris.parseId(newUri) }.getOrNull()
+        // Only now, with the JPEG safely saved, is the original moved to Recently deleted (Android asks).
+        val binned = runCatching { trash(target) }.getOrDefault(false)
+        return EditSaved(
+            true,
+            if (binned) "Saved as a JPEG. The $kind original is in Recently deleted for 30 days." else "Saved as a JPEG. The $kind original is kept beside it.",
+            newId = newId,
+        )
     }
 
     /** A plain copy of the original photo, straight into Recently deleted; null when it couldn't be made. */

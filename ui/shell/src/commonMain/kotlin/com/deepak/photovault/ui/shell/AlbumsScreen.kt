@@ -166,7 +166,10 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         if (ids.isEmpty()) return
         ids.forEach { gallery.setHidden(it, true) }
         clearSelection()
-        actions.toast(if (ids.size == 1) "Album hidden. Bring it back from the menu: Hide albums." else "Albums hidden. Bring them back from the menu: Hide albums.")
+        // 18 Nov: with Undo, which shows them again straight away.
+        state.say(if (ids.size == 1) "Album hidden. Bring it back from the menu: Hide albums." else "Albums hidden. Bring them back from the menu: Hide albums.", "Undo") {
+            ids.forEach { gallery.setHidden(it, false) }
+        }
     }
 
     GlassScreen(

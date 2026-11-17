@@ -172,6 +172,8 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   Next build (Deepak, 18 Nov): photos that can't be written back in their own kind (HEIC and the rest) get Save
   too: the edit is saved as a JPEG with the same name in the same album, with the date, place and camera details;
   the original goes to Recently deleted for 30 days (Android asks first); its favourite mark is carried over.
+  Built 18 Nov on `feature/redesign` (`AndroidEditor.saveAsJpeg`): the JPEG is saved first, then Android is asked
+  to move the original to Recently deleted; if the person says no, both stay. Not yet tried on a phone.
 - [ ] **D19 · Finding a drive that moved: a switch, explained during set-up.** Who: Claude built it, Deepak tests.
   (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
   Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to

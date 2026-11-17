@@ -534,6 +534,14 @@ private fun ThemeGrid(state: ShellState) {
             }
         }
     }
+    // What the chosen theme is like, day and night, so the four are easy to tell apart.
+    Text(
+        "${chosen.name}: ${chosen.about}",
+        color = theme.onGlassSecondary,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+    )
     // Day or night (18 Nov, Deepak: "one theme can be switched to night and day"): as the phone, or always one.
     val modes = ThemeMode.entries
     com.deepak.photovault.designsystem.GlassSegmented(

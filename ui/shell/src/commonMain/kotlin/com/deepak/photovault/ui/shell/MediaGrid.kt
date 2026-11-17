@@ -16,7 +16,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.clickable
 import com.deepak.photovault.designsystem.accentSurface
-import com.deepak.photovault.designsystem.glassChrome
+import com.deepak.photovault.designsystem.solidGlass
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -493,18 +493,23 @@ internal fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier:
     }
     val show = away && !(goingDown && grid.isScrollInProgress)
     AnimatedVisibility(visible = show, enter = fadeIn(motionSpec()) + scaleIn(motionSpec(), initialScale = 0.8f), exit = fadeOut(motionSpec()) + scaleOut(motionSpec(), targetScale = 0.8f), modifier = modifier) {
-        // Blurry see-through glass like the other floating controls, so it matches every theme (28 Oct). No separate
-        // drop shadow: a shadow drawn under a fading, clipped circle showed as a square while scrolling.
+        // 18 Nov (Deepak: "arrow hard to see everywhere"): a solid button in the theme's text colour with the arrow in
+        // the opposite one (dark with a white arrow by day, white with a dark arrow at night), ringed in that opposite
+        // colour so it stands out on photos and on the page alike. It was see-through glass, which can't blur inside
+        // the scrolling page and left a faint ring. No drop shadow: under a fading circle it showed as a square.
         val theme = LocalGlassTheme.current
+        val fill = theme.onGlass
+        val arrow = if (theme.isDark) Color(0xFF14171C) else Color.White
         Box(
             Modifier
-                .size(46.dp)
-                .glassChrome(androidx.compose.foundation.shape.CircleShape, elevation = 0.dp)
+                .size(48.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(fill)
+                .border(1.5.dp, arrow.copy(alpha = 0.7f), androidx.compose.foundation.shape.CircleShape)
                 .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            com.deepak.photovault.designsystem.DepthIcon(Icons.Rounded.ArrowUpward, "Back to top", theme.onGlass, Modifier.size(26.dp))
+            Icon(Icons.Rounded.ArrowUpward, "Back to top", tint = arrow, modifier = Modifier.size(26.dp))
         }
     }
 }
@@ -921,16 +926,17 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
     }
     if (text.isEmpty()) return
     if (com.deepak.photovault.designsystem.GlassFinish.CALM) {
-        // 18 Nov: on the same glass as the pills, so it reads over any photo (it was lost over busy ones), in the title
-        // serif; its words start where "Years" starts above it.
+        // 18 Nov: on a frosted bar of its own, so it reads over any photo, in the title serif; its words start where
+        // "Years" starts above it. Solid frost, not blur: inside the scrolling photos the blur drew nothing (Deepak's
+        // screenshot: the words sat straight on the photos).
         Text(
             text,
             color = theme.onGlass,
             style = com.deepak.photovault.designsystem.titled(MaterialTheme.typography.titleSmall),
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
             modifier = modifier
-                .glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp)
+                .solidGlass(RoundedCornerShape(percent = 50))
                 .padding(horizontal = FLOATING_PILL_TEXT_INSET, vertical = 5.dp),
         )
         return

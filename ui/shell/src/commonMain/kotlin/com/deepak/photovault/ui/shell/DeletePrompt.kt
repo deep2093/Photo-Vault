@@ -33,6 +33,9 @@ class DeletePrompt {
         r.onAnswer(yes)
     }
 
+    /** Told when photos have gone to Recently deleted (18 Nov), for the message with Undo. */
+    var onTrashed: ((MediaActions, List<MediaItem>) -> Unit)? = null
+
     /** Move [items] to Recently deleted ("the bin"), asking first. [onDone] gets whether they went. */
     fun trash(actions: MediaActions, items: List<MediaItem>, onDone: (Boolean) -> Unit) {
         if (items.isEmpty()) return
@@ -41,7 +44,10 @@ class DeletePrompt {
             return actions.moveToRecentlyDeleted(items, onDone)
         }
         ask(actions, DeleteText.trash(items), DeleteText.trashBody(items.size), "Move to bin", onDone) {
-            actions.moveToRecentlyDeleted(items, onDone)
+            actions.moveToRecentlyDeleted(items) { ok ->
+                onDone(ok)
+                if (ok) onTrashed?.invoke(actions, items)
+            }
         }
     }
 

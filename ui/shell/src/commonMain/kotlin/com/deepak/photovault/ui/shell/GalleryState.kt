@@ -518,6 +518,12 @@ class GalleryState(
     }
 
     /** Favourite all when any is not a favourite yet; otherwise remove them all. */
+    /** Undo for [toggleFavourite] (18 Nov): of [ids], exactly [before] are favourites again. */
+    fun restoreFavourites(ids: Set<Long>, before: Set<Long>) {
+        favourites = (favourites - ids) + before
+        favouritesStore.save(favourites)
+    }
+
     fun toggleFavourite(selected: Collection<MediaItem>) {
         val ids = selected.map { it.id }.toSet()
         favourites = if (ids.all { it in favourites }) favourites - ids else favourites + ids

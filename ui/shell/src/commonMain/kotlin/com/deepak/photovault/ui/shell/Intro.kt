@@ -100,14 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-3"
+    const val ID = "2026-11-18-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Day and night for every theme", "Settings > Appearance: pick Liquid, Luminous, Photo or Vivid, then As the phone, Day or Night. The photo viewer uses the theme's night look."),
-        Change(ChangeKind.CHANGED, "Calmer glass", "Thin, clean edges and softer shadows. In the day themes the bars are whiter, so their words read over any photo."),
-        Change(ChangeKind.CHANGED, "Magazine letters for titles and dates", "Page titles, album and memory names, Years and Months, and photo dates use an elegant serif. Buttons and settings stay as they were."),
-        Change(ChangeKind.FIXED, "The date in Photos lines up", "The date under Years / Months / All now starts in line with it, on its own small glass bar, so it reads over any photo."),
-        Change(ChangeKind.REMOVED, "The trial styles", "Clear Glass, Material You and Darkroom are gone, and so are Warm Light and Clear Light. If you used one of those, you are on Liquid."),
+        Change(ChangeKind.CHANGED, "Four themes that look their own", "Liquid is sky blue by day and a deep sea at night; Luminous an aurora, lilac and mint or violet and green; Photo warm paper or graphite; Vivid bold colours from your photos."),
+        Change(ChangeKind.NEW, "Undo", "After moving photos to Recently deleted, changing Favourites or hiding an album, the message at the bottom has Undo."),
+        Change(ChangeKind.NEW, "Save works for HEIC photos too", "Photos that can't be changed in place (HEIC and the like) are saved as a JPEG with the same name, date, place and camera details, and keep their favourite mark. Android asks before the original goes to Recently deleted."),
+        Change(ChangeKind.FIXED, "The date in Photos is easy to read", "It sits on its own frosted bar over the photos, lined up with Years / Months / All."),
+        Change(ChangeKind.FIXED, "Back to top is easy to see", "A solid button with a clear arrow, on photos and on the page alike."),
     )
 }
 

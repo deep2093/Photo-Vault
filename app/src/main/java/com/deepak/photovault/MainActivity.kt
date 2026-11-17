@@ -182,12 +182,17 @@ class MainActivity : ComponentActivity(), MediaActions {
     }
 
     /** Asks Android for leave to change [uri]; true when the person allowed it (or Pixallery may manage media). */
-    private suspend fun askToChange(uri: Uri): Boolean = withContext(Dispatchers.Main) {
+    private suspend fun askToChange(uri: Uri): Boolean = askAndroidNow { MediaStore.createWriteRequest(contentResolver, listOf(uri)) }
+
+    /** Asks Android to move [uri] to Recently deleted (18 Nov: an edited HEIC's original, once its JPEG is saved). */
+    private suspend fun askToTrash(uri: Uri): Boolean = askAndroidNow { MediaStore.createTrashRequest(contentResolver, listOf(uri), true) }
+
+    /** Shows Android's own question from [request] and waits for the answer. */
+    private suspend fun askAndroidNow(request: () -> android.app.PendingIntent): Boolean = withContext(Dispatchers.Main) {
         pendingChange?.complete(false)
         val answer = kotlinx.coroutines.CompletableDeferred<Boolean>().also { pendingChange = it }
         val asked = runCatching {
-            val request = MediaStore.createWriteRequest(contentResolver, listOf(uri))
-            changeLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+            changeLauncher.launch(IntentSenderRequest.Builder(request().intentSender).build())
         }.isSuccess
         if (!asked) {
             pendingChange = null
@@ -329,7 +334,7 @@ class MainActivity : ComponentActivity(), MediaActions {
         lifecycleScope.launch { runCatching { state.tags.refresh() } }
         state.living = com.deepak.photovault.ui.shell.LivingState(com.deepak.photovault.living.AndroidLiving(this))
         // The photo editor (Phase 11): crop, turn, light and colour, looks; saves a copy, or over the photo (17 Nov).
-        state.editor = com.deepak.photovault.ui.shell.EditorState(com.deepak.photovault.editor.AndroidEditor(this) { askToChange(it) })
+        state.editor = com.deepak.photovault.ui.shell.EditorState(com.deepak.photovault.editor.AndroidEditor(this, permit = { askToChange(it) }, trash = { askToTrash(it) }))
         state.duplicates = com.deepak.photovault.ui.shell.DuplicateState(com.deepak.photovault.duplicates.AndroidDuplicates(this))
         val google = com.deepak.photovault.google.AndroidGoogle(
             this,

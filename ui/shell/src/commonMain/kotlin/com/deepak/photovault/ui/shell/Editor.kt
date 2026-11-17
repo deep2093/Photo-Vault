@@ -136,8 +136,15 @@ interface EditorPlatform {
     /** Saves [edit] of [item] as a new photo beside the original. Never writes to the original. */
     suspend fun save(item: MediaItem, edit: PhotoEdit): EditSaved = EditSaved(false, "Editing isn't available here.")
 
-    /** [item] can be saved over (17 Nov): a photo on this phone, in a kind that can be written again as it is. */
+    /** [item] can be saved over (17 Nov): a photo on this phone. */
     fun canReplace(item: MediaItem): Boolean = false
+
+    /**
+     * Saving over [item] makes a JPEG in its place (18 Nov, Deepak): its kind (HEIC and the like) can't be written
+     * again as it is, so the edit is saved as a JPEG with the same name and details and the original goes to Recently
+     * deleted.
+     */
+    fun savesAsJpeg(item: MediaItem): Boolean = false
 
     /** Saves [edit] over [item] itself; the untouched original goes to Recently deleted first. */
     suspend fun replace(item: MediaItem, edit: PhotoEdit): EditSaved = EditSaved(false, "Saving over photos isn't available here.")
@@ -387,6 +394,11 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
             if (saved.ok) {
                 // The same photo with new pixels: nothing may show the old picture from memory.
                 PictureCache.forget(pictures, photo.uri)
+                // Saved as a JPEG in its place (18 Nov): the viewer moves to the new photo, which keeps the favourite mark.
+                saved.newId?.let { made ->
+                    if (gallery.isFavourite(photo)) gallery.restoreFavourites(setOf(made), setOf(made))
+                    state.copySaved(photo.id, made)
+                }
                 kotlinx.coroutines.withTimeoutOrNull(3_000) { gallery.refresh() }
             }
             saving = false
@@ -620,9 +632,17 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
     }
 
     if (askReplace) {
+        // 18 Nov: a HEIC (or another kind that can't be written again) is saved as a JPEG in its place; say so first.
+        val asJpeg = item?.let { editor.platform.savesAsJpeg(it) } == true
+        val kind = item?.mimeType?.substringAfter('/')?.uppercase()?.let { if (it == "HEIF") "HEIC" else it } ?: "photo"
         ConfirmDialog(
-            title = "Save over the original?",
-            body = "The photo is replaced by your edit. The original goes to Recently deleted, where you can bring it back for 30 days.",
+            title = if (asJpeg) "Save as a JPEG?" else "Save over the original?",
+            body = if (asJpeg) {
+                "A $kind photo can't be changed in place, so your edit is saved as a JPEG with the same name, date, place and camera details. " +
+                    "The original goes to Recently deleted, where you can bring it back for 30 days. Android asks first."
+            } else {
+                "The photo is replaced by your edit. The original goes to Recently deleted, where you can bring it back for 30 days."
+            },
             confirm = "Save",
             danger = false,
             onDismiss = { askReplace = false },

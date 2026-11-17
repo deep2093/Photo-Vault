@@ -552,9 +552,10 @@ class ShellState(private val store: AppearanceStore) {
         private set
     private var messages = 0
 
-    fun say(text: String) {
+    /** Shows [text]; with [actionLabel] and [action] (18 Nov) the bar offers that too, such as Undo. */
+    fun say(text: String, actionLabel: String? = null, action: (() -> Unit)? = null) {
         if (text.isBlank()) return
-        message = AppMessage(text, ++messages)
+        message = AppMessage(text, ++messages, actionLabel?.takeIf { action != null }, action)
     }
 
     /** Clears [shown] unless a newer message took its place meanwhile. */
@@ -637,4 +638,4 @@ class MemoryAppearanceStore(private var value: AppearanceSettings = AppearanceSe
 private const val BACK_SETTLE_MS = 640
 
 /** One message for [ShellState.message]; [id] tells two messages with the same words apart. */
-data class AppMessage(val text: String, val id: Int)
+data class AppMessage(val text: String, val id: Int, val actionLabel: String? = null, val action: (() -> Unit)? = null)

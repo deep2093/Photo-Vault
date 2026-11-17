@@ -58,6 +58,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Row
+import com.deepak.photovault.core.backup.isDriveOnly
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -281,7 +282,17 @@ fun PhotoVaultApp(
     PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }
-        val deletePrompt = remember { DeletePrompt() }
+        val deletePrompt = remember {
+            DeletePrompt().also { prompt ->
+                // 18 Nov: after moving photos to Recently deleted, a message with Undo, which puts them back (Android may
+                // ask again). Not for photos only on the drive, which go back from the drive's own Recently deleted.
+                prompt.onTrashed = { trashActions, items ->
+                    val words = if (items.size == 1) (if (items[0].isVideo) "1 video" else "1 photo") else "${items.size} items"
+                    if (items.none { it.isDriveOnly }) state.say("Moved $words to Recently deleted.", "Undo") { trashActions.restore(items) }
+                    else state.say("Moved $words to Recently deleted.")
+                }
+            }
+        }
         CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides drive.canAddToFamilyAlbum, LocalToast provides actions::toast) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -332,7 +343,8 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
     if (message != null) last = message
     LaunchedEffect(message) {
         val shown = message ?: return@LaunchedEffect
-        kotlinx.coroutines.delay(MESSAGE_MS + shown.text.length * 40L)
+        // Longer with an Undo, so there is time to reach it.
+        kotlinx.coroutines.delay(MESSAGE_MS + shown.text.length * 40L + (if (shown.action != null) UNDO_EXTRA_MS else 0L))
         state.dismissMessage(shown)
     }
     androidx.compose.animation.AnimatedVisibility(
@@ -344,7 +356,7 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
         val shown = last ?: return@AnimatedVisibility
         val theme = LocalGlassTheme.current
         val shape = RoundedCornerShape(24.dp)
-        Box(
+        Row(
             Modifier
                 .widthIn(max = 560.dp)
                 .fillMaxWidth()
@@ -352,16 +364,34 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
                 .glassChrome(shape, elevation = 8.dp)
                 .clickable(onClickLabel = "Close message") { state.dismissMessage(shown) }
                 .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }
-                .heightIn(min = 48.dp)
-                .padding(horizontal = 18.dp, vertical = 14.dp),
-            contentAlignment = Alignment.CenterStart,
+                .heightIn(min = 52.dp)
+                .padding(start = 18.dp, end = if (shown.action != null) 6.dp else 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(shown.text, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
+            Text(shown.text, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 14.dp))
+            val act = shown.action
+            if (act != null && shown.actionLabel != null) {
+                // Undo (18 Nov): the bar's one button, in bold so it reads as a button on any theme.
+                Box(
+                    Modifier
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                            state.dismissMessage(shown)
+                            act()
+                        }
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(shown.actionLabel, color = theme.onGlass, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
 
 private const val MESSAGE_MS = 2800L
+private const val UNDO_EXTRA_MS = 3000L
 
 /** One open page and how far in it is (0 = away, 1 = in place). Each page owns its own movement. */
 @Stable
