@@ -144,7 +144,7 @@ private fun ConnectCard(drive: DriveState, onConnected: () -> Unit) {
         GlassSwitchRow(
             FIND_MOVED_TITLE,
             drive.findMoved,
-            { drive.setFindMoved(it) },
+            { drive.updateFindMoved(it) },
             description = FIND_MOVED_NOTE,
         )
         error?.let { WarningNote(it) }

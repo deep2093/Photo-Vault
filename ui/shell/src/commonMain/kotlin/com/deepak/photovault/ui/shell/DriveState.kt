@@ -111,7 +111,7 @@ class DriveState(private val platform: DrivePlatform) {
     var findMoved by mutableStateOf(platform.findMovedDrive())
         private set
 
-    fun setFindMoved(on: Boolean) {
+    fun updateFindMoved(on: Boolean) {
         platform.setFindMovedDrive(on)
         findMoved = on
     }

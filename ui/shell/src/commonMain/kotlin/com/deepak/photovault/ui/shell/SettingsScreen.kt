@@ -623,7 +623,7 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
         GlassSwitchRow(
             FIND_MOVED_TITLE,
             drive.findMoved,
-            { drive.setFindMoved(it) },
+            { drive.updateFindMoved(it) },
             icon = Icons.Rounded.Explore,
             description = FIND_MOVED_NOTE.substringBefore(" You can change this later"),
         )

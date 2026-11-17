@@ -200,7 +200,15 @@ fun MediaGrid(
             snapshotFlow { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 0 }.collect { currentAway?.invoke(it) }
         }
         DisposableEffect(Unit) { onDispose { currentAway?.invoke(false) } }
-        val topFade = ScrollToTopEffect(gridState, topTaps)
+        // The real row layout of the "All" grid, so back to top measures the distance like Albums does (17 Nov).
+        val gridRows = remember(parts, gridFirst.size, columns, headerItems, continuous) {
+            when {
+                !continuous -> null
+                parts != null -> GridRows.mosaic(headerItems, parts, columns)
+                else -> GridRows.plain(headerItems, gridFirst.size, columns)
+            }
+        }
+        val topFade = ScrollToTopEffect(gridState, topTaps, gridRows)
         LaunchedEffect(jumpTo, sections) {
             val key = jumpTo ?: return@LaunchedEffect
             val planned = parts

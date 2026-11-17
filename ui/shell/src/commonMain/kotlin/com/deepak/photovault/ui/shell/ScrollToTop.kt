@@ -6,7 +6,10 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 
@@ -63,17 +66,84 @@ private suspend fun glideToTop(
     }
 }
 
+/**
+ * Where each photo item of a grid sits, in rows of tiles (17 Nov). In the mixed-size grid a big-photo block is ONE
+ * grid item two rows tall, so counting items (4 to a row) made the distance to the top far too short: the glide
+ * slowed down screens too early and crawled, which looked janky. The Memories row above the photos was not counted
+ * either. [headerItems] grid items come before the first photo item.
+ */
+class GridRows(val headerItems: Int, private val rowsAbove: IntArray) {
+    val photoItems: Int get() = rowsAbove.size
+
+    /** Rows of tiles above photo item [k] (0 is the first photo item). */
+    fun before(k: Int): Int = if (rowsAbove.isEmpty()) 0 else rowsAbove[k.coerceIn(0, rowsAbove.size - 1)]
+
+    /** The last photo item that starts no more than [rows] rows down. */
+    fun itemAtRow(rows: Float): Int {
+        if (rowsAbove.isEmpty() || rows <= 0f) return 0
+        var lo = 0
+        var hi = rowsAbove.size - 1
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (rowsAbove[mid] <= rows) lo = mid else hi = mid - 1
+        }
+        return lo
+    }
+
+    companion object {
+        /** One tile per item, [columns] to a row. */
+        fun plain(headerItems: Int, count: Int, columns: Int): GridRows {
+            val c = columns.coerceAtLeast(1)
+            return GridRows(headerItems, IntArray(count.coerceAtLeast(0)) { it / c })
+        }
+
+        /** The mixed-size grid: a run of tiles fills whole rows from a new line; a block is one item, two rows. */
+        fun mosaic(headerItems: Int, parts: List<Mosaic.Part>, columns: Int): GridRows {
+            val c = columns.coerceAtLeast(1)
+            val out = ArrayList<Int>()
+            var rows = 0
+            for (part in parts) when (part) {
+                is Mosaic.Run -> {
+                    val n = part.to - part.from
+                    for (k in 0 until n) out += rows + k / c
+                    rows += (n + c - 1) / c
+                }
+                is Mosaic.Block -> {
+                    out += rows
+                    rows += 2
+                }
+            }
+            return GridRows(headerItems, out.toIntArray())
+        }
+    }
+}
+
 @Composable
-fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0): Modifier {
+fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0, rows: GridRows? = null): Modifier {
     val signal = LocalScrollToTop.current
     // A page built again (coming back from a photo) must not take an old tap as a new one and jump to the top (30 Oct).
     val firstSignal = remember { signal }
     val firstTaps = remember { extraTaps }
+    val currentRows by rememberUpdatedState(rows)
+    // The height of everything above the first photo item (the Memories row and the like), measured whenever the
+    // page is at the top, since it can't be worked out from row counts (17 Nov).
+    val headerSpan = remember { floatArrayOf(-1f) }
+    LaunchedEffect(state) {
+        snapshotFlow {
+            val r = currentRows
+            if (r == null || state.firstVisibleItemIndex != 0) return@snapshotFlow null
+            if (r.headerItems == 0) return@snapshotFlow 0f
+            val visible = state.layoutInfo.visibleItemsInfo
+            val top = visible.firstOrNull { it.index == 0 } ?: return@snapshotFlow null
+            val photo = visible.firstOrNull { it.index == r.headerItems } ?: return@snapshotFlow null
+            (photo.offset.y - top.offset.y).toFloat()
+        }.collect { span -> if (span != null) headerSpan[0] = span }
+    }
     LaunchedEffect(signal, extraTaps) {
         if (signal == firstSignal && extraTaps == firstTaps) return@LaunchedEffect
         val info = { state.layoutInfo }
         // Rows above, from the tiles on screen: the smallest width is a tile, so a row is one of its height.
-        fun distance(): Float {
+        fun guess(): Float {
             val visible = info().visibleItemsInfo
             if (visible.isEmpty()) return 0f
             val tileW = visible.minOf { it.size.width }.coerceAtLeast(1)
@@ -81,17 +151,40 @@ fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0): Modifier {
             val columns = (info().viewportSize.width / tileW.toFloat()).toInt().coerceAtLeast(1)
             return state.firstVisibleItemIndex / columns * tileH + state.firstVisibleItemScrollOffset
         }
+        // With the grid's own row layout: the distance between two photo items on screen, in pixels per row.
+        fun pitch(r: GridRows): Float? {
+            val photos = info().visibleItemsInfo.filter { it.index >= r.headerItems && it.index < r.headerItems + r.photoItems }
+            val a = photos.firstOrNull() ?: return null
+            val b = photos.lastOrNull() ?: return null
+            val dr = r.before(b.index - r.headerItems) - r.before(a.index - r.headerItems)
+            return if (dr > 0) (b.offset.y - a.offset.y).toFloat() / dr else null
+        }
+        fun header(): Float = headerSpan[0].coerceAtLeast(0f)
+        fun distance(): Float {
+            val r = currentRows ?: return guess()
+            val first = state.firstVisibleItemIndex
+            val offset = state.firstVisibleItemScrollOffset.toFloat()
+            if (first < r.headerItems) return offset + header() * first / r.headerItems.coerceAtLeast(1)
+            val p = pitch(r) ?: return guess()
+            return header() + r.before(first - r.headerItems) * p + offset
+        }
         val screen = info().viewportSize.height.toFloat().coerceAtLeast(1f)
         glideToTop(
             ::distance,
             { info().visibleItemsInfo.firstOrNull { it.index == 0 }?.let { (-it.offset.y).toFloat().coerceAtLeast(0f) } },
             { state.scrollBy(it) },
             { target ->
-                val visible = info().visibleItemsInfo
-                val tileW = visible.minOf { it.size.width }.coerceAtLeast(1)
-                val tileH = visible.filter { it.size.width == tileW }.map { it.size.height }.average().toFloat().coerceAtLeast(1f)
-                val columns = (info().viewportSize.width / tileW.toFloat()).toInt().coerceAtLeast(1)
-                state.scrollToItem((target / tileH).toInt() * columns)
+                val r = currentRows
+                val p = r?.let(::pitch)
+                if (r != null && p != null && p > 0f) {
+                    state.scrollToItem(r.headerItems + r.itemAtRow((target - header()) / p))
+                } else {
+                    val visible = info().visibleItemsInfo
+                    val tileW = visible.minOf { it.size.width }.coerceAtLeast(1)
+                    val tileH = visible.filter { it.size.width == tileW }.map { it.size.height }.average().toFloat().coerceAtLeast(1f)
+                    val columns = (info().viewportSize.width / tileW.toFloat()).toInt().coerceAtLeast(1)
+                    state.scrollToItem((target / tileH).toInt() * columns)
+                }
             },
             { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0 },
             screen,
