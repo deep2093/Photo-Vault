@@ -123,7 +123,9 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         motionSpec(),
         label = "pillInk",
     )
-    val pillTheme = if (baseTheme.isDark) baseTheme else baseTheme.copy(onGlass = ink)
+    // Classic only (18 Nov): the redesign's light styles keep dark text on their light glass all the time.
+    val classic = state.appStyle.id == com.deepak.photovault.designsystem.AppStyleId.CLASSIC
+    val pillTheme = if (baseTheme.isDark || !classic) baseTheme else baseTheme.copy(onGlass = ink)
     SelectableScreen(
         title = null,
         subtitle = null,
@@ -199,7 +201,7 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             continuous = true,
                             mixed = true,
                             onAwayFromTop = { scrolled = it },
-                            dateColor = if (baseTheme.isDark) androidx.compose.ui.graphics.Color.White else ink,
+                            dateColor = if (!classic) baseTheme.onWallpaper else if (baseTheme.isDark) androidx.compose.ui.graphics.Color.White else ink,
                             header = {
                                 item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
                                     // Memories not played yet today, as a row above the photos (16 Nov).

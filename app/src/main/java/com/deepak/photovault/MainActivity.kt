@@ -308,6 +308,9 @@ class MainActivity : ComponentActivity(), MediaActions {
             return
         }
         val state = ShellState(PrefsAppearanceStore(this))
+        // The redesign (18 Nov): the phone's dark mode from the first frame, so a dark phone never flashes light.
+        state.systemDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
         state.intro = com.deepak.photovault.ui.shell.IntroState(PrefsIntroStore(this))
         state.intro.setUpAccess = { startFirstRunSetup() }
         state.intro.openBackgroundSettings = {
@@ -392,7 +395,9 @@ class MainActivity : ComponentActivity(), MediaActions {
             // What's new and the tour wait until the opening animation has finished.
             androidx.compose.runtime.LaunchedEffect(showIntro, introIcon) { if (!(showIntro && introIcon != null)) state.intro.start() }
             Box(Modifier.fillMaxSize()) {
-                PhotoVaultApp(state, gallery, this@MainActivity, drive, backup, signals, iconSwitcher)
+                androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalStyleFonts provides styleFonts) {
+                    PhotoVaultApp(state, gallery, this@MainActivity, drive, backup, signals, iconSwitcher)
+                }
                 if (showIntro && introIcon != null) {
                     OpeningAnimation(
                         icon = introIcon,
@@ -827,6 +832,29 @@ class MainActivity : ComponentActivity(), MediaActions {
         "Android didn't allow renaming this album."
     }
 
+    /**
+     * The redesign's fonts (18 Nov), bundled with the app and trimmed to Latin letters (other scripts fall back to
+     * the phone's own fonts): Inter for Clear Glass; Libre Bodoni and Public Sans for Darkroom. Each file holds every
+     * weight; Android picks the one asked for.
+     */
+    private val styleFonts by lazy {
+        val weights = listOf(
+            androidx.compose.ui.text.font.FontWeight.Normal,
+            androidx.compose.ui.text.font.FontWeight.Medium,
+            androidx.compose.ui.text.font.FontWeight.SemiBold,
+            androidx.compose.ui.text.font.FontWeight.Bold,
+        )
+        fun family(upright: Int, italic: Int? = null) = androidx.compose.ui.text.font.FontFamily(
+            weights.map { androidx.compose.ui.text.font.Font(upright, it) } +
+                (italic?.let { id -> weights.map { androidx.compose.ui.text.font.Font(id, it, androidx.compose.ui.text.font.FontStyle.Italic) } } ?: emptyList()),
+        )
+        com.deepak.photovault.designsystem.StyleFonts(
+            inter = family(R.font.inter),
+            serif = family(R.font.libre_bodoni, R.font.libre_bodoni_italic),
+            sans = family(R.font.public_sans),
+        )
+    }
+
     // ---- Platform signals ----
 
     private var foreground = false
@@ -961,6 +989,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             if (k.isEmpty() || v == null) null else k to v
         }.toMap(),
         albumSize = prefs.getInt("album_size", 2),
+        style = prefs.getString("style", null) ?: AppearanceSettings().style,
+        mode = prefs.getString("theme_mode", null) ?: AppearanceSettings().mode,
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -985,6 +1015,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putString("recent_searches", settings.recentSearches.joinToString("\n"))
             .putString("grid_sizes", settings.gridSizes.entries.joinToString("\n") { "${it.key}=${it.value}" })
             .putInt("album_size", settings.albumSize)
+            .putString("style", settings.style)
+            .putString("theme_mode", settings.mode)
             .apply()
     }
 }

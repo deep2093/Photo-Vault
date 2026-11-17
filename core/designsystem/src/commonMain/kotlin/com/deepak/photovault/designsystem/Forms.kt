@@ -139,14 +139,15 @@ fun GlassDialog(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val theme = LocalGlassTheme.current
+    val shape = styled(RoundedCornerShape(28.dp))
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .widthIn(max = 440.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
+                .clip(shape)
                 .background(theme.glassFallback.compositeOver(theme.wallpaper.first()))
-                .glassRim(RoundedCornerShape(28.dp))
+                .glassRim(shape)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -229,7 +230,7 @@ fun GlassSheet(
 ) {
     val theme = LocalGlassTheme.current
     val still = LocalGlassSettings.current.reduceMotion
-    val shape = RoundedCornerShape(32.dp)
+    val shape = styled(RoundedCornerShape(32.dp))
     val shown = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (still) 1f else 0f) }
     androidx.compose.runtime.LaunchedEffect(Unit) { shown.animateTo(1f, androidx.compose.animation.core.tween(280, easing = PageEasing)) }
     // Pulling the top of the sheet down closes it; let go early and it springs back.

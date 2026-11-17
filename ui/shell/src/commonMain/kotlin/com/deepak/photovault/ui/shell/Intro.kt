@@ -100,9 +100,10 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-17-4"
+    const val ID = "2026-11-18-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
+        Change(ChangeKind.NEW, "Three new styles", "Settings > Appearance: Clear Glass, Material You (your wallpaper's colours) and Darkroom, each in light and dark or as your phone is. Classic glass is still there."),
         Change(ChangeKind.NEW, "HDR photos in HDR", "On Android 14 or later with an HDR screen, HDR photos open in the viewer with their full brightness."),
         Change(ChangeKind.NEW, "Save over the original", "The editor has Save beside Save copy. Save puts your edit on the photo itself; the original goes to Recently deleted for 30 days."),
         Change(ChangeKind.FIXED, "Saved copies show at once", "After Save copy or a video trim, the viewer goes straight to the new copy, next to the original."),

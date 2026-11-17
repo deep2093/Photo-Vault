@@ -71,3 +71,10 @@ expect fun rememberLensGlass(): com.deepak.photovault.designsystem.LensGlass?
 
 /** Whether this device can draw lens glass at all (Android 13 and newer), so Settings only offers it there. */
 expect fun lensGlassSupported(): Boolean
+
+/**
+ * Material You's colours from the phone's wallpaper (light, dark), or null where Android has none (before 12).
+ * Read once per screen start; a new wallpaper starts the screen again by itself.
+ */
+@Composable
+expect fun rememberWallpaperSchemes(): Pair<androidx.compose.material3.ColorScheme, androidx.compose.material3.ColorScheme>?

@@ -11,6 +11,10 @@ enum class GlassThemeId {
     ADAPTIVE_MIDNIGHT, ADAPTIVE_VIVID,
     AURORA_GLASS_LIGHT, CRYSTAL_GLASS_LIGHT,
     LIQUID_DAY,
+    // The redesign's styles (18 Nov): light and dark of each; see AppStyle.kt.
+    CLEAR_GLASS_LIGHT, CLEAR_GLASS_DARK,
+    MATERIAL_LIGHT, MATERIAL_DARK,
+    DARKROOM_LIGHT, DARKROOM_DARK,
 }
 
 /** A soft radial light on the wallpaper. Position and radius are fractions of the screen. */
@@ -75,6 +79,11 @@ data class GlassTheme(
     val pale: GlassTheme? = null,
     /** iOS-style milky glass (light themes): almost no tint, just the blurred picture behind with a light edge, like iOS. Over very bright photos white text can be hard to read, so contrast is checked on the wallpaper only. */
     val milky: Boolean = false,
+    /** The faint diagonal shine across the wallpaper (Classic). The redesign's plain pages have none (18 Nov). */
+    val sheen: Boolean = true,
+    /** A soft fill for the chosen item (navigation pill, chosen segment) and the text on it; null: the accent itself. */
+    val accentSoft: Color? = null,
+    val onAccentSoft: Color? = null,
 ) {
     /** The pale-background version: white text on a pale page can only reach 3:1 on its glass cards, so tests allow that for it. */
     val isPaleVariant: Boolean get() = !isDark

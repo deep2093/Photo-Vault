@@ -140,8 +140,8 @@ import kotlinx.datetime.toLocalDateTime
 fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
     // 13 Nov: the viewer is always dark, so its bars, menu and popups use a dark theme's glass in every theme
     // (a light theme drew a pale bar over the black page), matching the Living photo page.
-    val theme = LocalGlassTheme.current
-    val chrome = if (theme.isDark) theme else com.deepak.photovault.designsystem.GlassThemes.darkThemes.first()
+    // 18 Nov: the chosen style's own dark colours (Classic: as before).
+    val chrome = state.darkTheme
     androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides chrome) {
         ViewerBody(viewer, state, gallery, actions)
     }

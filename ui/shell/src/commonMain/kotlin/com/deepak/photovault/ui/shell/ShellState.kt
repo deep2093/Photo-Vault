@@ -20,6 +20,12 @@ import com.deepak.photovault.designsystem.AdaptiveLayout
 import com.deepak.photovault.designsystem.GlassSettings
 import com.deepak.photovault.designsystem.GlassTheme
 import com.deepak.photovault.designsystem.GlassThemes
+import com.deepak.photovault.designsystem.AppStyle
+import com.deepak.photovault.designsystem.AppStyleId
+import com.deepak.photovault.designsystem.AppStyles
+import com.deepak.photovault.designsystem.StyleThemes
+import com.deepak.photovault.designsystem.ThemeMode
+import androidx.compose.material3.ColorScheme
 import com.deepak.photovault.designsystem.PageEasing
 
 enum class Destination(val label: String, val icon: ImageVector) {
@@ -91,6 +97,10 @@ data class AppearanceSettings(
     val gridSizes: Map<String, Int> = emptyMap(),
     /** The Albums page's card size from pinching (15 Nov). */
     val albumSize: Int = 2,
+    /** The look (18 Nov): Clear Glass, Material You, Darkroom or Classic glass ([AppStyleId] names). */
+    val style: String = AppStyles.default.id.name,
+    /** Light, dark or as the phone is ([ThemeMode] names). Classic glass ignores it. */
+    val mode: String = ThemeMode.SYSTEM.name,
 )
 
 /** The Photos page's grid. */
@@ -516,7 +526,38 @@ class ShellState(private val store: AppearanceStore) {
     /** Photos' grid columns. */
     val gridColumns: Int? get() = gridColumnsFor(GRID_PHOTOS)
 
-    val theme: GlassTheme get() = if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default
+    /** The chosen look (18 Nov). */
+    val appStyle: AppStyle get() = AppStyles.byId(appearance.style)
+
+    /** Whether the phone is in dark mode; the app sets it at start and whenever it changes. */
+    var systemDark by mutableStateOf(false)
+
+    /** Material You's colours from the phone's wallpaper (light, dark), where Android offers them (12 and later). */
+    var wallpaperSchemes by mutableStateOf<Pair<ColorScheme, ColorScheme>?>(null)
+
+    /** Dark right now, by the chosen mode. */
+    val darkNow: Boolean get() = when (ThemeMode.entries.firstOrNull { it.name == appearance.mode } ?: ThemeMode.SYSTEM) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> systemDark
+    }
+
+    /** Material You's colour scheme now (the phone's, or Pixallery blue); null for the other styles. */
+    val materialScheme: ColorScheme? get() = if (appStyle.id != AppStyleId.MATERIAL_YOU) null else {
+        wallpaperSchemes?.let { if (darkNow) it.second else it.first } ?: StyleThemes.materialFallback(darkNow)
+    }
+
+    val theme: GlassTheme get() = when (appStyle.id) {
+        AppStyleId.CLASSIC -> if (appearance.themeChosen) GlassThemes.byId(appearance.themeId) else GlassThemes.default
+        else -> StyleThemes.theme(appStyle, darkNow, materialScheme)
+    }
+
+    /** The same style in dark, for pages that are always dark (the photo viewer). */
+    val darkTheme: GlassTheme get() = when (appStyle.id) {
+        AppStyleId.CLASSIC -> theme.takeIf { it.isDark } ?: GlassThemes.darkThemes.first()
+        AppStyleId.MATERIAL_YOU -> StyleThemes.material(wallpaperSchemes?.second ?: StyleThemes.materialFallback(true), true)
+        else -> StyleThemes.theme(appStyle, true, null)
+    }
 
     /** The Welcome tour and What's new (Phase 5, 25 Oct). The platform swaps in one that remembers. */
     var intro: IntroState = IntroState()

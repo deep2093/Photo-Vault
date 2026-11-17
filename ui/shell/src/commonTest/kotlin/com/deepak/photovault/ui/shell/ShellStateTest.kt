@@ -29,7 +29,7 @@ class ShellStateTest {
     fun appearanceChangesAreSaved() {
         val store = MemoryAppearanceStore()
         val state = ShellState(store)
-        state.updateAppearance { it.copy(themeId = GlassThemeId.ADAPTIVE_VIVID.name, themeChosen = true, blurOn = false) }
+        state.updateAppearance { it.copy(style = "CLASSIC", themeId = GlassThemeId.ADAPTIVE_VIVID.name, themeChosen = true, blurOn = false) }
         assertEquals(GlassThemeId.ADAPTIVE_VIVID, ShellState(store).theme.id)
         assertFalse(store.load().blurOn)
     }
@@ -37,13 +37,13 @@ class ShellStateTest {
     @Test
     fun photoLightForEveryoneWhoNeverPickedATheme() {
         // An older version saved Aurora Frost (the old default) without the person choosing it; it no longer exists.
-        val state = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = "AURORA_FROST")))
+        val state = ShellState(MemoryAppearanceStore(AppearanceSettings(style = "CLASSIC", themeId = "AURORA_FROST")))
         assertEquals(GlassThemes.default, state.theme)
         // Someone who had picked a removed theme moves to the default too.
-        val removed = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = "TRANSLUCENT", themeChosen = true)))
+        val removed = ShellState(MemoryAppearanceStore(AppearanceSettings(style = "CLASSIC", themeId = "TRANSLUCENT", themeChosen = true)))
         assertEquals(GlassThemes.default, removed.theme)
         // Someone who picked a theme keeps it.
-        val picked = ShellState(MemoryAppearanceStore(AppearanceSettings(themeId = GlassThemeId.PEARL_MIST.name, themeChosen = true)))
+        val picked = ShellState(MemoryAppearanceStore(AppearanceSettings(style = "CLASSIC", themeId = GlassThemeId.PEARL_MIST.name, themeChosen = true)))
         assertEquals(GlassThemeId.PEARL_MIST, picked.theme.id)
     }
 
@@ -101,7 +101,7 @@ class ShellStateTest {
         state.updateAppearance { it.copy(blurStep = 4) }
         assertTrue(state.glassSettings(PlatformSignals()).blurScale > 1f)
         // Liquid Night was removed on 29 Oct: anyone who had it gets the default.
-        state.updateAppearance { it.copy(themeId = "LIQUID_NIGHT", themeChosen = true) }
+        state.updateAppearance { it.copy(style = "CLASSIC", themeId = "LIQUID_NIGHT", themeChosen = true) }
         assertEquals(GlassThemes.default, state.theme)
     }
 
@@ -120,5 +120,30 @@ class ShellStateTest {
         assertEquals(3, again.gridColumnsFor("album"))
         assertEquals(5, again.gridColumns)
         assertEquals(4, again.albumSize)
+    }
+
+    @Test
+    fun theRedesignsStylesFollowLightDarkAndThePhone() {
+        // Everyone starts on Clear Glass (18 Nov), light or dark as the phone is.
+        val state = ShellState(MemoryAppearanceStore())
+        assertEquals(com.deepak.photovault.designsystem.AppStyleId.CLEAR_GLASS, state.appStyle.id)
+        assertFalse(state.theme.isDark)
+        state.systemDark = true
+        assertTrue(state.theme.isDark)
+        // Light or dark by choice wins over the phone.
+        state.updateAppearance { it.copy(mode = "LIGHT") }
+        assertFalse(state.theme.isDark)
+        // Darkroom and Material You have their own colours; the viewer always gets the dark ones.
+        state.updateAppearance { it.copy(style = "DARKROOM") }
+        assertEquals(GlassThemeId.DARKROOM_LIGHT, state.theme.id)
+        assertEquals(GlassThemeId.DARKROOM_DARK, state.darkTheme.id)
+        state.updateAppearance { it.copy(style = "MATERIAL_YOU", mode = "DARK") }
+        assertEquals(GlassThemeId.MATERIAL_DARK, state.theme.id)
+        assertTrue(state.materialScheme != null)
+        // An unknown saved style falls back to Clear Glass; Classic keeps its own theme choices.
+        state.updateAppearance { it.copy(style = "SOMETHING_ELSE") }
+        assertEquals(com.deepak.photovault.designsystem.AppStyleId.CLEAR_GLASS, state.appStyle.id)
+        state.updateAppearance { it.copy(style = "CLASSIC") }
+        assertEquals(GlassThemes.default, state.theme)
     }
 }

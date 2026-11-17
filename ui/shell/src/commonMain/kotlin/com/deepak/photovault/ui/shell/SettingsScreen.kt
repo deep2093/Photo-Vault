@@ -15,6 +15,8 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -140,7 +142,7 @@ fun SettingsScreen(
                 pair.forEach { page ->
                     val (icon, summary) = when (page) {
                         SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
-                        SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
+                        SettingsPage.APPEARANCE -> Icons.Rounded.Palette to appearanceSummary(state, theme)
                         SettingsPage.NOTIFICATIONS -> Icons.Rounded.Notifications to notificationsSummary(state, backup)
                         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
                         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
@@ -167,7 +169,7 @@ private fun settingsRowInfo(page: SettingsPage, state: ShellState, drive: DriveS
     val theme = LocalGlassTheme.current
     return when (page) {
         SettingsPage.ABOUT -> Icons.Rounded.Info to "What's coming next"
-        SettingsPage.APPEARANCE -> Icons.Rounded.Palette to theme.displayName
+        SettingsPage.APPEARANCE -> Icons.Rounded.Palette to appearanceSummary(state, theme)
         SettingsPage.NOTIFICATIONS -> Icons.Rounded.Notifications to notificationsSummary(state, backup)
         SettingsPage.BACKUP -> Icons.Rounded.Backup to backupSummary(backup)
         SettingsPage.DRIVE -> Icons.Rounded.Dns to (drive.connection?.takeIf { it.isComplete }?.let { "${it.host} / ${it.share}" } ?: "Not connected")
@@ -472,15 +474,30 @@ private fun PageCard(
 @Composable
 private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) {
     val theme = LocalGlassTheme.current
-    PageCard("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = theme.displayName) {
-        ThemeGrid(state)
-        GlassSwitchRow(
-            if (state.appearance.blurOn) "Turn off glass effect" else "Turn on glass effect",
-            state.appearance.blurOn,
-            { on -> state.updateAppearance { it.copy(blurOn = on) } },
-            icon = Icons.Rounded.BlurOn,
-        )
-        if (state.appearance.blurOn) BlurSlider(state)
+    PageCard("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = appearanceSummary(state, theme)) {
+        // The redesign (18 Nov): first the style, then light or dark; the classic theme choices only for Classic glass.
+        StylePicker(state)
+        val style = state.appStyle
+        if (style.hasThemeChoices) {
+            ThemeGrid(state)
+        } else {
+            val modes = com.deepak.photovault.designsystem.ThemeMode.entries
+            com.deepak.photovault.designsystem.GlassSegmented(
+                listOf("As the phone", "Light", "Dark"),
+                modes.indexOfFirst { it.name == state.appearance.mode }.coerceAtLeast(0),
+                { i -> state.updateAppearance { it.copy(mode = modes[i].name) } },
+                Modifier.padding(vertical = 8.dp),
+            )
+        }
+        if (style.glass) {
+            GlassSwitchRow(
+                if (state.appearance.blurOn) "Turn off glass effect" else "Turn on glass effect",
+                state.appearance.blurOn,
+                { on -> state.updateAppearance { it.copy(blurOn = on) } },
+                icon = Icons.Rounded.BlurOn,
+            )
+            if (state.appearance.blurOn && style.hasThemeChoices) BlurSlider(state)
+        }
         GlassSwitchRow(
             "Keep the bottom bar in place",
             state.appearance.pinBottomBar,
@@ -501,6 +518,101 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             icon = Icons.Rounded.Animation,
         )
         AppIconPicker(iconSwitcher)
+    }
+}
+
+/** Settings' one-line summary of the look: the style and light or dark, or the classic theme's name. */
+internal fun appearanceSummary(state: ShellState, theme: GlassTheme): String {
+    val style = state.appStyle
+    if (style.hasThemeChoices) return "${style.displayName} · ${theme.displayName}"
+    val mode = when (state.appearance.mode) {
+        com.deepak.photovault.designsystem.ThemeMode.LIGHT.name -> "Light"
+        com.deepak.photovault.designsystem.ThemeMode.DARK.name -> "Dark"
+        else -> "As the phone"
+    }
+    return "${style.displayName} · $mode"
+}
+
+/**
+ * The four looks as cards, two to a row (18 Nov): a small picture of each (its page, a few photo colours, its bar and
+ * its accent) with its name and one line. The chosen one is outlined in the accent with a tick.
+ */
+@Composable
+private fun StylePicker(state: ShellState) {
+    val theme = LocalGlassTheme.current
+    val styles = com.deepak.photovault.designsystem.AppStyles.all
+    Text("Style", color = theme.onGlass, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
+    Column(Modifier.selectableGroup().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        styles.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { option ->
+                    val selected = option.id == state.appStyle.id
+                    val preview = if (option.id == com.deepak.photovault.designsystem.AppStyleId.CLASSIC) {
+                        if (state.appearance.themeChosen) GlassThemes.byId(state.appearance.themeId) else GlassThemes.default
+                    } else {
+                        val phone = state.wallpaperSchemes?.let { if (state.darkNow) it.second else it.first }
+                        com.deepak.photovault.designsystem.StyleThemes.theme(option, state.darkNow, phone)
+                    }
+                    StyleCard(option, preview, selected, Modifier.weight(1f)) {
+                        state.updateAppearance { it.copy(style = option.id.name) }
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StyleCard(
+    option: com.deepak.photovault.designsystem.AppStyle,
+    preview: GlassTheme,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val theme = LocalGlassTheme.current
+    val shape = com.deepak.photovault.designsystem.styled(RoundedCornerShape(18.dp))
+    val inner = com.deepak.photovault.designsystem.styled(RoundedCornerShape(10.dp))
+    val pill = com.deepak.photovault.designsystem.styled(RoundedCornerShape(percent = 50))
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    Column(
+        modifier
+            .clip(shape)
+            .border(if (selected) 2.dp else 1.dp, if (selected) theme.accent else theme.onGlass.copy(alpha = 0.16f), shape)
+            .selectable(selected = selected, role = androidx.compose.ui.semantics.Role.RadioButton, onClick = {
+                haptics.tick()
+                onClick()
+            })
+            .padding(10.dp),
+    ) {
+        // A tiny screen: the page, a few photo colours, a bar and the accent.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(inner)
+                .background(androidx.compose.ui.graphics.Brush.linearGradient(preview.wallpaper)),
+        ) {
+            Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                preview.sampleHues.take(4).forEach { hue -> Box(Modifier.size(18.dp).background(hue)) }
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 6.dp)
+                    .size(width = 64.dp, height = 14.dp)
+                    .clip(pill)
+                    .background(preview.glassFallback),
+            ) {
+                Box(Modifier.padding(3.dp).size(width = 18.dp, height = 8.dp).clip(pill).background(preview.accent))
+            }
+        }
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(option.displayName, color = theme.onGlass, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f), maxLines = 1)
+            if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = theme.accent, modifier = Modifier.size(18.dp))
+        }
+        Text(option.summary, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 2, minLines = 2)
     }
 }
 

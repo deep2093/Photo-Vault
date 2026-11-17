@@ -273,7 +273,12 @@ fun PhotoVaultApp(
     val googleStatus = state.google.platform.status?.collectAsState()
     LaunchedEffect(googleStatus?.value?.lastAtMillis) { if (googleStatus?.value?.lastAtMillis != null) state.google.refresh() }
     LaunchedEffect(gallery, drive.driveTrash) { drive.driveTrash?.let(gallery::setDriveTrash) }
-    PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
+    // The redesign (18 Nov): the phone's dark mode and Material You's wallpaper colours feed the chosen style.
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    androidx.compose.runtime.SideEffect { if (state.systemDark != systemDark) state.systemDark = systemDark }
+    val wallpaperSchemes = rememberWallpaperSchemes()
+    androidx.compose.runtime.SideEffect { if (state.wallpaperSchemes != wallpaperSchemes) state.wallpaperSchemes = wallpaperSchemes }
+    PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals), style = state.appStyle, scheme = state.materialScheme) {
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }
         val deletePrompt = remember { DeletePrompt() }
@@ -296,7 +301,9 @@ fun PhotoVaultApp(
                     // Photos and dates fade out under the status bar instead of showing through its clock and icons.
                     val top = system.calculateTopPadding()
                     // Neutral dark, not the wallpaper's first colour: that showed as a pink band on Vivid Night (29 Oct).
-                    val wall = if (LocalGlassTheme.current.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                    // The redesign's plain pages (18 Nov): the page's own colour.
+                    val wall = if (state.appStyle.id != com.deepak.photovault.designsystem.AppStyleId.CLASSIC) LocalGlassTheme.current.wallpaper.first()
+                        else if (LocalGlassTheme.current.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
                     androidx.compose.foundation.layout.Box(
                         Modifier.align(androidx.compose.ui.Alignment.TopStart).fillMaxWidth().height(top + 8.dp)
                             .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to wall.copy(alpha = 0.6f), 0.7f to wall.copy(alpha = 0.3f), 1f to androidx.compose.ui.graphics.Color.Transparent)),

@@ -898,6 +898,20 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         }
     }
     if (text.isEmpty()) return
+    // The redesign's styles (18 Nov): on a small bar of the style's own, so the date reads over any photo.
+    if (com.deepak.photovault.designsystem.LocalAppStyle.current.id != com.deepak.photovault.designsystem.AppStyleId.CLASSIC) {
+        Text(
+            text,
+            color = theme.onGlass,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            modifier = modifier
+                .glassChrome(com.deepak.photovault.designsystem.styled(RoundedCornerShape(percent = 50)), elevation = 4.dp)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+        return
+    }
     // Plain text on the photos, in the same style as Years / Months / All (31 Oct).
     com.deepak.photovault.designsystem.DepthText(
         text,

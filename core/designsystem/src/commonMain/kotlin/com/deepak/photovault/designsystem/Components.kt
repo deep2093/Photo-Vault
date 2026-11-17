@@ -91,7 +91,7 @@ fun GlassButton(
 ) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
-    val shape = Capsule
+    val shape = styled(Capsule)
     val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(
         modifier
@@ -145,12 +145,17 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
     val haptics = rememberHaptics()
     // 10 Nov: the theme's accent, like GlassSegmented's thumb, so the choice shows in every theme (the soft accent
     // surface was hard to see in some).
-    val background by animateColorAsState(if (selected) theme.accent else Color.Transparent, motionSpec())
+    // Material You (18 Nov): the chosen chip takes the soft container colour, as Android's own chips do.
+    val soft = LocalAppStyle.current.id == AppStyleId.MATERIAL_YOU && theme.accentSoft != null
+    val fill = if (soft) theme.accentSoft!! else theme.accent
+    val background by animateColorAsState(if (selected) fill else Color.Transparent, motionSpec())
+    val chipShape = styled(Capsule)
     Box(
         modifier
             .heightIn(min = MinTouchTarget)
             .padding(vertical = 4.dp)
-            .glassPanel(Capsule)
+            .glassPanel(chipShape)
+            .clip(chipShape)
             .background(background)
             .selectable(selected = selected, role = Role.RadioButton, onClick = {
                 haptics.tick()
@@ -159,7 +164,7 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) readableOn(theme.accent) else theme.onGlass, style = MaterialTheme.typography.labelLarge)
+        Text(label, color = if (selected) (if (soft) theme.onAccentSoft ?: theme.onGlass else readableOn(theme.accent)) else theme.onGlass, style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -191,7 +196,12 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
             placed = true
         }
     }
-    val thumbText = readableOn(theme.accent)
+    // Material You (18 Nov): the soft container colour, like Android's segmented buttons; Darkroom: square.
+    val style = LocalAppStyle.current
+    val soft = style.id == AppStyleId.MATERIAL_YOU && theme.accentSoft != null
+    val thumb = if (soft) theme.accentSoft!! else theme.accent
+    val thumbText = if (soft) theme.onAccentSoft ?: theme.onGlass else readableOn(theme.accent)
+    val square = style.squareCorners
     Box(
         modifier
             .fillMaxWidth()
@@ -202,10 +212,10 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
             .drawBehind {
                 if (segment > 0) {
                     drawRoundRect(
-                        color = theme.accent,
+                        color = thumb,
                         topLeft = androidx.compose.ui.geometry.Offset(if (placed) slide.value else target.toFloat(), 0f),
                         size = androidx.compose.ui.geometry.Size(segment.toFloat(), size.height),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(if (square != null) square.toPx() else size.height / 2f),
                     )
                 }
             },
@@ -304,6 +314,11 @@ fun GlassSwitchRow(
  */
 @Composable
 private fun GlassToggle(checked: Boolean) {
+    val style = LocalAppStyle.current
+    if (!style.classicGlass) {
+        StyledToggle(checked, style)
+        return
+    }
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
     val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, label = "knob")
@@ -331,6 +346,50 @@ private fun GlassToggle(checked: Boolean) {
                 .clip(CircleShape)
                 .background(if (checked || !dark) Color.White else Color(0xFFE6E8EE))
                 .then(if (dark) Modifier else Modifier.border(1.dp, ink.copy(alpha = 0.25f), CircleShape)),
+        )
+    }
+}
+
+/**
+ * The switch of the redesign's styles (18 Nov). Clear Glass and Material You: the accent track when on, an outlined
+ * track when off (Material's own switch shape: a small knob that grows when on). Darkroom: square, with the accent knob.
+ */
+@Composable
+private fun StyledToggle(checked: Boolean, style: AppStyle) {
+    val theme = LocalGlassTheme.current
+    val square = style.squareCorners != null
+    val shape = if (square) RoundedCornerShape(2.dp) else RoundedCornerShape(percent = 50)
+    val knobShape = if (square) RoundedCornerShape(1.dp) else CircleShape
+    val on by animateFloatAsState(if (checked) 1f else 0f, motionSpec(180))
+    val material = style.id == AppStyleId.MATERIAL_YOU
+    val track = when {
+        checked && square -> theme.onGlass
+        checked -> theme.accent
+        else -> theme.onGlass.copy(alpha = if (theme.isDark) 0.16f else 0.08f)
+    }
+    val knob = when {
+        square -> if (checked) theme.accent else theme.onGlassSecondary
+        checked -> theme.onAccent
+        material -> theme.onGlassSecondary
+        else -> Color.White
+    }
+    // Material's knob is small when off and full when on; the others keep one size.
+    val knobSize = if (material) 16.dp + 8.dp * on else 24.dp
+    Box(
+        Modifier
+            .size(width = 52.dp, height = 32.dp)
+            .clip(shape)
+            .background(track)
+            .then(if (!checked) Modifier.border(2.dp, theme.onGlassSecondary.copy(alpha = if (material) 1f else 0.5f), shape) else Modifier),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            Modifier
+                .offset(x = 4.dp + (52.dp - 8.dp - knobSize) * on + (24.dp - knobSize) / 2 * (1f - on))
+                .size(knobSize)
+                .clip(knobShape)
+                .background(knob)
+                .then(if (!checked && !material && !square) Modifier.border(1.dp, theme.onGlass.copy(alpha = 0.2f), knobShape) else Modifier),
         )
     }
 }
