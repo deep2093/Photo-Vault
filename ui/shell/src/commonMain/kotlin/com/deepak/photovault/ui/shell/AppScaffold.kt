@@ -250,6 +250,10 @@ fun PhotoVaultApp(
     // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
     // 28 Oct: read in full at the start, after each backup, after three hours, or when you pull down; not on every return.
     var seenHistory by remember { mutableStateOf(-1) }
+    // The "all my backups" test (18 Nov): off, or on with All my backups, shows everything as before.
+    LaunchedEffect(state.appearance.mirrorTest, state.appearance.showAllBackups) {
+        gallery.showDeviceOnly(state.appearance.mirrorTest && !state.appearance.showAllBackups)
+    }
     LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
         if (signals.foreground && drive.joined != null) {
             val backupDone = seenHistory != -1 && seenHistory != backup.history.size

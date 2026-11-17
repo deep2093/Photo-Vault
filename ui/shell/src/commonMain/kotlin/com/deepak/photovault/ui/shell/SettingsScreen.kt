@@ -49,6 +49,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.ViewSidebar
@@ -699,6 +700,16 @@ private fun AboutSection(state: ShellState) {
     PageCard("About", Icons.Rounded.Info, Modifier.cardWidth()) {
         SettingsRow(Icons.Rounded.AutoAwesome, "What's new", "See what changed in this update") { state.intro.open(IntroKind.WHATS_NEW) }
         SettingsRow(Icons.Rounded.Explore, "Welcome tour", "A quick look around the app") { state.intro.open(IntroKind.TOUR) }
+        // 18 Nov (Deepak): a test, off by default.
+        GlassSwitchRow(
+            "Test: all my backups on every device",
+            state.appearance.mirrorTest,
+            { on -> state.updateAppearance { it.copy(mirrorTest = on) } },
+            description = "Photos and Albums get a switch: what is on this device, or everything you have backed up from all " +
+                "your devices, on the family drive and Google Drive. Only your own backups show, never anyone else's. Your " +
+                "other phone or tablet must be in the family as you.",
+            icon = Icons.Rounded.Devices,
+        )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

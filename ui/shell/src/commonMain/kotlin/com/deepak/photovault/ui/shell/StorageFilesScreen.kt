@@ -347,6 +347,11 @@ fun StorageFilesScreen(
             flight.prepare(flying)
             scope.launch {
                 if (page.google) {
+                    // 18 Nov: a device the owner made view only can't delete what this person's other devices backed up.
+                    if (!drive.mayDelete(state.google.records.orEmpty().filter { it.drivePath in paths })) {
+                        message = VIEW_ONLY_NOTE
+                        return@launch
+                    }
                     val error = state.google.deleteBackups(paths)
                     if (error == null) {
                         flight.launch(flying, bin.bounds)

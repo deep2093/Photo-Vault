@@ -973,6 +973,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         mixedGrid = prefs.getBoolean("mixed_grid", true),
         // A new name (18 Nov): the side bar is the default on every tablet, whatever an older version saved.
         tabletSideBar = prefs.getBoolean("tablet_side_bar", true),
+        mirrorTest = prefs.getBoolean("mirror_test", false),
+        showAllBackups = prefs.getBoolean("show_all_backups", true),
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
@@ -1009,6 +1011,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("reduce_motion", settings.reduceMotion)
             .putBoolean("mixed_grid", settings.mixedGrid)
             .putBoolean("tablet_side_bar", settings.tabletSideBar)
+            .putBoolean("mirror_test", settings.mirrorTest)
+            .putBoolean("show_all_backups", settings.showAllBackups)
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putInt("blur_step", settings.blurStep)

@@ -444,12 +444,28 @@ class GalleryState(
     /** Photos only on the drive right now (not on the phone). A photo in the phone's Recently deleted counts as gone from the phone. */
     private var driveOnly: List<MediaItem> = emptyList()
 
+    /**
+     * Only what is on this device (18 Nov, the "all my backups" test): photos kept only in the backups are left out of
+     * Photos and Albums. Off: they show beside the device's own, as always.
+     */
+    var deviceOnly by mutableStateOf(false)
+        private set
+
+    fun showDeviceOnly(on: Boolean) {
+        if (deviceOnly == on) return
+        deviceOnly = on
+        allAlbums = PhoneAlbums.from(everything + shownDriveOnly())
+        applyVisible()
+    }
+
+    private fun shownDriveOnly(): List<MediaItem> = if (deviceOnly) emptyList() else driveOnly
+
     /** The drive was read (or a backup finished): show what it holds that the phone doesn't. */
     fun setDriveRecords(records: List<BackupRecord>) {
         driveRecords = records
         driveCache.save(records)
         recomputeDriveOnly()
-        allAlbums = PhoneAlbums.from(everything + driveOnly)
+        allAlbums = PhoneAlbums.from(everything + shownDriveOnly())
         applyVisible()
     }
 
@@ -535,7 +551,7 @@ class GalleryState(
         phoneTrash = bin
         trashed = (phoneTrash + driveTrash).sortedByDescending { it.expiresAtMillis }
         recomputeDriveOnly()
-        allAlbums = PhoneAlbums.from(all + driveOnly)
+        allAlbums = PhoneAlbums.from(all + shownDriveOnly())
         applyVisible()
     }
 
@@ -554,7 +570,8 @@ class GalleryState(
     }
 
     private fun applyVisible() {
-        val merged = if (driveOnly.isEmpty()) everything else everything + driveOnly
+        val extra = shownDriveOnly()
+        val merged = if (extra.isEmpty()) everything else everything + extra
         val visible = if (hiddenAlbums.isEmpty()) merged else merged.filter { it.albumId !in hiddenAlbums }
         items = visible
         byId = visible.associateBy { it.id }

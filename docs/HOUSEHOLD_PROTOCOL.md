@@ -43,7 +43,12 @@ Six phones joining at once all end up in the family exactly once (`HouseholdStor
   to join instead.
 - **Other phones:** write `requests/<device-id>.json` as "I'm new: <name>" or "I'm <existing person>".
   With **Approve new phones** on (default), the owner approves or declines on the Family page; with it off,
-  the phone is added straight away.
+  a new person's phone is added straight away.
+- **Another device of someone already in the family (18 Nov):** it always waits for the owner, even with
+  approval off, because it will see that person's backups. When approving, the owner chooses **View only**
+  (it sees all of that person's backups but deletes only the ones it made itself; stored as `viewOnly` on the
+  device) or **View and delete**. The owner can change it later on the person's page. Devices added before
+  18 Nov read as View and delete, as before. The person's other devices show a note when a device is added.
 - Each person's folders are created when they are added.
 - **A lost or replaced owner phone (23 Oct):** a phone that chooses the owner and enters the **owner PIN** joins
   as the owner straight away, even with approval on (nobody else could approve it), then removes the lost

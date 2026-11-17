@@ -110,7 +110,9 @@ class HouseholdStore(
             if (!OwnerPin.matches(ownerPin, stored)) throw NotAllowed("Wrong PIN")
             return admit(request)
         }
-        if (!household.settings.approveNewPhones && !asOwner) return admit(request)
+        // 18 Nov: a phone joining as someone already in the family would see that person's backups, so it always waits
+        // for the owner, even when new people may join without asking.
+        if (!household.settings.approveNewPhones && existingUserId == null) return admit(request)
         drive.mkdirs(REQUESTS_DIR)
         drive.delete(requestPath(deviceId))
         drive.createNew(requestPath(deviceId), json.encodeToString(JoinRequest.serializer(), request).encodeToByteArray())
@@ -171,9 +173,22 @@ class HouseholdStore(
 
     // ---- Owner actions ----
 
-    suspend fun approve(auth: OwnerAuth, request: JoinRequest): Household {
+    /**
+     * Lets the phone in. [viewOnly] (18 Nov) is for another device of someone already in the family: it may look at
+     * the backups made by their other devices but not delete them.
+     */
+    suspend fun approve(auth: OwnerAuth, request: JoinRequest, viewOnly: Boolean = false): Household {
         authorize(auth)
-        return admitAndClear(request)
+        return admitAndClear(request, viewOnly && request.existingUserId != null)
+    }
+
+    /** Changes what another device of a person may do with the backups from their other devices (18 Nov). */
+    suspend fun setDeviceViewOnly(auth: OwnerAuth, deviceId: String, viewOnly: Boolean): Household {
+        authorize(auth)
+        return commit { h ->
+            require(h.memberForDevice(deviceId) != null) { "That device is not in the family" }
+            h.copy(members = h.members.map { m -> m.copy(devices = m.devices.map { if (it.deviceId == deviceId) it.copy(viewOnly = viewOnly) else it }) })
+        }
     }
 
     suspend fun decline(auth: OwnerAuth, request: JoinRequest) {
@@ -382,16 +397,16 @@ class HouseholdStore(
         }
     }
 
-    private suspend fun admitAndClear(request: JoinRequest): Household {
-        val household = (admit(request) as? Membership.Joined)?.household ?: load()!!
+    private suspend fun admitAndClear(request: JoinRequest, viewOnly: Boolean = false): Household {
+        val household = (admit(request, viewOnly) as? Membership.Joined)?.household ?: load()!!
         drive.delete(requestPath(request.deviceId))
         return household
     }
 
-    private suspend fun admit(request: JoinRequest): Membership {
+    private suspend fun admit(request: JoinRequest, viewOnly: Boolean = false): Membership {
         var joinedUserId: String? = null
         val household = commit { h ->
-            val device = Device(request.deviceId, request.deviceName, now())
+            val device = Device(request.deviceId, request.deviceName, now(), viewOnly = viewOnly)
             // A phone belongs to exactly one person: remove it from anyone else first.
             val members = h.members.map { m -> m.copy(devices = m.devices.filterNot { it.deviceId == request.deviceId }) }
             if (request.existingUserId != null) {

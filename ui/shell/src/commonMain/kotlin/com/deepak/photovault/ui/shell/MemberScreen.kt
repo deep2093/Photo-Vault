@@ -247,6 +247,24 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                             GlassIconButton(Icons.Rounded.Close, "Remove ${d.name}", onClick = { asOwner { removePhone = d.deviceId to d.name } })
                         }
                     }
+                    // 18 Nov: with more than one device, the owner decides which may delete the others' backups.
+                    if (member.devices.size > 1) {
+                        if (drive.isOwner) {
+                            com.deepak.photovault.designsystem.GlassSwitchRow(
+                                "May delete backups from other devices",
+                                !d.viewOnly,
+                                { on -> asOwner { scope.launch { message = drive.setDeviceViewOnly(d.deviceId, !on) } } },
+                                description = if (d.viewOnly) "View only: it sees all of ${member.name}'s backups and deletes only its own." else null,
+                            )
+                        } else if (d.viewOnly) {
+                            Text(
+                                "View only: sees all your backups, deletes only its own",
+                                color = theme.onGlassSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(start = 32.dp, bottom = 6.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -327,7 +345,8 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                     confirmLeave = false
                     scope.launch { message = drive.leaveFamily(deleteBackup = false); if (message == null) state.back() }
                 })
-                GlassButton("Leave and delete backup", danger = true, onClick = {
+                // A view-only device (18 Nov) can't delete the backups the person's other devices made.
+                if (!drive.viewOnlyHere) GlassButton("Leave and delete backup", danger = true, onClick = {
                     confirmLeave = false
                     scope.launch { message = drive.leaveFamily(deleteBackup = true); if (message == null) state.back() }
                 })

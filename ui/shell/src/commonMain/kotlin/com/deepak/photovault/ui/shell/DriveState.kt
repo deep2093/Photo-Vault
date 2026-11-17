@@ -85,6 +85,10 @@ interface DrivePlatform {
     fun rememberedBackupRecords(userId: String): List<com.deepak.photovault.core.backup.BackupRecord>? = null
     fun rememberBackupRecords(userId: String, records: List<com.deepak.photovault.core.backup.BackupRecord>) = Unit
 
+    /** This person's other devices this one has seen (18 Nov, to say when one is added); null before the first look. */
+    fun seenDevices(userId: String): Set<String>? = null
+    fun rememberSeenDevices(userId: String, deviceIds: Set<String>) = Unit
+
     /** The newest feedback note the owner has looked at (25 Oct), for the dot on Settings. */
     fun feedbackSeenAt(): Long = 0L
     fun setFeedbackSeenAt(millis: Long) = Unit
@@ -271,6 +275,7 @@ class DriveState(private val platform: DrivePlatform) {
         refreshSpaceRequests(s)
         val current = membership
         if (current is Membership.Joined) {
+            noticeNewDevices(current.me)
             privatePhotos = runCatching { s.privatePhotos(current.me.userId) }.getOrDefault(privatePhotos)
             // Limits change at once; the space used is counted separately (below), it is slow.
             usage = current.household.members.associate { member ->
@@ -371,8 +376,9 @@ class DriveState(private val platform: DrivePlatform) {
 
     private fun auth() = OwnerAuth(platform.deviceId, ownerPin)
 
-    suspend fun approve(request: JoinRequest) = ownerAction { s ->
-        s.approve(auth(), request)
+    /** [viewOnly] (18 Nov): another device of someone in the family that may look at, not delete, their other devices' backups. */
+    suspend fun approve(request: JoinRequest, viewOnly: Boolean = false) = ownerAction { s ->
+        s.approve(auth(), request, viewOnly)
         // 10 Nov: an invite made for this person isn't waiting any more once they are in.
         val name = request.newName?.trim()?.lowercase()
         val fs = drive
@@ -596,6 +602,41 @@ class DriveState(private val platform: DrivePlatform) {
         if (!fs.createNew(path, answer)) throw IllegalStateException("The answer couldn't be saved")
     }
 
+    // ---- Another device of the same person (18 Nov) ----
+
+    /** The owner let this device look at, but not delete, the backups made by this person's other devices. */
+    val viewOnlyHere: Boolean
+        get() = joined?.me?.devices?.firstOrNull { it.deviceId == platform.deviceId }?.viewOnly == true
+
+    /** True when this device may delete all of [records]: always its own backups; others' unless it is view only. */
+    fun mayDelete(records: Collection<com.deepak.photovault.core.backup.BackupRecord>): Boolean =
+        !viewOnlyHere || records.all { it.deviceId == platform.deviceId }
+
+    /** The owner changes what another device of a person may do with their other devices' backups. */
+    suspend fun setDeviceViewOnly(deviceId: String, viewOnly: Boolean) = ownerAction { s -> s.setDeviceViewOnly(auth(), deviceId, viewOnly) }
+
+    /** This person's devices this one has already seen, to say when a new one is added (18 Nov). */
+    var newDevices by mutableStateOf<List<com.deepak.photovault.core.household.Device>>(emptyList())
+        private set
+
+    private fun noticeNewDevices(me: com.deepak.photovault.core.household.Member) {
+        val others = me.devices.filter { it.deviceId != platform.deviceId }
+        val seen = platform.seenDevices(me.userId)
+        if (seen == null) {
+            // The first look on this device: what is there now is known, nothing is new.
+            platform.rememberSeenDevices(me.userId, others.map { it.deviceId }.toSet())
+            return
+        }
+        newDevices = others.filter { it.deviceId !in seen }
+    }
+
+    /** The new-device note was read: those devices count as seen. */
+    fun newDevicesSeen() {
+        val me = joined?.me ?: return
+        platform.rememberSeenDevices(me.userId, (platform.seenDevices(me.userId).orEmpty() + newDevices.map { it.deviceId }).toSet())
+        newDevices = emptyList()
+    }
+
     /**
      * The person leaves the family from this phone. [deleteBackup] (10 Nov): their backup is deleted from the drive
      * too (every file in their own folder, nobody else's); otherwise it stays and the owner can still see it.
@@ -603,6 +644,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun leaveFamily(deleteBackup: Boolean = false): String? = guarded {
         val me = joined?.me ?: return@guarded
         if (isOwner) return@guarded
+        if (deleteBackup && viewOnlyHere) throw NotAllowed(VIEW_ONLY_NOTE)
         val s = ensureStore() ?: return@guarded
         s.leave(platform.deviceId)
         platform.rememberUserId(null)
@@ -897,6 +939,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun trashBackups(paths: Set<String>): String? {
         val me = joined?.me ?: return "Join your family drive first."
         val records = (backupRecords ?: myBackupRecords() ?: return "Couldn't read the drive.").filter { it.drivePath in paths }
+        if (!mayDelete(records)) return VIEW_ONLY_NOTE
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
             val catalog = BackupCatalog(fs, me.userId, myVault())
@@ -923,6 +966,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun deleteTrashedForever(trashPaths: Set<String>): String? {
         val me = joined?.me ?: return "Join your family drive first."
         val items = driveTrash.orEmpty().filter { it.trashPath in trashPaths }
+        if (!mayDelete(items.map { it.record })) return VIEW_ONLY_NOTE
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
             val catalog = BackupCatalog(fs, me.userId, myVault())
@@ -938,6 +982,7 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun deleteBackups(paths: Set<String>): String? {
         val me = joined?.me ?: return "Join your family drive first."
         val records = (backupRecords ?: myBackupRecords() ?: return "Couldn't read the drive.").filter { it.drivePath in paths }
+        if (!mayDelete(records)) return VIEW_ONLY_NOTE
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
             BackupCatalog(fs, me.userId, myVault()).remove(records, platform.deviceId, platform.now())
@@ -1175,6 +1220,9 @@ class DriveState(private val platform: DrivePlatform) {
         const val OWNER_UNLOCK_MS = 5 * 60_000L
     }
 }
+
+/** Said when a view-only device tries to delete another device's backups (18 Nov). */
+internal const val VIEW_ONLY_NOTE = "This device can look at the backups from your other devices, but not delete them. The owner can change that in Family."
 
 private const val KEY_REQUEST = "key-request.bin"
 private const val KEY_ANSWER = "key-answer.bin"

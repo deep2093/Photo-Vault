@@ -96,6 +96,8 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
     }
     var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    // 18 Nov: another device of someone in the family, waiting for the owner to choose what it may do.
+    var approving by remember { mutableStateOf<JoinRequest?>(null) }
     fun asOwner(action: () -> Unit) {
         if (drive.ownerUnlocked) action() else pinFor = action
     }
@@ -124,6 +126,8 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
         }
         message?.let { item { WarningNote(it, Modifier.cardWidth()) } }
         drive.problem?.let { item { WarningNote("Can't reach the drive: $it", Modifier.cardWidth()) } }
+        // 18 Nov: a device was added to this person since this one last looked. Not theirs? The owner can remove it.
+        if (drive.newDevices.isNotEmpty()) item(key = "new-devices") { NewDevicesCard(drive) }
         // 18 Nov (A1): someone who chose this person as their recovery helper is asking for their key back.
         keyRequests.value.forEach { r ->
             item(key = "key-request-${r.userId}") { KeyRequestCard(state, drive, r) { keyRequests.value = keyRequests.value.filter { it.userId != r.userId } } }
@@ -135,7 +139,11 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
                     drive.requests.forEach { r ->
                         RequestRow(
                             r, joined,
-                            onApprove = { asOwner { scope.launch { message = drive.approve(r); if (message == null) toast("Added to the family.") } } },
+                            onApprove = {
+                                // 18 Nov: another device of someone in the family asks first what it may do.
+                                if (r.existingUserId != null) approving = r
+                                else asOwner { scope.launch { message = drive.approve(r); if (message == null) toast("Added to the family.") } }
+                            },
                             onDecline = { asOwner { scope.launch { message = drive.decline(r); if (message == null) toast("Request declined.") } } },
                         )
                     }
@@ -190,11 +198,45 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
         }
     }
 
+    approving?.let { r ->
+        val who = joined?.household?.member(r.existingUserId ?: "")?.name ?: "Someone"
+        var viewOnly by remember(r.deviceId) { mutableStateOf(true) }
+        GlassDialog(
+            title = "Add \"${r.deviceName}\"",
+            onDismiss = { approving = null },
+            buttons = {
+                GlassButton("Cancel", onClick = { approving = null })
+                GlassButton("Approve", primary = true, onClick = {
+                    approving = null
+                    asOwner { scope.launch { message = drive.approve(r, viewOnly); if (message == null) toast("Added to the family.") } }
+                })
+            },
+        ) {
+            Text("$who is adding another device.", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
+            DevicePermissionChoice(who, viewOnly) { viewOnly = it }
+        }
+    }
     pinFor?.let { action ->
         PinDialog(drive, onDismiss = { pinFor = null }, onUnlocked = {
             pinFor = null
             action()
         })
+    }
+}
+
+/** A device was added to this person (18 Nov), so nobody becomes "you" on another phone unnoticed. */
+@Composable
+private fun NewDevicesCard(drive: DriveState) {
+    val theme = LocalGlassTheme.current
+    val names = drive.newDevices.joinToString(", ") { "\"${it.name}\"" }
+    GlassCard(Modifier.cardWidth()) {
+        SectionHeader(if (drive.newDevices.size == 1) "A new device sees your backups" else "New devices see your backups")
+        Text(
+            "$names was added to you. If that isn't yours, ask the owner to remove it in Family.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        GlassButton("OK", onClick = drive::newDevicesSeen, modifier = Modifier.padding(top = 10.dp))
     }
 }
 

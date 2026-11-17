@@ -148,6 +148,13 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     "They stay on your phone and your own drive.",
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
+            // The test's switch stays reachable when this device has nothing of its own (18 Nov).
+            gallery.loaded && gallery.items.isEmpty() && state.appearance.mirrorTest -> EmptyState(
+                icon = Icons.Rounded.PhotoLibrary,
+                title = if (gallery.deviceOnly) "Nothing on this device" else "No photos yet",
+                body = if (gallery.deviceOnly) "Switch to All my backups to see what your other devices backed up." else "Photos and videos you take will appear here.",
+                action = { BackupsSwitch(state) },
+            )
             gallery.loaded && gallery.items.isEmpty() -> EmptyState(
                 icon = Icons.Rounded.PhotoLibrary,
                 title = "No photos yet",
@@ -207,6 +214,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                                     androidx.compose.foundation.layout.Column {
                                     MemoriesStrip(state, gallery)
                                     androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = SCREEN_MARGIN)) {
+                                        // 18 Nov (test): this device's photos, or every backup of yours.
+                                        if (state.appearance.mirrorTest) BackupsSwitch(state, Modifier.padding(bottom = 10.dp))
                                         if (gallery.access == MediaAccess.PARTIAL) {
                                             WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
                                             GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
@@ -224,6 +233,22 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
 }
 
 private const val LEVEL_MS = 300
+
+/**
+ * The "all my backups" test (18 Nov, Deepak): Photos and Albums show either what is on this device, or everything
+ * this person has backed up from all their devices, on the family drive and Google Drive, without doubles. Only
+ * this person's own backups ever show: another family member's never do.
+ */
+@Composable
+internal fun BackupsSwitch(state: ShellState, modifier: Modifier = Modifier) {
+    val here = if (LocalTabletDevice.current) "On this tablet" else "On this phone"
+    com.deepak.photovault.designsystem.GlassSegmented(
+        listOf(here, "All my backups"),
+        selectedIndex = if (state.appearance.showAllBackups) 1 else 0,
+        onSelect = { i -> state.updateAppearance { it.copy(showAllBackups = i == 1) } },
+        modifier = modifier.cardWidth(),
+    )
+}
 
 /** Years / Months / All as three small buttons in their own pill at the top left. The chosen one is filled. */
 @Composable

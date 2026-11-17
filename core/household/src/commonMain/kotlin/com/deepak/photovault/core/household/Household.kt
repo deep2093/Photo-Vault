@@ -74,7 +74,17 @@ enum class MemberRole {
 }
 
 @Serializable
-data class Device(val deviceId: String, val name: String, val addedAtMillis: Long)
+data class Device(
+    val deviceId: String,
+    val name: String,
+    val addedAtMillis: Long,
+    /**
+     * Another device of the same person that may look at, but not delete, the backups made by that person's other
+     * devices (18 Nov, Deepak: the owner chooses when approving it). Its own backups it can always delete. Devices
+     * added before 18 Nov read as false: they keep doing what they did.
+     */
+    val viewOnly: Boolean = false,
+)
 
 /** PBKDF2-SHA256 of the owner PIN. Stops casual changes on a borrowed phone; see SECURITY_MODEL.md for limits. */
 @Serializable

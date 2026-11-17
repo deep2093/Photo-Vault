@@ -59,6 +59,13 @@ data class AppearanceSettings(
     val reduceMotion: Boolean = false,
     /** Tablets only: the sections in a side bar instead of the bottom bar (18 Nov, the default). Saved per device. */
     val tabletSideBar: Boolean = true,
+    /**
+     * Test (18 Nov, Settings > About): a switch on Photos and Albums between what is on this device and everything this
+     * person has backed up from all their devices (family drive and Google Drive). Off by default.
+     */
+    val mirrorTest: Boolean = false,
+    /** With [mirrorTest]: every backup of this person shows (true), or only what is on this device. */
+    val showAllBackups: Boolean = true,
     /** The person picked a theme themselves. Until then they follow the default (Liquid Day since 29 Oct). */
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */

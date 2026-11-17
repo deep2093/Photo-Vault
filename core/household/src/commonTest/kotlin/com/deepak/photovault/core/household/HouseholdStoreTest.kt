@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -135,6 +136,24 @@ class HouseholdStoreTest {
         val me = (store().membership(TABLET) as Membership.Joined).me
         assertEquals(h.ownerUserId, me.userId)
         assertEquals(2, me.devices.size)
+    }
+
+    @Test
+    fun theOwnerChoosesWhetherAnotherDeviceMayDeleteBackups() = runTest {
+        ownerSetUp()
+        val owner = OwnerAuth(OWNER_PHONE, "2468")
+        store().updateSettings(owner) { it.copy(approveNewPhones = false) }
+        val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
+        // Joining as Sam waits for the owner even though new people may join freely (18 Nov).
+        assertIs<Membership.Pending>(store().requestJoin("sam-tablet-0001", "Tab", existingUserId = sam.userId))
+        store().approve(owner, store().pendingRequests().single(), viewOnly = true)
+        suspend fun tablet() = store().load()!!.member(sam.userId)!!.devices.single { it.deviceId == "sam-tablet-0001" }
+        assertTrue(tablet().viewOnly)
+        // The first phone of a new person is never view only, whatever is asked.
+        assertFalse(store().load()!!.member(sam.userId)!!.devices.single { it.deviceId == SAM_PHONE }.viewOnly)
+        store().setDeviceViewOnly(owner, "sam-tablet-0001", false)
+        assertFalse(tablet().viewOnly)
+        assertFailsWith<NotAllowed> { store().setDeviceViewOnly(OwnerAuth(OWNER_PHONE, "0000"), "sam-tablet-0001", true) }
     }
 
     @Test
@@ -297,7 +316,9 @@ class HouseholdStoreTest {
         ownerSetUp()
         store().updateSettings(OwnerAuth(OWNER_PHONE, "2468")) { it.copy(approveNewPhones = false) }
         val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
-        store().requestJoin("sam-tablet-0001", "Tab", existingUserId = sam.userId)
+        // Another device of someone already in the family always waits for the owner (18 Nov).
+        assertIs<Membership.Pending>(store().requestJoin("sam-tablet-0001", "Tab", existingUserId = sam.userId))
+        store().approve(OwnerAuth(OWNER_PHONE, "2468"), store().pendingRequests().single())
         store().removeDevice(OwnerAuth(OWNER_PHONE, "2468"), SAM_PHONE)
         assertIs<Membership.Removed>(store().membership(SAM_PHONE, rememberedUserId = sam.userId))
         assertIs<Membership.Joined>(store().membership("sam-tablet-0001", rememberedUserId = sam.userId))

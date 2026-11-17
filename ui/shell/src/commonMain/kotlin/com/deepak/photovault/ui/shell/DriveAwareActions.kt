@@ -52,6 +52,12 @@ class DriveAwareActions(
         val (onGoogle, rest) = items.partition { it.onGoogle() }
         if (onGoogle.isNotEmpty()) {
             val g = google ?: return onDone(false)
+            // 18 Nov: a device the owner made view only can't delete what this person's other devices backed up.
+            val paths = onGoogle.paths()
+            if (!drive.mayDelete(g.records.orEmpty().filter { it.drivePath in paths })) {
+                phone.toast(VIEW_ONLY_NOTE)
+                return onDone(false)
+            }
             g.askDelete(onGoogle.paths()) { ok ->
                 if (rest.isEmpty()) onDone(ok) else moveToRecentlyDeleted(rest, onDone)
             }
@@ -60,9 +66,11 @@ class DriveAwareActions(
         val (onDrive, onPhone) = items.partition { it.isDriveOnly }
         if (onDrive.isEmpty()) return phone.moveToRecentlyDeleted(items, onDone)
         scope.launch {
-            val failed = drive.trashBackups(onDrive.paths()) != null
+            val error = drive.trashBackups(onDrive.paths())
+            // 18 Nov: say why (a view-only device, or the drive out of reach) instead of nothing happening.
+            if (error != null) phone.toast(error)
             reread()
-            if (onPhone.isEmpty()) onDone(!failed) else phone.moveToRecentlyDeleted(onPhone, onDone)
+            if (onPhone.isEmpty()) onDone(error == null) else phone.moveToRecentlyDeleted(onPhone, onDone)
         }
     }
 
@@ -80,7 +88,9 @@ class DriveAwareActions(
         val (onDrive, onPhone) = items.partition { it.isDriveOnly }
         if (onDrive.isEmpty()) return phone.deleteForever(items, onDone)
         scope.launch {
-            val failed = drive.deleteTrashedForever(onDrive.paths()) != null
+            val error = drive.deleteTrashedForever(onDrive.paths())
+            if (error != null) phone.toast(error)
+            val failed = error != null
             reread()
             if (onPhone.isEmpty()) onDone(!failed) else phone.deleteForever(onPhone, onDone)
         }
