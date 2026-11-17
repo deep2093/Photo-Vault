@@ -11,7 +11,8 @@ that was only built: an item is done when it was also tried on a phone, unless i
 Both = Claude prepares, Deepak approves or carries out.
 
 **Status on 17 Nov 2026.** 1 of 51 items done (E1). `feature/cleanup` tried on a phone and merged into `main`.
-Stage 0 is finished apart from Deepak's housekeeping (D17); stage 1 is half answered (see the Decisions log).
+Stage 0 is finished apart from Deepak's housekeeping (D17). Stage 1 is answered apart from two things waiting on
+Deepak: the new support address (B7) and whether the Private DNS notice still shows (D9).
 
 ---
 
@@ -83,12 +84,14 @@ Stage 0 is finished apart from Deepak's housekeeping (D17); stage 1 is half answ
 - [ ] **B6 · Face data notice.** Who: Claude builds, Deepak approves wording.
   Face matching counts as biometric data in the EU and some US states. People needs a clear notice before the
   first scan, and its off switch must delete the face data (on the phone and the drive copy).
-- [ ] **B7 · Support contact.** Who: Deepak.
-  The policy's only contact is "open a GitHub issue". Play needs a support email address.
+- [ ] **B7 · Support contact.** Who: Deepak makes the address, Claude adds it.
+  The policy's only contact is "open a GitHub issue". Play needs a support email address. Decided 17 Nov: a new
+  address just for Pixallery (Play shows it publicly). Waiting for Deepak to make it and send it.
 - [ ] **B8 · App identity is permanent.** Who: Claude changes (stage 3). Name and version decided 17 Nov.
   The package is `com.deepak.photovault`, the version `0.0.1`, the app is called Pixallery. The package can never
-  change after release. Decided: the name stays **Pixallery**; the first public version is **1.0.0**. Package
-  name: waiting for Deepak's answer (Claude suggests `com.deepak.pixallery`).
+  change after release. Decided 17 Nov: the name stays **Pixallery**, the package is **`app.pixallery`**, the
+  first public version is **1.0.0**. Only the package (what Android and Play see) changes; the code's own folder
+  names can stay as they are.
 - [ ] **B9 · Closed testing first.** Who: Deepak.
   New personal Play developer accounts must run a closed test (currently 12 testers for 14 days) before
   production. Check the current rule when the account is made and line up the testers early.
@@ -117,11 +120,12 @@ Stage 0 is finished apart from Deepak's housekeeping (D17); stage 1 is half answ
 
 - [ ] **D1 · AuraFace test model: keep or remove.** Who: Claude. Decided 17 Nov: remove it before release, after
   more testing (stage 5).
-- [ ] **D2 · Tester feedback feature: ship or remove.** Who: Deepak decides, Claude does.
-  It sends notes and photos to the drive and checks every 3 hours.
-- [ ] **D3 · Private-to-Normal for Google Drive copies and Recently deleted.** Who: Deepak decides, Claude builds.
-- [ ] **D4 · Private photos in the Family Album.** Who: Deepak decides.
-  Not possible today. Either build sharing for private photos or say so clearly in the app.
+- [ ] **D2 · Tester feedback feature: ship or remove.** Who: Claude. Decided 17 Nov: remove it before release
+  (testers use Play's own feedback). It sends notes and photos to the drive and checks every 3 hours.
+- [ ] **D3 · Private-to-Normal for Google Drive copies and Recently deleted.** Who: Claude. Decided 17 Nov: not in
+  version 1. Check the app says plainly that these stay private for now.
+- [ ] **D4 · Private photos in the Family Album.** Who: Claude. Decided 17 Nov: not in version 1.
+  Not possible today; say so clearly in the app where a person would try it.
 - [ ] **D5 · Removed members keep the drive password.** Who: Claude.
   The app only suggests changing it. Add a guided "change the drive password" step that updates every phone.
 - [ ] **D6 · Owner PIN limits said plainly.** Who: Claude (text).
@@ -129,7 +133,10 @@ Stage 0 is finished apart from Deepak's housekeeping (D17); stage 1 is half answ
 - [ ] **D7 · Drive connection signing and encryption.** Who: Claude.
   Off by default. Add an option (or turn on when the drive supports it) and a note.
 - [ ] **D8 · In-app set-up guide.** Who: Claude. Drive, WireGuard on the router, importing the config, adding family.
-- [ ] **D9 · Private DNS notice.** Who: Deepak answers the open question, Claude builds.
+- [ ] **D9 · Private DNS notice.** Who: Deepak checks, Claude builds. Raised 30 Oct (Deepak uses an ad-block
+  DNS); the details were only in an older chat. 17 Nov: Deepak will check whether the notice still shows when
+  remote access is on. Claude's likely fix if it does: the tunnel stops setting its own DNS, since the app
+  reaches the drive by number (.250).
 - [ ] **D10 · People tuning.** Who: Both. Black-and-white photos, faces in videos, children, look-alikes.
 - [ ] **D11 · Secured folder viewer dark theme.** Who: Claude.
 - [ ] **D12 · Tablets and foldables (Phase 12).** Who: Claude. Animations everywhere, foldable layouts, two panes.
@@ -146,8 +153,8 @@ Stage 0 is finished apart from Deepak's housekeeping (D17); stage 1 is half answ
   Added 17 Nov: Log videos are recognised by a guess (10-bit wide colour, no HDR tag); checked on a real Log video
   on 17 Nov and it shows "Log (probably)". Messages use Android's toast, which shows only two lines (an in-app
   message bar would not cut off).
-- [ ] **D16 · A real depth model for living photos.** Who: Deepak decides, Claude builds. Optional: today's
-  effect uses a subject cut-out only.
+- [ ] **D16 · A real depth model for living photos.** Who: Claude, later. Decided 17 Nov: not in version 1.
+  Today's effect uses a subject cut-out only.
 - [ ] **D17 · Deepak's housekeeping.** Who: Deepak.
   Delete the nine old, fully merged branches on GitHub (Claude's session is not allowed to); decide what happens
   to `codex/experimental-preview-glass`, `feature/experimental-preview-glass` and `round5-part2-wip` (they hold
@@ -173,11 +180,11 @@ Stage 0 is finished apart from Deepak's housekeeping (D17); stage 1 is half answ
 - [ ] **E7 · On-device automated tests for the riskiest paths.** Who: Claude.
   A few tests that drive the real app: back up, restore, delete, free up space. 350 logic tests exist; none open
   a screen.
-- [ ] **E8 · Languages.** Who: Deepak decides.
-  English only, text written into the code. Decide: English only for version 1, or move text out now.
-- [ ] **E9 · Crash reports.** Who: Deepak decides.
-  Crashes show only on the person's phone. Decide: keep it that way (and add "send to developer" by email), or
-  use Play's own crash reports only.
+- [ ] **E8 · Languages.** Who: nobody for version 1. Decided 17 Nov: English only for version 1; move the text
+  out of the code later, when a second language is wanted.
+- [ ] **E9 · Crash reports.** Who: Claude. Decided 17 Nov: use Play's own crash reports, and add a "send to
+  developer" button on the crash screen that the person chooses to tap (it emails the details to the B7
+  address). Crashes today show only on the person's phone. The privacy policy must mention both (A4).
 - [ ] **E10 · Android's own code checks: review what they let through.** Who: Claude. (Added 16 Nov, corrected 17 Nov.)
   The automatic build does run Android lint and stops on its errors (it caught one on 17 Nov). Still to do: read
   its warnings once and decide which should also stop the build (wrong-version calls, missing permissions).
@@ -217,17 +224,18 @@ Why now: each answer changes what gets built later, and three of them can never 
 
 Answer these together, in one sitting:
 
-1. **B8** final package name and first version number (permanent). Name and version answered 17 Nov; package name open.
+1. **B8** final package name and first version number (permanent). Answered 17 Nov.
 2. **C1** open source or private repository (also settles **C5**). Answered 17 Nov.
 3. **B1** VPN in the Play version: declare it, or leave it out. Answered 17 Nov.
 4. **A1** recovery helper: finish it, or hide it for version 1. Answered 17 Nov.
 5. **D1** AuraFace: keep or remove. Answered 17 Nov.
-6. **D2** tester feedback: ship or remove.
-7. **D3**, **D4**, **D16** Google conversion, private photos in the Family Album, a real depth model: version 1 or later.
-8. **E8** English only for version 1?
-9. **E9** crash reports: how.
-10. **B7** the support email address.
-11. **D9** the Private DNS question.
+6. **D2** tester feedback: ship or remove. Answered 17 Nov.
+7. **D3**, **D4**, **D16** Google conversion, private photos in the Family Album, a real depth model: version 1 or
+   later. Answered 17 Nov.
+8. **E8** English only for version 1? Answered 17 Nov.
+9. **E9** crash reports: how. Answered 17 Nov.
+10. **B7** the support email address. Answered 17 Nov; Deepak is making the address.
+11. **D9** the Private DNS question. Deepak is checking whether it still happens.
 
 Done when: each of these has an answer written next to it in this file.
 
@@ -289,12 +297,11 @@ Suggested order (biggest risk first, look-and-feel last):
 
 1. **D5** guided drive password change, **D7** connection signing and encryption (both touch the drive connection).
 2. **D8** set-up guide, **D9** Private DNS notice (both are help and first-run pages).
-3. **D3**, **D4** if chosen for version 1.
+3. **D3**, **D4**: not in version 1 (decided 17 Nov), so only the plain "not yet" wording in the app.
 4. **D13** check the old "not done" notes; **D15** rough edges.
-5. **D10** People tuning, **D1** AuraFace as decided, **D16** depth model if chosen.
+5. **D10** People tuning, **D1** remove AuraFace after more testing. (**D16** is not in version 1.)
 6. **D11** Secured folder dark theme, **D12** tablets and foldables (last: they touch every screen).
-7. **D2** feedback feature as decided; **E8** move text out of the code if more languages were chosen; **E9** crash
-   reporting as decided.
+7. **D2** remove the feedback feature; **E9** the "send to developer" button. (**E8**: English only, nothing to do.)
 
 Done when: every D item is ticked or marked "not in version 1" with Deepak's agreement.
 
@@ -348,6 +355,16 @@ Done when: the app is live on Play.
 - **A1.** Finish the recovery helper.
 - **D1.** Remove AuraFace before release, after more testing.
 - **E1.** "The last fixes work, tick it." Log video detection checked on a real Log video.
+
+**17 Nov 2026, stage 1 part 2 (Deepak):**
+
+- **B8.** Package name **`app.pixallery`** (Deepak did not want his name in it).
+- **D2.** Remove the tester feedback feature before release.
+- **D3, D4, D16.** None of them in version 1; all can come in later updates.
+- **E8.** English only for version 1.
+- **E9.** Play's own crash reports plus a "send to developer" button.
+- **B7.** A new email address just for Pixallery; Deepak will make it.
+- **D9.** Deepak will check whether the Private DNS notice still shows.
 
 ## Done log
 
