@@ -138,7 +138,7 @@ object GlassThemes {
         isDark = true,
         wallpaper = wallpaper.map { Color(it) },
         glows = glows,
-        glassTint = if (milky) Color(0x1F8A9098) else Color(0x73000000 or smoke),
+        glassTint = if (milky) Color(0x1F8A9098) else Color(0x73000000L or smoke),
         glassFallback = if (milky) Color(0xE6505660) else Color(0xE6000000 or solid),
         glassRim = Color(rim),
         onGlass = White,
