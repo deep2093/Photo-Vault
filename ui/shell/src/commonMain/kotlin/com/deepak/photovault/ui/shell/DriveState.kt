@@ -105,6 +105,7 @@ data class MemberUsage(val usedBytes: Long?, val limitBytes: Long)
 @Stable
 class DriveState(private val platform: DrivePlatform) {
     var connection by mutableStateOf(platform.loadConnection())
+        private set
 
     /** Set-up and Settings > Drive: look for the drive at nearby addresses if its address changes (17 Nov). */
     var findMoved by mutableStateOf(platform.findMovedDrive())
@@ -114,7 +115,6 @@ class DriveState(private val platform: DrivePlatform) {
         platform.setFindMovedDrive(on)
         findMoved = on
     }
-        private set
 
     /** Starts as the family last seen on this phone, if any; it is replaced as soon as the drive answers. */
     var membership by mutableStateOf<Membership?>(rememberedMembership())
