@@ -268,6 +268,16 @@ fun PhotoVaultApp(
         }
     }
     LaunchedEffect(gallery, drive.familyAlbumRecords) { drive.familyAlbumRecords?.let(gallery::updateFamilyAlbum) }
+    // 18 Nov (Deepak): drive photos deleted in the app stay off screen until the drive has them in its Recently deleted;
+    // that is tried now, when the app comes back, when the drive answers again, and every few minutes meanwhile.
+    LaunchedEffect(gallery, drive.pendingTrash) { gallery.setWaitingToDelete(drive.pendingTrash) }
+    val deletesWaiting = drive.pendingTrash.isNotEmpty()
+    LaunchedEffect(drive.joined?.me?.userId, signals.foreground, deletesWaiting, drive.problem) {
+        while (deletesWaiting && signals.foreground && drive.joined != null) {
+            if (actions.finishDriveDeletes()) break
+            kotlinx.coroutines.delay(DRIVE_DELETE_RETRY_MS)
+        }
+    }
     // The family drive's and Google's backups in one timeline (Phase 10, 13 Nov).
     LaunchedEffect(gallery, drive.backupRecords, state.google.records) {
         timelineRecords(drive.backupRecords, state.google.records)?.let(gallery::setDriveRecords)
@@ -905,21 +915,20 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
 }
 
 /**
- * Tablets (18 Nov, Deepak: "side bar on tablet instead of the bottom bar", now the default): the sections in a
- * floating glass bar down the left side, in the middle of the screen's height, with the pages beside it. The same
- * glass, sliding highlight and icons as the phone's bottom bar, stood on its end. It stays put while scrolling (side
- * bars stay fixed); it slides away only while photos or albums are selected, as the bottom bar does, so a tap can't
- * leave a selection by accident. The section under an opening page drifts and darkens with it, bar included.
+ * Tablets (18 Nov, Deepak: "side bar on tablet instead of the bottom bar", now the default; second pass the same day:
+ * "is it supposed to sit in the middle? make it proper"). A navigation rail as Material 3 lays it out on tablets: one
+ * glass panel the full height of the left edge, the same frosted fill in every section (it no longer depends on what
+ * blurs behind it, which made it clear in Photos and white elsewhere), the sections at the top in line with the
+ * pages' top buttons, and a pill behind the chosen icon that slides as you swipe between sections. It stays put while
+ * scrolling; while photos or albums are selected it dims and ignores taps, so a tap can't leave a selection.
  */
 @Composable
 private fun SideBarLayout(screens: Screens, system: PaddingValues) {
     val state = screens.state
     val nav = rememberSectionNav(state)
     val start = system.calculateStartPadding(LayoutDirection.Ltr)
-    val room = start + SIDE_BAR_MARGIN + SIDE_BAR_WIDTH + SIDE_BAR_GAP
-    val tucked = state.selecting || state.albumsSelected.isNotEmpty()
-    val travel = with(androidx.compose.ui.platform.LocalDensity.current) { room.toPx() }
-    val shift = androidx.compose.animation.core.animateFloatAsState(if (tucked) travel else 0f, motionSpec(CHROME_MS), label = "sideBar")
+    val railWidth = start + RAIL_WIDTH
+    val selecting = state.selecting || state.albumsSelected.isNotEmpty()
     Box(
         Modifier
             .fillMaxSize()
@@ -934,52 +943,69 @@ private fun SideBarLayout(screens: Screens, system: PaddingValues) {
                 bottom = system.calculateBottomPadding(),
             ),
         ) {
-            // The pages take the rest of the width, so nothing sits under the bar and nothing moves when it tucks away.
-            Box(Modifier.fillMaxSize().padding(start = room)) { SectionPager(nav.pager, screens) }
+            // The pages take the rest of the width, so nothing sits under the rail.
+            Box(Modifier.fillMaxSize().padding(start = railWidth)) { SectionPager(nav.pager, screens) }
         }
-        FloatingSideBar(
+        SideRail(
             indicator = { nav.indicator.value },
             onSelect = state::tapSection,
+            enabled = !selecting,
             familyDot = screens.familyDot,
             settingsDot = screens.settingsDot,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = start + SIDE_BAR_MARGIN)
-                .graphicsLayer {
-                    translationX = -shift.value
-                    alpha = 1f - (shift.value / travel).coerceIn(0f, 1f)
-                },
+            modifier = Modifier.fillMaxHeight().width(railWidth),
+            // The first section lines up with the pages' top buttons (Years / Months / All, Search).
+            contentPadding = PaddingValues(start = start, top = system.calculateTopPadding() + 8.dp),
         )
     }
 }
 
-/** The tablet's side bar: a tall glass capsule, one highlight sliding between the sections as on the bottom bar. */
+/** How often drive photos deleted in the app are tried again while the drive can't be reached (18 Nov). */
+private const val DRIVE_DELETE_RETRY_MS = 5 * 60 * 1000L
+
+/** The tablet's rail: a full-height glass panel, the sections from the top, a sliding pill behind the chosen icon. */
 @Composable
-private fun FloatingSideBar(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, settingsDot: Boolean, modifier: Modifier = Modifier) {
+private fun SideRail(
+    indicator: () -> Float,
+    onSelect: (Destination) -> Unit,
+    enabled: Boolean,
+    familyDot: Boolean,
+    settingsDot: Boolean,
+    modifier: Modifier,
+    contentPadding: PaddingValues,
+) {
     val theme = LocalGlassTheme.current
-    val highlight = RoundedCornerShape(SIDE_ITEM_RADIUS)
+    // The same frosted film as the cards (or solid with the glass effect off), drawn the same way in every section.
+    val film = theme.panelFill
+    val fill = if (film != null && com.deepak.photovault.designsystem.LocalGlassSettings.current.blurEnabled) film else theme.glassFallback
+    val edge = if (theme.isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+    val dim by androidx.compose.animation.core.animateFloatAsState(if (enabled) 1f else 0.38f, motionSpec(CHROME_MS), label = "railDim")
     Box(
         modifier
-            .width(SIDE_BAR_WIDTH)
-            .glassChrome(RoundedCornerShape(percent = 50))
-            .padding(SIDE_BAR_PAD),
+            .background(fill)
+            .drawBehind { drawRect(edge, topLeft = androidx.compose.ui.geometry.Offset(size.width - 1.dp.toPx(), 0f), size = androidx.compose.ui.geometry.Size(1.dp.toPx(), size.height)) }
+            .padding(contentPadding)
+            .graphicsLayer { alpha = dim },
     ) {
         Box(
             Modifier
-                .offset { IntOffset(0, (SIDE_ITEM_HEIGHT * indicator()).roundToPx()) }
-                .size(SIDE_BAR_WIDTH - SIDE_BAR_PAD * 2, SIDE_ITEM_HEIGHT)
-                .clip(highlight)
+                .align(Alignment.TopCenter)
+                .offset { IntOffset(0, ((RAIL_ITEM_HEIGHT + RAIL_ITEM_GAP) * indicator()).roundToPx()) }
+                .size(RAIL_INDICATOR_WIDTH, RAIL_INDICATOR_HEIGHT)
+                .clip(RoundedCornerShape(percent = 50))
                 .background(theme.accentSurface)
-                .frostedEdge(highlight),
+                .frostedEdge(RoundedCornerShape(percent = 50)),
         )
-        Column(Modifier.selectableGroup()) {
+        Column(
+            Modifier.align(Alignment.TopCenter).selectableGroup(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(RAIL_ITEM_GAP),
+        ) {
             Destination.entries.forEach { destination ->
-                NavItem(
+                RailItem(
                     destination,
                     indicator(),
                     { onSelect(destination) },
-                    Modifier.fillMaxWidth(),
-                    height = SIDE_ITEM_HEIGHT,
+                    enabled = enabled,
                     dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS),
                 )
             }
@@ -987,13 +1013,56 @@ private fun FloatingSideBar(indicator: () -> Float, onSelect: (Destination) -> U
     }
 }
 
-/** From the screen's edge to the side bar, and from the bar to the pages. */
-private val SIDE_BAR_MARGIN = 12.dp
-private val SIDE_BAR_GAP = 4.dp
-private val SIDE_BAR_WIDTH = 80.dp
-private val SIDE_BAR_PAD = 6.dp
-private val SIDE_ITEM_HEIGHT = 68.dp
-private val SIDE_ITEM_RADIUS = 22.dp
+/** One section in the rail: the icon in its pill-sized space, the name under it (bolder when chosen). */
+@Composable
+private fun RailItem(destination: Destination, indicator: Float, onClick: () -> Unit, enabled: Boolean, dot: Boolean) {
+    val theme = LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
+    val selected = closeness > 0.5f
+    Column(
+        Modifier
+            .width(RAIL_ITEM_WIDTH)
+            .height(RAIL_ITEM_HEIGHT)
+            .clip(RoundedCornerShape(16.dp))
+            .selectable(selected = selected, enabled = enabled, role = Role.Tab, onClick = {
+                haptics.tick()
+                onClick()
+            })
+            .then(if (dot) Modifier.semantics { stateDescription = "A phone is waiting for approval" } else Modifier),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.size(RAIL_INDICATOR_WIDTH, RAIL_INDICATOR_HEIGHT), contentAlignment = Alignment.Center) {
+            com.deepak.photovault.designsystem.DepthIcon(destination.icon, null, lerp(theme.onGlass, theme.onAccent, closeness), Modifier.size(24.dp))
+            if (dot) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-12).dp, y = 3.dp)
+                        .size(10.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(theme.badgePhoneOnly),
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        com.deepak.photovault.designsystem.DepthText(
+            destination.label,
+            color = theme.onGlass,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+            maxLines = 1,
+        )
+    }
+}
+
+/** The rail's sizes: Material 3's 80 dp rail with a little more room for the names, its 56 x 32 dp pill. */
+private val RAIL_WIDTH = 88.dp
+private val RAIL_ITEM_WIDTH = 80.dp
+private val RAIL_ITEM_HEIGHT = 60.dp
+private val RAIL_ITEM_GAP = 12.dp
+private val RAIL_INDICATOR_WIDTH = 56.dp
+private val RAIL_INDICATOR_HEIGHT = 32.dp
 
 /**
  * The sections side by side: swipe left or right to move between them, or tap the navigation.

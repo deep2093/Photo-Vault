@@ -100,15 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-8"
+    const val ID = "2026-11-18-9"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "A side bar on tablets", "On a tablet the sections sit in a glass bar down the left side. Settings > Appearance > Side bar brings back the bar at the bottom."),
-        Change(ChangeKind.FIXED, "Videos", "A video stops when you leave the app, has a big play and pause button in the middle, shows HDR in true colour like Skywing, and starts in English when it has several languages."),
-        Change(ChangeKind.NEW, "Test: all my backups on every device", "Turn it on in Settings > About. Photos and Albums then get a switch: what is on this device, or everything you backed up from all your devices, on the family drive and Google Drive."),
-        Change(ChangeKind.NEW, "You choose what another device may do", "When someone adds another phone or tablet, the owner picks View only or View and delete. View only sees all their backups but deletes only its own."),
-        Change(ChangeKind.NEW, "Told when a device is added to you", "Family shows a note when a new phone or tablet is added to you, so a mistake can't slip by."),
-        Change(ChangeKind.CHANGED, "Joining as someone already in the family", "Always needs the owner's approval now, even when new people may join without asking."),
+        Change(ChangeKind.CHANGED, "A proper side bar on tablets", "A glass panel down the whole left side, the sections at the top in line with the top buttons, and the same look in every section."),
+        Change(ChangeKind.CHANGED, "The backups switch is at the top", "Two small icons beside Search in Photos and beside the menu in Albums: this tablet or phone, or the cloud for all your backups."),
+        Change(ChangeKind.FIXED, "Settings on tablets lines up", "Each page fills its side evenly next to the list, the same width on every page."),
+        Change(ChangeKind.FIXED, "Storage on tablets", "Albums use the whole width when there is only one year, and Recently deleted on the drive is a row like the others."),
+        Change(ChangeKind.CHANGED, "Deleting drive photos is instant", "They leave the app at once. The drive catches up in the background, or the next time it can be reached."),
     )
 }
 

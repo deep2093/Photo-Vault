@@ -263,12 +263,13 @@ internal fun StorageContent(
                     else -> Breakdown(files, zone, open(true), albumsTitle = "Backed-up albums")
                 }
                 if (joined != null) {
+                    // 18 Nov: a full-width row like Free up space, so it lines up with the cards above it.
                     val binned = gallery.trashed.count { it.item.isDriveOnly }
-                    GlassButton(
-                        if (binned == 0) "Recently deleted on the drive" else "Recently deleted on the drive ($binned)",
-                        onClick = { state.open(Overlay.DriveRecentlyDeleted) },
-                        icon = Icons.Rounded.Delete,
-                    )
+                    GlassCard(Modifier.fillMaxWidth()) {
+                        ToolRow(Icons.Rounded.Delete, "Recently deleted on the drive", if (binned == 0) "Empty" else if (binned == 1) "1 item" else "${LibraryCounts.grouped(binned)} items") {
+                            state.open(Overlay.DriveRecentlyDeleted)
+                        }
+                    }
                 }
             }
         }
@@ -501,8 +502,9 @@ private fun Breakdown(
             }
         }
     }
-    // 13 Nov: on a tablet, years on the left and the albums on the right.
-    if (LocalTablet.current) {
+    // 13 Nov: on a tablet, years on the left and the albums on the right. 18 Nov (Deepak's tablet: the albums card sat
+    // alone on the right half): with only one year there is no years card, so the albums take the whole width.
+    if (LocalTablet.current && years.size > 1) {
         TabletColumns(left = { yearsCard() }, right = { albumsCard() })
     } else {
         yearsCard()

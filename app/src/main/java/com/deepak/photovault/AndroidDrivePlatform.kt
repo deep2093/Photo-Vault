@@ -262,6 +262,13 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         prefs.edit().putStringSet("seen_devices_$userId", deviceIds).apply()
     }
 
+    override fun pendingTrash(userId: String): Set<String> =
+        prefs.getStringSet("pending_trash_$userId", null)?.toSet().orEmpty()
+
+    override fun rememberPendingTrash(userId: String, paths: Set<String>) {
+        prefs.edit().putStringSet("pending_trash_$userId", paths.toSet()).apply()
+    }
+
     override fun describe(error: Throwable): String = when (error) {
         is AlreadySetUp -> "This drive already has a Pixallery family. Join it instead."
         is DriveNotAtAddress -> "The drive didn't answer at ${error.host}. If its address changed, type the new one, or turn on " +

@@ -65,13 +65,25 @@ class DriveAwareActions(
         }
         val (onDrive, onPhone) = items.partition { it.isDriveOnly }
         if (onDrive.isEmpty()) return phone.moveToRecentlyDeleted(items, onDone)
-        scope.launch {
-            val error = drive.trashBackups(onDrive.paths())
-            // 18 Nov: say why (a view-only device, or the drive out of reach) instead of nothing happening.
-            if (error != null) phone.toast(error)
-            reread()
-            if (onPhone.isEmpty()) onDone(error == null) else phone.moveToRecentlyDeleted(onPhone, onDone)
+        // 18 Nov (Deepak: "deleting a drive photo takes time"): it leaves the app at once and the drive catches up in the
+        // background, now or, if the drive can't be reached, the next time it can.
+        drive.trashLater(onDrive.paths())?.let { why ->
+            phone.toast(why)
+            return onDone(false)
         }
+        gallery.dropNow(onDrive.map { it.id }.toSet())
+        scope.launch { finishDriveDeletes() }
+        if (onPhone.isEmpty()) onDone(true) else phone.moveToRecentlyDeleted(onPhone, onDone)
+    }
+
+    /**
+     * Moves drive photos deleted in the app to the drive's Recently deleted, then reads the lists again (18 Nov). True
+     * when nothing is left waiting.
+     */
+    suspend fun finishDriveDeletes(): Boolean {
+        if (drive.pendingTrash.isEmpty()) return true
+        if (drive.finishPendingTrash()) reread()
+        return drive.pendingTrash.isEmpty()
     }
 
     // In Recently deleted a drive item's uri points at its place in the drive's trash.

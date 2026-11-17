@@ -19,6 +19,8 @@ import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.Deselect
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.TabletAndroid
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
@@ -31,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -134,6 +138,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         floatingStartActions = { androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { ViewButtons(gallery) } },
         floatingActions = {
             androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) {
+                // 18 Nov (Deepak: "move it to the top, in line with the other icons"): this device, or all my backups.
+                if (state.appearance.mirrorTest) BackupsSwitch(state)
                 // Memories (8 Nov): a button with a dot on days with On this day photos, instead of a row on top.
                 MemoriesButton(state, gallery)
                 SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
@@ -148,17 +154,11 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     "They stay on your phone and your own drive.",
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
-            // The test's switch stays reachable when this device has nothing of its own (18 Nov).
-            gallery.loaded && gallery.items.isEmpty() && state.appearance.mirrorTest -> EmptyState(
-                icon = Icons.Rounded.PhotoLibrary,
-                title = if (gallery.deviceOnly) "Nothing on this device" else "No photos yet",
-                body = if (gallery.deviceOnly) "Switch to All my backups to see what your other devices backed up." else "Photos and videos you take will appear here.",
-                action = { BackupsSwitch(state) },
-            )
             gallery.loaded && gallery.items.isEmpty() -> EmptyState(
                 icon = Icons.Rounded.PhotoLibrary,
-                title = "No photos yet",
-                body = "Photos and videos you take will appear here.",
+                // The "all my backups" test (18 Nov): its switch stays at the top, beside Search.
+                title = if (gallery.deviceOnly) "Nothing on this device" else "No photos yet",
+                body = if (gallery.deviceOnly) "Tap the cloud at the top to see what your other devices backed up." else "Photos and videos you take will appear here.",
             )
             else -> {
                 val spec = motionSpec<Float>(LEVEL_MS)
@@ -214,8 +214,6 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                                     androidx.compose.foundation.layout.Column {
                                     MemoriesStrip(state, gallery)
                                     androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = SCREEN_MARGIN)) {
-                                        // 18 Nov (test): this device's photos, or every backup of yours.
-                                        if (state.appearance.mirrorTest) BackupsSwitch(state, Modifier.padding(bottom = 10.dp))
                                         if (gallery.access == MediaAccess.PARTIAL) {
                                             WarningNote("You've shared only some photos with Pixallery. Allow all to see and back up everything.")
                                             GlassButton("Allow all photos", onClick = actions::requestAccess, modifier = Modifier.padding(bottom = 8.dp))
@@ -237,17 +235,49 @@ private const val LEVEL_MS = 300
 /**
  * The "all my backups" test (18 Nov, Deepak): Photos and Albums show either what is on this device, or everything
  * this person has backed up from all their devices, on the family drive and Google Drive, without doubles. Only
- * this person's own backups ever show: another family member's never do.
+ * this person's own backups ever show: another family member's never do. Two icons in the top buttons (second pass,
+ * 18 Nov: "at the top, in line with the other icons, the same size"): this tablet or phone, or the cloud for all
+ * backups; the chosen one sits in the same round highlight as Years / Months / All. [large] matches a title bar's
+ * buttons (Albums) instead of the small pills' (Photos).
  */
 @Composable
-internal fun BackupsSwitch(state: ShellState, modifier: Modifier = Modifier) {
-    val here = if (LocalTabletDevice.current) "On this tablet" else "On this phone"
-    com.deepak.photovault.designsystem.GlassSegmented(
-        listOf(here, "All my backups"),
-        selectedIndex = if (state.appearance.showAllBackups) 1 else 0,
-        onSelect = { i -> state.updateAppearance { it.copy(showAllBackups = i == 1) } },
-        modifier = modifier.cardWidth(),
+internal fun BackupsSwitch(state: ShellState, large: Boolean = false) {
+    val theme = LocalGlassTheme.current
+    val tablet = LocalTabletDevice.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    val box = if (large) 40.dp else 32.dp
+    val glyph = if (large) 22.dp else 18.dp
+    val options = listOf(
+        Triple(false, if (tablet) Icons.Rounded.TabletAndroid else Icons.Rounded.PhoneAndroid, if (tablet) "Only on this tablet" else "Only on this phone"),
+        Triple(true, Icons.Rounded.Cloud, "All my backups"),
     )
+    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+        options.forEach { (all, icon, label) ->
+            val selected = state.appearance.showAllBackups == all
+            val background by androidx.compose.animation.animateColorAsState(
+                if (selected) theme.accentSurface else androidx.compose.ui.graphics.Color.Transparent,
+                motionSpec(),
+                label = "backups",
+            )
+            Box(
+                Modifier
+                    .size(box)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(background)
+                    .selectable(selected = selected, role = Role.RadioButton, onClick = {
+                        if (!selected) {
+                            haptics.tick()
+                            state.updateAppearance { it.copy(showAllBackups = all) }
+                            state.say(if (all) "Showing all your backups" else if (tablet) "Showing only what's on this tablet" else "Showing only what's on this phone")
+                        }
+                    })
+                    .semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) {
+                com.deepak.photovault.designsystem.DepthIcon(icon, null, if (selected) theme.onAccent else theme.onGlass, Modifier.size(glyph))
+            }
+        }
+    }
 }
 
 /** Years / Months / All as three small buttons in their own pill at the top left. The chosen one is filled. */

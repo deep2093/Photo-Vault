@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -309,14 +310,21 @@ fun GlassListScreen(title: String?, subtitle: String?, onBack: (() -> Unit)? = n
 /** Width cap for cards on tablets and PC windows, so lines stay readable. */
 internal val CardMaxWidth = 720.dp
 
-internal fun Modifier.cardWidth(): Modifier = this.widthIn(max = CardMaxWidth).fillMaxWidth()
+/**
+ * How wide a card may grow here (18 Nov): [CardMaxWidth] on its own page; the tablet's Settings page beside the list
+ * lets cards fill its column, so the list and the page line up evenly instead of the page floating in the middle.
+ */
+internal val LocalCardMaxWidth = androidx.compose.runtime.staticCompositionLocalOf { CardMaxWidth }
+
+internal fun Modifier.cardWidth(): Modifier = this.composed { Modifier.widthIn(max = LocalCardMaxWidth.current).fillMaxWidth() }
 
 /** Width cap for a page laid out in two columns on a tablet (13 Nov). */
 internal val WideMaxWidth = 1180.dp
 
 /** [cardWidth] on a phone; on a tablet the wider two-column width, so pages use the screen. */
 @Composable
-internal fun Modifier.pageWidth(): Modifier = if (LocalTablet.current) this.widthIn(max = WideMaxWidth).fillMaxWidth() else cardWidth()
+internal fun Modifier.pageWidth(): Modifier =
+    if (LocalTablet.current) this.widthIn(max = maxOf(WideMaxWidth, LocalCardMaxWidth.current)).fillMaxWidth() else cardWidth()
 
 /**
  * Two groups of cards (13 Nov): side by side on a tablet, so the page uses the width instead of one narrow column;

@@ -89,6 +89,10 @@ interface DrivePlatform {
     fun seenDevices(userId: String): Set<String>? = null
     fun rememberSeenDevices(userId: String, deviceIds: Set<String>) = Unit
 
+    /** Drive photos deleted in the app, still to go to the drive's Recently deleted (18 Nov). Kept on the phone. */
+    fun pendingTrash(userId: String): Set<String> = emptySet()
+    fun rememberPendingTrash(userId: String, paths: Set<String>) = Unit
+
     /** The newest feedback note the owner has looked at (25 Oct), for the dot on Settings. */
     fun feedbackSeenAt(): Long = 0L
     fun setFeedbackSeenAt(millis: Long) = Unit
@@ -276,6 +280,7 @@ class DriveState(private val platform: DrivePlatform) {
         val current = membership
         if (current is Membership.Joined) {
             noticeNewDevices(current.me)
+            loadPendingTrash(current.me.userId)
             privatePhotos = runCatching { s.privatePhotos(current.me.userId) }.getOrDefault(privatePhotos)
             // Limits change at once; the space used is counted separately (below), it is slow.
             usage = current.household.members.associate { member ->
@@ -628,6 +633,53 @@ class DriveState(private val platform: DrivePlatform) {
             return
         }
         newDevices = others.filter { it.deviceId !in seen }
+    }
+
+    // ---- Deleting drive photos without waiting (18 Nov) ----
+
+    /**
+     * Drive photos deleted in the app that the drive hasn't moved to its Recently deleted yet (Deepak: "delete it from the
+     * app at once; the drive can catch up in the background, or the next time it is reachable"). Kept on the phone, so
+     * they stay gone from the app after a restart, and are finished then.
+     */
+    var pendingTrash by mutableStateOf<Set<String>>(joined?.me?.userId?.let { runCatching { platform.pendingTrash(it) }.getOrNull() }.orEmpty())
+        private set
+    private var pendingTrashUser: String? = joined?.me?.userId
+    private val trashLock = kotlinx.coroutines.sync.Mutex()
+
+    private fun loadPendingTrash(userId: String) {
+        if (pendingTrashUser == userId) return
+        pendingTrashUser = userId
+        pendingTrash = runCatching { platform.pendingTrash(userId) }.getOrDefault(emptySet())
+    }
+
+    /** Takes [paths] off the app now and keeps them to delete on the drive. Null, or why it can't (a view-only device). */
+    fun trashLater(paths: Set<String>): String? {
+        val me = joined?.me ?: return "Join your family drive first."
+        if (!mayDelete(backupRecords.orEmpty().filter { it.drivePath in paths })) return VIEW_ONLY_NOTE
+        loadPendingTrash(me.userId)
+        pendingTrash = pendingTrash + paths
+        platform.rememberPendingTrash(me.userId, pendingTrash)
+        return null
+    }
+
+    /**
+     * Moves the waiting deletions to the drive's Recently deleted. True when the drive changed. If the drive can't be
+     * reached they stay waiting for the next try.
+     */
+    suspend fun finishPendingTrash(): Boolean {
+        trashLock.withLock {
+            val me = joined?.me ?: return false
+            loadPendingTrash(me.userId)
+            val waiting = pendingTrash
+            if (waiting.isEmpty()) return false
+            val error = trashBackups(waiting)
+            // Out of reach: try again later. A device made view only since can't finish them: they come back on screen.
+            if (error != null && error != VIEW_ONLY_NOTE) return false
+            pendingTrash = pendingTrash - waiting
+            platform.rememberPendingTrash(me.userId, pendingTrash)
+            return error == null
+        }
     }
 
     /** The new-device note was read: those devices count as seen. */

@@ -178,6 +178,8 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         subtitle = null,
         pinned = selecting,
         actions = {
+            // 18 Nov (test): this device's albums, or every backup of yours, beside the menu.
+            if (!selecting && state.appearance.mirrorTest) BackupsSwitch(state, large = true)
             if (selecting) GlassIconButton(Icons.Rounded.Close, "Cancel selection", onClick = { clearSelection() })
             GlassIconButton(Icons.Rounded.MoreVert, "More options", onClick = { sortPage = false; menuOpen = !menuOpen })
         },
@@ -357,10 +359,6 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     state.albumSize = (state.albumSize + if (zoomIn) 1 else -1).coerceIn(0, ALBUM_SIZES.lastIndex)
                 },
         ) {
-            // 18 Nov (test): this device's photos, or every backup of yours.
-            if (state.appearance.mirrorTest) item(key = "backups-switch", span = { GridItemSpan(maxLineSpan) }) {
-                BackupsSwitch(state, Modifier.padding(bottom = 8.dp))
-            }
             item(key = "places", span = { GridItemSpan(maxLineSpan) }) {
                 // People, Secured folder, Recently deleted and Places, in the look picked in Settings > About (6 Nov).
                 // Places first, then People, Secured folder, Recently deleted (7 Nov).

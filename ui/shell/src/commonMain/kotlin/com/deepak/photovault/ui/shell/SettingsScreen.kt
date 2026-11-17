@@ -220,7 +220,10 @@ private fun SettingsTwoPane(state: ShellState, drive: DriveState, iconSwitcher: 
                         }
                     }
                 }
+                // 18 Nov (Deepak: "the menu and its pages aren't even"): the page's cards fill their column, so the gap
+                // between the list and the page matches the margins, and every page has the same width.
                 androidx.compose.animation.Crossfade(page, Modifier.weight(1f).fillMaxHeight(), animationSpec = com.deepak.photovault.designsystem.motionSpec(), label = "settingsPane") { shown ->
+                  androidx.compose.runtime.CompositionLocalProvider(LocalCardMaxWidth provides androidx.compose.ui.unit.Dp.Infinity) {
                     if (shown == SettingsPage.BACKUP) {
                         // Backup opens beside the list too (13 Nov), not as a page of its own.
                         BackupScreen(drive, backup, gallery, actions, state, onBack = null, heading = "Backup")
@@ -243,6 +246,7 @@ private fun SettingsTwoPane(state: ShellState, drive: DriveState, iconSwitcher: 
                             settingsPageItems(shown, state, drive, iconSwitcher, gallery, actions, backup, startOnDrive = false)
                         }
                     }
+                  }
                 }
             }
         }

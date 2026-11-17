@@ -472,7 +472,19 @@ class GalleryState(
     private fun recomputeDriveOnly() {
         // 25 Oct: a photo deleted from the phone (even one still in its Recently deleted) shows from the drive at once;
         // before, it stayed hidden for 30 days, which looked like the backup had lost it.
-        driveOnly = DriveTimeline.driveOnly(driveRecords, everything)
+        val shown = if (waitingToDelete.isEmpty()) driveRecords else driveRecords.filterNot { it.drivePath in waitingToDelete }
+        driveOnly = DriveTimeline.driveOnly(shown, everything)
+    }
+
+    /** Drive photos deleted in the app that the drive hasn't caught up with (18 Nov): they stay off screen meanwhile. */
+    private var waitingToDelete: Set<String> = emptySet()
+
+    fun setWaitingToDelete(paths: Set<String>) {
+        if (paths == waitingToDelete) return
+        waitingToDelete = paths
+        recomputeDriveOnly()
+        allAlbums = PhoneAlbums.from(everything + shownDriveOnly())
+        applyVisible()
     }
 
     fun setHidden(albumId: String, hidden: Boolean) {
