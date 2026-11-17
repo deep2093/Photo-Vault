@@ -33,6 +33,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+// The player with its own renderers (18 Nov, HDR) uses parts Media3 marks "unstable" (they may change between versions).
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier) {
     val context = LocalContext.current
