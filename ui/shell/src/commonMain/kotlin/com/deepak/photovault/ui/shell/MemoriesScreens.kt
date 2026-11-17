@@ -162,7 +162,7 @@ private fun SectionTitle(text: String) {
     Text(
         text,
         color = theme.onGlass,
-        style = MaterialTheme.typography.titleMedium,
+        style = com.deepak.photovault.designsystem.titled(MaterialTheme.typography.titleLarge),
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN + 4.dp).padding(top = 4.dp),
     )
@@ -271,7 +271,8 @@ private fun MemoryCard(
             Text(
                 if (m.month > 0) m.title else m.ago,
                 color = Color.White,
-                style = if (big) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleSmall,
+                // Memory titles in the title serif (18 Nov).
+                style = com.deepak.photovault.designsystem.titled(if (big) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

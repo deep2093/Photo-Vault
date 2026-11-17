@@ -100,7 +100,9 @@ internal fun DrawScope.drawWallpaper(theme: GlassTheme, alpha: Float = 1f) {
             alpha = alpha,
         )
     }
-    if (theme.sheen) drawRect(
+    // Calm glass (18 Nov): no diagonal sheen across the page.
+    if (GlassFinish.CALM) return
+    drawRect(
         Brush.linearGradient(
             0f to Color.Transparent,
             0.45f to Color(0x0FFFFFFF),
@@ -133,9 +135,8 @@ fun Modifier.pressDip(source: androidx.compose.foundation.interaction.Interactio
 @Composable
 fun Modifier.glassRim(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
-    // The redesign's styles (18 Nov): a plain thin line (Clear Glass, Darkroom) or nothing (Material You).
-    val style = LocalAppStyle.current
-    if (!style.classicGlass) return if (style.hairlines) border(1.dp, theme.glassRim, styled(shape)) else this
+    // Calm glass (18 Nov): one clean, even line instead of the bright glint.
+    if (GlassFinish.CALM) return border(1.dp, calmEdge(theme), shape)
     val rim = theme.glassRim
     val k = theme.rimStrength
     return border(
@@ -156,22 +157,17 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
     val noRim = false
     val noBlur = false
     val theme = LocalGlassTheme.current
-    val style = LocalAppStyle.current
-    // Material You and Darkroom (18 Nov): solid bars in the page's own colours, no glass.
-    if (!style.glass) {
-        val solid = styled(shape)
-        return this.clip(solid).background(theme.glassFallback).then(if (style.hairlines) Modifier.border(1.dp, theme.glassRim, solid) else Modifier)
-    }
     val haze = LocalHazeState.current
     val settings = LocalGlassSettings.current
     val blur = settings.blurEnabled && haze != null && !noBlur
     // Lens glass (experimental): only for themes that offer it, and only where the platform gave the bar a lens.
     val lens = if (noBlur) null else LocalLensGlass.current
     val lensActive = lens != null && settings.lensEnabled && settings.blurEnabled && theme.lens
-    // Clear Glass (18 Nov): a lighter shadow, so bars float without a dark smudge on the calm page.
-    val shadowColor = Color.Black.copy(alpha = if (theme.isDark) (if (style.classicGlass) 0.6f else 0.45f) else (if (style.classicGlass) 0.18f else 0.10f))
+    // Calm glass (18 Nov): a softer, shorter shadow.
+    val shadowColor = Color.Black.copy(alpha = if (GlassFinish.CALM) (if (theme.isDark) 0.38f else 0.10f) else if (theme.isDark) 0.6f else 0.18f)
+    val lift = if (GlassFinish.CALM) elevation * 0.6f else elevation
     return this
-        .then(if (noShadow) Modifier else Modifier.shadow(elevation, shape, ambientColor = shadowColor, spotColor = shadowColor))
+        .then(if (noShadow) Modifier else Modifier.shadow(lift, shape, ambientColor = shadowColor, spotColor = shadowColor))
         .clip(shape)
         // Always in place when the platform offers a lens (it only draws while lens glass is on), so turning it on
         // later never has to attach it to a bar that is already on screen.
@@ -208,13 +204,6 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
 @Composable
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
-    // The redesign's styles (18 Nov): plain cards in the page's card colour, with a thin line where the style has one.
-    val style = LocalAppStyle.current
-    if (!style.classicGlass) {
-        val card = styled(shape)
-        return this.clip(card).background(theme.panelFill ?: theme.glassFallback)
-            .then(if (style.hairlines) Modifier.border(1.dp, theme.glassRim, card) else Modifier)
-    }
     val film = theme.panelFill
     // A see-through frosted film with depth (29 Oct) while the glass effect is on; solid when "Turn off glass effect" is on.
     return if (film != null && LocalGlassSettings.current.blurEnabled) {
@@ -230,14 +219,17 @@ fun Modifier.glassPanel(shape: Shape): Modifier {
  */
 @Composable
 fun Modifier.glassDepth(): Modifier {
-    if (!LocalGlassSettings.current.blurEnabled || !LocalAppStyle.current.classicGlass) return this
+    if (!LocalGlassSettings.current.blurEnabled) return this
+    // Calm glass (18 Nov): only a faint light along the top, no shade along the bottom.
+    val top = if (GlassFinish.CALM) 0.07f else 0.16f
+    val bottom = if (GlassFinish.CALM) 0f else 0.14f
     return this.drawWithContent {
         drawContent()
         drawRect(
             Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.16f),
+                0f to Color.White.copy(alpha = top),
                 0.4f to Color.Transparent,
-                1f to Color.Black.copy(alpha = 0.14f),
+                1f to Color.Black.copy(alpha = bottom),
             ),
         )
     }
@@ -248,12 +240,17 @@ fun Modifier.glassDepth(): Modifier {
 fun Modifier.frostedEdge(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val edge = theme.glassRim
+    // Calm glass (18 Nov): an even line on night themes; day themes' soft shade needs none.
+    if (GlassFinish.CALM) return if (theme.accentFill == null || !theme.isDark) this else this.border(1.dp, Color.White.copy(alpha = 0.18f), shape)
     return if (theme.accentFill == null) this else this.border(
         1.dp,
         Brush.linearGradient(listOf(edge.copy(alpha = 0.55f), edge.copy(alpha = 0.12f), edge.copy(alpha = 0.3f))),
         shape,
     )
 }
+
+/** The calm glass's edge: a faint white line on night themes, a faint dark one on day themes. */
+private fun calmEdge(theme: GlassTheme): Color = if (theme.isDark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.08f)
 
 val GlassCardShape = RoundedCornerShape(24.dp)
 

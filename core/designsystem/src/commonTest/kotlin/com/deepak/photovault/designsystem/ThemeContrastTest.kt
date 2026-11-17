@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Glass must never cost readability: every theme is checked against its worst possible background. */
@@ -81,9 +82,12 @@ class ThemeContrastTest {
 
     @Test
     fun adaptiveThemesAreDistinct() {
-        // Feedback 22 and 23 Oct: they looked alike. Each needs its own wallpaper shape.
-        val adaptive = GlassThemes.adaptiveThemes
-        assertEquals(adaptive.size, adaptive.map { it.adaptive!!.layout }.toSet().size)
+        // Feedback 22 and 23 Oct: they looked alike. Each needs its own wallpaper shape among the day themes and among
+        // the night ones (18 Nov: a theme's day and night versions share theirs).
+        listOf(GlassThemes.lightThemes, GlassThemes.darkThemes).forEach { group ->
+            val adaptive = group.filter { it.adaptive != null }
+            assertEquals(adaptive.size, adaptive.map { it.adaptive!!.layout }.toSet().size)
+        }
         assertTrue(GlassThemes.AdaptiveVivid.adaptive!!.minSaturation > GlassThemes.AdaptiveMidnight.adaptive!!.minSaturation)
     }
 }
@@ -91,18 +95,39 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Warm Light", "Luminous Light", "Liquid Day", "Clear Light"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Liquid Day", "Luminous Day", "Photo Day", "Vivid Day"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Liquid Night", "Luminous Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })
     }
 
     @Test
-    fun clearLightIsTheOnlyDeepLightThemeAndTheRestHaveLightPages() {
-        val deep = GlassThemes.lightThemes.filter { it.isDark }
-        assertEquals(listOf("Clear Light"), deep.map { it.displayName })
-        GlassThemes.lightThemes.filter { !it.isDark }.forEach { assertEquals(it.onWallpaper, it.onGlass, it.displayName) }
+    fun everyThemeHasALightDayAndADarkNight() {
+        // 18 Nov: four themes, each with a day version (light page, dark text) and a night one (deep page, white text).
+        assertEquals(4, GlassThemes.families.size)
+        GlassThemes.families.forEach { family ->
+            assertFalse(family.day.isDark, family.name)
+            assertTrue(family.night.isDark, family.name)
+            assertEquals(family.day.onWallpaper, family.day.onGlass, family.name)
+            assertEquals(family.day, family.pick(dark = false))
+            assertEquals(family.night, family.pick(dark = true))
+            // Found again from either version's saved id.
+            assertEquals(family, GlassThemes.familyOf(family.day.id.name))
+            assertEquals(family, GlassThemes.familyOf(family.night.id.name))
+        }
+        assertEquals(GlassThemes.families.first(), GlassThemes.familyOf("PEARL_MIST"))
+        assertEquals(GlassThemes.default, GlassThemes.families.first().day)
+    }
+
+    @Test
+    fun calmDayGlassKeepsDarkTextReadableOverDarkPhotos() {
+        // 18 Nov, calm glass: the day themes' bars are white enough for their dark words over a black photo too.
+        if (!GlassFinish.CALM) return
+        GlassThemes.lightThemes.forEach { theme ->
+            val ratio = Contrast.ratio(theme.onGlass, theme.glassTint.compositeOver(Color.Black))
+            assertTrue(ratio >= Contrast.TEXT, "${theme.displayName}: dark words over a black photo $ratio")
+        }
     }
 
     @Test
@@ -118,6 +143,8 @@ class ThemeCatalogTest {
             "MIDNIGHT_PRISM", "GLASS_NIGHT", "CRYSTAL_GLASS_DARK", "ADAPTIVE_GLOW", "GLASS_LIGHT",
             // Removed 29 Oct (later): Teal Light, Luminous Night, Liquid Night.
             "OCEAN_GLASS", "AURORA_GLASS_DARK", "LIQUID_NIGHT", "ADAPTIVE_LIGHT",
+            // Removed 18 Nov: Warm Light, Clear Light.
+            "PEARL_MIST", "CRYSTAL_GLASS_LIGHT",
         ).forEach { assertEquals(GlassThemes.default, GlassThemes.byId(it), it) }
     }
 
@@ -125,7 +152,7 @@ class ThemeCatalogTest {
     fun unknownSavedIdFallsBackToDefault() {
         assertEquals(GlassThemes.default, GlassThemes.byId("SOMETHING_FROM_A_NEWER_VERSION"))
         assertEquals(GlassThemes.default, GlassThemes.byId(null))
-        assertEquals(GlassThemes.PearlMist.pale, GlassThemes.byId("PEARL_MIST"))
+        assertEquals(GlassThemes.AuroraGlassLight.pale, GlassThemes.byId("AURORA_GLASS_LIGHT"))
         assertEquals(GlassThemes.default, GlassThemes.byId("LIQUID_NIGHT"))
     }
 }

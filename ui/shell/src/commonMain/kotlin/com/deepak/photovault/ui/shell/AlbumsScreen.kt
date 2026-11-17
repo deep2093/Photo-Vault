@@ -474,7 +474,8 @@ private fun AlbumCard(
         }
         Row(Modifier.padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 4.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(name, color = theme.onGlass, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Album names in the title serif (18 Nov).
+                Text(name, color = theme.onGlass, style = com.deepak.photovault.designsystem.titled(MaterialTheme.typography.titleMedium), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${LibraryCounts.grouped(count)} items", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall)
             }
             if (icon != null && covers.isNotEmpty()) Icon(icon, null, tint = theme.accent)

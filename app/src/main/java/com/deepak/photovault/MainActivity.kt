@@ -308,7 +308,7 @@ class MainActivity : ComponentActivity(), MediaActions {
             return
         }
         val state = ShellState(PrefsAppearanceStore(this))
-        // The redesign (18 Nov): the phone's dark mode from the first frame, so a dark phone never flashes light.
+        // Day or night (18 Nov): the phone's dark mode from the first frame, so a dark phone never flashes the day theme.
         state.systemDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
         state.intro = com.deepak.photovault.ui.shell.IntroState(PrefsIntroStore(this))
@@ -395,7 +395,7 @@ class MainActivity : ComponentActivity(), MediaActions {
             // What's new and the tour wait until the opening animation has finished.
             androidx.compose.runtime.LaunchedEffect(showIntro, introIcon) { if (!(showIntro && introIcon != null)) state.intro.start() }
             Box(Modifier.fillMaxSize()) {
-                androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalStyleFonts provides styleFonts) {
+                androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalTitleFont provides titleFont) {
                     PhotoVaultApp(state, gallery, this@MainActivity, drive, backup, signals, iconSwitcher)
                 }
                 if (showIntro && introIcon != null) {
@@ -600,10 +600,27 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
     }
 
-    /** 18 Nov: in the app's own message bar, in the chosen style; Android's toast only before the app has started. */
+    /** 18 Nov: in the app's own message bar; Android's toast only before the app has started. */
     override fun toast(message: String) {
         if (::shell.isInitialized) shell.say(message)
         else android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * The magazine serif for titles and dates (18 Nov, Deepak loved Darkroom's): Libre Bodoni, bundled with the app and
+     * trimmed to Latin letters (other scripts fall back to the phone's own font). One file holds every weight.
+     */
+    private val titleFont by lazy {
+        val weights = listOf(
+            androidx.compose.ui.text.font.FontWeight.Normal,
+            androidx.compose.ui.text.font.FontWeight.Medium,
+            androidx.compose.ui.text.font.FontWeight.SemiBold,
+            androidx.compose.ui.text.font.FontWeight.Bold,
+        )
+        androidx.compose.ui.text.font.FontFamily(
+            weights.map { androidx.compose.ui.text.font.Font(R.font.libre_bodoni, it) } +
+                weights.map { androidx.compose.ui.text.font.Font(R.font.libre_bodoni_italic, it, androidx.compose.ui.text.font.FontStyle.Italic) },
+        )
     }
 
     /** Only the photos with a file on this phone: ones that are only on the drive have nothing to hand over. */
@@ -834,29 +851,6 @@ class MainActivity : ComponentActivity(), MediaActions {
         "Android didn't allow renaming this album."
     }
 
-    /**
-     * The redesign's fonts (18 Nov), bundled with the app and trimmed to Latin letters (other scripts fall back to
-     * the phone's own fonts): Inter for Clear Glass; Libre Bodoni and Public Sans for Darkroom. Each file holds every
-     * weight; Android picks the one asked for.
-     */
-    private val styleFonts by lazy {
-        val weights = listOf(
-            androidx.compose.ui.text.font.FontWeight.Normal,
-            androidx.compose.ui.text.font.FontWeight.Medium,
-            androidx.compose.ui.text.font.FontWeight.SemiBold,
-            androidx.compose.ui.text.font.FontWeight.Bold,
-        )
-        fun family(upright: Int, italic: Int? = null) = androidx.compose.ui.text.font.FontFamily(
-            weights.map { androidx.compose.ui.text.font.Font(upright, it) } +
-                (italic?.let { id -> weights.map { androidx.compose.ui.text.font.Font(id, it, androidx.compose.ui.text.font.FontStyle.Italic) } } ?: emptyList()),
-        )
-        com.deepak.photovault.designsystem.StyleFonts(
-            inter = family(R.font.inter),
-            serif = family(R.font.libre_bodoni, R.font.libre_bodoni_italic),
-            sans = family(R.font.public_sans),
-        )
-    }
-
     // ---- Platform signals ----
 
     private var foreground = false
@@ -991,8 +985,13 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             if (k.isEmpty() || v == null) null else k to v
         }.toMap(),
         albumSize = prefs.getInt("album_size", 2),
-        style = prefs.getString("style", null) ?: AppearanceSettings().style,
-        mode = prefs.getString("theme_mode", null) ?: AppearanceSettings().mode,
+        // Day or night (18 Nov). People updating keep the version they had; new installs follow the phone.
+        mode = prefs.getString("theme_mode", null) ?: when {
+            prefs.all.isEmpty() -> com.deepak.photovault.ui.shell.ThemeMode.SYSTEM.name
+            prefs.getBoolean("theme_chosen", false) && com.deepak.photovault.designsystem.GlassThemes.byId(prefs.getString("theme", null)).isDark ->
+                com.deepak.photovault.ui.shell.ThemeMode.DARK.name
+            else -> com.deepak.photovault.ui.shell.ThemeMode.LIGHT.name
+        },
     )
 
     override fun save(settings: AppearanceSettings) {
@@ -1017,7 +1016,6 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putString("recent_searches", settings.recentSearches.joinToString("\n"))
             .putString("grid_sizes", settings.gridSizes.entries.joinToString("\n") { "${it.key}=${it.value}" })
             .putInt("album_size", settings.albumSize)
-            .putString("style", settings.style)
             .putString("theme_mode", settings.mode)
             .apply()
     }

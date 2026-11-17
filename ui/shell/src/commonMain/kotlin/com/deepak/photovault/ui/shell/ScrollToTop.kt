@@ -72,11 +72,11 @@ private suspend fun glideToTop(
  * slowed down screens too early and crawled, which looked janky. The Memories row above the photos was not counted
  * either. [headerItems] grid items come before the first photo item.
  */
-class GridRows(val headerItems: Int, private val rowsAbove: FloatArray) {
+class GridRows(val headerItems: Int, private val rowsAbove: IntArray) {
     val photoItems: Int get() = rowsAbove.size
 
-    /** Rows of tiles above photo item [k] (0 is the first photo item). A day heading counts as part of a row. */
-    fun before(k: Int): Float = if (rowsAbove.isEmpty()) 0f else rowsAbove[k.coerceIn(0, rowsAbove.size - 1)]
+    /** Rows of tiles above photo item [k] (0 is the first photo item). */
+    fun before(k: Int): Int = if (rowsAbove.isEmpty()) 0 else rowsAbove[k.coerceIn(0, rowsAbove.size - 1)]
 
     /** The last photo item that starts no more than [rows] rows down. */
     fun itemAtRow(rows: Float): Int {
@@ -94,43 +94,26 @@ class GridRows(val headerItems: Int, private val rowsAbove: FloatArray) {
         /** One tile per item, [columns] to a row. */
         fun plain(headerItems: Int, count: Int, columns: Int): GridRows {
             val c = columns.coerceAtLeast(1)
-            return GridRows(headerItems, FloatArray(count.coerceAtLeast(0)) { (it / c).toFloat() })
+            return GridRows(headerItems, IntArray(count.coerceAtLeast(0)) { it / c })
         }
 
         /** The mixed-size grid: a run of tiles fills whole rows from a new line; a block is one item, two rows. */
         fun mosaic(headerItems: Int, parts: List<Mosaic.Part>, columns: Int): GridRows {
             val c = columns.coerceAtLeast(1)
-            val out = ArrayList<Float>()
+            val out = ArrayList<Int>()
             var rows = 0
             for (part in parts) when (part) {
                 is Mosaic.Run -> {
                     val n = part.to - part.from
-                    for (k in 0 until n) out += (rows + k / c).toFloat()
+                    for (k in 0 until n) out += rows + k / c
                     rows += (n + c - 1) / c
                 }
                 is Mosaic.Block -> {
-                    out += rows.toFloat()
+                    out += rows
                     rows += 2
                 }
             }
-            return GridRows(headerItems, out.toFloatArray())
-        }
-
-        /**
-         * Days under their own headings (Darkroom, 18 Nov): each section is a heading item [headingRows] rows tall
-         * (a heading is shorter than a row of tiles), then its tiles, which start a new row.
-         */
-        fun sectioned(headerItems: Int, sizes: List<Int>, columns: Int, headingRows: Float): GridRows {
-            val c = columns.coerceAtLeast(1)
-            val out = ArrayList<Float>()
-            var rows = 0f
-            for (n in sizes) {
-                out += rows
-                rows += headingRows
-                for (k in 0 until n) out += rows + k / c
-                rows += (n + c - 1) / c
-            }
-            return GridRows(headerItems, out.toFloatArray())
+            return GridRows(headerItems, out.toIntArray())
         }
     }
 }
@@ -174,7 +157,7 @@ fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0, rows: GridRows? 
             val a = photos.firstOrNull() ?: return null
             val b = photos.lastOrNull() ?: return null
             val dr = r.before(b.index - r.headerItems) - r.before(a.index - r.headerItems)
-            return if (dr > 0.5f) (b.offset.y - a.offset.y).toFloat() / dr else null
+            return if (dr > 0) (b.offset.y - a.offset.y).toFloat() / dr else null
         }
         fun header(): Float = headerSpan[0].coerceAtLeast(0f)
         fun distance(): Float {

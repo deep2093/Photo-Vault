@@ -139,7 +139,8 @@ private fun LevelCard(photos: List<MediaItem>, title: String, detail: String, bi
                 Text(
                     title,
                     color = Color.White,
-                    style = if (big) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+                    // The year or month in the title serif (18 Nov).
+                    style = com.deepak.photovault.designsystem.titled(if (big) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge),
                     fontWeight = FontWeight.Bold,
                 )
                 Text(detail, color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodyMedium)

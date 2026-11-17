@@ -90,11 +90,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.runtime.DisposableEffect
@@ -171,10 +168,6 @@ fun MediaGrid(
         val currentColumns by rememberUpdatedState(columns)
         val currentMax by rememberUpdatedState(maxColumns)
         val tileDp = maxWidth / columns
-        // The gap between photos and the day headings follow the chosen style (18 Nov).
-        val appStyle = com.deepak.photovault.designsystem.LocalAppStyle.current
-        val gap = appStyle.photoGap
-        val magazine = !continuous && appStyle.dates == com.deepak.photovault.designsystem.DateStyle.MAGAZINE
         // Mixed sizes: the photos cut into plain runs and two-row blocks; null for the plain grid.
         val flat = remember(sections) { sections.flatMap { it.items } }
         val mosaic = mixed && continuous && state.appearance.mixedGrid && Mosaic.worksWith(columns)
@@ -207,11 +200,8 @@ fun MediaGrid(
         }
         DisposableEffect(Unit) { onDispose { currentAway?.invoke(false) } }
         // The real row layout of the "All" grid, so back to top measures the distance like Albums does (17 Nov).
-        val gridWidth = maxWidth - contentPadding.calculateStartPadding(LayoutDirection.Ltr) - contentPadding.calculateEndPadding(LayoutDirection.Ltr)
-        val gridRows = remember(parts, gridFirst.size, columns, headerItems, continuous, magazine, sections, gridWidth, gap) {
+        val gridRows = remember(parts, gridFirst.size, columns, headerItems, continuous) {
             when {
-                // Darkroom's day headings are all one height: worked out as part of a row of tiles.
-                magazine -> GridRows.sectioned(headerItems, sections.map { it.items.size }, columns, (MAGAZINE_HEADING + gap) / ((gridWidth + gap) / columns))
                 !continuous -> null
                 parts != null -> GridRows.mosaic(headerItems, parts, columns)
                 else -> GridRows.plain(headerItems, gridFirst.size, columns)
@@ -263,7 +253,7 @@ fun MediaGrid(
         val positionOf = remember(order) { order.withIndex().associate { (i, id) -> id to i } }
         val shown = remember(sections) { sections.flatMap { it.items }.associateBy { it.id } }
         val currentOnOpen by rememberUpdatedState(onOpen)
-        val spacingPx = with(density) { gap.toPx() }
+        val spacingPx = with(density) { GRID_SPACING.toPx() }
         val startPadPx = with(density) { contentPadding.calculateStartPadding(LayoutDirection.Ltr).toPx() }
         val endPadPx = with(density) { contentPadding.calculateEndPadding(LayoutDirection.Ltr).toPx() }
         val topPadPx = with(density) { contentPadding.calculateTopPadding().toPx() }
@@ -375,8 +365,8 @@ fun MediaGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
             contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(gap),
-            verticalArrangement = Arrangement.spacedBy(gap),
+            horizontalArrangement = Arrangement.spacedBy(GRID_SPACING),
+            verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
             modifier = Modifier
                 .fillMaxSize()
                 .then(topFade)
@@ -413,12 +403,12 @@ fun MediaGrid(
                         is Mosaic.Block -> item(key = "block-${flat[part.from].id}", span = { GridItemSpan(maxLineSpan) }, contentType = "block") {
                             val slots = remember(columns, part.right) { Mosaic.slots(columns, part.right) }
                             BoxWithConstraints((if (reduceMotion) Modifier else Modifier.animateItem()).fillMaxWidth()) {
-                                val cell = (maxWidth - gap * (columns - 1)) / columns
-                                val step = cell + gap
-                                Box(Modifier.fillMaxWidth().height(cell * 2 + gap)) {
+                                val cell = (maxWidth - GRID_SPACING * (columns - 1)) / columns
+                                val step = cell + GRID_SPACING
+                                Box(Modifier.fillMaxWidth().height(cell * 2 + GRID_SPACING)) {
                                     slots.forEachIndexed { k, slot ->
                                         val photo = flat.getOrNull(part.from + k) ?: return@forEachIndexed
-                                        val side = cell * slot.span + gap * (slot.span - 1)
+                                        val side = cell * slot.span + GRID_SPACING * (slot.span - 1)
                                         androidx.compose.runtime.key(photo.id) {
                                             tile(photo, side, Modifier.offset(x = step * slot.column, y = step * slot.row).size(side))
                                         }
@@ -432,8 +422,7 @@ fun MediaGrid(
                 if (!continuous) item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
                     // 13 Nov: where most of the section was taken, after the date ("7 Nov 2026 · Melbourne").
                     val where = remember(section.key, section.items.size, state.places.photos) { topPlace(section.items, state.places.photos) }
-                    if (magazine) MagazineHeading(section, where, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN))
-                    else SectionHeader(if (where != null) "${section.label} · $where" else section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
+                    SectionHeader(if (where != null) "${section.label} · $where" else section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
                 }
                 items(section.items, key = { it.id }, contentType = { "tile" }) { item ->
                     // Photos glide to their new place when the grid changes size (instant with reduce motion).
@@ -449,8 +438,13 @@ fun MediaGrid(
             headerItems = headerItems,
             places = state.places.photos,
             color = dateColor,
-            // While selecting, the date sits under "N selected" in the top bar: moved in a little to line up with it (16 Nov).
-            modifier = Modifier.align(Alignment.TopStart).padding(start = (if (state.selecting) 30.dp else 24.dp) + (contentPadding.calculateStartPadding(LayoutDirection.Ltr)), top = (contentPadding.calculateTopPadding() - 30.dp).coerceAtLeast(0.dp)),
+            modifier = Modifier.align(Alignment.TopStart).padding(
+                // Calm glass (18 Nov): on its own glass pill, its left edge in line with the Years / Months / All pill
+                // above (Deepak: "isn't aligned"). Before: plain text, moved in to line up with "N selected" (16 Nov).
+                start = (if (com.deepak.photovault.designsystem.GlassFinish.CALM) FLOATING_PILL_START else if (state.selecting) 30.dp else 24.dp) +
+                    contentPadding.calculateStartPadding(LayoutDirection.Ltr),
+                top = (contentPadding.calculateTopPadding() - (if (com.deepak.photovault.designsystem.GlassFinish.CALM) 28.dp else 30.dp)).coerceAtLeast(0.dp),
+            ),
         )
         if (topButton) BackToTopButton(
             grid = gridState,
@@ -515,8 +509,8 @@ internal fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier:
     }
 }
 
-/** A day heading in Darkroom: always this tall, so back to top can count it exactly (18 Nov). */
-private val MAGAZINE_HEADING = 72.dp
+/** Thin gaps between photos, as in Samsung Gallery (was 3 dp). */
+private val GRID_SPACING = 1.5.dp
 
 /**
  * A slider on the right edge for moving quickly through a big library (feedback 22 Oct). Hidden until the
@@ -926,17 +920,18 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         }
     }
     if (text.isEmpty()) return
-    // The redesign's styles (18 Nov): on a small bar of the style's own, so the date reads over any photo.
-    if (com.deepak.photovault.designsystem.LocalAppStyle.current.id != com.deepak.photovault.designsystem.AppStyleId.CLASSIC) {
+    if (com.deepak.photovault.designsystem.GlassFinish.CALM) {
+        // 18 Nov: on the same glass as the pills, so it reads over any photo (it was lost over busy ones), in the title
+        // serif; its words start where "Years" starts above it.
         Text(
             text,
             color = theme.onGlass,
-            style = MaterialTheme.typography.labelMedium,
+            style = com.deepak.photovault.designsystem.titled(MaterialTheme.typography.titleSmall),
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             modifier = modifier
-                .glassChrome(com.deepak.photovault.designsystem.styled(RoundedCornerShape(percent = 50)), elevation = 4.dp)
-                .padding(horizontal = 10.dp, vertical = 4.dp),
+                .glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp)
+                .padding(horizontal = FLOATING_PILL_TEXT_INSET, vertical = 5.dp),
         )
         return
     }
@@ -948,54 +943,6 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         fontWeight = FontWeight.SemiBold,
         modifier = modifier,
     )
-}
-
-/**
- * Darkroom's day heading (18 Nov), set like a magazine: the day as a big serif number, the month and the weekday in
- * small capitals beside it, and the town in italics at the end. Month sections (albums) show the month's name instead.
- */
-@Composable
-private fun MagazineHeading(section: TimelineSection, where: String?, modifier: Modifier = Modifier) {
-    val theme = LocalGlassTheme.current
-    val first = section.items.firstOrNull() ?: return
-    val zone = remember { kotlinx.datetime.TimeZone.currentSystemDefault() }
-    val date = remember(first.takenAtMillis) { Timeline.localDate(first.takenAtMillis, zone) }
-    val today = remember { Timeline.localDate(kotlinx.datetime.Clock.System.now().toEpochMilliseconds(), zone) }
-    // Day sections have keys like 2026-11-17; month sections like 2026-11.
-    val isDay = section.key.length == 10
-    val type = MaterialTheme.typography
-    val big = if (isDay) date.dayOfMonth.toString() else Timeline.monthName(date.month)
-    val top = if (isDay) Timeline.monthName(date.month) + (if (date.year != today.year) " ${date.year}" else "") else date.year.toString()
-    val label = Timeline.dayLabel(date, today)
-    val second = if (!isDay) null else if (label == "Today" || label == "Yesterday") label else Timeline.dayName(date.dayOfWeek)
-    androidx.compose.foundation.layout.Row(
-        modifier
-            .fillMaxWidth()
-            .height(MAGAZINE_HEADING)
-            .semantics(mergeDescendants = true) { heading() },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            big,
-            color = theme.onWallpaper,
-            style = if (isDay) type.displaySmall.copy(fontSize = 40.sp, lineHeight = 40.sp) else type.headlineSmall,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-        )
-        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
-            Text(top.uppercase(), color = theme.onWallpaper, style = type.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            if (second != null) Text(second.uppercase(), color = theme.onGlassSecondary, style = type.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
-        if (where != null) Text(
-            where,
-            color = theme.onGlassSecondary,
-            style = type.titleLarge.copy(fontSize = 15.sp, lineHeight = 20.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 168.dp),
-        )
-    }
 }
 
 /** The town most of [items] were taken in, with "and N more" when there are others; null when none is known. */

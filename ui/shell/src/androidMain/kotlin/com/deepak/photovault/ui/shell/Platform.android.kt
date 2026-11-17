@@ -371,15 +371,3 @@ actual fun AppIconPreview(choice: AppIconChoice, modifier: Modifier) {
 /** An HDR brightness map rides on the bitmap itself (Android 14 and later). */
 internal actual fun coil3.Image.hasHdrMap(): Boolean =
     android.os.Build.VERSION.SDK_INT >= 34 && (this as? coil3.BitmapImage)?.bitmap?.hasGainmap() == true
-
-@Composable
-actual fun rememberWallpaperSchemes(): Pair<androidx.compose.material3.ColorScheme, androidx.compose.material3.ColorScheme>? {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    return androidx.compose.runtime.remember(context) {
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            androidx.compose.material3.dynamicLightColorScheme(context) to androidx.compose.material3.dynamicDarkColorScheme(context)
-        } else {
-            null
-        }
-    }
-}

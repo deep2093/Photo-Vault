@@ -100,28 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-2"
+    const val ID = "2026-11-18-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Three new styles", "Settings > Appearance: Clear Glass, Material You (your wallpaper's colours) and Darkroom, each in light and dark or as your phone is. Classic glass is still there."),
-        Change(ChangeKind.NEW, "Each style has its own bottom bar", "Material You has Android's own full-width bar, Darkroom has tabs with a thin line over the chosen one. On a tablet the new styles put the sections down the side."),
-        Change(ChangeKind.NEW, "Darkroom dates like a magazine", "In Darkroom each day in Photos has its own heading: the day as a big number, the month and weekday beside it, and the town."),
-        Change(ChangeKind.CHANGED, "Flat page tops in Material You and Darkroom", "Pages opened in these styles have a plain bar across the top, as Android's own apps do. Darkroom's viewer buttons have their names under them."),
-        Change(ChangeKind.CHANGED, "Style cards show the style", "In Settings > Appearance each card shows its own kind of bottom bar and its letters, so you can tell them apart before choosing."),
-        Change(ChangeKind.CHANGED, "Messages in the app's own style", "Short messages like \"Saved\" now show in a bar at the bottom of the app, in your style's colours. Tap it to close it."),
-        Change(ChangeKind.CHANGED, "Easier buttons", "Play and Sound under a video are bigger. In the editor, Reset is now an icon, so Save stands out. On Backup, tap the heading to switch between the family drive and Google Drive."),
-        Change(ChangeKind.FIXED, "Smoother scrolling in colourful themes", "With a Classic theme whose colours follow your photos, scrolling no longer makes every photo on screen redraw."),
-        Change(ChangeKind.NEW, "HDR photos in HDR", "On Android 14 or later with an HDR screen, HDR photos open in the viewer with their full brightness."),
-        Change(ChangeKind.NEW, "Save over the original", "The editor has Save beside Save copy. Save puts your edit on the photo itself; the original goes to Recently deleted for 30 days."),
-        Change(ChangeKind.FIXED, "Saved copies show at once", "After Save copy or a video trim, the viewer goes straight to the new copy, next to the original."),
-        Change(ChangeKind.FIXED, "Back to top is smooth again in Photos", "Tapping Photos again glides up evenly, as it does in Albums. It slowed down far too early since mixed photo sizes and the Memories row arrived."),
-        Change(ChangeKind.NEW, "Find the drive if its address changes", "A switch in Settings > Drive. On: if the drive gets a new address, Pixallery checks the nearby ones, above and below."),
-        Change(ChangeKind.FIXED, "Fewer copies left behind", "Copies the app makes for a moment (opening a private photo, sharing, editing, making private backups normal) are cleared when the app starts, even if it was closed part-way."),
-        Change(ChangeKind.FIXED, "Editing works sideways", "Turn the phone sideways in the editor or the video trimmer and the picture sits beside the tools, instead of disappearing."),
-        Change(ChangeKind.FIXED, "Edited copies keep their full size", "Saved copies are no longer made smaller on phones with plenty of memory. Only photos over 50 megapixels are reduced, and the message says so."),
-        Change(ChangeKind.FIXED, "Photos sharpen sooner", "The full photo starts loading the moment you tap, so it is sharp almost as soon as it opens."),
-        Change(ChangeKind.FIXED, "HDR videos play in HDR", "HDR videos now keep their extra brightness on screens that can show it."),
-        Change(ChangeKind.NEW, "HDR and Log in Details", "A video's details show whether it is HDR10, HDR10+, HLG, Dolby Vision or ordinary, with its colour depth and codec, and flag likely Log videos. HDR photos say so too."),
+        Change(ChangeKind.NEW, "Day and night for every theme", "Settings > Appearance: pick Liquid, Luminous, Photo or Vivid, then As the phone, Day or Night. The photo viewer uses the theme's night look."),
+        Change(ChangeKind.CHANGED, "Calmer glass", "Thin, clean edges and softer shadows. In the day themes the bars are whiter, so their words read over any photo."),
+        Change(ChangeKind.CHANGED, "Magazine letters for titles and dates", "Page titles, album and memory names, Years and Months, and photo dates use an elegant serif. Buttons and settings stay as they were."),
+        Change(ChangeKind.FIXED, "The date in Photos lines up", "The date under Years / Months / All now starts in line with it, on its own small glass bar, so it reads over any photo."),
+        Change(ChangeKind.REMOVED, "The trial styles", "Clear Glass, Material You and Darkroom are gone, and so are Warm Light and Clear Light. If you used one of those, you are on Liquid."),
     )
 }
 

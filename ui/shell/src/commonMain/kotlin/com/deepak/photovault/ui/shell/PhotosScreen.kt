@@ -30,7 +30,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -124,9 +123,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         motionSpec(),
         label = "pillInk",
     )
-    // Classic only (18 Nov): the redesign's light styles keep dark text on their light glass all the time.
-    val classic = state.appStyle.id == com.deepak.photovault.designsystem.AppStyleId.CLASSIC
-    val pillTheme = if (baseTheme.isDark || !classic) baseTheme else baseTheme.copy(onGlass = ink)
+    // Calm glass (18 Nov): the day themes' pills are white enough for their dark words over any photo, so no switching.
+    val pillTheme = if (baseTheme.isDark || com.deepak.photovault.designsystem.GlassFinish.CALM) baseTheme else baseTheme.copy(onGlass = ink)
     SelectableScreen(
         title = null,
         subtitle = null,
@@ -199,11 +197,10 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             jumpTo = gallery.jumpTo,
                             onJumped = { gallery.jumpTo = null },
                             onZoomOutPastMax = { gallery.view = LibraryView.MONTHS },
-                            // Darkroom (18 Nov): each day under its own magazine-style heading, so not one unbroken grid.
-                            continuous = state.appStyle.dates != com.deepak.photovault.designsystem.DateStyle.MAGAZINE,
+                            continuous = true,
                             mixed = true,
                             onAwayFromTop = { scrolled = it },
-                            dateColor = if (!classic) baseTheme.onWallpaper else if (baseTheme.isDark) androidx.compose.ui.graphics.Color.White else ink,
+                            dateColor = if (baseTheme.isDark) androidx.compose.ui.graphics.Color.White else ink,
                             header = {
                                 item(key = "controls", span = { GridItemSpan(maxLineSpan) }, contentType = "controls") {
                                     // Memories not played yet today, as a row above the photos (16 Nov).
@@ -228,52 +225,30 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
 
 private const val LEVEL_MS = 300
 
-/**
- * Years / Months / All as three small buttons in their own pill at the top left. The chosen one is filled; in
- * Darkroom (18 Nov) it is underlined instead, in small capitals.
- */
+/** Years / Months / All as three small buttons in their own pill at the top left. The chosen one is filled. */
 @Composable
 private fun ViewButtons(gallery: GalleryState) {
     val theme = LocalGlassTheme.current
-    val style = com.deepak.photovault.designsystem.LocalAppStyle.current
-    val classic = style.id == com.deepak.photovault.designsystem.AppStyleId.CLASSIC
-    val underline = style.nav == com.deepak.photovault.designsystem.NavStyle.TABS
-    // The redesign's styles fill the chosen one with the soft accent, as their navigation does.
-    val fill = if (classic) theme.accentSurface else theme.accentSoft ?: theme.accentSurface
-    val onFill = if (classic) theme.onAccent else theme.onAccentSoft ?: theme.onAccent
     Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         LibraryView.entries.forEach { option ->
             val selected = gallery.view == option
             val background by androidx.compose.animation.animateColorAsState(
-                if (selected && !underline) fill else androidx.compose.ui.graphics.Color.Transparent,
+                if (selected) theme.accentSurface else androidx.compose.ui.graphics.Color.Transparent,
                 motionSpec(),
                 label = "view",
             )
-            val line by androidx.compose.animation.core.animateFloatAsState(if (selected && underline) 1f else 0f, motionSpec(), label = "viewLine")
             Box(
                 Modifier
-                    .heightIn(min = 32.dp)
-                    .clip(com.deepak.photovault.designsystem.styled(RoundedCornerShape(percent = 50)))
+                    .heightIn(min = 30.dp)
+                    .clip(RoundedCornerShape(percent = 50))
                     .background(background)
-                    .then(
-                        if (!underline) Modifier else Modifier.drawBehind {
-                            if (line > 0f) {
-                                val h = 2.dp.toPx()
-                                drawRect(theme.accent.copy(alpha = line), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
-                            }
-                        },
-                    )
                     .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.viewHistory.clear(); gallery.view = option })
-                    .padding(horizontal = 10.dp),
+                    .padding(horizontal = 9.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 com.deepak.photovault.designsystem.DepthText(
-                    if (underline) option.label.uppercase() else option.label,
-                    color = when {
-                        underline -> if (selected) theme.onGlass else theme.onGlassSecondary
-                        selected -> onFill
-                        else -> theme.onGlass
-                    },
+                    option.label,
+                    color = if (selected) theme.onAccent else theme.onGlass,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                 )

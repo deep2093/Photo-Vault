@@ -275,12 +275,10 @@ fun PhotoVaultApp(
     val googleStatus = state.google.platform.status?.collectAsState()
     LaunchedEffect(googleStatus?.value?.lastAtMillis) { if (googleStatus?.value?.lastAtMillis != null) state.google.refresh() }
     LaunchedEffect(gallery, drive.driveTrash) { drive.driveTrash?.let(gallery::setDriveTrash) }
-    // The redesign (18 Nov): the phone's dark mode and Material You's wallpaper colours feed the chosen style.
+    // Day or night (18 Nov): the phone's dark mode, for themes set to follow it.
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     androidx.compose.runtime.SideEffect { if (state.systemDark != systemDark) state.systemDark = systemDark }
-    val wallpaperSchemes = rememberWallpaperSchemes()
-    androidx.compose.runtime.SideEffect { if (state.wallpaperSchemes != wallpaperSchemes) state.wallpaperSchemes = wallpaperSchemes }
-    PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals), style = state.appStyle, scheme = state.materialScheme) {
+    PhotoVaultTheme(theme = state.theme, settings = state.glassSettings(signals)) {
         val hazeState = remember { HazeState() }
         val deleteFlight = remember { DeleteFlight() }
         val deletePrompt = remember { DeletePrompt() }
@@ -294,13 +292,7 @@ fun PhotoVaultApp(
                     val layout = AdaptiveLayout.navigationFor(maxWidth.value.toInt())
                     // Phones and tablets alike: the floating bar at the bottom (24 Oct: no side menu on tablets).
                     CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL)) {
-                        // The redesign's styles (18 Nov): a side rail on tablets and wide windows, as their designs show.
-                        // Classic keeps the floating bar everywhere (24 Oct).
-                        if (layout == NavigationLayout.SIDE_RAIL && state.appStyle.id != com.deepak.photovault.designsystem.AppStyleId.CLASSIC) {
-                            SideRailLayout(screens, system, wide = maxWidth >= 840.dp)
-                        } else {
-                            BottomBarLayout(screens, system)
-                        }
+                        BottomBarLayout(screens, system)
                     }
                     // First-time backup questions after joining a family drive (10 Nov).
                     FirstSetupPopups(state, drive, backup)
@@ -309,9 +301,7 @@ fun PhotoVaultApp(
                     // Photos and dates fade out under the status bar instead of showing through its clock and icons.
                     val top = system.calculateTopPadding()
                     // Neutral dark, not the wallpaper's first colour: that showed as a pink band on Vivid Night (29 Oct).
-                    // The redesign's plain pages (18 Nov): the page's own colour.
-                    val wall = if (state.appStyle.id != com.deepak.photovault.designsystem.AppStyleId.CLASSIC) LocalGlassTheme.current.wallpaper.first()
-                        else if (LocalGlassTheme.current.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+                    val wall = if (LocalGlassTheme.current.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
                     androidx.compose.foundation.layout.Box(
                         Modifier.align(androidx.compose.ui.Alignment.TopStart).fillMaxWidth().height(top + 8.dp)
                             .background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to wall.copy(alpha = 0.6f), 0.7f to wall.copy(alpha = 0.3f), 1f to androidx.compose.ui.graphics.Color.Transparent)),
@@ -332,8 +322,8 @@ fun PhotoVaultApp(
 }
 
 /**
- * The app's short messages (18 Nov, replacing Android's toasts): a bar in the style's own colours, above the
- * navigation and the viewer's buttons. It goes after a few seconds, or at a tap; screen readers read it out.
+ * The app's short messages (18 Nov, replacing Android's toasts): a glass bar above the navigation and the viewer's
+ * buttons. It goes after a few seconds, or at a tap; screen readers read it out.
  */
 @Composable
 private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
@@ -353,25 +343,20 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
     ) {
         val shown = last ?: return@AnimatedVisibility
         val theme = LocalGlassTheme.current
-        val classic = state.appStyle.id == com.deepak.photovault.designsystem.AppStyleId.CLASSIC
-        val shape = com.deepak.photovault.designsystem.styled(RoundedCornerShape(if (classic) 24.dp else 12.dp))
-        // The redesign's styles: the reverse of the page (dark on a light page, light on a dark one), like Material's
-        // snackbar. Classic: its glass.
-        val bar = if (classic) Modifier.glassChrome(shape, elevation = 8.dp) else Modifier.clip(shape).background(theme.onGlass)
-        val ink = if (classic) theme.onGlass else theme.wallpaper.first()
+        val shape = RoundedCornerShape(24.dp)
         Box(
             Modifier
                 .widthIn(max = 560.dp)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .then(bar)
+                .glassChrome(shape, elevation = 8.dp)
                 .clickable(onClickLabel = "Close message") { state.dismissMessage(shown) }
                 .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }
                 .heightIn(min = 48.dp)
                 .padding(horizontal = 18.dp, vertical = 14.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            Text(shown.text, color = ink, style = MaterialTheme.typography.bodyMedium)
+            Text(shown.text, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -804,13 +789,7 @@ private fun Modifier.blockTouchesBelow(): Modifier = pointerInput(Unit) {
 @Composable
 private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val state = screens.state
-    // The redesign (18 Nov): the floating capsule, Material's full-width bar or Darkroom's tabs, each its own height.
-    val navStyle = com.deepak.photovault.designsystem.LocalAppStyle.current.nav
-    val barSpace = when (navStyle) {
-        com.deepak.photovault.designsystem.NavStyle.CAPSULE -> 88.dp
-        com.deepak.photovault.designsystem.NavStyle.MATERIAL -> MATERIAL_BAR_HEIGHT
-        com.deepak.photovault.designsystem.NavStyle.TABS -> TABS_BAR_HEIGHT
-    }
+    val barSpace = 88.dp
     val nav = rememberSectionNav(state)
     // Photos and Albums: the bar slides away while scrolling down and comes back on scrolling up (24 Oct).
     // Photos and Albums tuck it away while scrolling down; selecting photos rolls it down at once so the
@@ -851,33 +830,22 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
         }
         // Only the bar gets the lens; anything inside the recorded sections would otherwise draw itself.
         CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
-        val barMotion = Modifier
-            .align(Alignment.BottomCenter)
-            // Moved by layout, not a layer translation: the lens glass must learn where the bar is (25 Oct fix for
-            // the bar's lens showing the wrong part of the photos after it tucked away and came back).
-            .offset { androidx.compose.ui.unit.IntOffset(0, maxOf(shift.value, travel * state.sectionCover()).toInt()) }
-            .graphicsLayer {
-                val y = maxOf(shift.value, travel * state.sectionCover())
-                alpha = 1f - (y / travel).coerceIn(0f, 1f)
-            }
-        when (navStyle) {
-            com.deepak.photovault.designsystem.NavStyle.CAPSULE -> FloatingNavigationBar(
-                indicator = { nav.indicator.value },
-                onSelect = state::tapSection,
-                familyDot = screens.familyDot,
-                settingsDot = screens.settingsDot,
-                modifier = barMotion.padding(bottom = system.calculateBottomPadding() + 12.dp),
-            )
-            else -> FullWidthNavigationBar(
-                tabs = navStyle == com.deepak.photovault.designsystem.NavStyle.TABS,
-                indicator = { nav.indicator.value },
-                onSelect = state::tapSection,
-                familyDot = screens.familyDot,
-                settingsDot = screens.settingsDot,
-                bottomInset = system.calculateBottomPadding(),
-                modifier = barMotion,
-            )
-        }
+        FloatingNavigationBar(
+            indicator = { nav.indicator.value },
+            onSelect = state::tapSection,
+            familyDot = screens.familyDot,
+            settingsDot = screens.settingsDot,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                // Moved by layout, not a layer translation: the lens glass must learn where the bar is (25 Oct fix for
+                // the bar's lens showing the wrong part of the photos after it tucked away and came back).
+                .offset { androidx.compose.ui.unit.IntOffset(0, maxOf(shift.value, travel * state.sectionCover()).toInt()) }
+                .graphicsLayer {
+                    val y = maxOf(shift.value, travel * state.sectionCover())
+                    alpha = 1f - (y / travel).coerceIn(0f, 1f)
+                }
+                .padding(bottom = system.calculateBottomPadding() + 12.dp),
+        )
         }
     }
 }
@@ -1004,284 +972,21 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
             .padding(6.dp),
     ) {
         val itemWidth = maxWidth / Destination.entries.size
-        // Clear Glass (18 Nov): the soft accent behind the chosen section, with the accent's own dark text on it.
-        val soft = com.deepak.photovault.designsystem.LocalAppStyle.current.id != com.deepak.photovault.designsystem.AppStyleId.CLASSIC
         Box(
             Modifier
                 .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
                 .size(itemWidth, NAV_ITEM_HEIGHT)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(if (soft) theme.accentSoft ?: theme.accentSurface else theme.accentSurface)
-                .then(if (soft) Modifier else Modifier.frostedEdge(RoundedCornerShape(percent = 50))),
+                .background(theme.accentSurface)
+                .frostedEdge(RoundedCornerShape(percent = 50)),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->
-                NavItem(
-                    destination, indicator(), { onSelect(destination) }, Modifier.weight(1f),
-                    dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS),
-                    selectedColor = if (soft) theme.onAccentSoft ?: theme.onAccent else theme.onAccent,
-                )
+                NavItem(destination, indicator(), { onSelect(destination) }, Modifier.weight(1f), dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS))
             }
         }
     }
 }
-
-/**
- * Tablets in the redesign's styles (18 Nov): the sections down the side, the pages beside them. Material You and
- * Clear Glass: a rail of icons with a soft pill on the chosen one. Darkroom on a wide screen ([wide]): a column with
- * the name at the top and the sections as words, an accent line beside the chosen one.
- */
-@Composable
-private fun SideRailLayout(screens: Screens, system: PaddingValues, wide: Boolean) {
-    val state = screens.state
-    val nav = rememberSectionNav(state)
-    val column = wide && com.deepak.photovault.designsystem.LocalAppStyle.current.nav == com.deepak.photovault.designsystem.NavStyle.TABS
-    Row(
-        Modifier
-            .fillMaxSize()
-            .graphicsLayer { translationX = -state.sectionCover() * size.width / DRIFT_DIVISOR }
-            .dimmedBy { state.sectionCover() * PAGE_DIM },
-    ) {
-        SideRail(
-            indicator = { nav.indicator.value },
-            onSelect = state::tapSection,
-            familyDot = screens.familyDot,
-            settingsDot = screens.settingsDot,
-            column = column,
-            system = system,
-        )
-        CompositionLocalProvider(
-            LocalScreenInsets provides PaddingValues(
-                start = 0.dp,
-                top = system.calculateTopPadding(),
-                end = system.calculateEndPadding(LayoutDirection.Ltr),
-                bottom = system.calculateBottomPadding() + 12.dp,
-            ),
-        ) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { SectionPager(nav.pager, screens) }
-        }
-    }
-}
-
-/** The side rail's own part, so the swipe's moving highlight redraws only the rail, never the pages beside it. */
-@Composable
-private fun SideRail(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, settingsDot: Boolean, column: Boolean, system: PaddingValues) {
-    val style = com.deepak.photovault.designsystem.LocalAppStyle.current
-    val theme = LocalGlassTheme.current
-    val start = system.calculateStartPadding(LayoutDirection.Ltr)
-    Column(
-        Modifier
-            .width((if (column) 208.dp else 88.dp) + start)
-            .fillMaxHeight()
-            .background(if (style.id == com.deepak.photovault.designsystem.AppStyleId.MATERIAL_YOU) theme.wallpaper.first() else theme.glassFallback)
-            .then(
-                if (!style.hairlines) Modifier else Modifier.drawWithContent {
-                    drawContent()
-                    val w = 1.dp.toPx()
-                    drawRect(theme.glassRim, topLeft = androidx.compose.ui.geometry.Offset(size.width - w, 0f), size = androidx.compose.ui.geometry.Size(w, size.height))
-                },
-            )
-            .padding(start = start, top = system.calculateTopPadding() + 20.dp, bottom = system.calculateBottomPadding() + 12.dp)
-            .selectableGroup(),
-        horizontalAlignment = if (column) Alignment.Start else Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (column) 2.dp else 12.dp),
-    ) {
-        if (column) {
-            Text(
-                "Pixallery",
-                color = theme.onGlass,
-                style = MaterialTheme.typography.headlineSmall,
-                maxLines = 1,
-                modifier = Modifier.padding(start = 28.dp, bottom = 20.dp),
-            )
-        }
-        Destination.entries.forEach { destination ->
-            RailItem(
-                destination,
-                indicator(),
-                column,
-                { onSelect(destination) },
-                dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS),
-            )
-        }
-    }
-}
-
-/** One section in the side rail; its colours blend as you swipe between sections, like the bars'. */
-@Composable
-private fun RailItem(destination: Destination, indicator: Float, column: Boolean, onClick: () -> Unit, dot: Boolean) {
-    val theme = LocalGlassTheme.current
-    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
-    val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
-    val selected = closeness > 0.5f
-    val textColor = lerp(theme.onGlassSecondary, theme.onGlass, closeness)
-    val tap = Modifier
-        .selectable(selected = selected, role = Role.Tab, onClick = {
-            haptics.tick()
-            onClick()
-        })
-        .then(if (dot) Modifier.semantics { stateDescription = "A phone is waiting for approval" } else Modifier)
-    val badge: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {
-        if (dot) Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .size(8.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(theme.badgePhoneOnly),
-        )
-    }
-    if (column) {
-        // Darkroom: the word, an accent line on the left of the chosen one.
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .then(tap)
-                .drawWithContent {
-                    drawContent()
-                    if (closeness > 0f) drawRect(theme.accent.copy(alpha = closeness), size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height))
-                }
-                .padding(start = 28.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box { Icon(destination.icon, null, tint = textColor, modifier = Modifier.size(20.dp)); badge() }
-            Spacer(Modifier.width(14.dp))
-            Text(destination.label.uppercase(), color = textColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
-    } else {
-        Column(Modifier.width(80.dp).height(64.dp).then(tap), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Box(Modifier.size(56.dp, 32.dp), contentAlignment = Alignment.Center) {
-                if (closeness > 0f) {
-                    val pill = theme.accentSoft ?: theme.accentSurface
-                    Box(
-                        Modifier
-                            .size(32.dp + 24.dp * closeness, 32.dp)
-                            .clip(com.deepak.photovault.designsystem.styled(RoundedCornerShape(percent = 50)))
-                            .background(pill.copy(alpha = pill.alpha * closeness)),
-                    )
-                }
-                Icon(destination.icon, null, tint = lerp(theme.onGlassSecondary, theme.onAccentSoft ?: theme.onGlass, closeness), modifier = Modifier.size(24.dp))
-                badge()
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(destination.label, color = textColor, style = MaterialTheme.typography.labelSmall, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
-        }
-    }
-}
-
-/**
- * The redesign's full-width bars (18 Nov), on the page's own colour with the phone's gesture bar inside them.
- * Material You: a soft pill behind the chosen icon that widens in as you arrive, as in Material 3. Darkroom ([tabs]):
- * a hairline on top and a short accent line over the chosen section that slides with you, labels in small capitals.
- * On tablets the four sections stay together in the middle instead of spreading across the screen.
- */
-@Composable
-private fun FullWidthNavigationBar(
-    tabs: Boolean,
-    indicator: () -> Float,
-    onSelect: (Destination) -> Unit,
-    familyDot: Boolean,
-    settingsDot: Boolean,
-    bottomInset: Dp,
-    modifier: Modifier = Modifier,
-) {
-    val theme = LocalGlassTheme.current
-    val height = if (tabs) TABS_BAR_HEIGHT else MATERIAL_BAR_HEIGHT
-    Box(
-        modifier
-            .fillMaxWidth()
-            .background(theme.glassFallback)
-            .then(
-                if (!tabs) Modifier else Modifier.drawWithContent {
-                    drawContent()
-                    drawRect(theme.glassRim, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
-                },
-            )
-            .padding(bottom = bottomInset),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        BoxWithConstraints(Modifier.widthIn(max = 600.dp).fillMaxWidth().height(height)) {
-            val itemWidth = maxWidth / Destination.entries.size
-            if (tabs) {
-                // The accent line over the chosen section, sliding with the finger like the capsule's highlight.
-                Box(
-                    Modifier
-                        .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
-                        .size(itemWidth, 2.dp)
-                        .padding(horizontal = 20.dp)
-                        .background(theme.accent),
-                )
-            }
-            Row(Modifier.fillMaxSize().selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
-                Destination.entries.forEach { destination ->
-                    BarItem(
-                        destination,
-                        indicator(),
-                        tabs,
-                        { onSelect(destination) },
-                        Modifier.weight(1f).fillMaxHeight(),
-                        dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** One section in a full-width bar; like [NavItem], its colours blend as you swipe between sections. */
-@Composable
-private fun BarItem(destination: Destination, indicator: Float, tabs: Boolean, onClick: () -> Unit, modifier: Modifier, dot: Boolean) {
-    val theme = LocalGlassTheme.current
-    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
-    val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
-    val selected = closeness > 0.5f
-    val iconColor = if (tabs) lerp(theme.onGlassSecondary, theme.onGlass, closeness) else lerp(theme.onGlassSecondary, theme.onAccentSoft ?: theme.onGlass, closeness)
-    val textColor = lerp(theme.onGlassSecondary, theme.onGlass, closeness)
-    Column(
-        modifier
-            .selectable(selected = selected, role = Role.Tab, onClick = {
-                haptics.tick()
-                onClick()
-            })
-            .then(if (dot) Modifier.semantics { stateDescription = "A phone is waiting for approval" } else Modifier),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(Modifier.size(64.dp, 32.dp), contentAlignment = Alignment.Center) {
-            if (!tabs && closeness > 0f) {
-                // Material 3: the pill grows out from the icon as the section is reached.
-                Box(
-                    Modifier
-                        .size(32.dp + 32.dp * closeness, 32.dp)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background((theme.accentSoft ?: theme.accentSurface).copy(alpha = (theme.accentSoft ?: theme.accentSurface).alpha * closeness)),
-                )
-            }
-            Icon(destination.icon, null, tint = iconColor, modifier = Modifier.size(24.dp))
-            if (dot) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = (-14).dp, y = 2.dp)
-                        .size(8.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(theme.badgePhoneOnly),
-                )
-            }
-        }
-        Spacer(Modifier.height(if (tabs) 2.dp else 4.dp))
-        Text(
-            if (tabs) destination.label.uppercase() else destination.label,
-            color = textColor,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-        )
-    }
-}
-
-private val MATERIAL_BAR_HEIGHT = 80.dp
-private val TABS_BAR_HEIGHT = 64.dp
 
 private const val CHROME_MS = 220
 
@@ -1299,12 +1004,11 @@ private fun NavItem(
     modifier: Modifier,
     height: Dp = NAV_ITEM_HEIGHT,
     dot: Boolean = false,
-    selectedColor: Color = LocalGlassTheme.current.onAccent,
 ) {
     val theme = LocalGlassTheme.current
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
-    val fg = lerp(theme.onGlass, selectedColor, closeness)
+    val fg = lerp(theme.onGlass, theme.onAccent, closeness)
     val selected = closeness > 0.5f
     Column(
         modifier

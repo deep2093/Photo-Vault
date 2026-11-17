@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -58,15 +57,11 @@ val LocalHazeState = staticCompositionLocalOf<HazeState?> { null }
 fun PhotoVaultTheme(
     theme: GlassTheme,
     settings: GlassSettings = GlassSettings(),
-    /** The look (18 Nov): colours come from [theme]; fonts, corners and how bars are drawn from the style. */
-    style: AppStyle = AppStyles.Classic,
-    /** Material You: the phone's own colour scheme, used as it is. */
-    scheme: ColorScheme? = null,
     content: @Composable () -> Unit,
 ) {
     val surface = theme.glassFallback.compositeOver(theme.wallpaper.first())
     val base = if (theme.isDark) darkColorScheme() else lightColorScheme()
-    val colors = scheme ?: base.copy(
+    val colors = base.copy(
         primary = theme.accent,
         onPrimary = theme.onAccent,
         secondary = theme.accent,
@@ -80,10 +75,8 @@ fun PhotoVaultTheme(
         surfaceContainerHigh = surface,
         outline = theme.glassRim,
     )
-    val fonts = LocalStyleFonts.current
-    val typography = androidx.compose.runtime.remember(style.id, fonts) { styleTypography(style, fonts) }
-    CompositionLocalProvider(LocalGlassTheme provides theme, LocalGlassSettings provides settings, LocalAppStyle provides style) {
-        MaterialTheme(colorScheme = colors, typography = typography, content = content)
+    CompositionLocalProvider(LocalGlassTheme provides theme, LocalGlassSettings provides settings) {
+        MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
     }
 }
 
