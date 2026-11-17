@@ -620,6 +620,13 @@ private fun DriveSection(state: ShellState, drive: DriveState) {
             icon = Icons.Rounded.Dns,
             description = "On: when the app opens and once an hour while it is open. Off: only when you open Family, Backup or the drive, or pull down on Photos. Fewer checks let the drive sleep.",
         )
+        GlassSwitchRow(
+            FIND_MOVED_TITLE,
+            drive.findMoved,
+            { drive.setFindMoved(it) },
+            icon = Icons.Rounded.Explore,
+            description = FIND_MOVED_NOTE.substringBefore(" You can change this later"),
+        )
     }
     if (confirmForget) {
         ConfirmDialog(

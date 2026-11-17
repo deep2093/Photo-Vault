@@ -67,6 +67,13 @@ interface DrivePlatform {
     /** SMB servers answering on this Wi-Fi. */
     suspend fun discover(knownHost: String): List<String>
 
+    /**
+     * Whether a drive that stops answering at its saved address is looked for at nearby addresses (17 Nov: a
+     * switch, explained during set-up, instead of always on).
+     */
+    fun findMovedDrive(): Boolean = true
+    fun setFindMovedDrive(on: Boolean) = Unit
+
     fun rememberedUserId(): String?
     fun rememberUserId(userId: String?)
 
@@ -98,6 +105,15 @@ data class MemberUsage(val usedBytes: Long?, val limitBytes: Long)
 @Stable
 class DriveState(private val platform: DrivePlatform) {
     var connection by mutableStateOf(platform.loadConnection())
+
+    /** Set-up and Settings > Drive: look for the drive at nearby addresses if its address changes (17 Nov). */
+    var findMoved by mutableStateOf(platform.findMovedDrive())
+        private set
+
+    fun setFindMoved(on: Boolean) {
+        platform.setFindMovedDrive(on)
+        findMoved = on
+    }
         private set
 
     /** Starts as the family last seen on this phone, if any; it is replaced as soon as the drive answers. */

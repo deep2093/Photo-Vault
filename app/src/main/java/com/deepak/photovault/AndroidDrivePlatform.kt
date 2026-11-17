@@ -72,6 +72,19 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         )
     }
 
+    /**
+     * 17 Nov: looking for a drive that moved is a switch. New set-ups start with it off and the set-up page explains
+     * it; phones that already had a drive when this arrived keep it on, as before.
+     */
+    override fun findMovedDrive(): Boolean {
+        if (!prefs.contains(KEY_FIND_MOVED)) prefs.edit().putBoolean(KEY_FIND_MOVED, loadConnection() != null).apply()
+        return prefs.getBoolean(KEY_FIND_MOVED, false)
+    }
+
+    override fun setFindMovedDrive(on: Boolean) {
+        prefs.edit().putBoolean(KEY_FIND_MOVED, on).apply()
+    }
+
     override fun forgetConnection() {
         closeOpened()
         credentials.clear()
@@ -108,6 +121,8 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         val saved = connection.host.trim()
         val wrongServer = generateSequence(first) { it.cause }.any { it is com.deepak.photovault.core.smb.SmbWrongServerException }
         if (!(wrongServer || SmbErrors.isUnreachable(first)) || !isIpv4(saved) || !onSameNetwork(saved)) throw first
+        // 17 Nov: with the switch off, nothing nearby is tried; the message says what to do instead.
+        if (!findMovedDrive()) throw DriveNotAtAddress(saved, first)
         // Servers answering on the home network, nearest first; the next few addresses either side are always tried
         // too, even if the quick search missed them (15 Nov: the drive moved .249 -> .250 and wasn't found).
         val found = runCatching { LanDiscovery.around(context, saved) }.getOrDefault(emptyList())
@@ -242,6 +257,8 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
 
     override fun describe(error: Throwable): String = when (error) {
         is AlreadySetUp -> "This drive already has a Pixallery family. Join it instead."
+        is DriveNotAtAddress -> "Nothing answered at ${error.host}. The drive may be switched off, or its address may have " +
+            "changed: type the new address, or turn on \"Find the drive if its address changes\" in Settings > Drive."
         is DriveNotFound -> "Something on the drive is missing. Refresh and try again."
         is IllegalStateException -> error.message?.takeIf { it.startsWith("The family settings are busy") } ?: SmbErrors.describe(error)
         else -> SmbErrors.describe(error)
@@ -264,6 +281,7 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
 
         /** The family drive's own SMB server ID, so the address fallback signs in only to it. */
         const val KEY_SERVER_ID = "drive_server_id"
+        const val KEY_FIND_MOVED = "find_moved_drive"
 
         /** At most this many other addresses are tried before giving up. */
         const val MAX_TRIES = 6
@@ -271,3 +289,9 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         const val NEIGHBOURS = 3
     }
 }
+
+/**
+ * The phone is on the drive's home network but nothing answered at the saved address, and looking nearby is
+ * switched off (17 Nov). An IOException, so it still counts as "can't reach the drive" everywhere.
+ */
+class DriveNotAtAddress(val host: String, cause: Throwable) : java.io.IOException("The drive did not answer at its address", cause)

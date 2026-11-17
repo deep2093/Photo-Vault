@@ -100,9 +100,10 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-17-1"
+    const val ID = "2026-11-17-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
+        Change(ChangeKind.NEW, "Finding a drive that moved is now a switch", "Settings > Drive has \"Find the drive if its address changes\". When on, and the drive stops answering, Pixallery checks nearby addresses on your home Wi-Fi and only uses the same drive. It stays on for phones already set up; new set-ups explain it and start with it off."),
         Change(ChangeKind.FIXED, "Editing works sideways", "Turn the phone sideways in the editor or the video trimmer and the picture sits beside the tools, instead of disappearing."),
         Change(ChangeKind.FIXED, "Edited copies keep their full size", "Saved copies are no longer made smaller on phones with plenty of memory. Only photos over 50 megapixels are reduced, and the message says so."),
         Change(ChangeKind.FIXED, "Photos sharpen sooner", "The full photo starts loading the moment you tap, so it is sharp almost as soon as it opens."),

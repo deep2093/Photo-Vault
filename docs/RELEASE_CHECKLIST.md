@@ -10,7 +10,7 @@ that was only built: an item is done when it was also tried on a phone, unless i
 **Who.** Claude = code or text Claude can write. Deepak = needs Deepak's own accounts, phone or decision.
 Both = Claude prepares, Deepak approves or carries out.
 
-**Status on 17 Nov 2026.** 1 of 51 items done (E1). `feature/cleanup` tried on a phone and merged into `main`.
+**Status on 17 Nov 2026.** 1 of 52 items done (E1). `feature/cleanup` tried on a phone and merged into `main`.
 Stage 0 is finished apart from Deepak's housekeeping (D17). Stage 1 is answered apart from two things waiting on
 Deepak: the new support address (B7) and whether the Private DNS notice still shows (D9).
 
@@ -162,6 +162,10 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
 - [ ] **D18 · Pixallery is offered for every unknown file.** Who: Claude. (Added on the recheck, 16 Nov.)
   So that invite files open, the app lists itself for all files of unknown type. Narrow it to invite files only,
   or it will look like a nuisance in "Open with" lists.
+- [ ] **D19 · Finding a drive that moved: a switch, explained during set-up.** Who: Claude built it, Deepak tests.
+  (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
+  Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to
+  type the new address or turn the switch on. Built 17 Nov on `feature/cleanup`, not yet tried on a phone.
 
 ### E. Quality and testing
 
