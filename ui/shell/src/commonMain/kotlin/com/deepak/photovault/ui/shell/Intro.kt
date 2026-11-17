@@ -100,10 +100,15 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-1"
+    const val ID = "2026-11-18-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.NEW, "Three new styles", "Settings > Appearance: Clear Glass, Material You (your wallpaper's colours) and Darkroom, each in light and dark or as your phone is. Classic glass is still there."),
+        Change(ChangeKind.NEW, "Each style has its own bottom bar", "Material You has Android's own full-width bar, Darkroom has tabs with a thin line over the chosen one. On a tablet the new styles put the sections down the side."),
+        Change(ChangeKind.NEW, "Darkroom dates like a magazine", "In Darkroom each day in Photos has its own heading: the day as a big number, the month and weekday beside it, and the town."),
+        Change(ChangeKind.CHANGED, "Messages in the app's own style", "Short messages like \"Saved\" now show in a bar at the bottom of the app, in your style's colours. Tap it to close it."),
+        Change(ChangeKind.CHANGED, "Easier buttons", "Play and Sound under a video are bigger. In the editor, Reset is now an icon, so Save stands out. On Backup, tap the heading to switch between the family drive and Google Drive."),
+        Change(ChangeKind.FIXED, "Smoother scrolling in colourful themes", "With a Classic theme whose colours follow your photos, scrolling no longer makes every photo on screen redraw."),
         Change(ChangeKind.NEW, "HDR photos in HDR", "On Android 14 or later with an HDR screen, HDR photos open in the viewer with their full brightness."),
         Change(ChangeKind.NEW, "Save over the original", "The editor has Save beside Save copy. Save puts your edit on the photo itself; the original goes to Recently deleted for 30 days."),
         Change(ChangeKind.FIXED, "Saved copies show at once", "After Save copy or a video trim, the viewer goes straight to the new copy, next to the original."),

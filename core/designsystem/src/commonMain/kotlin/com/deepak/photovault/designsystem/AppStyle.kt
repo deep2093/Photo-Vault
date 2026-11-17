@@ -82,7 +82,7 @@ object AppStyles {
     val Classic = AppStyle(
         AppStyleId.CLASSIC, "Classic glass", "The original glass and wallpapers",
         glass = true, classicGlass = true, hairlines = false, cardRadius = 24.dp,
-        nav = NavStyle.CAPSULE, dates = DateStyle.PLAIN, photoGap = 2.dp, hasThemeChoices = true,
+        nav = NavStyle.CAPSULE, dates = DateStyle.PLAIN, photoGap = 1.5.dp, hasThemeChoices = true,
     )
     val ClearGlass = AppStyle(
         AppStyleId.CLEAR_GLASS, "Clear Glass", "Glass bars over a calm page",

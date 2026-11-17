@@ -509,7 +509,7 @@ internal fun FilmstripCore(ids: List<Any>, pager: PagerState, onCurrentClick: ((
                             alpha = if (isCurrent) 1f else 0.8f
                         }
                         .clip(shape)
-                        .background(Color(0xFF1C1C21))
+                        .background(com.deepak.photovault.designsystem.Stage.card)
                         .then(if (isCurrent) Modifier.border(2.dp, Color.White, shape) else Modifier)
                         .clickable(role = Role.Button) {
                             stripLeads = false
@@ -616,17 +616,17 @@ private fun DetailsPanel(
     onOpenMap: (Double, Double) -> Unit = { _, _ -> },
 ) {
     val details by produceState<MediaDetails?>(null, item.id) { value = source.details(item) }
-    val white = Color(0xFFF5F5F7)
-    val grey = Color(0xFFB8B8C0)
+    val white = com.deepak.photovault.designsystem.Stage.text
+    val grey = com.deepak.photovault.designsystem.Stage.textSecondary
     val body = MaterialTheme.typography.bodyMedium
     Column(
         modifier
-            .background(Color(0xFF0B0B0D))
+            .background(com.deepak.photovault.designsystem.Stage.panel)
             .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = bottomInset + 16.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         // Drag handle: shows the panel can be swiped down.
-        Box(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x55FFFFFF)))
+        Box(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(com.deepak.photovault.designsystem.Stage.handle))
         Spacer(Modifier.height(10.dp))
         Text(fullDate(item), color = white, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(
@@ -647,7 +647,7 @@ private fun DetailsPanel(
             // 25 Oct: say plainly that this one lives on the family drive and not on the phone.
             Spacer(Modifier.height(10.dp))
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF1C1C21)).padding(14.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(com.deepak.photovault.designsystem.Stage.card).padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -720,7 +720,7 @@ private fun DetailsPanel(
                         .background(Color.White)
                         .padding(3.dp)
                         .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(Color(0xFF3B82F6)),
+                        .background(com.deepak.photovault.designsystem.Stage.pin),
                 )
                 Box(Modifier.fillMaxSize().clickable(role = Role.Button) { onOpenMap(mapLat, mapLon) })
             }
@@ -768,7 +768,7 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
             Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(Color(0xFF1C1C21))
+                .background(com.deepak.photovault.designsystem.Stage.card)
                 .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -791,7 +791,7 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
             }
             Text(
                 "Open in Maps",
-                color = Color(0xFF8AB4FF),
+                color = com.deepak.photovault.designsystem.Stage.link,
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -803,7 +803,7 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
             Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(Color(0xFF1C1C21))
+                .background(com.deepak.photovault.designsystem.Stage.card)
                 .clickable(role = Role.Button) { actions.requestLocationAccess() }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1012,12 +1012,13 @@ internal fun VideoBar(video: VideoControls, onTouch: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = if (video.playing) "Pause" else "Play") {
+            // 48dp (18 Nov, was 40): the size a thumb can hit without looking.
+            Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button) {
                 video.playing = !video.playing
                 onTouch()
             },
             contentAlignment = Alignment.Center,
-        ) { Icon(if (video.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = Color.White) }
+        ) { Icon(if (video.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (video.playing) "Pause" else "Play", tint = Color.White) }
         Text(
             "${Timeline.duration(video.positionMs)} / ${Timeline.duration(video.durationMs)}",
             color = Color.White,
@@ -1025,12 +1026,12 @@ internal fun VideoBar(video: VideoControls, onTouch: () -> Unit) {
             modifier = Modifier.padding(start = 4.dp).weight(1f),
         )
         Box(
-            Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = if (video.muted) "Sound on" else "Mute") {
+            Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button) {
                 video.muted = !video.muted
                 onTouch()
             },
             contentAlignment = Alignment.Center,
-        ) { Icon(if (video.muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp, null, tint = Color.White) }
+        ) { Icon(if (video.muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp, if (video.muted) "Sound on" else "Mute", tint = Color.White) }
     }
 }
 

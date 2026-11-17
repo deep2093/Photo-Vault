@@ -508,7 +508,11 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             "Mixed photo sizes",
             state.appearance.mixedGrid,
             { on -> state.updateAppearance { it.copy(mixedGrid = on) } },
-            description = "In Photos > All, some photos are shown bigger than the rest. Off: every photo the same size.",
+            description = if (state.appStyle.dates == com.deepak.photovault.designsystem.DateStyle.MAGAZINE) {
+                "Not in Darkroom: it shows each day under its own heading, every photo the same size."
+            } else {
+                "In Photos > All, some photos are shown bigger than the rest. Off: every photo the same size."
+            },
             icon = Icons.Rounded.PhotoLibrary,
         )
         GlassSwitchRow(

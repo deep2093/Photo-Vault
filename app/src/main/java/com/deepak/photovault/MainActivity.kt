@@ -600,8 +600,10 @@ class MainActivity : ComponentActivity(), MediaActions {
         }
     }
 
+    /** 18 Nov: in the app's own message bar, in the chosen style; Android's toast only before the app has started. */
     override fun toast(message: String) {
-        android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+        if (::shell.isInitialized) shell.say(message)
+        else android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
     }
 
     /** Only the photos with a file on this phone: ones that are only on the drive have nothing to hand over. */
@@ -615,7 +617,7 @@ class MainActivity : ComponentActivity(), MediaActions {
 
     /** Photos only on the drive: fetched to the phone first (a moment for big videos), then shared like any file. */
     override fun shareDrive(items: List<MediaItem>) {
-        android.widget.Toast.makeText(this, "Getting the file from the drive…", android.widget.Toast.LENGTH_SHORT).show()
+        toast("Getting the file from the drive…")
         lifecycleScope.launch {
             // Earlier shared copies (plain, even of private photos) go once they are a quarter of an hour old (17 Nov, A8).
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -632,7 +634,7 @@ class MainActivity : ComponentActivity(), MediaActions {
                 }.getOrNull()
             }
             if (uris.isEmpty()) {
-                android.widget.Toast.makeText(this@MainActivity, "Couldn't get that from the drive. Check you're on the home Wi-Fi.", android.widget.Toast.LENGTH_LONG).show()
+                toast("Couldn't get that from the drive. Check you're on the home Wi-Fi.")
             } else {
                 sendToOtherApps(items, uris)
             }

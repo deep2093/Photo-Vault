@@ -532,6 +532,24 @@ class ShellState(private val store: AppearanceStore) {
     /** Whether the phone is in dark mode; the app sets it at start and whenever it changes. */
     var systemDark by mutableStateOf(false)
 
+    /**
+     * A short message at the bottom of the app ("Saved", "Couldn't get that from the drive"). 18 Nov: shown in the
+     * app's own style, above the navigation, instead of Android's grey toast. A new one replaces the one showing.
+     */
+    var message by mutableStateOf<AppMessage?>(null)
+        private set
+    private var messages = 0
+
+    fun say(text: String) {
+        if (text.isBlank()) return
+        message = AppMessage(text, ++messages)
+    }
+
+    /** Clears [shown] unless a newer message took its place meanwhile. */
+    fun dismissMessage(shown: AppMessage) {
+        if (message?.id == shown.id) message = null
+    }
+
     /** Material You's colours from the phone's wallpaper (light, dark), where Android offers them (12 and later). */
     var wallpaperSchemes by mutableStateOf<Pair<ColorScheme, ColorScheme>?>(null)
 
@@ -632,3 +650,6 @@ class MemoryAppearanceStore(private var value: AppearanceSettings = AppearanceSe
 
 // The same time as a page takes to slide in (25 Oct: leaving felt faster than arriving).
 private const val BACK_SETTLE_MS = 640
+
+/** One message for [ShellState.message]; [id] tells two messages with the same words apart. */
+data class AppMessage(val text: String, val id: Int)

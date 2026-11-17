@@ -1,6 +1,8 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.foundation.clickable
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -197,7 +199,18 @@ private fun RingCard(
     var note by remember { mutableStateOf<String?>(null) }
     GlassCard(Modifier.cardWidth()) {
         val isGoogle = places.getOrNull(pager.currentPage) == true
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // With both places (18 Nov): a tap on the heading shows the other one too, not only a swipe.
+        val ringScope = androidx.compose.runtime.rememberCoroutineScope()
+        Row(
+            Modifier
+                .then(
+                    if (places.size > 1) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (isGoogle) "Show the family drive" else "Show Google Drive") {
+                        ringScope.launch { pager.animateScrollToPage((pager.currentPage + 1) % places.size) }
+                    } else Modifier,
+                )
+                .heightIn(min = 40.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             SectionHeader(if (isGoogle) "Google Drive" else "Family drive", Modifier.weight(1f))
             if (places.size > 1) PagerDots(places.size, pager.currentPage)
         }

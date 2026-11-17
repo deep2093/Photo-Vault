@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Redo
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Compare
@@ -182,7 +183,7 @@ internal fun EditorChoice(text: String, selected: Boolean, onClick: () -> Unit) 
 
 /** Undo goes back this many steps at most. */
 private const val MAX_STEPS = 60
-private val Panel = Color(0xFF1C1C21)
+private val Panel = com.deepak.photovault.designsystem.Stage.card
 
 @Composable
 fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, actions: MediaActions) {
@@ -433,14 +434,15 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
             }
             Spacer(Modifier.weight(1f))
             if ((!edit.isUnchanged || motion) && !saving) {
-                EditorPill("Reset", filled = false) {
+                // An icon (18 Nov, was a word in a pill), so the top has one clear button: Save.
+                EditorIcon(Icons.Rounded.RestartAlt, "Reset all changes") {
                     val from = base
                     edit = PhotoEdit()
                     aspect = CropAspect.FREE
                     motion = false
                     if (from != null) image = from
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(4.dp))
             }
             if (motion) {
                 val ready = styled != null && !saving
