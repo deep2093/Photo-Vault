@@ -10,7 +10,8 @@ that was only built: an item is done when it was also tried on a phone, unless i
 **Who.** Claude = code or text Claude can write. Deepak = needs Deepak's own accounts, phone or decision.
 Both = Claude prepares, Deepak approves or carries out.
 
-**Status on 16 Nov 2026.** 0 of 50 items done. Branch `feature/cleanup` holds today's untested work.
+**Status on 17 Nov 2026.** 1 of 51 items done (E1). `feature/cleanup` tried on a phone and merged into `main`.
+Stage 0 is finished apart from Deepak's housekeeping (D17); stage 1 is half answered (see the Decisions log).
 
 ---
 
@@ -18,7 +19,7 @@ Both = Claude prepares, Deepak approves or carries out.
 
 ### A. Can hurt a user (fix before anyone outside the family uses it)
 
-- [ ] **A1 · Recovery helper is half-built.** Who: Deepak decides, Claude builds.
+- [ ] **A1 · Recovery helper is half-built.** Who: Claude builds. Decided 17 Nov: finish it (stage 2).
   Private setup lets a person pick a family member as "recovery helper" and saves a key for them on the drive, but
   no screen lets the helper hand the key back. Someone relying on it could lose their backup. Finish it, or hide
   the option until it is finished.
@@ -46,12 +47,27 @@ Both = Claude prepares, Deepak approves or carries out.
   Private drive-only photos that are opened, Secured folder items being played or shared, edits and trims are
   written unscrambled into cache folders. Check each folder: give it a size limit and a guaranteed clean-up
   (when the app starts, and when the Secured folder locks).
+- [ ] **A9 · Moving each phone from the test app to the release app.** Who: Claude, then Deepak tests. (Added 17 Nov.)
+  The family phones run the test app (`com.deepak.photovault.preview`). To Android the release app is a different
+  app, whatever its package name, so nothing kept only inside the test app comes across: settings, the drive
+  connection, the WireGuard set-up, the Private backup key on the phone, and possibly Secured folder photos (kept
+  in the app's own folder, so uninstalling the test app deletes them). Claude: list everything that lives only on
+  the phone, then add a way to carry it over (for example a locked export to the drive) or a plain
+  "before you uninstall" guide. Must be ready before the first phone moves to the release app.
 
 ### B. Store rules (can block the Play listing)
 
-- [ ] **B1 · VPN rule.** Who: Deepak decides, Claude follows.
-  Play only allows a built-in VPN for certain kinds of app and wants a declaration. Decide: declare it as remote
-  access to the person's own drive, or ship the Play version without the VPN.
+- [ ] **B1 · VPN rule.** Who: Claude builds, Deepak fills in the form. Decided 17 Nov: declare it.
+  Play's rule, read on 17 Nov 2026: only apps whose main job is a VPN may use one, with listed exceptions that
+  include "network tools (for example remote access)". Play also asks for: a mention in the store listing; the
+  data encrypted (WireGuard does this); an in-app notice that says what the VPN does and asks for a clear "yes"
+  before first use, shown on its own (the privacy policy alone is not enough); a declaration form in Play
+  Console with a demo video of 90 seconds or less; and never steering other apps' traffic.
+  Plan: declare it as remote access to the person's own home drive. In the Play version, the tunnel carries only
+  Pixallery's own traffic (today that is the default, but a switch lets the whole phone use it: remove the
+  switch). Add the notice-and-yes screen before the first connection (stage 4). Keep a one-line way to build
+  without the VPN, so a refusal in review does not hold up the launch (then the person uses the WireGuard or
+  Tailscale app beside Pixallery).
 - [ ] **B2 · Target Android version.** Who: Claude.
   The app targets Android 15 (level 35). Check Play's current minimum and move to Android 16 (36) if required;
   re-test edge-to-edge, back gesture and background limits after the move.
@@ -69,17 +85,21 @@ Both = Claude prepares, Deepak approves or carries out.
   first scan, and its off switch must delete the face data (on the phone and the drive copy).
 - [ ] **B7 · Support contact.** Who: Deepak.
   The policy's only contact is "open a GitHub issue". Play needs a support email address.
-- [ ] **B8 · App identity is permanent.** Who: Deepak decides, Claude changes.
+- [ ] **B8 · App identity is permanent.** Who: Claude changes (stage 3). Name and version decided 17 Nov.
   The package is `com.deepak.photovault`, the version `0.0.1`, the app is called Pixallery. The package can never
-  change after release. Decide the final package name and the first public version number.
+  change after release. Decided: the name stays **Pixallery**; the first public version is **1.0.0**. Package
+  name: waiting for Deepak's answer (Claude suggests `com.deepak.pixallery`).
 - [ ] **B9 · Closed testing first.** Who: Deepak.
   New personal Play developer accounts must run a closed test (currently 12 testers for 14 days) before
   production. Check the current rule when the account is made and line up the testers early.
 
 ### C. Legal and housekeeping
 
-- [ ] **C1 · Public repository without a licence.** Who: Deepak decides, Claude adds.
-  Either add an open-source licence or make the repository private.
+- [ ] **C1 · Public repository without a licence.** Who: Deepak (on GitHub), Claude prepares. Decided 17 Nov:
+  make it private, later. Before that day: the website with the privacy policy must move to its own small public
+  repository, because GitHub's free plan only runs websites from public repositories; and the automatic builds
+  start counting against the free plan's 2,000 minutes a month (the pace since 1 Nov, about 96 builds of about
+  11 minutes in 17 days, is close to that limit).
 - [ ] **C2 · Third-party notices are incomplete.** Who: Claude.
   The file lists 3 of about 20: add OpenCV, Tink, Coil, Haze, MapLibre, ZXing, Media3, LiteRT, Bouncy Castle,
   SLF4J, kotlinx libraries, the YuNet and SFace models, AuraFace, GeoNames. Show them in the app (Settings >
@@ -91,11 +111,12 @@ Both = Claude prepares, Deepak approves or carries out.
   Google's subject cut-out library is a beta. Move to a stable release if there is one, or accept and note it.
 - [ ] **C5 · Test signing key is public.** Who: Deepak decides.
   Fine for test builds, but anyone could make an "update" the test phones would accept. Acceptable while the
-  repository is public only if testers install only from Deepak. Goes away if C1 ends in "private".
+  repository is public only if testers install only from Deepak. Goes away when the repository is made private (C1).
 
 ### D. Unfinished or undecided features
 
-- [ ] **D1 · AuraFace test model: keep or remove.** Who: Deepak decides (said: before release), Claude does.
+- [ ] **D1 · AuraFace test model: keep or remove.** Who: Claude. Decided 17 Nov: remove it before release, after
+  more testing (stage 5).
 - [ ] **D2 · Tester feedback feature: ship or remove.** Who: Deepak decides, Claude does.
   It sends notes and photos to the drive and checks every 3 hours.
 - [ ] **D3 · Private-to-Normal for Google Drive copies and Recently deleted.** Who: Deepak decides, Claude builds.
@@ -122,8 +143,9 @@ Both = Claude prepares, Deepak approves or carries out.
 - [ ] **D15 · Conversion and editor rough edges.** Who: Claude.
   Closing a zoomed photo jumps; the flying photo looks soft for a moment before the full one takes over; the
   status lines for Private-to-Normal are lost when the app closes; a trimmed video can start up to a second early.
-  Added 17 Nov: Log videos are recognised by a guess (10-bit wide colour, no HDR tag), to be checked against a
-  real Log file; messages use Android's toast, which shows only two lines (an in-app message bar would not cut off).
+  Added 17 Nov: Log videos are recognised by a guess (10-bit wide colour, no HDR tag); checked on a real Log video
+  on 17 Nov and it shows "Log (probably)". Messages use Android's toast, which shows only two lines (an in-app
+  message bar would not cut off).
 - [ ] **D16 · A real depth model for living photos.** Who: Deepak decides, Claude builds. Optional: today's
   effect uses a subject cut-out only.
 - [ ] **D17 · Deepak's housekeeping.** Who: Deepak.
@@ -136,7 +158,7 @@ Both = Claude prepares, Deepak approves or carries out.
 
 ### E. Quality and testing
 
-- [ ] **E1 · Today's work tried on a phone.** Who: Deepak.
+- [x] **E1 · Today's work tried on a phone.** Who: Deepak. Done 17 Nov, `feature/cleanup`.
   Photo animation, straighten, undo and redo, HDR copy, video trim, family roles and removal, Private-to-Normal,
   the Backup privacy window, and the clean-up (saving edits, restores, Secured folder restores, Storage lists).
 - [ ] **E2 · Full test plan on the release build.** Who: Both. Every feature, on a phone and a tablet (needs A5).
@@ -195,11 +217,11 @@ Why now: each answer changes what gets built later, and three of them can never 
 
 Answer these together, in one sitting:
 
-1. **B8** final package name and first version number (permanent).
-2. **C1** open source or private repository (also settles **C5**).
-3. **B1** VPN in the Play version: declare it, or leave it out.
-4. **A1** recovery helper: finish it, or hide it for version 1.
-5. **D1** AuraFace: keep or remove.
+1. **B8** final package name and first version number (permanent). Name and version answered 17 Nov; package name open.
+2. **C1** open source or private repository (also settles **C5**). Answered 17 Nov.
+3. **B1** VPN in the Play version: declare it, or leave it out. Answered 17 Nov.
+4. **A1** recovery helper: finish it, or hide it for version 1. Answered 17 Nov.
+5. **D1** AuraFace: keep or remove. Answered 17 Nov.
 6. **D2** tester feedback: ship or remove.
 7. **D3**, **D4**, **D16** Google conversion, private photos in the Family Album, a real depth model: version 1 or later.
 8. **E8** English only for version 1?
@@ -218,13 +240,14 @@ Build together (all touch keys and temporary files):
 1. **A2** stronger Google PIN, with a way to change an existing one.
 2. **A7** clean up after an interrupted Private-to-Normal.
 3. **A8** size limits and clean-up for every folder of unscrambled copies.
-4. **A1** as decided in stage 1.
+4. **A1** finish the recovery helper (decided 17 Nov).
 5. **E5** review of ignored errors (same files, done while there).
+6. **A9** carry-over from the test app to the release app (it touches the same keys and phone-only files).
 
 Then Deepak tests: Private backup set-up on Google only, a conversion interrupted on purpose (turn the drive
 off part-way), the Secured folder after locking.
 
-Done when: A1, A2, A7, A8 and E5 are ticked.
+Done when: A1, A2, A7, A8, A9 and E5 are ticked.
 
 ### Stage 3. Release build foundations (Both)
 
@@ -314,8 +337,19 @@ Done when: the app is live on Play.
 
 ## Decisions log
 
-(Deepak's answers from stage 1 go here, with the date.)
+**17 Nov 2026, stage 1 part 1 (Deepak):**
+
+- **B8.** The app's name is final: **Pixallery**. First public version: Deepak left it to Claude. Claude's choice:
+  **1.0.0** for the first upload to Play's closed test; fixes after that 1.0.1, 1.0.2 and so on; new features
+  1.1.0. The hidden build number keeps rising by itself with each automatic build, as it does now. Package name
+  still open.
+- **C1.** The repository will be made private, but not now (see C1 for what to do first).
+- **B1.** Declare the VPN in Play (see B1 for Play's rule and the plan).
+- **A1.** Finish the recovery helper.
+- **D1.** Remove AuraFace before release, after more testing.
+- **E1.** "The last fixes work, tick it." Log video detection checked on a real Log video.
 
 ## Done log
 
-(Each ticked item: date, branch, one line.)
+- 17 Nov 2026 · `feature/cleanup` · **E1** Deepak tried the build on his phone and said the fixes work; the branch
+  was merged into `main` the same day.
