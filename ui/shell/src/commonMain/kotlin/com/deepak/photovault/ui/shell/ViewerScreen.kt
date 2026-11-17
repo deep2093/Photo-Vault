@@ -194,8 +194,10 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     val covered = state.overlays.lastOrNull() !is Overlay.Viewer
     LaunchedEffect(covered) { if (covered) video.playing = false }
     // HDR photos (17 Nov): the screen goes into HDR only while one is showing here, and back when it isn't.
+    // 18 Nov (Deepak: "HDR video looked dark; Skywing shows it right"): an HDR video playing here too, as Skywing does.
     val hdrPhotos = remember { androidx.compose.runtime.mutableStateMapOf<Long, Boolean>() }
-    val wantHdr = !covered && !LocalPageLeaving.current && !current.isVideo && hdrPhotos[current.id] == true
+    val wantHdr = !covered && !LocalPageLeaving.current &&
+        (if (current.isVideo) videoStarted && video.hdr else hdrPhotos[current.id] == true)
     LaunchedEffect(wantHdr) { actions.showHdr(wantHdr) }
     DisposableEffect(Unit) { onDispose { actions.showHdr(false) } }
     // The frame strip opens only when the playing video's own thumbnail in the photo strip is tapped (24 Oct).
@@ -324,6 +326,24 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                     onPick = { target ->
                         wallpaperItem = null
                         actions.setWallpaper(photo, target) { error -> actions.toast(error ?: "Wallpaper set: ${target.label.lowercase()}.") }
+                    },
+                )
+            }
+
+            // 18 Nov (Deepak): play and pause in the middle of the screen while a video plays, in the same glass as
+            // the other buttons here; it comes and goes with them.
+            AnimatedVisibility(
+                visible = barsVisible && !state.detailsOpen && videoStarted && current.isVideo,
+                enter = fadeIn(motionSpec()),
+                exit = fadeOut(motionSpec()),
+                modifier = Modifier.align(Alignment.Center),
+            ) {
+                CentrePlayButton(
+                    playing = video.playing,
+                    label = if (video.playing) "Pause" else "Play",
+                    onClick = {
+                        video.playing = !video.playing
+                        touches++
                     },
                 )
             }
@@ -984,25 +1004,50 @@ private fun VideoPage(item: MediaItem, isCurrent: Boolean, controls: VideoContro
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().clickable(onClick = onTap),
             )
-            Box(
-                Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .clickable(role = Role.Button, onClick = {
-                        controls?.firstFrame = false
-                        controls?.playing = true
-                        started = true
-                        onStarted()
-                    })
-                    .semantics { contentDescription = "Play video, ${Timeline.duration(item.durationMillis)}" },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(44.dp))
-            }
+            CentrePlayButton(
+                playing = false,
+                label = "Play video, ${Timeline.duration(item.durationMillis)}",
+                onClick = {
+                    controls?.firstFrame = false
+                    controls?.playing = true
+                    started = true
+                    onStarted()
+                },
+            )
         }
     }
 }
+
+/**
+ * The big play / pause button in the middle of a video (18 Nov): the same glass, icon colour and depth as the
+ * viewer's other buttons, so it matches them in every theme.
+ */
+@Composable
+private fun CentrePlayButton(playing: Boolean, label: String, onClick: () -> Unit) {
+    val theme = com.deepak.photovault.designsystem.LocalGlassTheme.current
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    Box(
+        Modifier
+            .size(CENTRE_BUTTON)
+            .glassChrome(CircleShape, elevation = 8.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = {
+                haptics.tap()
+                onClick()
+            })
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        com.deepak.photovault.designsystem.DepthIcon(
+            if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+            null,
+            theme.onGlass,
+            Modifier.size(36.dp),
+        )
+    }
+}
+
+private val CENTRE_BUTTON = 68.dp
 
 /** Play or pause, where it is, and sound on or off: one small row above the frame strip. */
 @Composable

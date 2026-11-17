@@ -57,8 +57,8 @@ data class AppearanceSettings(
     val themeId: String = GlassThemes.default.id.name,
     val blurOn: Boolean = true,
     val reduceMotion: Boolean = false,
-    /** Tablets only: the floating bottom bar instead of the side menu (24 Oct). Saved per device. */
-    val tabletBottomBar: Boolean = false,
+    /** Tablets only: the sections in a side bar instead of the bottom bar (18 Nov, the default). Saved per device. */
+    val tabletSideBar: Boolean = true,
     /** The person picked a theme themselves. Until then they follow the default (Liquid Day since 29 Oct). */
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */

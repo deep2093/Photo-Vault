@@ -43,11 +43,27 @@ actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier)
     }
     val source = playable ?: return
     val player = remember(source) {
-        ExoPlayer.Builder(context).build().apply {
+        ExoPlayer.Builder(context, HdrAwareRenderers(context)).build().apply {
+            // 18 Nov (Deepak): a video with several audio languages starts in English, as in Skywing; one with no
+            // English track plays its own default.
+            trackSelectionParameters = trackSelectionParameters.buildUpon().setPreferredAudioLanguage("en").build()
             setMediaItem(androidx.media3.common.MediaItem.fromUri(source))
             prepare()
             playWhenReady = controls.playing
         }
+    }
+    // 18 Nov (Deepak: "when I minimise, the video keeps playing"): it stops when the app goes to the background or
+    // the screen turns off, and stays paused when the app comes back.
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, player) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                controls.playing = false
+                player.playWhenReady = false
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
     DisposableEffect(player) {
         val listener = object : androidx.media3.common.Player.Listener {
@@ -65,10 +81,10 @@ actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier)
             // Reading a track's colour is marked "unstable" in Media3 (it may change between versions).
             @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                // HDR10, HDR10+, HLG or Dolby Vision (17 Nov).
+                // HDR10, HDR10+, HLG or Dolby Vision (17 Nov). 18 Nov: Dolby Vision is also known by its type and
+                // codec name, as in Skywing, since some files carry no colour details.
                 val hdr = tracks.groups.any { g ->
-                    g.type == androidx.media3.common.C.TRACK_TYPE_VIDEO &&
-                        (0 until g.length).any { i -> androidx.media3.common.ColorInfo.isTransferHdr(g.getTrackFormat(i).colorInfo) }
+                    g.type == androidx.media3.common.C.TRACK_TYPE_VIDEO && (0 until g.length).any { i -> isHdrVideo(g.getTrackFormat(i)) }
                 }
                 if (hdr) controls.hdr = true
             }
@@ -127,6 +143,76 @@ actual fun VideoPlayer(uri: String, controls: VideoControls, modifier: Modifier)
             factory = { ctx -> android.view.TextureView(ctx).also { player.setVideoTextureView(it) } },
             onRelease = { player.clearVideoTextureView(it) },
             modifier = modifier,
+        )
+    }
+}
+
+/** HDR10, HDR10+, HLG or Dolby Vision (18 Nov: the same test as Skywing's player). */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private fun isHdrVideo(format: androidx.media3.common.Format): Boolean {
+    val codecs = format.codecs.orEmpty()
+    val dolby = format.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION ||
+        codecs.startsWith("dvh") || codecs.startsWith("dva") || codecs.startsWith("dav1")
+    return dolby || androidx.media3.common.ColorInfo.isTransferHdr(format.colorInfo)
+}
+
+/**
+ * The usual video player, with one fix taken from Skywing (18 Nov, Deepak: "HDR video looked dark; Skywing shows the
+ * right colours"). Dolby Vision files with no colour details, on a phone without a Dolby Vision decoder, are played
+ * from their HDR10 base layer (profiles 4, 7, 8 and 10); the decoder is told that layer is HDR10, or the picture
+ * reaches the screen as plain SDR and looks dark and flat. Profile 5 has no such layer.
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private class HdrAwareRenderers(context: android.content.Context) : androidx.media3.exoplayer.DefaultRenderersFactory(context) {
+    override fun buildVideoRenderers(
+        context: android.content.Context,
+        extensionRendererMode: Int,
+        mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
+        enableDecoderFallback: Boolean,
+        eventHandler: android.os.Handler,
+        eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
+        allowedVideoJoiningTimeMs: Long,
+        out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>,
+    ) {
+        out.add(
+            object : androidx.media3.exoplayer.video.MediaCodecVideoRenderer(
+                androidx.media3.exoplayer.video.MediaCodecVideoRenderer.Builder(context)
+                    .setCodecAdapterFactory(codecAdapterFactory)
+                    .setMediaCodecSelector(mediaCodecSelector)
+                    .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+                    .setEnableDecoderFallback(enableDecoderFallback)
+                    .setEventHandler(eventHandler)
+                    .setEventListener(eventListener)
+                    .setMaxDroppedFramesToNotify(50),
+            ) {
+                private val hasDolbyVisionDecoder: Boolean by lazy {
+                    runCatching {
+                        android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.any {
+                            !it.isEncoder && it.supportedTypes.any { t -> t.equals(androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION, ignoreCase = true) }
+                        }
+                    }.getOrDefault(false)
+                }
+
+                override fun onInputFormatChanged(formatHolder: androidx.media3.exoplayer.FormatHolder): androidx.media3.exoplayer.DecoderReuseEvaluation? {
+                    val format = formatHolder.format
+                    if (format != null && format.colorInfo == null && !hasDolbyVisionDecoder) {
+                        val codecs = format.codecs.orEmpty()
+                        val profile = if (format.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION &&
+                            (codecs.startsWith("dvhe.") || codecs.startsWith("dvh1.") || codecs.startsWith("dav1."))
+                        ) codecs.substringAfter('.').substringBefore('.').toIntOrNull() else null
+                        if (profile == 4 || profile == 7 || profile == 8 || profile == 10) {
+                            formatHolder.format = format.buildUpon().setColorInfo(
+                                androidx.media3.common.ColorInfo.Builder()
+                                    .setColorSpace(androidx.media3.common.C.COLOR_SPACE_BT2020)
+                                    .setColorRange(androidx.media3.common.C.COLOR_RANGE_LIMITED)
+                                    .setColorTransfer(androidx.media3.common.C.COLOR_TRANSFER_ST2084)
+                                    .build(),
+                            ).build()
+                        }
+                    }
+                    return super.onInputFormatChanged(formatHolder)
+                }
+            },
         )
     }
 }

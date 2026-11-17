@@ -51,6 +51,7 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.ViewSidebar
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Science
@@ -480,12 +481,25 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             icon = Icons.Rounded.BlurOn,
         )
         if (state.appearance.blurOn) BlurSlider(state)
-        GlassSwitchRow(
-            "Keep the bottom bar in place",
-            state.appearance.pinBottomBar,
-            { on -> state.updateAppearance { it.copy(pinBottomBar = on) } },
-            icon = Icons.Rounded.PushPin,
-        )
+        // Tablets only (18 Nov): the side bar, on by default; off brings back the floating bar at the bottom.
+        val tabletDevice = LocalTabletDevice.current
+        if (tabletDevice) {
+            GlassSwitchRow(
+                "Side bar",
+                state.appearance.tabletSideBar,
+                { on -> state.updateAppearance { it.copy(tabletSideBar = on) } },
+                description = "The sections down the left side of this tablet. Off: the floating bar at the bottom, as on phones.",
+                icon = Icons.Rounded.ViewSidebar,
+            )
+        }
+        if (!tabletDevice || !state.appearance.tabletSideBar) {
+            GlassSwitchRow(
+                "Keep the bottom bar in place",
+                state.appearance.pinBottomBar,
+                { on -> state.updateAppearance { it.copy(pinBottomBar = on) } },
+                icon = Icons.Rounded.PushPin,
+            )
+        }
         GlassSwitchRow(
             "Mixed photo sizes",
             state.appearance.mixedGrid,

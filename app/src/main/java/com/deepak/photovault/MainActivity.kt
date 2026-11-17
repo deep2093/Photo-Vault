@@ -201,9 +201,11 @@ class MainActivity : ComponentActivity(), MediaActions {
         answer.await()
     }
 
-    /** The screen in HDR while an HDR photo is open (17 Nov). Android 14 and later draw a photo's HDR map. */
+    /**
+     * The screen in HDR while an HDR photo is open (17 Nov; Android 14 and later draw a photo's HDR map), or an HDR
+     * video plays (18 Nov, as Skywing does; any Android version this app runs on).
+     */
     override fun showHdr(on: Boolean) {
-        if (android.os.Build.VERSION.SDK_INT < 34) return
         val mode = if (on) android.content.pm.ActivityInfo.COLOR_MODE_HDR else android.content.pm.ActivityInfo.COLOR_MODE_DEFAULT
         if (window.colorMode != mode) window.colorMode = mode
     }
@@ -969,7 +971,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         blurOn = prefs.getBoolean("blur", true),
         reduceMotion = prefs.getBoolean("reduce_motion", false),
         mixedGrid = prefs.getBoolean("mixed_grid", true),
-        tabletBottomBar = prefs.getBoolean("tablet_bottom_bar", false),
+        // A new name (18 Nov): the side bar is the default on every tablet, whatever an older version saved.
+        tabletSideBar = prefs.getBoolean("tablet_side_bar", true),
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
@@ -1005,7 +1008,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("blur", settings.blurOn)
             .putBoolean("reduce_motion", settings.reduceMotion)
             .putBoolean("mixed_grid", settings.mixedGrid)
-            .putBoolean("tablet_bottom_bar", settings.tabletBottomBar)
+            .putBoolean("tablet_side_bar", settings.tabletSideBar)
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putInt("blur_step", settings.blurStep)

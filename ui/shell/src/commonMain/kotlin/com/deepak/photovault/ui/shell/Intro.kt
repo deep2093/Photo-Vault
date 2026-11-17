@@ -100,13 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-6"
+    const val ID = "2026-11-18-7"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "The date shows only while you scroll", "In Photos the date appears once the photos reach the top, never over Memories, and fades away 2 seconds after you stop."),
-        Change(ChangeKind.NEW, "A stronger password for Google backups", "Private backups to Google now need a password of 8 or more characters, with a strength line as you type. If yours is short, Backup asks you to change it. Your photos stay as they are."),
-        Change(ChangeKind.NEW, "Lost your recovery words? Ask your helper", "Your recovery helper in the family can hand your private key back to you. You both see the same 6-digit code, so you know it's really you."),
-        Change(ChangeKind.FIXED, "Backups counted more carefully", "If the drive goes away just as a backup ends, those last photos no longer count as saved; they go again next time. The Secured folder also says when its copy to the drive didn't work."),
+        Change(ChangeKind.NEW, "A side bar on tablets", "On a tablet the sections sit in a glass bar down the left side. Settings > Appearance > Side bar brings back the bar at the bottom."),
+        Change(ChangeKind.FIXED, "Videos stop when you leave the app", "A playing video pauses when you go to the home screen or turn the screen off."),
+        Change(ChangeKind.NEW, "Play and pause in the middle", "A big play and pause button sits in the middle of a playing video, in the same glass as the other buttons."),
+        Change(ChangeKind.FIXED, "HDR videos in true colour", "HDR videos turn the screen to HDR while they play, the way Skywing does, so they no longer look dark."),
+        Change(ChangeKind.CHANGED, "English sound first", "A video with several languages starts in English."),
     )
 }
 

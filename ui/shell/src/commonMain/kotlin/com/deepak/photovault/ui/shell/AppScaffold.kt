@@ -163,6 +163,9 @@ private const val OVERLAY_SCALE = 0.9f
 /** True on tablets and wide windows (the side-menu layout), whichever menu style is chosen. */
 val LocalTablet = staticCompositionLocalOf { false }
 
+/** True only on a tablet (both sides of the window tablet-sized), not a phone turned sideways (18 Nov). */
+val LocalTabletDevice = staticCompositionLocalOf { false }
+
 /** A short message at the bottom of the screen (13 Nov): any screen can say "done" after an action. */
 val LocalToast = staticCompositionLocalOf<(String) -> Unit> { {} }
 
@@ -303,9 +306,13 @@ fun PhotoVaultApp(
                     val system = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
                     val screens = Screens(state, gallery, actions, drive, backup, iconSwitcher)
                     val layout = AdaptiveLayout.navigationFor(maxWidth.value.toInt())
-                    // Phones and tablets alike: the floating bar at the bottom (24 Oct: no side menu on tablets).
-                    CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL)) {
-                        BottomBarLayout(screens, system)
+                    // A real tablet (18 Nov): its shorter side is tablet-sized too, so a phone turned sideways (wide but
+                    // short) still counts as a phone and keeps the bottom bar.
+                    val tabletDevice = minOf(maxWidth, maxHeight) >= AdaptiveLayout.SIDE_RAIL_MIN_WIDTH_DP.dp
+                    CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL), LocalTabletDevice provides tabletDevice) {
+                        // 18 Nov (Deepak): tablets get the side bar by default; Settings > Appearance can switch it back
+                        // to the floating bar at the bottom. Phones always have the bottom bar.
+                        if (tabletDevice && state.appearance.tabletSideBar) SideBarLayout(screens, system) else BottomBarLayout(screens, system)
                     }
                     // First-time backup questions after joining a family drive (10 Nov).
                     FirstSetupPopups(state, drive, backup)
@@ -892,6 +899,97 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
         }
     }
 }
+
+/**
+ * Tablets (18 Nov, Deepak: "side bar on tablet instead of the bottom bar", now the default): the sections in a
+ * floating glass bar down the left side, in the middle of the screen's height, with the pages beside it. The same
+ * glass, sliding highlight and icons as the phone's bottom bar, stood on its end. It stays put while scrolling (side
+ * bars stay fixed); it slides away only while photos or albums are selected, as the bottom bar does, so a tap can't
+ * leave a selection by accident. The section under an opening page drifts and darkens with it, bar included.
+ */
+@Composable
+private fun SideBarLayout(screens: Screens, system: PaddingValues) {
+    val state = screens.state
+    val nav = rememberSectionNav(state)
+    val start = system.calculateStartPadding(LayoutDirection.Ltr)
+    val room = start + SIDE_BAR_MARGIN + SIDE_BAR_WIDTH + SIDE_BAR_GAP
+    val tucked = state.selecting || state.albumsSelected.isNotEmpty()
+    val travel = with(androidx.compose.ui.platform.LocalDensity.current) { room.toPx() }
+    val shift = androidx.compose.animation.core.animateFloatAsState(if (tucked) travel else 0f, motionSpec(CHROME_MS), label = "sideBar")
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { translationX = -state.sectionCover() * size.width / DRIFT_DIVISOR }
+            .dimmedBy { state.sectionCover() * PAGE_DIM },
+    ) {
+        CompositionLocalProvider(
+            LocalScreenInsets provides PaddingValues(
+                start = 0.dp,
+                top = system.calculateTopPadding(),
+                end = system.calculateEndPadding(LayoutDirection.Ltr),
+                bottom = system.calculateBottomPadding(),
+            ),
+        ) {
+            // The pages take the rest of the width, so nothing sits under the bar and nothing moves when it tucks away.
+            Box(Modifier.fillMaxSize().padding(start = room)) { SectionPager(nav.pager, screens) }
+        }
+        FloatingSideBar(
+            indicator = { nav.indicator.value },
+            onSelect = state::tapSection,
+            familyDot = screens.familyDot,
+            settingsDot = screens.settingsDot,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = start + SIDE_BAR_MARGIN)
+                .graphicsLayer {
+                    translationX = -shift.value
+                    alpha = 1f - (shift.value / travel).coerceIn(0f, 1f)
+                },
+        )
+    }
+}
+
+/** The tablet's side bar: a tall glass capsule, one highlight sliding between the sections as on the bottom bar. */
+@Composable
+private fun FloatingSideBar(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, settingsDot: Boolean, modifier: Modifier = Modifier) {
+    val theme = LocalGlassTheme.current
+    val highlight = RoundedCornerShape(SIDE_ITEM_RADIUS)
+    Box(
+        modifier
+            .width(SIDE_BAR_WIDTH)
+            .glassChrome(RoundedCornerShape(percent = 50))
+            .padding(SIDE_BAR_PAD),
+    ) {
+        Box(
+            Modifier
+                .offset { IntOffset(0, (SIDE_ITEM_HEIGHT * indicator()).roundToPx()) }
+                .size(SIDE_BAR_WIDTH - SIDE_BAR_PAD * 2, SIDE_ITEM_HEIGHT)
+                .clip(highlight)
+                .background(theme.accentSurface)
+                .frostedEdge(highlight),
+        )
+        Column(Modifier.selectableGroup()) {
+            Destination.entries.forEach { destination ->
+                NavItem(
+                    destination,
+                    indicator(),
+                    { onSelect(destination) },
+                    Modifier.fillMaxWidth(),
+                    height = SIDE_ITEM_HEIGHT,
+                    dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS),
+                )
+            }
+        }
+    }
+}
+
+/** From the screen's edge to the side bar, and from the bar to the pages. */
+private val SIDE_BAR_MARGIN = 12.dp
+private val SIDE_BAR_GAP = 4.dp
+private val SIDE_BAR_WIDTH = 80.dp
+private val SIDE_BAR_PAD = 6.dp
+private val SIDE_ITEM_HEIGHT = 68.dp
+private val SIDE_ITEM_RADIUS = 22.dp
 
 /**
  * The sections side by side: swipe left or right to move between them, or tap the navigation.
