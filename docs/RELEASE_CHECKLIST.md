@@ -308,9 +308,10 @@ Order inside the stage:
    **C4** beta library, **D14** leftovers, **D18** offered only for invite files.
 5. Claude: **A5** the release build in the automatic checks signed with the release key; **E10** Android lint in the same checks.
 6. Deepak: installs the release build and does a short run through every section (the full pass is stage 6).
+   Claude: **A9** the carry-over from the test app (moved here 18 Nov), tried on one phone before the others move.
 7. Claude: **B4** long-backup handling (needs the new target version to test against).
 
-Done when: a signed release build installs, signs in to Google and backs up, and B2, B3, B4, C3, C4, A5, A6, B8,
+Done when: a signed release build installs, signs in to Google and backs up, and A9, B2, B3, B4, C3, C4, A5, A6, B8,
 D14, D18 and E10 are ticked.
 
 ### Stage 4. Policy, notices and licences (Claude drafts, Deepak approves; can run alongside stage 3)
