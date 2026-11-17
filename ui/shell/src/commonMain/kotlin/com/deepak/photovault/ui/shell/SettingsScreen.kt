@@ -77,6 +77,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -575,8 +578,6 @@ private fun StyleCard(
 ) {
     val theme = LocalGlassTheme.current
     val shape = com.deepak.photovault.designsystem.styled(RoundedCornerShape(18.dp))
-    val inner = com.deepak.photovault.designsystem.styled(RoundedCornerShape(10.dp))
-    val pill = com.deepak.photovault.designsystem.styled(RoundedCornerShape(percent = 50))
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     Column(
         modifier
@@ -588,26 +589,61 @@ private fun StyleCard(
             })
             .padding(10.dp),
     ) {
-        // A tiny screen: the page, a few photo colours, a bar and the accent.
+        // A tiny screen in the style's own shapes (18 Nov, polish): its page, a few photos, its "Aa" in its own font and
+        // its own kind of bottom bar, so the four can be told apart at a glance and not only by name.
+        val fonts = com.deepak.photovault.designsystem.LocalStyleFonts.current
+        val type = remember(option.id, fonts) { com.deepak.photovault.designsystem.styleTypography(option, fonts) }
+        val own = { fallback: androidx.compose.ui.graphics.Shape -> option.squareCorners?.let { RoundedCornerShape(it) } ?: fallback }
+        val ownInner = own(RoundedCornerShape(10.dp))
+        val ownPill = own(RoundedCornerShape(percent = 50))
+        val classic = option.id == com.deepak.photovault.designsystem.AppStyleId.CLASSIC
+        val photos = if (classic) preview.sampleHues.take(4) else PreviewPhotos
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .clip(inner)
-                .background(androidx.compose.ui.graphics.Brush.linearGradient(preview.wallpaper)),
+                .height(72.dp)
+                .clip(ownInner)
+                .background(androidx.compose.ui.graphics.Brush.linearGradient(preview.wallpaper))
+                // A picture only: TalkBack reads the style's name and line, not "Aa".
+                .clearAndSetSemantics { },
         ) {
-            Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                preview.sampleHues.take(4).forEach { hue -> Box(Modifier.size(18.dp).background(hue)) }
+            Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(option.photoGap + 1.dp)) {
+                photos.forEach { hue -> Box(Modifier.size(18.dp).background(hue)) }
             }
-            Box(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 6.dp)
-                    .size(width = 64.dp, height = 14.dp)
-                    .clip(pill)
-                    .background(preview.glassFallback),
-            ) {
-                Box(Modifier.padding(3.dp).size(width = 18.dp, height = 8.dp).clip(pill).background(preview.accent))
+            Text(
+                "Aa",
+                color = preview.onWallpaper,
+                style = type.titleLarge.copy(fontSize = 15.sp, lineHeight = 18.sp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 7.dp, end = 8.dp),
+            )
+            val soft = preview.accentSoft ?: preview.accent
+            when (option.nav) {
+                com.deepak.photovault.designsystem.NavStyle.CAPSULE -> Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 6.dp)
+                        .size(width = 64.dp, height = 14.dp)
+                        .clip(ownPill)
+                        .background(preview.glassFallback),
+                ) {
+                    Box(Modifier.padding(3.dp).size(width = 18.dp, height = 8.dp).clip(ownPill).background(if (classic) preview.accent else soft))
+                }
+                com.deepak.photovault.designsystem.NavStyle.MATERIAL -> Box(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(18.dp).background(preview.glassFallback),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Box(Modifier.padding(start = 10.dp).size(width = 20.dp, height = 9.dp).clip(ownPill).background(soft))
+                }
+                com.deepak.photovault.designsystem.NavStyle.TABS -> Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(18.dp)
+                        .background(preview.glassFallback)
+                        .drawBehind { drawRect(preview.glassRim, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) },
+                ) {
+                    Box(Modifier.padding(start = 10.dp, top = 1.dp).size(width = 16.dp, height = 2.dp).background(preview.accent))
+                }
             }
         }
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -617,6 +653,14 @@ private fun StyleCard(
         Text(option.summary, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 2, minLines = 2)
     }
 }
+
+/** Photo colours for the style previews: a sunset, the sea, a forest and sand. */
+private val PreviewPhotos = listOf(
+    androidx.compose.ui.graphics.Color(0xFFE07A5F),
+    androidx.compose.ui.graphics.Color(0xFF3D85C6),
+    androidx.compose.ui.graphics.Color(0xFF6A994E),
+    androidx.compose.ui.graphics.Color(0xFFF2CC8F),
+)
 
 /** Every theme as a round swatch, light to dark, three to a row. No names: the chosen one has a ring and a tick. */
 @Composable

@@ -106,6 +106,8 @@ object WhatsNew {
         Change(ChangeKind.NEW, "Three new styles", "Settings > Appearance: Clear Glass, Material You (your wallpaper's colours) and Darkroom, each in light and dark or as your phone is. Classic glass is still there."),
         Change(ChangeKind.NEW, "Each style has its own bottom bar", "Material You has Android's own full-width bar, Darkroom has tabs with a thin line over the chosen one. On a tablet the new styles put the sections down the side."),
         Change(ChangeKind.NEW, "Darkroom dates like a magazine", "In Darkroom each day in Photos has its own heading: the day as a big number, the month and weekday beside it, and the town."),
+        Change(ChangeKind.CHANGED, "Flat page tops in Material You and Darkroom", "Pages opened in these styles have a plain bar across the top, as Android's own apps do. Darkroom's viewer buttons have their names under them."),
+        Change(ChangeKind.CHANGED, "Style cards show the style", "In Settings > Appearance each card shows its own kind of bottom bar and its letters, so you can tell them apart before choosing."),
         Change(ChangeKind.CHANGED, "Messages in the app's own style", "Short messages like \"Saved\" now show in a bar at the bottom of the app, in your style's colours. Tap it to close it."),
         Change(ChangeKind.CHANGED, "Easier buttons", "Play and Sound under a video are bigger. In the editor, Reset is now an icon, so Save stands out. On Backup, tap the heading to switch between the family drive and Google Drive."),
         Change(ChangeKind.FIXED, "Smoother scrolling in colourful themes", "With a Classic theme whose colours follow your photos, scrolling no longer makes every photo on screen redraw."),

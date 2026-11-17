@@ -1004,17 +1004,23 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
             .padding(6.dp),
     ) {
         val itemWidth = maxWidth / Destination.entries.size
+        // Clear Glass (18 Nov): the soft accent behind the chosen section, with the accent's own dark text on it.
+        val soft = com.deepak.photovault.designsystem.LocalAppStyle.current.id != com.deepak.photovault.designsystem.AppStyleId.CLASSIC
         Box(
             Modifier
                 .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
                 .size(itemWidth, NAV_ITEM_HEIGHT)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(theme.accentSurface)
-                .frostedEdge(RoundedCornerShape(percent = 50)),
+                .background(if (soft) theme.accentSoft ?: theme.accentSurface else theme.accentSurface)
+                .then(if (soft) Modifier else Modifier.frostedEdge(RoundedCornerShape(percent = 50))),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->
-                NavItem(destination, indicator(), { onSelect(destination) }, Modifier.weight(1f), dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS))
+                NavItem(
+                    destination, indicator(), { onSelect(destination) }, Modifier.weight(1f),
+                    dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS),
+                    selectedColor = if (soft) theme.onAccentSoft ?: theme.onAccent else theme.onAccent,
+                )
             }
         }
     }
@@ -1293,11 +1299,12 @@ private fun NavItem(
     modifier: Modifier,
     height: Dp = NAV_ITEM_HEIGHT,
     dot: Boolean = false,
+    selectedColor: Color = LocalGlassTheme.current.onAccent,
 ) {
     val theme = LocalGlassTheme.current
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
-    val fg = lerp(theme.onGlass, theme.onAccent, closeness)
+    val fg = lerp(theme.onGlass, selectedColor, closeness)
     val selected = closeness > 0.5f
     Column(
         modifier
