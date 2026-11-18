@@ -254,11 +254,11 @@ fun PhotoVaultApp(
     // The "all my backups" test (18 Nov): off shows everything as before; on, Photos and Albums show either this
     // device's photos or only the backups that aren't on it.
     LaunchedEffect(state.appearance.mirrorTest, state.appearance.showAllBackups) {
-        gallery.showView(
+        gallery.showSource(
             when {
-                !state.appearance.mirrorTest -> LibraryView.ALL
-                state.appearance.showAllBackups -> LibraryView.BACKUPS
-                else -> LibraryView.DEVICE
+                !state.appearance.mirrorTest -> LibrarySource.ALL
+                state.appearance.showAllBackups -> LibrarySource.BACKUPS
+                else -> LibrarySource.DEVICE
             },
         )
     }

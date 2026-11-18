@@ -301,8 +301,8 @@ object NoFeedbackOutbox : FeedbackOutbox {
     override fun remove(id: String) = Unit
 }
 
-/** What Photos and Albums show (18 Nov): everything, only this device's photos, or only backups not on it. */
-enum class LibraryView { ALL, DEVICE, BACKUPS }
+/** Whose photos Photos and Albums show (18 Nov): everything, only this device's, or only backups not on it. */
+enum class LibrarySource { ALL, DEVICE, BACKUPS }
 
 /** The phone's photos as the screens see them. Refreshes itself when the phone's library changes. */
 @Stable
@@ -452,18 +452,18 @@ class GalleryState(
      * or only the backups that aren't on it (Deepak, second pass: "this tablet's photos belong in their own section").
      * Every other screen (Backup, Storage, Search, People, Places…) always sees everything.
      */
-    var view by mutableStateOf(LibraryView.ALL)
+    var source by mutableStateOf(LibrarySource.ALL)
         private set
 
-    /** Photos and Albums' photos and albums for [view]. */
+    /** Photos and Albums' photos and albums for [source]. */
     var viewItems by mutableStateOf<List<MediaItem>>(emptyList())
         private set
     var viewAlbums by mutableStateOf<List<PhoneAlbum>>(emptyList())
         private set
 
-    fun showView(shown: LibraryView) {
-        if (view == shown) return
-        view = shown
+    fun showSource(shown: LibrarySource) {
+        if (source == shown) return
+        source = shown
         applyVisible()
     }
 
@@ -595,16 +595,16 @@ class GalleryState(
         items = visible
         byId = visible.associateBy { it.id }
         albums = allAlbums.filter { it.id !in hiddenAlbums }
-        when (view) {
-            LibraryView.ALL -> {
+        when (source) {
+            LibrarySource.ALL -> {
                 viewItems = visible
                 viewAlbums = albums
             }
-            LibraryView.DEVICE -> {
+            LibrarySource.DEVICE -> {
                 viewItems = shownOf(everything)
                 viewAlbums = PhoneAlbums.from(everything).filter { it.id !in hiddenAlbums }
             }
-            LibraryView.BACKUPS -> {
+            LibrarySource.BACKUPS -> {
                 viewItems = shownOf(driveOnly)
                 viewAlbums = PhoneAlbums.from(driveOnly).filter { it.id !in hiddenAlbums }
             }

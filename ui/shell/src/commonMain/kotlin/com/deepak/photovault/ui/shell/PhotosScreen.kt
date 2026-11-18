@@ -158,15 +158,15 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             gallery.loaded && shown.isEmpty() -> EmptyState(
                 icon = Icons.Rounded.PhotoLibrary,
                 // The "all my backups" test (18 Nov): its switch stays at the top, beside Search.
-                title = when (gallery.view) {
-                    LibraryView.DEVICE -> "Nothing on this device"
-                    LibraryView.BACKUPS -> "No other backups yet"
-                    LibraryView.ALL -> "No photos yet"
+                title = when (gallery.source) {
+                    LibrarySource.DEVICE -> "Nothing on this device"
+                    LibrarySource.BACKUPS -> "No other backups yet"
+                    LibrarySource.ALL -> "No photos yet"
                 },
-                body = when (gallery.view) {
-                    LibraryView.DEVICE -> "Tap the cloud at the top to see what your other devices backed up."
-                    LibraryView.BACKUPS -> "Photos backed up from your other devices show here. Pull down to read the drive again."
-                    LibraryView.ALL -> "Photos and videos you take will appear here."
+                body = when (gallery.source) {
+                    LibrarySource.DEVICE -> "Tap the cloud at the top to see what your other devices backed up."
+                    LibrarySource.BACKUPS -> "Photos backed up from your other devices show here. Pull down to read the drive again."
+                    LibrarySource.ALL -> "Photos and videos you take will appear here."
                 },
             )
             else -> {
