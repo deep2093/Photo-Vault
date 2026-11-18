@@ -107,15 +107,17 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val bin = remember { ScreenSpot() }
     var renaming by remember { mutableStateOf<AlbumCardData?>(null) }
     // Worked out once per library change, not on every frame (libraries can hold tens of thousands of items).
-    val favourites = remember(gallery.items, gallery.favourites) { gallery.items.filter { it.id in gallery.favourites } }
-    val videos = remember(gallery.items) { gallery.items.filter { it.isVideo } }
+    // The "all my backups" test (18 Nov): Albums follows the same view as Photos.
+    val viewItems = gallery.viewItems
+    val favourites = remember(viewItems, gallery.favourites) { viewItems.filter { it.id in gallery.favourites } }
+    val videos = remember(viewItems) { viewItems.filter { it.isVideo } }
     val inFamily = drive.joined != null
-    val cards: List<AlbumCardData> = remember(gallery.items, gallery.albums, gallery.albumOrder, gallery.hiddenAlbums, favourites, videos, gallery.familyAlbum, inFamily, gallery.albumSort, gallery.albumSortDescending) {
+    val cards: List<AlbumCardData> = remember(viewItems, gallery.viewAlbums, gallery.albumOrder, gallery.hiddenAlbums, favourites, videos, gallery.familyAlbum, inFamily, gallery.albumSort, gallery.albumSortDescending) {
         val byId = buildMap {
             put(GalleryState.FAVOURITES_CARD, AlbumCardData(GalleryState.FAVOURITES_CARD, "Favourites", { favourites }, favourites.size, favourites.maxByOrNull { it.takenAtMillis }, Icons.Rounded.Favorite, AlbumKind.Favourites))
             put(GalleryState.VIDEOS_CARD, AlbumCardData(GalleryState.VIDEOS_CARD, "Videos", { videos }, videos.size, videos.maxByOrNull { it.takenAtMillis }, Icons.Rounded.VideoLibrary, AlbumKind.Videos))
-            gallery.albums.forEach { a ->
-                put(a.id, AlbumCardData(a.id, a.name, { gallery.items.filter { it.albumId == a.id } }, a.count, a.cover, null, AlbumKind.Phone(a.id, a.name)))
+            gallery.viewAlbums.forEach { a ->
+                put(a.id, AlbumCardData(a.id, a.name, { viewItems.filter { it.albumId == a.id } }, a.count, a.cover, null, AlbumKind.Phone(a.id, a.name)))
             }
         }
         // The order chosen in Settings > Albums (24 Oct); hidden ones left out.

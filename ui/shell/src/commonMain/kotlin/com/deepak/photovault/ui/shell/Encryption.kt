@@ -96,6 +96,12 @@ interface EncryptionPlatform {
      */
     fun answerKeyRequest(wrapped: ByteArray, requestPublic: ByteArray, householdId: String, ownerId: String): ByteArray? = null
 
+    /**
+     * One's own other device asks for the key (18 Nov): this device's own key, sealed to [requestPublic] the same way a
+     * helper's answer is, so only the asking device can open it. Null when the key isn't on this device.
+     */
+    fun shareOwnKey(requestPublic: ByteArray, householdId: String, memberId: String): ByteArray? = null
+
     /** Forgets the key on this phone only. The drive's recovery file stays. */
     fun forgetKey() = Unit
 }

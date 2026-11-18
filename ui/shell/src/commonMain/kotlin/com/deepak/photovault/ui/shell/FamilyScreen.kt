@@ -87,7 +87,15 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
     // fresh numbers and new requests (the dot on Family still comes from the hourly check). Only a phone that has
     // never read its family asks once.
     val onScreen = state.destination == Destination.FAMILY
-    val keyRequests = rememberKeyRequests(drive, onScreen)
+    val keyRequests = rememberKeyRequests(drive, onScreen, haveMyKey = state.encryption.keyOnPhone)
+    // 18 Nov: someone's new device asks their own phone to let it in; while Family is open here, that is checked every
+    // 30 seconds (the owner's phone already checks all the time), so the request shows quickly.
+    LaunchedEffect(onScreen, drive.isOwner, drive.joined?.me?.userId) {
+        while (onScreen && !drive.isOwner && drive.joined != null) {
+            drive.checkRequests()
+            kotlinx.coroutines.delay(FAMILY_REQUESTS_MS)
+        }
+    }
     LaunchedEffect(drive.connection, onScreen) {
         if (onScreen && drive.isSetUp && drive.membership == null) {
             drive.refresh()
@@ -132,19 +140,24 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
         keyRequests.value.forEach { r ->
             item(key = "key-request-${r.userId}") { KeyRequestCard(state, drive, r) { keyRequests.value = keyRequests.value.filter { it.userId != r.userId } } }
         }
-        if (drive.isOwner && drive.requests.isNotEmpty()) {
+        // The owner sees every request; anyone else (18 Nov) sees another of their own devices asking to join as them.
+        if (drive.requests.isNotEmpty() && joined != null) {
             item {
                 GlassCard(Modifier.cardWidth()) {
                     SectionHeader("Waiting for you")
                     drive.requests.forEach { r ->
+                        val own = drive.isOwnDeviceRequest(r)
                         RequestRow(
-                            r, joined,
+                            r, joined, own,
                             onApprove = {
                                 // 18 Nov: another device of someone in the family asks first what it may do.
                                 if (r.existingUserId != null) approving = r
                                 else asOwner { scope.launch { message = drive.approve(r); if (message == null) toast("Added to the family.") } }
                             },
-                            onDecline = { asOwner { scope.launch { message = drive.decline(r); if (message == null) toast("Request declined.") } } },
+                            onDecline = {
+                                if (own) scope.launch { message = drive.declineOwnDevice(r); if (message == null) toast("Request declined.") }
+                                else asOwner { scope.launch { message = drive.decline(r); if (message == null) toast("Request declined.") } }
+                            },
                         )
                     }
                 }
@@ -200,6 +213,7 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
 
     approving?.let { r ->
         val who = joined?.household?.member(r.existingUserId ?: "")?.name ?: "Someone"
+        val own = drive.isOwnDeviceRequest(r)
         var viewOnly by remember(r.deviceId) { mutableStateOf(true) }
         GlassDialog(
             title = "Add \"${r.deviceName}\"",
@@ -208,12 +222,21 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
                 GlassButton("Cancel", onClick = { approving = null })
                 GlassButton("Approve", primary = true, onClick = {
                     approving = null
-                    asOwner { scope.launch { message = drive.approve(r, viewOnly); if (message == null) toast("Added to the family.") } }
+                    // One's own device needs no owner PIN (18 Nov); the owner approving for someone else does.
+                    if (own) scope.launch { message = drive.approveOwnDevice(r, viewOnly); if (message == null) toast("Added to the family.") }
+                    else asOwner { scope.launch { message = drive.approve(r, viewOnly); if (message == null) toast("Added to the family.") } }
                 })
             },
         ) {
-            Text("$who is adding another device.", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
-            DevicePermissionChoice(who, viewOnly) { viewOnly = it }
+            if (own) {
+                Text("\"${r.deviceName}\" wants to join the family as you. Approve it only if it shows this code:", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
+                Text(joinCode(r), color = theme.onGlass, style = MaterialTheme.typography.displaySmall, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                OwnDevicePermissionChoice(viewOnly) { viewOnly = it }
+            } else {
+                Text("$who is adding another device. Usually $who lets it in from their own phone; approve here if they can't.", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
+                Text("It shows the code ${joinCode(r)}.", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+                DevicePermissionChoice(who, viewOnly) { viewOnly = it }
+            }
         }
     }
     pinFor?.let { action ->
@@ -228,14 +251,26 @@ fun FamilyScreen(state: ShellState, drive: DriveState, actions: MediaActions = N
 @Composable
 private fun NewDevicesCard(drive: DriveState) {
     val theme = LocalGlassTheme.current
-    val names = drive.newDevices.joinToString(", ") { "\"${it.name}\"" }
+    val (mine, others) = drive.newDevices.partition { it.person == null }
     GlassCard(Modifier.cardWidth()) {
-        SectionHeader(if (drive.newDevices.size == 1) "A new device sees your backups" else "New devices see your backups")
-        Text(
-            "$names was added to you. If that isn't yours, ask the owner to remove it in Family.",
-            color = theme.onGlassSecondary,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        SectionHeader(if (drive.newDevices.size == 1) "A new device" else "New devices")
+        if (mine.isNotEmpty()) {
+            Text(
+                "${mine.joinToString(", ") { "\"${it.device.name}\"" }} was added to you and sees your backups. If that isn't " +
+                    (if (drive.isOwner) "yours, remove it on your page in Family." else "yours, ask the owner to remove it in Family."),
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        // The owner (18 Nov): people now let their own new devices in, so the owner hears about each one.
+        others.forEach {
+            Text(
+                "${it.person} added \"${it.device.name}\".",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         GlassButton("OK", onClick = drive::newDevicesSeen, modifier = Modifier.padding(top = 10.dp))
     }
 }
@@ -405,8 +440,11 @@ private fun PrivacyCard() {
     }
 }
 
+/** How often Family looks for one's own new device asking to join, while it is open (18 Nov). */
+private const val FAMILY_REQUESTS_MS = 30_000L
+
 @Composable
-private fun RequestRow(request: JoinRequest, joined: Membership.Joined, onApprove: () -> Unit, onDecline: () -> Unit) {
+private fun RequestRow(request: JoinRequest, joined: Membership.Joined, own: Boolean, onApprove: () -> Unit, onDecline: () -> Unit) {
     val theme = LocalGlassTheme.current
     val who = request.newName ?: joined.household.member(request.existingUserId ?: "")?.name ?: "Someone"
     Row(Modifier.padding(vertical = 8.dp).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
@@ -415,7 +453,11 @@ private fun RequestRow(request: JoinRequest, joined: Membership.Joined, onApprov
         Column(Modifier.weight(1f)) {
             Text(request.deviceName, color = theme.onGlass, style = MaterialTheme.typography.bodyLarge)
             Text(
-                if (request.newName != null) "New person: $who" else "Another phone of $who",
+                when {
+                    own -> "Wants to join as you · code ${joinCode(request)}"
+                    request.newName != null -> "New person: $who"
+                    else -> "Another device of $who (usually $who approves it)"
+                },
                 color = theme.onGlassSecondary,
                 style = MaterialTheme.typography.bodyMedium,
             )

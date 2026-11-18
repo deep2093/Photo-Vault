@@ -131,6 +131,11 @@ class AndroidEncryption(private val activity: MainActivity) : EncryptionPlatform
         }.getOrNull()
     }
 
+    override fun shareOwnKey(requestPublic: ByteArray, householdId: String, memberId: String): ByteArray? {
+        val mine = root() ?: return null
+        return runCatching { HelperWrap.wrap(mine.root, requestPublic, KeyContext(householdId, memberId)) }.getOrNull()
+    }
+
     override fun wrapForHelper(helperExchangePublic: ByteArray, householdId: String, memberId: String): ByteArray? {
         val keys = pending ?: root() ?: return null
         return runCatching { HelperWrap.wrap(keys.root, helperExchangePublic, KeyContext(householdId, memberId)) }.getOrNull()

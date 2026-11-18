@@ -346,9 +346,10 @@ internal fun RestoreKeysScreen(state: ShellState, drive: DriveState, backup: Bac
                 }
             })
         }
-        // 18 Nov (A1): lost the words too? The recovery helper, if one was chosen, can hand the key back.
+        // 18 Nov (A1): lost the words too? The recovery helper, if one was chosen, can hand the key back; so can another
+        // of your own devices that has it (18 Nov, second pass).
         item {
-            GlassButton("Lost your words? Ask your recovery helper", onClick = { state.open(Overlay.AskHelper) }, modifier = Modifier.cardWidth())
+            GlassButton("No words to hand? Get your key from your other device or helper", onClick = { state.open(Overlay.AskHelper) }, modifier = Modifier.cardWidth())
         }
     }
 }
@@ -368,9 +369,11 @@ internal fun AskHelperScreen(state: ShellState, drive: DriveState) {
     var code by remember { mutableStateOf<String?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     var done by remember { mutableStateOf(false) }
+    // 18 Nov: your own other phones or tablets in the family can send the key too.
+    val otherDevices = remember { drive.joined?.me?.devices?.filter { it.deviceId != drive.deviceId }?.map { it.name }.orEmpty() }
     LaunchedEffect(Unit) {
         helpers = drive.myHelpers()
-        if (helpers.isNullOrEmpty()) return@LaunchedEffect
+        if (helpers.isNullOrEmpty() && otherDevices.isEmpty()) return@LaunchedEffect
         val request = enc.platform.startKeyRequest() ?: run { problem = "This phone can't ask for the key."; return@LaunchedEffect }
         problem = drive.postKeyRequest(request)
         if (problem != null) return@LaunchedEffect
@@ -399,16 +402,16 @@ internal fun AskHelperScreen(state: ShellState, drive: DriveState) {
             kotlinx.coroutines.delay(4_000)
         }
     }
-    GlassListScreen(title = "Ask your recovery helper", subtitle = null, onBack = { state.back() }) {
+    GlassListScreen(title = "Get your key back", subtitle = null, onBack = { state.back() }) {
         item {
             GlassCard(Modifier.cardWidth()) {
                 val list = helpers
                 when {
                     list == null -> Text("Looking on the family drive...", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
-                    list.isEmpty() -> {
-                        Text("No recovery helper", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    list.isEmpty() && otherDevices.isEmpty() -> {
+                        Text("No helper or other device", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "You didn't choose a recovery helper when you set up Private backup, so only your 24 words can bring your key back.",
+                            "You didn't choose a recovery helper and have no other device in the family, so only your 24 words can bring your key back.",
                             color = theme.onGlassSecondary,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(top = 4.dp),
@@ -416,11 +419,13 @@ internal fun AskHelperScreen(state: ShellState, drive: DriveState) {
                     }
                     else -> {
                         val who = list.joinToString(" or ")
-                        Text("Ask $who", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        listOf(
-                            "Ask $who to open Pixallery on their phone, on the family drive. They'll see that you're asking for your key.",
-                            "Their phone shows a code. Check together, in person or on a call, that it is the same as this one.",
-                            "When they tap Help, your key comes to this phone by itself. Keep this page open.",
+                        val devices = otherDevices.joinToString(" or ") { "\"$it\"" }
+                        Text(if (otherDevices.isNotEmpty()) "Use your other device" else "Ask $who", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        listOfNotNull(
+                            if (otherDevices.isNotEmpty()) "On $devices, open Pixallery and go to Family. A card there asks to send your key." else null,
+                            if (list.isNotEmpty()) (if (otherDevices.isNotEmpty()) "Or ask $who, your recovery helper, to open Family on their phone." else "Ask $who to open Pixallery on their phone and go to Family. They'll see that you're asking for your key.") else null,
+                            "It shows a code. Check it is the same as this one (with your helper, in person or on a call).",
+                            "When it is sent, your key comes to this device by itself. Keep this page open.",
                         ).forEach { Text("• $it", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
                         code?.let {
                             Text(
@@ -436,7 +441,7 @@ internal fun AskHelperScreen(state: ShellState, drive: DriveState) {
             }
         }
         item { problem?.let { WarningNote(it, Modifier.cardWidth()) } }
-        if (!helpers.isNullOrEmpty()) item {
+        if (!helpers.isNullOrEmpty() || (helpers != null && otherDevices.isNotEmpty())) item {
             GlassButton("Stop asking", onClick = {
                 done = true
                 enc.platform.cancelKeyRequest()
@@ -453,11 +458,11 @@ internal fun AskHelperScreen(state: ShellState, drive: DriveState) {
  * and asks them to open Family, so nothing reads the drive in the background for this.
  */
 @Composable
-internal fun rememberKeyRequests(drive: DriveState, onScreen: Boolean): androidx.compose.runtime.MutableState<List<DriveState.KeyRequest>> {
+internal fun rememberKeyRequests(drive: DriveState, onScreen: Boolean, haveMyKey: Boolean = false): androidx.compose.runtime.MutableState<List<DriveState.KeyRequest>> {
     val requests = remember { mutableStateOf<List<DriveState.KeyRequest>>(emptyList()) }
-    LaunchedEffect(drive.joined?.me?.userId, onScreen) {
+    LaunchedEffect(drive.joined?.me?.userId, onScreen, haveMyKey) {
         while (onScreen && drive.joined != null) {
-            requests.value = drive.keyRequestsForMe()
+            requests.value = drive.keyRequestsForMe(haveMyKey)
             kotlinx.coroutines.delay(60_000)
         }
     }
@@ -475,14 +480,20 @@ internal fun KeyRequestCard(state: ShellState, drive: DriveState, r: DriveState.
     var working by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     GlassCard(Modifier.cardWidth()) {
-        SectionHeader("${r.name} is asking for their key")
+        // 18 Nov: one's own other device asking (a new tablet, say) gets the key straight from this one.
+        SectionHeader(if (r.own) "Your other device is asking for your key" else "${r.name} is asking for their key")
         Text(
-            "${r.name} has lost their phone and recovery words and chose you as their recovery helper. Only help if ${r.name} asked you, in person or on a call.",
+            if (r.own) {
+                "Another of your phones or tablets wants your private key, so it can open your Private backups without your " +
+                    "recovery words. Only send it if you are setting that device up now."
+            } else {
+                "${r.name} has lost their phone and recovery words and chose you as their recovery helper. Only help if ${r.name} asked you, in person or on a call."
+            },
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodyMedium,
         )
         val code = remember(r.requestPublic) { com.deepak.photovault.core.crypto.KeyRequestCode.of(r.requestPublic) }
-        Text("Check ${r.name}'s phone shows this code:", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp))
+        Text(if (r.own) "Check that device shows this code:" else "Check ${r.name}'s phone shows this code:", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 10.dp))
         Text(
             code,
             color = theme.onGlass,
@@ -494,7 +505,7 @@ internal fun KeyRequestCard(state: ShellState, drive: DriveState, r: DriveState.
         problem?.let { WarningNote(it, Modifier.padding(top = 6.dp)) }
         Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GlassButton("Not now", onClick = onGone)
-            GlassButton("The code matches: Help", primary = true, onClick = {
+            GlassButton(if (r.own) "The code matches: Send" else "The code matches: Help", primary = true, onClick = {
                 if (working) return@GlassButton
                 val ctx = drive.keyContext() ?: return@GlassButton
                 if (!state.encryption.keyOnPhone) { problem = "Your own key isn't on this phone. Restore it first, then you can help."; return@GlassButton }
@@ -502,12 +513,18 @@ internal fun KeyRequestCard(state: ShellState, drive: DriveState, r: DriveState.
                 problem = null
                 scope.launch {
                     val answer = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                        state.encryption.platform.answerKeyRequest(r.wrapped, r.requestPublic, ctx.first, r.userId)
+                        val wrapped = r.wrapped
+                        if (wrapped == null) state.encryption.platform.shareOwnKey(r.requestPublic, ctx.first, ctx.second)
+                        else state.encryption.platform.answerKeyRequest(wrapped, r.requestPublic, ctx.first, r.userId)
                     }
-                    problem = if (answer == null) "Your phone couldn't open the copy of ${r.name}'s key." else drive.answerKeyRequest(r.userId, answer)
+                    problem = when {
+                        answer != null -> drive.answerKeyRequest(r.userId, answer)
+                        r.own -> "Your key couldn't be read on this phone."
+                        else -> "Your phone couldn't open the copy of ${r.name}'s key."
+                    }
                     working = false
                     if (problem == null) {
-                        state.say("Sent. ${r.name}'s phone will have their key in a moment.")
+                        state.say(if (r.own) "Sent. Your other device will have your key in a moment." else "Sent. ${r.name}'s phone will have their key in a moment.")
                         onGone()
                     }
                 }

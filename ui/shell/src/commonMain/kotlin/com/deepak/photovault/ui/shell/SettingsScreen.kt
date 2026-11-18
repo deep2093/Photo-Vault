@@ -709,9 +709,9 @@ private fun AboutSection(state: ShellState) {
             "Test: all my backups on every device",
             state.appearance.mirrorTest,
             { on -> state.updateAppearance { it.copy(mirrorTest = on) } },
-            description = "Photos and Albums get a switch: what is on this device, or everything you have backed up from all " +
-                "your devices, on the family drive and Google Drive. Only your own backups show, never anyone else's. Your " +
-                "other phone or tablet must be in the family as you.",
+            description = "Photos and Albums get a switch: what is on this device, or your backups that aren't on it (from " +
+                "your other devices, on the family drive and Google Drive). Only your own backups show, never anyone else's. " +
+                "Your other phone or tablet must be in the family as you.",
             icon = Icons.Rounded.Devices,
         )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")

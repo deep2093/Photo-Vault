@@ -91,7 +91,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
     val zone = remember { TimeZone.currentSystemDefault() }
     val today = Timeline.localDate(Clock.System.now().toEpochMilliseconds(), zone)
     // One timeline: every photo on the phone, plus photos that are only on the drive. A photo that is in both places shows once (the phone copy).
-    val shown = gallery.items
+    // The "all my backups" test (18 Nov) can show only this device's photos, or only the backups not on it.
+    val shown = gallery.viewItems
     val sections = remember(shown, today) { Timeline.group(shown, TimelineGrouping.DAY, zone, today) }
     val months = remember(shown) { LibraryLevels.months(shown, zone) }
     val years = remember(shown, today) { LibraryLevels.years(shown, zone, today) }
@@ -154,11 +155,19 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     "They stay on your phone and your own drive.",
                 action = { GlassButton("Allow access", onClick = actions::requestAccess, primary = true) },
             )
-            gallery.loaded && gallery.items.isEmpty() -> EmptyState(
+            gallery.loaded && shown.isEmpty() -> EmptyState(
                 icon = Icons.Rounded.PhotoLibrary,
                 // The "all my backups" test (18 Nov): its switch stays at the top, beside Search.
-                title = if (gallery.deviceOnly) "Nothing on this device" else "No photos yet",
-                body = if (gallery.deviceOnly) "Tap the cloud at the top to see what your other devices backed up." else "Photos and videos you take will appear here.",
+                title = when (gallery.view) {
+                    LibraryView.DEVICE -> "Nothing on this device"
+                    LibraryView.BACKUPS -> "No other backups yet"
+                    LibraryView.ALL -> "No photos yet"
+                },
+                body = when (gallery.view) {
+                    LibraryView.DEVICE -> "Tap the cloud at the top to see what your other devices backed up."
+                    LibraryView.BACKUPS -> "Photos backed up from your other devices show here. Pull down to read the drive again."
+                    LibraryView.ALL -> "Photos and videos you take will appear here."
+                },
             )
             else -> {
                 val spec = motionSpec<Float>(LEVEL_MS)
@@ -249,7 +258,7 @@ internal fun BackupsSwitch(state: ShellState, large: Boolean = false) {
     val glyph = if (large) 22.dp else 18.dp
     val options = listOf(
         Triple(false, if (tablet) Icons.Rounded.TabletAndroid else Icons.Rounded.PhoneAndroid, if (tablet) "Only on this tablet" else "Only on this phone"),
-        Triple(true, Icons.Rounded.Cloud, "All my backups"),
+        Triple(true, Icons.Rounded.Cloud, if (tablet) "Backups not on this tablet" else "Backups not on this phone"),
     )
     Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
         options.forEach { (all, icon, label) ->
@@ -268,7 +277,8 @@ internal fun BackupsSwitch(state: ShellState, large: Boolean = false) {
                         if (!selected) {
                             haptics.tick()
                             state.updateAppearance { it.copy(showAllBackups = all) }
-                            state.say(if (all) "Showing all your backups" else if (tablet) "Showing only what's on this tablet" else "Showing only what's on this phone")
+                            val device = if (tablet) "tablet" else "phone"
+                            state.say(if (all) "Showing your backups that aren't on this $device" else "Showing only what's on this $device")
                         }
                     })
                     .semantics { contentDescription = label },

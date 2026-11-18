@@ -100,14 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-9"
+    const val ID = "2026-11-18-10"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "A proper side bar on tablets", "A glass panel down the whole left side, the sections at the top in line with the top buttons, and the same look in every section."),
-        Change(ChangeKind.CHANGED, "The backups switch is at the top", "Two small icons beside Search in Photos and beside the menu in Albums: this tablet or phone, or the cloud for all your backups."),
-        Change(ChangeKind.FIXED, "Settings on tablets lines up", "Each page fills its side evenly next to the list, the same width on every page."),
-        Change(ChangeKind.FIXED, "Storage on tablets", "Albums use the whole width when there is only one year, and Recently deleted on the drive is a row like the others."),
-        Change(ChangeKind.CHANGED, "Deleting drive photos is instant", "They leave the app at once. The drive catches up in the background, or the next time it can be reached."),
+        Change(ChangeKind.CHANGED, "Two separate views", "With the backups test on, the tablet icon shows only what's on this device, and the cloud only your backups that aren't on it."),
+        Change(ChangeKind.FIXED, "Backup photos show after a restart", "Your backup list kept on this device shows the moment the app opens, without pulling down."),
+        Change(ChangeKind.CHANGED, "New theme names", "Ocean, Aurora, Gallery and Prism, named after how they look. Your choice stays the same."),
+        Change(ChangeKind.NEW, "Add your own second device", "A new phone or tablet joining as you asks your other device, not the owner. Approve it when both show the same code, and send your private key over too."),
     )
 }
 

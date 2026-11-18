@@ -30,6 +30,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -375,13 +377,29 @@ private fun PendingCard(drive: DriveState, pending: Membership.Pending) {
             Spacer(Modifier.size(12.dp))
             Text("Waiting for approval", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
+        val asYou = pending.request.existingUserId?.let { pending.household.member(it) }
+        val owner = pending.household.owner?.name ?: "the owner"
         Text(
-            "Ask ${pending.household.owner?.name ?: "the owner"} to open Pixallery and approve " +
-                "\"${pending.request.deviceName}\" in Family. This page updates by itself.",
+            // 18 Nov: another device of someone already in the family is let in from their own phone, not the owner's.
+            if (asYou != null) {
+                "Open Pixallery on your other phone or tablet and go to Family: it asks there. Approve it only if it " +
+                    "shows the same code as here. No other device? $owner can approve it. This page updates by itself."
+            } else {
+                "Ask $owner to open Pixallery and approve \"${pending.request.deviceName}\" in Family. This page updates by itself."
+            },
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(vertical = 8.dp),
         )
+        if (asYou != null) {
+            Text(
+                joinCode(pending.request),
+                color = theme.onGlass,
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp).semantics { contentDescription = "Code ${joinCode(pending.request)}" },
+            )
+        }
         CircularProgressIndicator(color = theme.accent, modifier = Modifier.size(28.dp))
         Spacer(Modifier.height(12.dp))
         GlassButton("Cancel request", onClick = { scope.launch { drive.cancelJoin() } })

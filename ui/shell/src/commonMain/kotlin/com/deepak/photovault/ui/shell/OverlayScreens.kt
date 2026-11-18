@@ -65,11 +65,12 @@ internal fun today(zone: TimeZone) = Timeline.localDate(Clock.System.now().toEpo
 @Composable
 fun AlbumScreen(kind: AlbumKind, state: ShellState, gallery: GalleryState, actions: MediaActions, drive: DriveState) {
     val zone = remember { TimeZone.currentSystemDefault() }
-    val (title, items) = remember(kind, gallery.items, gallery.favourites, gallery.familyAlbum) {
+    // An album opened from Albums shows the same view as Albums (the "all my backups" test, 18 Nov).
+    val (title, items) = remember(kind, gallery.viewItems, gallery.favourites, gallery.familyAlbum) {
         when (kind) {
-            is AlbumKind.Phone -> kind.name to gallery.items.filter { it.albumId == kind.albumId }
-            AlbumKind.Favourites -> "Favourites" to gallery.items.filter { it.id in gallery.favourites }
-            AlbumKind.Videos -> "Videos" to gallery.items.filter { it.isVideo }
+            is AlbumKind.Phone -> kind.name to gallery.viewItems.filter { it.albumId == kind.albumId }
+            AlbumKind.Favourites -> "Favourites" to gallery.viewItems.filter { it.id in gallery.favourites }
+            AlbumKind.Videos -> "Videos" to gallery.viewItems.filter { it.isVideo }
             AlbumKind.Family -> "Family Album" to gallery.familyAlbum
         }
     }

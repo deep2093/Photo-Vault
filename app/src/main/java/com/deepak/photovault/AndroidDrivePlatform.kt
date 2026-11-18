@@ -246,6 +246,8 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
         else json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(com.deepak.photovault.core.backup.BackupRecord.serializer()), f.readText())
     }.getOrNull()
 
+    override fun rememberedBackupRecordsAt(userId: String): Long = runCatching { recordsFile(userId).lastModified() }.getOrDefault(0L)
+
     override fun rememberBackupRecords(userId: String, records: List<com.deepak.photovault.core.backup.BackupRecord>) {
         runCatching {
             val f = recordsFile(userId)

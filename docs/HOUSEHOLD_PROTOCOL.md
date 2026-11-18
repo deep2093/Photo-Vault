@@ -44,8 +44,15 @@ Six phones joining at once all end up in the family exactly once (`HouseholdStor
 - **Other phones:** write `requests/<device-id>.json` as "I'm new: <name>" or "I'm <existing person>".
   With **Approve new phones** on (default), the owner approves or declines on the Family page; with it off,
   a new person's phone is added straight away.
-- **Another device of someone already in the family (18 Nov):** it always waits for the owner, even with
-  approval off, because it will see that person's backups. When approving, the owner chooses **View only**
+- **Another device of someone already in the family (18 Nov):** it always waits, even with approval off,
+  because it will see that person's backups. Second pass, same day: it asks **that person**, on any of their
+  own devices (Family pop-up, checked every 30 s while Family is open there), not the owner. Both screens show
+  the same six-digit code (from the request's device id, person and time); the person approves only if they
+  match. No owner PIN is needed (`HouseholdStore.approveOwnDevice` / `declineOwnDevice` check the approving
+  device belongs to the person joined). The owner gets no pop-up for these, can still approve one with the PIN
+  for someone who has lost their only other device, and is told on their Family page when anyone adds one.
+  The person's device can also send their private key to the new one (the A1 key request, answered with its
+  own key instead of a helper copy), so no recovery words are needed. When approving, the owner chooses **View only**
   (it sees all of that person's backups but deletes only the ones it made itself; stored as `viewOnly` on the
   device) or **View and delete**. The owner can change it later on the person's page. Devices added before
   18 Nov read as View and delete, as before. The person's other devices show a note when a device is added.

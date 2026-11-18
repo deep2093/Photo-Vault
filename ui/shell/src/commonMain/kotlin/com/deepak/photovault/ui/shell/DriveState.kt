@@ -85,6 +85,9 @@ interface DrivePlatform {
     fun rememberedBackupRecords(userId: String): List<com.deepak.photovault.core.backup.BackupRecord>? = null
     fun rememberBackupRecords(userId: String, records: List<com.deepak.photovault.core.backup.BackupRecord>) = Unit
 
+    /** When the kept list was read from the drive (18 Nov), so "read again after three hours" works after a restart. */
+    fun rememberedBackupRecordsAt(userId: String): Long = 0L
+
     /** This person's other devices this one has seen (18 Nov, to say when one is added); null before the first look. */
     fun seenDevices(userId: String): Set<String>? = null
     fun rememberSeenDevices(userId: String, deviceIds: Set<String>) = Unit
@@ -135,8 +138,15 @@ class DriveState(private val platform: DrivePlatform) {
     var usage by mutableStateOf<Map<String, MemberUsage>>(emptyMap())
         private set
 
+    /**
+     * Requests to join this device can answer: every one for the owner; for anyone else (18 Nov), only another of their
+     * own devices asking to join as them.
+     */
     var requests by mutableStateOf<List<JoinRequest>>(emptyList())
         private set
+
+    private fun answerable(all: List<JoinRequest>, m: Membership.Joined): List<JoinRequest> =
+        if (m.isOwner) all else all.filter { it.existingUserId == m.me.userId }
 
     var space by mutableStateOf<DriveSpace?>(null)
         private set
@@ -264,7 +274,7 @@ class DriveState(private val platform: DrivePlatform) {
         platform.rememberHousehold((m as? Membership.Joined)?.household)
         if (m is Membership.Joined) platform.rememberUserId(m.me.userId)
         if (m is Membership.Removed) platform.rememberUserId(null)
-        requests = if (m is Membership.Joined && m.isOwner) s.pendingRequests() else emptyList()
+        requests = if (m is Membership.Joined) answerable(s.pendingRequests(), m) else emptyList()
         // Keep this phone's name current in the family (older versions saved model codes like "SM-S948B").
         if (m is Membership.Joined) {
             val mine = m.me.devices.firstOrNull { it.deviceId == platform.deviceId }
@@ -279,7 +289,7 @@ class DriveState(private val platform: DrivePlatform) {
         refreshSpaceRequests(s)
         val current = membership
         if (current is Membership.Joined) {
-            noticeNewDevices(current.me)
+            noticeNewDevices(current)
             loadPendingTrash(current.me.userId)
             privatePhotos = runCatching { s.privatePhotos(current.me.userId) }.getOrDefault(privatePhotos)
             // Limits change at once; the space used is counted separately (below), it is slow.
@@ -402,11 +412,11 @@ class DriveState(private val platform: DrivePlatform) {
      * while other drive work is going on.
      */
     suspend fun checkRequests() {
-        if (!isOwner) return
+        val m = joined ?: return
         if (!lock.tryLock()) return
         try {
             val s = runCatching { ensureStore() }.getOrNull() ?: return
-            val fresh = runCatching { s.pendingRequests() }.getOrNull() ?: return
+            val fresh = runCatching { answerable(s.pendingRequests(), m) }.getOrNull() ?: return
             if (fresh != requests) {
                 requests = fresh
                 invitesChanged++
@@ -417,6 +427,23 @@ class DriveState(private val platform: DrivePlatform) {
     }
 
     suspend fun decline(request: JoinRequest) = ownerAction { it.decline(auth(), request) }
+
+    /** True for a request this device answers as that person's own device, not as the owner (18 Nov). */
+    fun isOwnDeviceRequest(request: JoinRequest): Boolean {
+        val me = joined?.me ?: return false
+        return request.existingUserId == me.userId
+    }
+
+    /** Another of this person's devices let in from this one (18 Nov); no owner PIN needed. */
+    suspend fun approveOwnDevice(request: JoinRequest, viewOnly: Boolean): String? = guarded {
+        ensureStore()!!.approveOwnDevice(platform.deviceId, request, viewOnly)
+        refreshLocked()
+    }
+
+    suspend fun declineOwnDevice(request: JoinRequest): String? = guarded {
+        ensureStore()!!.declineOwnDevice(platform.deviceId, request)
+        refreshLocked()
+    }
 
     suspend fun setLimit(userId: String, gb: Int) = ownerAction { it.setLimit(auth(), userId, gb) }
 
@@ -582,13 +609,22 @@ class DriveState(private val platform: DrivePlatform) {
     }
 
     /** Someone asking me, as their recovery helper, for their key back. */
-    class KeyRequest(val userId: String, val name: String, val requestPublic: ByteArray, val wrapped: ByteArray)
+    /**
+     * A key request: [wrapped] is my helper copy of their key; null (18 Nov) when it is my own request from another of my
+     * devices, which this device answers with the key it already holds.
+     */
+    class KeyRequest(val userId: String, val name: String, val requestPublic: ByteArray, val wrapped: ByteArray?) {
+        val own: Boolean get() = wrapped == null
+    }
 
-    /** Requests waiting for me: I hold their helper copy, they left a request, and nobody has answered it yet. */
-    suspend fun keyRequestsForMe(): List<KeyRequest> {
+    /**
+     * Requests waiting for me: I hold their helper copy, they left a request, and nobody has answered it yet. 18 Nov:
+     * also my own, left by another of my devices, when [haveMyKey] (this device holds my private key).
+     */
+    suspend fun keyRequestsForMe(haveMyKey: Boolean = false): List<KeyRequest> {
         val j = joined ?: return emptyList()
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return emptyList()
-        return j.household.members.filter { it.userId != j.me.userId }.mapNotNull { m ->
+        val theirs = j.household.members.filter { it.userId != j.me.userId }.mapNotNull { m ->
             runCatching {
                 val folder = keysFolder(m.userId)
                 val wrap = "$folder/helper-${j.me.userId}.bin"
@@ -597,6 +633,12 @@ class DriveState(private val platform: DrivePlatform) {
                 KeyRequest(m.userId, m.name, fs.read(request), fs.read(wrap))
             }.getOrNull()
         }
+        val mine = if (!haveMyKey) null else runCatching {
+            val folder = keysFolder(j.me.userId)
+            val request = "$folder/$KEY_REQUEST"
+            if (!fs.exists(request) || fs.exists("$folder/$KEY_ANSWER")) null else KeyRequest(j.me.userId, j.me.name, fs.read(request), null)
+        }.getOrNull()
+        return listOfNotNull(mine) + theirs
     }
 
     /** Leaves my answer for [ownerId]: their key, sealed to their request. Returns a problem, or null. */
@@ -621,18 +663,29 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun setDeviceViewOnly(deviceId: String, viewOnly: Boolean) = ownerAction { s -> s.setDeviceViewOnly(auth(), deviceId, viewOnly) }
 
     /** This person's devices this one has already seen, to say when a new one is added (18 Nov). */
-    var newDevices by mutableStateOf<List<com.deepak.photovault.core.household.Device>>(emptyList())
+    var newDevices by mutableStateOf<List<NewDevice>>(emptyList())
         private set
 
-    private fun noticeNewDevices(me: com.deepak.photovault.core.household.Member) {
-        val others = me.devices.filter { it.deviceId != platform.deviceId }
-        val seen = platform.seenDevices(me.userId)
+    /** A device added since this one last looked: [person] is null for one's own, else whose it is (the owner sees all). */
+    class NewDevice(val device: com.deepak.photovault.core.household.Device, val person: String?)
+
+    /** Where this device keeps the devices it has seen: one's own, or (the owner, 18 Nov) everyone's. */
+    private fun seenKey(j: Membership.Joined) = if (j.isOwner) "all-${j.me.userId}" else j.me.userId
+
+    private fun noticeNewDevices(j: Membership.Joined) {
+        // 18 Nov: people let their own new devices in, so the owner is told about everyone's.
+        val watched = if (j.isOwner) j.household.members else listOf(j.me)
+        val others = watched.flatMap { m ->
+            m.devices.filter { it.deviceId != platform.deviceId }.map { NewDevice(it, if (m.userId == j.me.userId) null else m.name) }
+        }
+        val key = seenKey(j)
+        val seen = platform.seenDevices(key)
         if (seen == null) {
             // The first look on this device: what is there now is known, nothing is new.
-            platform.rememberSeenDevices(me.userId, others.map { it.deviceId }.toSet())
+            platform.rememberSeenDevices(key, others.map { it.device.deviceId }.toSet())
             return
         }
-        newDevices = others.filter { it.deviceId !in seen }
+        newDevices = others.filter { it.device.deviceId !in seen }
     }
 
     // ---- Deleting drive photos without waiting (18 Nov) ----
@@ -684,8 +737,9 @@ class DriveState(private val platform: DrivePlatform) {
 
     /** The new-device note was read: those devices count as seen. */
     fun newDevicesSeen() {
-        val me = joined?.me ?: return
-        platform.rememberSeenDevices(me.userId, (platform.seenDevices(me.userId).orEmpty() + newDevices.map { it.deviceId }).toSet())
+        val j = joined ?: return
+        val key = seenKey(j)
+        platform.rememberSeenDevices(key, (platform.seenDevices(key).orEmpty() + newDevices.map { it.device.deviceId }).toSet())
         newDevices = emptyList()
     }
 
@@ -899,6 +953,20 @@ class DriveState(private val platform: DrivePlatform) {
 
     var backupRecordsLoading by mutableStateOf(false)
         private set
+
+    /**
+     * The list kept on the phone, shown the moment the app opens, without touching the drive (18 Nov, Deepak: "after a
+     * restart I have to pull down to see my backup photos"). Before, it was only loaded with a fresh read, which the app
+     * does after a backup or once the list is three hours old, and that clock started again at every restart.
+     */
+    fun showRememberedBackups() {
+        if (backupRecords != null) return
+        val me = joined?.me?.userId ?: return
+        runCatching { platform.rememberedBackupRecords(me) }.getOrNull()?.let {
+            backupRecords = it
+            if (libraryReadAtMillis == 0L) libraryReadAtMillis = runCatching { platform.rememberedBackupRecordsAt(me) }.getOrDefault(0L)
+        }
+    }
 
     suspend fun loadBackupRecords(force: Boolean = false) {
         if (backupRecordsLoading || (!force && backupRecords != null)) return

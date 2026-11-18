@@ -156,7 +156,8 @@ private class Screens(
 ) {
     /** A dot on Family while a phone is waiting for the owner. */
     val settingsDot: Boolean get() = drive.isOwner && drive.feedbackNew > 0
-    val familyDot: Boolean get() = drive.isOwner && (drive.requests.isNotEmpty() || drive.spaceRequests.isNotEmpty())
+    // 18 Nov: also on someone's own phone while another of their devices asks to join as them.
+    val familyDot: Boolean get() = drive.requests.isNotEmpty() || (drive.isOwner && drive.spaceRequests.isNotEmpty())
 }
 private const val OVERLAY_SCALE = 0.9f
 
@@ -250,11 +251,20 @@ fun PhotoVaultApp(
     // and Albums show what is only there. The last reading is kept on the phone, so it still shows offline.
     // 28 Oct: read in full at the start, after each backup, after three hours, or when you pull down; not on every return.
     var seenHistory by remember { mutableStateOf(-1) }
-    // The "all my backups" test (18 Nov): off, or on with All my backups, shows everything as before.
+    // The "all my backups" test (18 Nov): off shows everything as before; on, Photos and Albums show either this
+    // device's photos or only the backups that aren't on it.
     LaunchedEffect(state.appearance.mirrorTest, state.appearance.showAllBackups) {
-        gallery.showDeviceOnly(state.appearance.mirrorTest && !state.appearance.showAllBackups)
+        gallery.showView(
+            when {
+                !state.appearance.mirrorTest -> LibraryView.ALL
+                state.appearance.showAllBackups -> LibraryView.BACKUPS
+                else -> LibraryView.DEVICE
+            },
+        )
     }
     LaunchedEffect(drive, drive.joined?.me?.userId, backup.history.size, signals.foreground) {
+        // 18 Nov: the backup list kept on the phone shows at once, with no trip to the drive.
+        drive.showRememberedBackups()
         if (signals.foreground && drive.joined != null) {
             val backupDone = seenHistory != -1 && seenHistory != backup.history.size
             seenHistory = backup.history.size
@@ -279,7 +289,10 @@ fun PhotoVaultApp(
         }
     }
     // The family drive's and Google's backups in one timeline (Phase 10, 13 Nov).
-    LaunchedEffect(gallery, drive.backupRecords, state.google.records) {
+    LaunchedEffect(gallery, drive.backupRecords, state.google.records, drive.joined?.me?.userId) {
+        // 18 Nov: in the family, wait for the drive's list (kept on the phone, so at once). Before, Google's list arrived
+        // first at start-up and replaced the drive's backups with Google's alone until a manual refresh.
+        if (drive.joined != null && drive.backupRecords == null) return@LaunchedEffect
         timelineRecords(drive.backupRecords, state.google.records)?.let(gallery::setDriveRecords)
     }
     // Google: read the accounts and what is saved there when the app opens; "backed up" marks follow.

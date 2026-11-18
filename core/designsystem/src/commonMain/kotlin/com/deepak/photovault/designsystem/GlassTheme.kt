@@ -196,7 +196,7 @@ object GlassThemes {
     // ---- Light themes (deep backgrounds by default; pale ones with the experiment switch) ----
 
     val AuroraGlassLight: GlassTheme = glass(
-        GlassThemeId.AURORA_GLASS_LIGHT, "Luminous Day", "Lilac with a mint light",
+        GlassThemeId.AURORA_GLASS_LIGHT, "Aurora Day", "Lilac with a mint light",
         wallpaper = listOf(0xFF182F66, 0xFF243F7C, 0xFF2E4A90),
         glows = listOf(Glow(0.9f, 0.05f, 0.7f, Color(0x805AC8FA)), Glow(0.05f, 0.7f, 0.75f, Color(0x667C78FF)), Glow(0.5f, 0.35f, 0.4f, Color(0x33FFFFFF))),
         rim = 0xFFA8CCFF, onDrive = 0xFF0A4FA8,
@@ -210,7 +210,7 @@ object GlassThemes {
     }
 
     val LiquidDay: GlassTheme = glass(
-        GlassThemeId.LIQUID_DAY, "Liquid Day", "Clear glass over a sky-blue page",
+        GlassThemeId.LIQUID_DAY, "Ocean Day", "Clear glass over a sky-blue page",
         wallpaper = listOf(0xFF102F58, 0xFF1A4476, 0xFF225384),
         glows = listOf(Glow(0.85f, 0.08f, 0.8f, Color(0x80FFD9A0)), Glow(0.1f, 0.6f, 0.8f, Color(0x6659C8FF)), Glow(0.7f, 0.95f, 0.7f, Color(0x55A98CFF))),
         rim = 0xFFFFFFFF, onDrive = 0xFF3F5A8A,
@@ -225,7 +225,7 @@ object GlassThemes {
     // ---- Night versions of Luminous and Liquid (18 Nov): the same colours after dark, white text ----
 
     val LuminousNight: GlassTheme = glass(
-        GlassThemeId.LUMINOUS_DARK, "Luminous Night", "An aurora: deep violet with green and pink light",
+        GlassThemeId.LUMINOUS_DARK, "Aurora Night", "Northern lights: deep violet with green and pink light",
         wallpaper = listOf(0xFF140B30, 0xFF1C1144, 0xFF0B1B34),
         glows = listOf(Glow(0.2f, 0.12f, 0.75f, Color(0x4D3EE6C1)), Glow(0.85f, 0.55f, 0.8f, Color(0x598B5CF6)), Glow(0.5f, 1.0f, 0.6f, Color(0x33F472B6))),
         rim = 0xFFA8CCFF, onDrive = 0xFF0A4FA8,
@@ -235,7 +235,7 @@ object GlassThemes {
     )
 
     val LiquidNight: GlassTheme = glass(
-        GlassThemeId.LIQUID_DARK, "Liquid Night", "Clear glass over a deep sea, a moon above",
+        GlassThemeId.LIQUID_DARK, "Ocean Night", "Clear glass over a deep sea, a moon above",
         wallpaper = listOf(0xFF03192B, 0xFF062A42, 0xFF0A3A57),
         glows = listOf(Glow(0.85f, 0.06f, 0.55f, Color(0x29FFFFFF)), Glow(0.1f, 0.65f, 0.8f, Color(0x4D2EC4D9)), Glow(0.75f, 0.98f, 0.7f, Color(0x332E8BD9))),
         rim = 0xFFFFFFFF, onDrive = 0xFF3F5A8A,
@@ -248,7 +248,7 @@ object GlassThemes {
 
     /** Night sky: nearly black, with one soft light of your photos' colour at the top. */
     val AdaptiveMidnight: GlassTheme = glass(
-        GlassThemeId.ADAPTIVE_MIDNIGHT, "Photo Night", "Nearly black, one soft light from your photos",
+        GlassThemeId.ADAPTIVE_MIDNIGHT, "Gallery Night", "Graphite, one soft light from your photos",
         // 18 Nov: warm graphite rather than blue-black, so it isn't mistaken for Liquid or Luminous at night.
         wallpaper = listOf(0xFF2E2A26, 0xFF171512, 0xFF0A0A09),
         glows = emptyList(),
@@ -264,7 +264,7 @@ object GlassThemes {
 
     /** Bold sweep: fully saturated colours from your photos corner to corner. */
     val AdaptiveVivid: GlassTheme = glass(
-        GlassThemeId.ADAPTIVE_VIVID, "Vivid Night", "Bold, saturated colours from your photos",
+        GlassThemeId.ADAPTIVE_VIVID, "Prism Night", "Deep jewel colours from your photos",
         // 18 Nov: magenta to violet to teal until your photos colour it, unlike the others' blues.
         wallpaper = listOf(0xFF5E1250, 0xFF3A1F78, 0xFF0E4A63),
         glows = emptyList(),
@@ -294,7 +294,7 @@ object GlassThemes {
             light = true,
             layout = WallpaperLayout.NIGHT,
         ),
-    ).copy(id = GlassThemeId.PHOTO_DAY, displayName = "Photo Day", bestFor = "Nearly white, one soft light from your photos")
+    ).copy(id = GlassThemeId.PHOTO_DAY, displayName = "Gallery Day", bestFor = "Warm paper, one soft light from your photos")
 
     /** Pastel colours from your photos corner to corner. */
     val VividDay: GlassTheme = pale(
@@ -310,14 +310,16 @@ object GlassThemes {
             light = true,
             layout = WallpaperLayout.DIAGONAL,
         ),
-    ).copy(id = GlassThemeId.VIVID_DAY, displayName = "Vivid Day", bestFor = "Pastel colours from your photos")
+    ).copy(id = GlassThemeId.VIVID_DAY, displayName = "Prism Day", bestFor = "Pastel colours from your photos")
 
     /** The four themes, each with its day and night (18 Nov). Liquid first: it is the one everyone starts on. */
     val families: List<ThemeFamily> = listOf(
-        ThemeFamily("LIQUID", "Liquid", "Sky blue by day, a deep sea at night", LiquidDay.pale!!, LiquidNight),
-        ThemeFamily("LUMINOUS", "Luminous", "An aurora: lilac and mint, violet and green", AuroraGlassLight.pale!!, LuminousNight),
-        ThemeFamily("PHOTO", "Photo", "Warm paper or graphite, one soft light from your photos", PhotoDay, AdaptiveMidnight),
-        ThemeFamily("VIVID", "Vivid", "Bold colours from your photos", VividDay, AdaptiveVivid),
+        // 18 Nov (Deepak: "name them after what they look like"): new names only; the saved keys stay, so everyone keeps
+        // the theme they chose.
+        ThemeFamily("LIQUID", "Ocean", "Sky blue by day, a deep sea at night", LiquidDay.pale!!, LiquidNight),
+        ThemeFamily("LUMINOUS", "Aurora", "Lilac and mint by day, northern lights at night", AuroraGlassLight.pale!!, LuminousNight),
+        ThemeFamily("PHOTO", "Gallery", "Warm paper by day, graphite at night, one soft light from your photos", PhotoDay, AdaptiveMidnight),
+        ThemeFamily("VIVID", "Prism", "Colours from your photos: pastels by day, deep jewels at night", VividDay, AdaptiveVivid),
     )
 
     /** The theme a saved id belongs to, whether it was saved as the day or the night version; else Liquid. */

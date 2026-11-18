@@ -157,6 +157,30 @@ class HouseholdStoreTest {
     }
 
     @Test
+    fun aPersonLetsInTheirOwnSecondDeviceButNobodyElses() = runTest {
+        ownerSetUp()
+        val owner = OwnerAuth(OWNER_PHONE, "2468")
+        store().updateSettings(owner) { it.copy(approveNewPhones = false) }
+        val sam = (store().requestJoin(SAM_PHONE, "Pixel 9", newName = "Sam") as Membership.Joined).me
+        val kim = (store().requestJoin("kim-phone-0001", "Galaxy", newName = "Kim") as Membership.Joined).me
+        store().requestJoin("sam-tablet-0001", "Tab", existingUserId = sam.userId)
+        val request = store().pendingRequests().single()
+        // Kim's phone can't let a device in as Sam (18 Nov).
+        assertFailsWith<NotAllowed> { store().approveOwnDevice("kim-phone-0001", request) }
+        assertFailsWith<NotAllowed> { store().declineOwnDevice("kim-phone-0001", request) }
+        // Sam's own phone can, and chooses view only.
+        store().approveOwnDevice(SAM_PHONE, request, viewOnly = true)
+        val tablet = store().load()!!.member(sam.userId)!!.devices.single { it.deviceId == "sam-tablet-0001" }
+        assertTrue(tablet.viewOnly)
+        assertTrue(store().pendingRequests().isEmpty())
+        // A request to join as a new person can't be let in this way.
+        store().updateSettings(owner) { it.copy(approveNewPhones = true) }
+        store().requestJoin("new-phone-0001", "Moto", newName = "Lee")
+        assertFailsWith<NotAllowed> { store().approveOwnDevice(SAM_PHONE, store().pendingRequests().single()) }
+        assertTrue(kim.userId != sam.userId)
+    }
+
+    @Test
     fun limitsChangeOnlyWithThePinAndStayInRange() = runTest {
         ownerSetUp()
         val owner = OwnerAuth(OWNER_PHONE, "2468")

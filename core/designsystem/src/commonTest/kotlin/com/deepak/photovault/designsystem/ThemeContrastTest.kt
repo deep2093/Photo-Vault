@@ -95,8 +95,8 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Liquid Day", "Luminous Day", "Photo Day", "Vivid Day"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Liquid Night", "Luminous Night", "Photo Night", "Vivid Night"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Day", "Aurora Day", "Gallery Day", "Prism Day"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Night", "Aurora Night", "Gallery Night", "Prism Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })

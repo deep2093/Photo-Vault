@@ -196,6 +196,30 @@ class HouseholdStore(
         drive.delete(requestPath(request.deviceId))
     }
 
+    /**
+     * Another device of a person, let in from one of that person's own devices (18 Nov, Deepak: "my sister's second
+     * device should ask her, not the owner"). [approverDeviceId] must already belong to the person the request joins.
+     * The owner can still approve it with the PIN, for someone who has lost their only other device.
+     */
+    suspend fun approveOwnDevice(approverDeviceId: String, request: JoinRequest, viewOnly: Boolean = false): Household {
+        checkOwnDevice(approverDeviceId, request)
+        return admitAndClear(request, viewOnly)
+    }
+
+    /** That person's own device says no to a device asking to join as them (18 Nov). */
+    suspend fun declineOwnDevice(approverDeviceId: String, request: JoinRequest) {
+        checkOwnDevice(approverDeviceId, request)
+        drive.delete(requestPath(request.deviceId))
+    }
+
+    private suspend fun checkOwnDevice(approverDeviceId: String, request: JoinRequest) {
+        val household = load() ?: throw NotAllowed("There is no family on this drive")
+        val approver = household.memberForDevice(approverDeviceId) ?: throw NotAllowed("This device isn't in the family")
+        if (request.existingUserId == null || approver.userId != request.existingUserId) {
+            throw NotAllowed("Only that person's own phones can let it in")
+        }
+    }
+
     suspend fun setLimit(auth: OwnerAuth, userId: String, limitGb: Int): Household {
         authorize(auth)
         require(limitGb in MIN_LIMIT_GB..MAX_LIMIT_GB) { "Limit must be between $MIN_LIMIT_GB and $MAX_LIMIT_GB GB" }

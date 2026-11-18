@@ -301,6 +301,9 @@ object NoFeedbackOutbox : FeedbackOutbox {
     override fun remove(id: String) = Unit
 }
 
+/** What Photos and Albums show (18 Nov): everything, only this device's photos, or only backups not on it. */
+enum class LibraryView { ALL, DEVICE, BACKUPS }
+
 /** The phone's photos as the screens see them. Refreshes itself when the phone's library changes. */
 @Stable
 class GalleryState(
@@ -445,27 +448,31 @@ class GalleryState(
     private var driveOnly: List<MediaItem> = emptyList()
 
     /**
-     * Only what is on this device (18 Nov, the "all my backups" test): photos kept only in the backups are left out of
-     * Photos and Albums. Off: they show beside the device's own, as always.
+     * What Photos and Albums show (the "all my backups" test, 18 Nov): everything as always, only what is on this device,
+     * or only the backups that aren't on it (Deepak, second pass: "this tablet's photos belong in their own section").
+     * Every other screen (Backup, Storage, Search, People, Places…) always sees everything.
      */
-    var deviceOnly by mutableStateOf(false)
+    var view by mutableStateOf(LibraryView.ALL)
         private set
 
-    fun showDeviceOnly(on: Boolean) {
-        if (deviceOnly == on) return
-        deviceOnly = on
-        allAlbums = PhoneAlbums.from(everything + shownDriveOnly())
+    /** Photos and Albums' photos and albums for [view]. */
+    var viewItems by mutableStateOf<List<MediaItem>>(emptyList())
+        private set
+    var viewAlbums by mutableStateOf<List<PhoneAlbum>>(emptyList())
+        private set
+
+    fun showView(shown: LibraryView) {
+        if (view == shown) return
+        view = shown
         applyVisible()
     }
-
-    private fun shownDriveOnly(): List<MediaItem> = if (deviceOnly) emptyList() else driveOnly
 
     /** The drive was read (or a backup finished): show what it holds that the phone doesn't. */
     fun setDriveRecords(records: List<BackupRecord>) {
         driveRecords = records
         driveCache.save(records)
         recomputeDriveOnly()
-        allAlbums = PhoneAlbums.from(everything + shownDriveOnly())
+        allAlbums = PhoneAlbums.from(everything + driveOnly)
         applyVisible()
     }
 
@@ -483,7 +490,7 @@ class GalleryState(
         if (paths == waitingToDelete) return
         waitingToDelete = paths
         recomputeDriveOnly()
-        allAlbums = PhoneAlbums.from(everything + shownDriveOnly())
+        allAlbums = PhoneAlbums.from(everything + driveOnly)
         applyVisible()
     }
 
@@ -563,7 +570,7 @@ class GalleryState(
         phoneTrash = bin
         trashed = (phoneTrash + driveTrash).sortedByDescending { it.expiresAtMillis }
         recomputeDriveOnly()
-        allAlbums = PhoneAlbums.from(all + shownDriveOnly())
+        allAlbums = PhoneAlbums.from(all + driveOnly)
         applyVisible()
     }
 
@@ -582,12 +589,26 @@ class GalleryState(
     }
 
     private fun applyVisible() {
-        val extra = shownDriveOnly()
-        val merged = if (extra.isEmpty()) everything else everything + extra
-        val visible = if (hiddenAlbums.isEmpty()) merged else merged.filter { it.albumId !in hiddenAlbums }
+        fun shownOf(list: List<MediaItem>) = if (hiddenAlbums.isEmpty()) list else list.filter { it.albumId !in hiddenAlbums }
+        val merged = if (driveOnly.isEmpty()) everything else everything + driveOnly
+        val visible = shownOf(merged)
         items = visible
         byId = visible.associateBy { it.id }
         albums = allAlbums.filter { it.id !in hiddenAlbums }
+        when (view) {
+            LibraryView.ALL -> {
+                viewItems = visible
+                viewAlbums = albums
+            }
+            LibraryView.DEVICE -> {
+                viewItems = shownOf(everything)
+                viewAlbums = PhoneAlbums.from(everything).filter { it.id !in hiddenAlbums }
+            }
+            LibraryView.BACKUPS -> {
+                viewItems = shownOf(driveOnly)
+                viewAlbums = PhoneAlbums.from(driveOnly).filter { it.id !in hiddenAlbums }
+            }
+        }
     }
 
     companion object {
