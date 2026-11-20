@@ -37,8 +37,10 @@ import kotlin.math.pow
  * frost or blur of any kind"). The floating bars look through to the photos with nothing blurred: the Android lens
  * (LiquidGlassAgsl.LENS, Android 13+) bends the picture at their rounded edges like a droplet and lights the edge.
  * Panels and buttons on the page get the same lit edge ([liquidGlassEdge]). The selected tab is a small droplet of
- * brighter glass ([liquidGlassDroplet]). Clear Glass, the copy of iOS (21 Nov), adds [DarkGlass] (floating glass is
- * always dark glass), light that follows the phone's tilt ([LocalGlassLight]) and Tinted.
+ * brighter glass ([liquidGlassDroplet]). Clear Glass, the copy of iOS (21 Nov), adds light that follows the
+ * phone's tilt ([LocalGlassLight]) and Tinted. Its glass keeps its page's look: clear with dark words by day, dark with
+ * white words at night, and never changes while photos scroll (two other ways were tried for a morning each: glass
+ * that turned dark over dark photos, and dark glass by day too).
  */
 
 /**
@@ -60,7 +62,7 @@ data class GlassInk(
          * Clear Glass: the same rule for its black and white words. Its chosen tab is iOS blue, so the tab's droplet is
          * near-white glass by day and dark grey glass by night (as on iOS), where the blue reads at 3:1 like iOS's.
          */
-        val CLEAR = GlassInk(0.27f, 0.14f, 0.80f, 0.042f)
+        val CLEAR = GlassInk(0.20f, 0.14f, 0.80f, 0.042f)
     }
 }
 
@@ -88,6 +90,18 @@ object LiquidGlassInk {
      * nearly solid, so the two are easy to tell apart (they were 0 and 0.55, hard to tell apart by day).
      */
     const val CLEAR_FILM = 0.40f
+
+    /**
+     * By day the film is much lighter (21 Nov, Deepak, of the day's bars: "transparent like glass with depth; remove the
+     * black shade or tint, whatever is behind these toolbars"): the photos and the white pages show through almost
+     * untouched, and only dark photos are lifted enough for the dark words.
+     */
+    const val CLEAR_FILM_DAY = 0.18f
+    const val TOP_FILM_DAY = 0.35f
+
+    fun clearFilm(dark: Boolean): Float = if (dark) CLEAR_FILM else CLEAR_FILM_DAY
+
+    fun topFilm(dark: Boolean): Float = if (dark) TOP_FILM else TOP_FILM_DAY
 
     /**
      * Clear Glass's pills at the top (Years / Months / All, the date, Search) share a firmer film, so the three look
@@ -242,29 +256,6 @@ fun Modifier.liquidGlassDroplet(shape: Shape): Modifier {
         )
     }
     return clip(shape).background(theme.accentSurface).frostedEdge(shape)
-}
-
-/**
- * Clear Glass: everything that floats (the bottom bar, the pills and bar at the top, the date, menus, Undo delete,
- * Back to top, the selection bar) is dark glass, by day as well as at night, and never changes (21 Nov, Deepak, with a
- * screenshot of the dark bar by day: "make this the default glass in day, don't change colour when scrolling"; at
- * night "stick with dark glass"). It replaced the glass that turned dark over dark photos and light over light ones,
- * which he tried for a morning. By day the glass and the words on it take the night theme's look; cards and pages stay
- * the day's. The page's own colour still shows where what is behind the glass is see-through.
- */
-@Composable
-fun DarkGlass(content: @Composable () -> Unit) {
-    val page = LocalGlassTheme.current
-    if (!page.isClearGlass || page.isDark) {
-        content()
-        return
-    }
-    val night = remember(page.id) { GlassThemes.familyOf(page.id.name).night }
-    CompositionLocalProvider(
-        LocalGlassTheme provides night,
-        LocalGlassBackdrop provides page.wallpaper.first(),
-        content = content,
-    )
 }
 
 /** Reuse the host button's interactions, so the highlight needs no competing gesture detector. */

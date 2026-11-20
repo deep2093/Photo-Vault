@@ -294,6 +294,7 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
     var forgot by rememberSaveable { mutableStateOf(false) }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val buzzScope = rememberCoroutineScope()
+    val wrongHaptics = com.deepak.photovault.designsystem.rememberHaptics()
     LaunchedEffect(Unit) {
         // Only when the folder is really being opened: a lock screen drawn while the page slides away (Lock now) must not
         // pop up the fingerprint prompt after the person has left (3 Nov).
@@ -317,13 +318,8 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
                             if (r.ok) {
                                 sec.unlocked = true
                             } else {
-                                // A wrong PIN: three firm buzzes in a row.
-                                buzzScope.launch {
-                                    repeat(3) {
-                                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                        kotlinx.coroutines.delay(110)
-                                    }
-                                }
+                                // A wrong PIN: two firm double knocks, stronger than anything else in the app (21 Nov).
+                                buzzScope.launch { wrongHaptics.wrong() }
                                 message = if (r.waitMillis > 0) "Too many tries. Wait ${(r.waitMillis + 999) / 1000} seconds." else "That PIN isn't right."
                                 wrongTries++
                             }

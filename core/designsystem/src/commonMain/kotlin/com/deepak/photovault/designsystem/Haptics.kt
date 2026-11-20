@@ -13,6 +13,19 @@ import androidx.compose.ui.platform.LocalHapticFeedback
  */
 @Stable
 class Haptics(private val feedback: HapticFeedback) {
+    /**
+     * Something refused (a wrong PIN, 21 Nov, Deepak: "make it a bit stronger than the others so the user will know"):
+     * two firm double knocks, stronger and longer than any other feedback in the app.
+     */
+    suspend fun wrong() {
+        repeat(2) {
+            feedback.performHapticFeedback(HapticFeedbackType.Reject)
+            kotlinx.coroutines.delay(70)
+            feedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            kotlinx.coroutines.delay(160)
+        }
+    }
+
     /** A button or row pressed. */
     fun tap() = feedback.performHapticFeedback(HapticFeedbackType.ContextClick)
 

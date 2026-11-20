@@ -74,8 +74,6 @@ internal fun BoxScope.GlassMenuLayer(
         }
         g
     } else null
-    // Clear Glass: menus are dark glass by day and night, like the bars (21 Nov).
-    com.deepak.photovault.designsystem.DarkGlass {
     // Extra animations (21 Nov): the rows come in one after another, very quickly.
     androidx.compose.runtime.CompositionLocalProvider(
         com.deepak.photovault.designsystem.LocalMenuStagger provides androidx.compose.runtime.remember { com.deepak.photovault.designsystem.MenuStagger() },
@@ -109,7 +107,6 @@ internal fun BoxScope.GlassMenuLayer(
             .padding(vertical = 4.dp),
         content = content,
     )
-    }
     }
 }
 

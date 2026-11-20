@@ -109,7 +109,7 @@ class ThemeContrastTest {
             val ink = theme.glassInk!!
             for (photo in photos) {
                 // Clear Glass's Clear has its light film; Liquid Glass none.
-                val film = if (theme.isClearGlass) LiquidGlassInk.CLEAR_FILM else 0f
+                val film = if (theme.isClearGlass) LiquidGlassInk.clearFilm(theme.isDark) else 0f
                 val looks = mutableListOf(
                     "clear" to LiquidGlassInk.throughGlass(
                         photo, theme.isDark, ink.dayFloor, ink.nightCeiling, film, LiquidGlassInk.tintedFrostColor(theme.isDark),
@@ -170,19 +170,21 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun clearGlassFloatingGlassIsTheNightLookByDayToo() {
-        // 21 Nov (Deepak: "make this the default glass in day, don't change colour when scrolling"): by day the bars
-        // take the night theme's glass and words. Those words must read on that glass even where the day's white page
-        // shows through it (the lens puts the page's colour behind see-through content).
-        val night = GlassThemes.familyOf(GlassThemeId.CLEAR_GLASS_LIGHT.name).night
-        val ink = night.glassInk!!
-        for (behind in GlassThemes.ClearGlassLight.wallpaper + listOf(Color.White, Color.Black)) {
-            for (film in listOf(LiquidGlassInk.CLEAR_FILM, LiquidGlassInk.TOP_FILM, LiquidGlassInk.TINTED_FROST)) {
-                val glass = LiquidGlassInk.throughGlass(behind, true, ink.dayFloor, ink.nightCeiling, film, LiquidGlassInk.tintedFrostColor(true))
-                assertTrue(Contrast.ratio(night.onGlass, glass) >= Contrast.TEXT, "words over $behind with film $film")
-                assertTrue(Contrast.ratio(night.onGlassSecondary, glass) >= Contrast.TEXT, "small words over $behind with film $film")
-            }
+    fun clearGlassByDayIsClearNotDark() {
+        // 21 Nov (Deepak, of the day's bars: "transparent like glass with depth; remove the black shade or tint"): by
+        // day a white page shows through the glass as white, a bright photo keeps nearly all its light, and the film
+        // is light. The dark words still read over a black photo.
+        val day = GlassThemes.ClearGlassLight
+        val ink = day.glassInk!!
+        for (film in listOf(LiquidGlassInk.clearFilm(false), LiquidGlassInk.topFilm(false))) {
+            val white = LiquidGlassInk.throughGlass(Color.White, false, ink.dayFloor, ink.nightCeiling, film, LiquidGlassInk.tintedFrostColor(false))
+            assertTrue(Contrast.relativeLuminance(white) > 0.98, "a white page stays white through the glass")
+            val black = LiquidGlassInk.throughGlass(Color.Black, false, ink.dayFloor, ink.nightCeiling, film, LiquidGlassInk.tintedFrostColor(false))
+            assertTrue(Contrast.ratio(day.onGlass, black) >= Contrast.TEXT)
+            assertTrue(Contrast.ratio(day.onGlassSecondary, black) >= Contrast.TEXT)
         }
+        assertTrue(LiquidGlassInk.clearFilm(false) <= 0.2f)
+        assertTrue(LiquidGlassInk.topFilm(false) > LiquidGlassInk.clearFilm(false))
     }
 
     @Test
@@ -200,7 +202,7 @@ class ThemeContrastTest {
                 val white = LiquidGlassInk.throughGlass(Color.White, theme.isDark, ink.dayFloor, ink.nightCeiling, frost, film)
                 return Contrast.ratio(black, white)
             }
-            val clear = spread(LiquidGlassInk.CLEAR_FILM)
+            val clear = spread(LiquidGlassInk.clearFilm(theme.isDark))
             val tinted = spread(LiquidGlassInk.TINTED_FROST)
             assertTrue(clear >= 1.5, "${theme.displayName}: Clear still shows the photo ($clear)")
             assertTrue(tinted <= 1.35, "${theme.displayName}: Tinted is nearly solid ($tinted)")

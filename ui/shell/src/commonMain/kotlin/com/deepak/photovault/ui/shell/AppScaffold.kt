@@ -465,8 +465,6 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
         if (act != null && label != null) {
             // 18 Nov (Deepak: "just Undo delete, short, with an undo arrow, in the centre"): a small pill in the middle,
             // the whole pill the button. TalkBack reads the full sentence, then the button.
-            // Clear Glass: dark glass by day and night, like the bar under it.
-            com.deepak.photovault.designsystem.DarkGlass {
             val glass = LocalGlassTheme.current
             Row(
                 Modifier
@@ -487,11 +485,9 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
                 Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.Undo, null, tint = glass.onGlass, modifier = Modifier.size(20.dp))
                 Text(label, color = glass.onGlass, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             }
-            }
             return@AnimatedVisibility
         }
         val shape = RoundedCornerShape(24.dp)
-        com.deepak.photovault.designsystem.DarkGlass {
         val glass = LocalGlassTheme.current
         Row(
             Modifier
@@ -506,7 +502,6 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(shown.text, color = glass.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 14.dp))
-        }
         }
     }
 }
@@ -771,11 +766,12 @@ private fun OverlayHost(
                     if (flying && !entry.closing) {
                         // Landed: now the viewer is built (out of sight, under the copy), given a few frames to
                         // draw itself, and faded in; then the copy steps aside.
+                        // 21 Nov (Deepak: "photo takes a moment, then the film strip and toolbar come"): two frames to
+                        // draw itself instead of three, and a quicker fade, so the buttons follow the photo at once.
                         entry.landed = true
                         withFrameNanos { }
                         withFrameNanos { }
-                        withFrameNanos { }
-                        entry.reveal.animateTo(1f, tween(140))
+                        entry.reveal.animateTo(1f, tween(90))
                         if (!entry.closing) entry.copyOn = false
                     }
                 }
@@ -907,7 +903,9 @@ private fun OverlayHost(
                     }
                     // The flying copy, on top until it has landed (then the viewer's own photo is under it, in place).
                     val fly = entry.fly
-                    if (fly != null && entry.copyOn) FlyingCopy(fly) { entry.p.value }
+                    // While the viewer fades in under it, the copy fades out, so if the two differ by a pixel or two
+                    // there is no moment with both showing at full strength (the double edge on landing, 21 Nov).
+                    if (fly != null && entry.copyOn) FlyingCopy(fly, fade = { if (entry.landed && !entry.closing) 1f - entry.reveal.value else 1f }) { entry.p.value }
                 }
             }
         }
@@ -916,7 +914,7 @@ private fun OverlayHost(
 
 /** The photo's small picture at its place for now: cropped to the tile's shape at one end, whole at the other. */
 @Composable
-private fun FlyingCopy(fly: Fly, progress: () -> Float) {
+private fun FlyingCopy(fly: Fly, fade: () -> Float = { 1f }, progress: () -> Float) {
     coil3.compose.AsyncImage(
         model = com.deepak.photovault.core.media.Thumb(fly.uri, fly.isVideo, fly.px),
         contentDescription = null,
@@ -933,7 +931,7 @@ private fun FlyingCopy(fly: Fly, progress: () -> Float) {
             .graphicsLayer {
                 val p = progress().coerceIn(0f, 1f)
                 // With no tile to go to it fades as it shrinks a little; with one it stays solid all the way.
-                if (fly.tile == null) alpha = p
+                alpha = (if (fly.tile == null) p else 1f) * fade().coerceIn(0f, 1f)
                 clip = true
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp * (1f - p))
             },
@@ -1134,8 +1132,6 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
         }
         // Only the bar gets the lens; anything inside the recorded sections would otherwise draw itself.
         CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
-        // Clear Glass: the bar is dark glass by day and night, and never changes (21 Nov); other themes as they were.
-        com.deepak.photovault.designsystem.DarkGlass {
         FloatingNavigationBar(
             indicator = { nav.indicator.value },
             onSelect = state::tapSection,
@@ -1156,7 +1152,6 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                 }
                 .padding(bottom = system.calculateBottomPadding() + 12.dp),
         )
-        }
         }
     }
 }

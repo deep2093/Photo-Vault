@@ -59,7 +59,6 @@ import androidx.compose.foundation.layout.imePadding
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.glassChrome
-import com.deepak.photovault.designsystem.DarkGlass
 import dev.chrisbanes.haze.hazeSource
 
 /**
@@ -176,12 +175,10 @@ fun GlassScreen(
             exit = androidx.compose.animation.slideOutVertically(com.deepak.photovault.designsystem.motionSpec(220)) { it } + androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(220)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = systemBottom + 12.dp),
         ) {
-            lastBottom?.let { actions -> DarkGlass { FloatingPill(Modifier, content = actions) } }
+            lastBottom?.let { actions -> FloatingPill(Modifier, content = actions) }
         }
-        // Clear Glass: everything at the top is dark glass by day and night (21 Nov), and shares one firmer film, so
-        // the pills look alike over any photos.
-        DarkGlass {
-        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.TOP_FILM) {
+        // Clear Glass: everything at the top shares one firmer film, so the pills look alike over any photos.
+        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.topFilm(theme.isDark)) {
         if (title == null) {
             // The top pills (Years / Months / All, Search, an album's back button) always stay in view (24 Oct);
             // only the navigation bar tucks away while scrolling.
@@ -215,7 +212,6 @@ fun GlassScreen(
                     top = insets.calculateTopPadding() + 8.dp,
                 ),
         )
-        }
         }
         }
         if (overlay != null) overlay.invoke(this@Box)

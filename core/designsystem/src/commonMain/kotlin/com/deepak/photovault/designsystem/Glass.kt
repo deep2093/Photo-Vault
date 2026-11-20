@@ -278,7 +278,7 @@ private fun Modifier.liquidGlassChrome(
                 inkCeiling = ink.nightCeiling,
                 frost = when {
                     tinted -> LiquidGlassInk.TINTED_FROST
-                    theme.isClearGlass -> maxOf(LiquidGlassInk.CLEAR_FILM, LocalGlassFilm.current ?: 0f)
+                    theme.isClearGlass -> maxOf(LiquidGlassInk.clearFilm(theme.isDark), LocalGlassFilm.current ?: 0f)
                     else -> 0f
                 },
                 frostColor = LocalGlassDarkness.current?.let { LiquidGlassInk.tintedFrostColor(it.value) } ?: LiquidGlassInk.tintedFrostColor(theme.isDark),

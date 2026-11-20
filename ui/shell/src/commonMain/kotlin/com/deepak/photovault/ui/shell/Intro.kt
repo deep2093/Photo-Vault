@@ -100,15 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-21-6"
+    const val ID = "2026-11-21-7"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Clear Glass is dark glass", "By day and at night, every floating bar, pill and menu is dark glass, and it no longer changes colour as you scroll. The white tint under the bottom bar by day is gone."),
-        Change(ChangeKind.FIXED, "Glass depth", "Liquid Glass and Clear Glass: the chosen option in a chooser, chosen chips, switches, the red delete buttons and progress bars now have the same glass edge and shine as the other buttons."),
-        Change(ChangeKind.NEW, "More touch feedback", "A small vibration when you swipe or drag between sections, change Years / Months / All, open a menu or a photo, tap rows, cards and pills, and when a backup finishes."),
-        Change(ChangeKind.NEW, "Opening the app", "With Extra animations on: the app icon opens up as a window onto your photos, which arrive in a wave. On the Backup page the numbers count up."),
-        Change(ChangeKind.NEW, "Albums and Search open from where you tap", "With Extra animations on: an album grows out of its card and shrinks back into it, and Search opens as a circle from its button."),
-        Change(ChangeKind.NEW, "Deleted for good", "With Extra animations on: a photo you delete for good breaks into small pieces that fall away."),
+        Change(ChangeKind.CHANGED, "Clear Glass by day is clear again", "The bars, pills, headers and menus are see-through glass with depth and dark words, with no dark tint behind them. At night they stay dark glass. They never change colour as you scroll."),
+        Change(ChangeKind.FIXED, "Opening a photo", "It opens at once (the small dip before it is gone), the buttons and the row of photos come in right after it, and there is no double edge as it lands."),
+        Change(ChangeKind.CHANGED, "Wrong PIN", "A wrong PIN in the Secured folder now gives two firm double knocks, stronger than any other vibration, so you can't miss it."),
     )
 }
 

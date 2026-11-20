@@ -259,9 +259,6 @@ fun MediaGrid(
         val positionOf = remember(order) { order.withIndex().associate { (i, id) -> id to i } }
         val shown = remember(sections) { sections.flatMap { it.items }.associateBy { it.id } }
         val currentOnOpen by rememberUpdatedState(onOpen)
-        // Extra animations (21 Nov): a tapped photo dips a little, then opens (70 ms later, too short to feel like a wait).
-        var dippedId by remember { mutableStateOf<Long?>(null) }
-        val dipOnOpen by rememberUpdatedState(com.deepak.photovault.designsystem.extraMotionOn())
         val spacingPx = with(density) { GRID_SPACING.toPx() }
         val startPadPx = with(density) { contentPadding.calculateStartPadding(LayoutDirection.Ltr).toPx() }
         val endPadPx = with(density) { contentPadding.calculateEndPadding(LayoutDirection.Ltr).toPx() }
@@ -320,17 +317,8 @@ fun MediaGrid(
                         val item = shown[id] ?: gallery.find(id) ?: return
                         // A light touch as a photo opens (21 Nov).
                         haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                        if (!dipOnOpen) {
-                            currentOnOpen(item)
-                        } else {
-                            dippedId = id
-                            scope.launch {
-                                delay(TILE_DIP_MS)
-                                currentOnOpen(item)
-                                delay(400)
-                                if (dippedId == id) dippedId = null
-                            }
-                        }
+                        // At once (21 Nov): the small dip before opening made every photo wait, so it is gone.
+                        currentOnOpen(item)
                     }
                 }
 
@@ -492,7 +480,6 @@ fun MediaGrid(
                     selected = item.id in state.selected,
                     label = tileLabel?.invoke(item),
                     mark = tileMark?.invoke(item),
-                    dipped = dippedId == item.id,
                     onClick = { handler.onTap(item.id) },
                     onLongClick = { state.toggleSelected(item.id) },
                     modifier = tileModifier,
@@ -539,10 +526,9 @@ fun MediaGrid(
         }
 
         androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides gridLens) {
-        // Clear Glass (21 Nov): the date and Back to top are dark glass by day and night, like every floating bar.
-        com.deepak.photovault.designsystem.DarkGlass {
+        // Clear Glass: the date shares the top pills' firmer film, so it looks like them over any photo.
         if (continuous) androidx.compose.runtime.CompositionLocalProvider(
-            com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.TOP_FILM,
+            com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.topFilm(LocalGlassTheme.current.isDark),
         ) {
             FloatingDate(
                 grid = gridState,
@@ -565,7 +551,6 @@ fun MediaGrid(
                 onClick = { topTaps++ },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp),
             )
-        }
         }
         }
         if (parts != null) {
@@ -777,14 +762,12 @@ private fun PhotoTile(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
     mark: FloatArray? = null,
-    dipped: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
     var shape by remember(item.id) { mutableStateOf(0f) }
     // A photo that is only on the drive takes a moment to arrive: until then (or until it can't be read) a soft
     // shine moves across its tile (extra animations, 21 Nov).
     var arrived by remember(item.id) { mutableStateOf(false) }
-    val dip by animateFloatAsState(if (dipped) 0.93f else 1f, androidx.compose.animation.core.tween(TILE_DIP_MS.toInt()), label = "tile dip")
     val adaptive = theme.adaptive != null
     val open = onClick
     val select = onLongClick
@@ -843,7 +826,7 @@ private fun PhotoTile(
                 arrived = true
             },
             onError = { arrived = true },
-            modifier = Modifier.fillMaxSize().scale(inset * dip).clip(RoundedCornerShape(if (selected) 10.dp else 0.dp)),
+            modifier = Modifier.fillMaxSize().scale(inset).clip(RoundedCornerShape(if (selected) 10.dp else 0.dp)),
         )
         if (mark != null && shape > 0f) {
             // The tile shows the middle of the photo, cropped to a square: place the circle the same way.
@@ -1092,9 +1075,6 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         modifier = modifier,
     )
 }
-
-/** How long a tapped photo dips before it opens (extra animations). */
-private const val TILE_DIP_MS = 70L
 
 /** How long the date stays after the photos stop moving (18 Nov). */
 private const val DATE_LINGER_MS = 2000L
