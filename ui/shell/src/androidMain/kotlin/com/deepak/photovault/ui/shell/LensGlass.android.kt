@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -25,6 +27,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
 import com.deepak.photovault.designsystem.LensGlass
+import com.deepak.photovault.designsystem.LiquidGlassOptics
 
 @Composable
 actual fun rememberLensGlass(): LensGlass? {
@@ -42,57 +45,94 @@ actual fun lensGlassSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSIO
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGlass {
-    // Snapshot state: when the source or the bar moves, the bar's drawing is redone with the new offset.
-    private var sourceOrigin by mutableStateOf(Offset.Zero)
+    private var sourceOrigin by mutableStateOf<Offset?>(null)
 
-    override fun source(active: Boolean): Modifier = Modifier
-        .onGloballyPositioned { val o = it.positionInRoot(); if (o != sourceOrigin) sourceOrigin = o }
+    override fun source(active: Boolean, background: Color): Modifier = Modifier
+        .onGloballyPositioned { sourceOrigin = it.positionInRoot() }
         .drawWithContent {
-            // Always in the chain; only records while lens glass is on, so a runtime switch needs no re-attach.
-            if (active) {
-                sourceLayer.record { this@drawWithContent.drawContent() }
+            if (active && drawContext.canvas.nativeCanvas.isHardwareAccelerated) {
+                sourceLayer.record {
+                    if (background.isSpecified) drawRect(background)
+                    this@drawWithContent.drawContent()
+                }
                 drawLayer(sourceLayer)
             } else {
                 drawContent()
             }
         }
 
+    override val drawLens: @Composable (Shape, Color, Boolean, LiquidGlassOptics?) -> Modifier =
+        { shape, tint, active, liquid -> lensModifier(shape, tint, active, liquid) }
+
     @Composable
-    override fun lens(shape: Shape, tint: Color, active: Boolean): Modifier {
+    private fun lensModifier(shape: Shape, tint: Color, active: Boolean, liquid: LiquidGlassOptics?): Modifier {
         val effectLayer = rememberGraphicsLayer()
-        val shader = remember { RuntimeShader(LENS_SHADER) }
-        var barOrigin by remember { mutableStateOf(Offset.Zero) }
-        val applied = remember { FloatArray(3) { -1f } }
-        return Modifier
-            .onGloballyPositioned {
-                val o = it.positionInRoot()
-                if (o != barOrigin) barOrigin = o
+        val shader = remember(active, liquid != null) {
+            if (!active) null else try {
+                RuntimeShader(if (liquid == null) LENS_SHADER else LIQUID_GLASS_SHADER)
+            } catch (_: IllegalArgumentException) {
+                null
             }
+        }
+        var barOrigin by remember { mutableStateOf<Offset?>(null) }
+        val applied = remember(shader, liquid) { FloatArray(5) { -1f } }
+        return Modifier
+            .onGloballyPositioned { barOrigin = it.positionInRoot() }
             .drawWithContent {
                 if (!active) {
                     drawContent()
                     return@drawWithContent
                 }
+
+                val source = sourceOrigin
+                val bar = barOrigin
+                if (shader == null || source == null || bar == null || size.minDimension <= 1f ||
+                    !drawContext.canvas.nativeCanvas.isHardwareAccelerated
+                ) {
+                    drawRect(liquid?.fallback ?: tint)
+                    drawContent()
+                    return@drawWithContent
+                }
+
                 val outline = shape.createOutline(size, layoutDirection, this)
                 val radius = if (outline is Outline.Rounded) outline.roundRect.topLeftCornerRadius.x else 0f
-                // The effect is rebuilt only when the bar's size changes, not every frame.
-                if (applied[0] != size.width || applied[1] != size.height || applied[2] != radius) {
+                val blurPx = liquid?.let { it.blur.toPx() } ?: 6f
+                val dpPx = 1.dp.toPx()
+                if (applied[0] != size.width || applied[1] != size.height || applied[2] != radius ||
+                    applied[3] != blurPx || applied[4] != dpPx
+                ) {
                     shader.setFloatUniform("size", size.width, size.height)
                     shader.setFloatUniform("radius", radius)
-                    shader.setFloatUniform("bevel", minOf(size.height * 0.5f, 36.dp.toPx()))
-                    effectLayer.renderEffect = RenderEffect.createChainEffect(
-                        RenderEffect.createRuntimeShaderEffect(shader, "content"),
-                        RenderEffect.createBlurEffect(6f, 6f, Shader.TileMode.CLAMP),
-                    ).asComposeRenderEffect()
+                    if (liquid == null) {
+                        shader.setFloatUniform("bevel", minOf(size.height * 0.5f, 36.dp.toPx()))
+                    } else {
+                        shader.setFloatUniform("dp", dpPx)
+                        shader.setFloatUniform("darkMode", if (liquid.dark) 1f else 0f)
+                        shader.setFloatUniform(
+                            "backdrop",
+                            liquid.backdrop.red, liquid.backdrop.green, liquid.backdrop.blue,
+                        )
+                    }
+                    val refraction = RenderEffect.createRuntimeShaderEffect(shader, "content")
+                    effectLayer.renderEffect = if (blurPx > 0f) {
+                        RenderEffect.createChainEffect(
+                            refraction,
+                            RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP),
+                        ).asComposeRenderEffect()
+                    } else {
+                        refraction.asComposeRenderEffect()
+                    }
                     applied[0] = size.width
                     applied[1] = size.height
                     applied[2] = radius
+                    applied[3] = blurPx
+                    applied[4] = dpPx
                 }
                 effectLayer.record {
-                    translate(sourceOrigin.x - barOrigin.x, sourceOrigin.y - barOrigin.y) { drawLayer(sourceLayer) }
+                    translate(source.x - bar.x, source.y - bar.y) { drawLayer(sourceLayer) }
                 }
                 drawLayer(effectLayer)
-                drawRect(tint)
+                if (liquid == null) drawRect(tint)
                 drawContent()
             }
     }

@@ -41,6 +41,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.snapshotFlow
 import com.deepak.photovault.designsystem.LocalGlassSettings
+import com.deepak.photovault.designsystem.lensGlassActive
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -79,6 +80,8 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -117,6 +120,9 @@ import com.deepak.photovault.designsystem.MinTouchTarget
 import com.deepak.photovault.designsystem.NavigationLayout
 import com.deepak.photovault.designsystem.PhotoVaultTheme
 import com.deepak.photovault.designsystem.glassChrome
+import com.deepak.photovault.designsystem.glassDepth
+import com.deepak.photovault.designsystem.liquidGlassTouch
+import com.deepak.photovault.designsystem.pressDip
 import com.deepak.photovault.designsystem.glassPanel
 import com.deepak.photovault.designsystem.GlassIcon
 import com.deepak.photovault.designsystem.motionSpec
@@ -374,7 +380,7 @@ fun PhotoVaultApp(
                     // The smoothness meter (a test in Settings > About, 20 Nov), at the top in the middle.
                     val meter = state.frameMeter
                     if (state.appearance.frameMeterTest && meter != null) {
-                        FrameMeterBadge(meter, Modifier.align(Alignment.TopCenter).padding(top = system.calculateTopPadding() + 4.dp))
+                        FrameMeterBadge(meter, meterPlace(state, gallery), Modifier.align(Alignment.TopCenter).padding(top = system.calculateTopPadding() + 4.dp))
                     }
                 }
             }
@@ -933,7 +939,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val shift = androidx.compose.animation.core.animateFloatAsState(if (tucked) travel else 0f, motionSpec(CHROME_MS), label = "bar")
     // The lens is always created and its modifiers always attached (they only draw while lens glass is on), so
     // switching to a lens theme while the app is open works at once instead of after a restart.
-    val lensOn = LocalGlassSettings.current.lensEnabled && LocalGlassTheme.current.lens
+    val lensOn = lensGlassActive()
     val lens = rememberLensGlass()
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
@@ -1590,6 +1596,8 @@ private fun SectionContent(destination: Destination, screens: Screens) {
 private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, settingsDot: Boolean, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
+    val settings = LocalGlassSettings.current
+    val flexible = theme.isLiquidGlass && settings.blurEnabled && !settings.reduceMotion
     BoxWithConstraints(
         modifier
             .widthIn(max = 480.dp)
@@ -1603,9 +1611,16 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
             Modifier
                 .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
                 .size(itemWidth, NAV_ITEM_HEIGHT)
-                .clip(RoundedCornerShape(percent = 50))
+                .then(if (flexible) Modifier.graphicsLayer {
+                    val fraction = indicator() % 1f
+                    val stretch = 1f - kotlin.math.abs(2f * fraction - 1f)
+                    scaleX = 1f + 0.10f * stretch
+                    scaleY = 1f - 0.08f * stretch
+                } else Modifier)
+                .clip(shape)
                 .background(theme.accentSurface)
-                .frostedEdge(RoundedCornerShape(percent = 50)),
+                .then(if (theme.isLiquidGlass) Modifier.glassDepth() else Modifier)
+                .frostedEdge(shape),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->
@@ -1637,14 +1652,27 @@ private fun NavItem(
     val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
     val fg = lerp(theme.onGlass, theme.onAccent, closeness)
     val selected = closeness > 0.5f
+    val press = if (theme.isLiquidGlass && LocalGlassSettings.current.blurEnabled) {
+        remember { MutableInteractionSource() }
+    } else {
+        null
+    }
     Column(
         modifier
             .height(height)
+            .then(if (press != null) Modifier.pressDip(press) else Modifier)
             .clip(RoundedCornerShape(24.dp))
-            .selectable(selected = selected, role = Role.Tab, onClick = {
-                haptics.tick()
-                onClick()
-            })
+            .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
+            .selectable(
+                selected = selected,
+                interactionSource = press,
+                indication = LocalIndication.current,
+                role = Role.Tab,
+                onClick = {
+                    haptics.tick()
+                    onClick()
+                },
+            )
             .then(if (dot) Modifier.semantics { stateDescription = "A phone is waiting for approval" } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

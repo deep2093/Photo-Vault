@@ -8,6 +8,7 @@ import android.view.FrameMetrics
 import android.view.Window
 import com.deepak.photovault.ui.shell.FrameCounts
 import com.deepak.photovault.ui.shell.FrameMeter
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -21,14 +22,31 @@ class AndroidFrameMeter(private val activity: Activity) : FrameMeter {
     private val frozen = AtomicInteger()
     private var thread: HandlerThread? = null
 
+    /** The page frames are counted for now, and the counts for each page (20 Nov). */
+    @Volatile
+    private var place = ""
+    private val perPlace = ConcurrentHashMap<String, Tally>()
+
+    private class Tally {
+        val frames = AtomicInteger()
+        val slow = AtomicInteger()
+        val frozen = AtomicInteger()
+    }
+
     private val listener = Window.OnFrameMetricsAvailableListener { _, metrics, _ ->
         // The very first frame of a window is always slow (it builds everything); it says nothing about smoothness.
         if (metrics.getMetric(FrameMetrics.FIRST_DRAW_FRAME) == 1L) return@OnFrameMetricsAvailableListener
         val took = metrics.getMetric(FrameMetrics.TOTAL_DURATION)
         val allowed = if (Build.VERSION.SDK_INT >= 31) metrics.getMetric(FrameMetrics.DEADLINE) else refreshNanos()
+        val late = allowed > 0 && took > allowed
+        val froze = took > FROZEN_NANOS
         frames.incrementAndGet()
-        if (allowed > 0 && took > allowed) slow.incrementAndGet()
-        if (took > FROZEN_NANOS) frozen.incrementAndGet()
+        if (late) slow.incrementAndGet()
+        if (froze) frozen.incrementAndGet()
+        val here = perPlace.getOrPut(place) { Tally() }
+        here.frames.incrementAndGet()
+        if (late) here.slow.incrementAndGet()
+        if (froze) here.frozen.incrementAndGet()
     }
 
     override fun start() {
@@ -47,10 +65,18 @@ class AndroidFrameMeter(private val activity: Activity) : FrameMeter {
 
     override fun counts(): FrameCounts = FrameCounts(frames.get(), slow.get(), frozen.get())
 
+    override fun places(): Map<String, FrameCounts> =
+        perPlace.mapValues { (_, t) -> FrameCounts(t.frames.get(), t.slow.get(), t.frozen.get()) }
+
+    override fun setPlace(place: String) {
+        this.place = place
+    }
+
     override fun reset() {
         frames.set(0)
         slow.set(0)
         frozen.set(0)
+        perPlace.clear()
     }
 
     /** One refresh of the screen in nanoseconds (Android 11, which has no per-frame deadline). */

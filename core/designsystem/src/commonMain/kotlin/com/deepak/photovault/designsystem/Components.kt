@@ -108,6 +108,7 @@ fun GlassButton(
                     else -> Modifier.glassPanel(shape)
                 },
             )
+            .liquidGlassTouch(press)
             .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = {
                 haptics.tap()
                 onClick()
@@ -126,12 +127,13 @@ fun GlassButton(
 fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
-    // No disc behind the icon: it sits on the bar's own glass (feedback 22 Oct). The ripple shows the touch.
+    val press = if (theme.isLiquidGlass) remember { androidx.compose.foundation.interaction.MutableInteractionSource() } else null
     Box(
         modifier
             .size(MinTouchTarget)
             .clip(CircleShape)
-            .clickable(role = Role.Button, onClick = {
+            .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
+            .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = {
                 haptics.tap()
                 onClick()
             })

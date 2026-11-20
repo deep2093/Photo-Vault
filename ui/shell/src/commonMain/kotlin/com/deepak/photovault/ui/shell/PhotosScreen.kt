@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.Alignment
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.LocalGlassTheme
+import com.deepak.photovault.designsystem.liquidGlassTouch
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
@@ -129,7 +132,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         label = "pillInk",
     )
     // Calm glass (18 Nov): the day themes' pills are white enough for their dark words over any photo, so no switching.
-    val pillTheme = if (baseTheme.isDark || com.deepak.photovault.designsystem.GlassFinish.CALM) baseTheme else baseTheme.copy(onGlass = ink)
+    // Liquid Glass (20 Nov) keeps its own ink too.
+    val pillTheme = if (baseTheme.isDark || com.deepak.photovault.designsystem.GlassFinish.CALM || baseTheme.isLiquidGlass) baseTheme else baseTheme.copy(onGlass = ink)
     SelectableScreen(
         title = null,
         subtitle = null,
@@ -297,6 +301,7 @@ private fun ViewButtons(gallery: GalleryState) {
     Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         LibraryView.entries.forEach { option ->
             val selected = gallery.view == option
+            val press = if (theme.isLiquidGlass) remember { MutableInteractionSource() } else null
             val background by androidx.compose.animation.animateColorAsState(
                 if (selected) theme.accentSurface else androidx.compose.ui.graphics.Color.Transparent,
                 motionSpec(),
@@ -304,10 +309,20 @@ private fun ViewButtons(gallery: GalleryState) {
             )
             Box(
                 Modifier
-                    .heightIn(min = 30.dp)
+                    .heightIn(min = if (theme.isLiquidGlass) 48.dp else 30.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(background)
-                    .selectable(selected = selected, role = Role.RadioButton, onClick = { gallery.viewHistory.clear(); gallery.view = option })
+                    .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
+                    .selectable(
+                        selected = selected,
+                        interactionSource = press,
+                        indication = LocalIndication.current,
+                        role = Role.RadioButton,
+                        onClick = {
+                            gallery.viewHistory.clear()
+                            gallery.view = option
+                        },
+                    )
                     .padding(horizontal = 9.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -326,11 +341,19 @@ private fun ViewButtons(gallery: GalleryState) {
 @Composable
 internal fun SmallPillButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     val theme = LocalGlassTheme.current
+    val press = if (theme.isLiquidGlass) remember { MutableInteractionSource() } else null
     Box(
         Modifier
-            .size(32.dp)
+            .size(if (theme.isLiquidGlass) 48.dp else 32.dp)
             .clip(androidx.compose.foundation.shape.CircleShape)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+            .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
+            .clickable(
+                interactionSource = press,
+                indication = LocalIndication.current,
+                role = Role.Button,
+                onClickLabel = label,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         com.deepak.photovault.designsystem.DepthIcon(icon, label, theme.onGlass, Modifier.size(18.dp))

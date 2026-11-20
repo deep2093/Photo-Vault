@@ -151,7 +151,8 @@ fun Modifier.pressDip(source: androidx.compose.foundation.interaction.Interactio
 fun Modifier.glassRim(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     // Calm glass (18 Nov): one clean, even line instead of the bright glint.
-    if (GlassFinish.CALM) return border(1.dp, calmEdge(theme), shape)
+    // Liquid Glass (20 Nov) keeps its own polished edge, as it was designed with it.
+    if (GlassFinish.CALM && !theme.isLiquidGlass) return border(1.dp, calmEdge(theme), shape)
     val rim = theme.glassRim
     val k = theme.rimStrength
     return border(
@@ -174,6 +175,7 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
     val theme = LocalGlassTheme.current
     val haze = LocalHazeState.current
     val settings = LocalGlassSettings.current
+    if (theme.isLiquidGlass) return liquidGlassChrome(shape, elevation, theme, settings)
     val blur = settings.blurEnabled && haze != null && !noBlur
     // Lens glass (experimental): only for themes that offer it, and only where the platform gave the bar a lens.
     val lens = if (noBlur) null else LocalLensGlass.current
@@ -226,11 +228,54 @@ fun Modifier.solidGlass(shape: Shape): Modifier {
     return this.clip(shape).background(theme.glassFallback).glassRim(shape)
 }
 
+/** Liquid Glass pairs a polished rounded edge with the live backdrop captured by the screen. */
+@Composable
+private fun Modifier.liquidGlassChrome(
+    shape: Shape,
+    elevation: Dp,
+    theme: GlassTheme,
+    settings: GlassSettings,
+): Modifier {
+    val lens = LocalLensGlass.current
+    val haze = LocalHazeState.current
+    val blur = theme.blurRadius * settings.blurScale
+    val tint = theme.glassTint
+    val shadowColor = Color.Black.copy(alpha = if (theme.isDark) 0.48f else 0.21f)
+    val surface = when {
+        !settings.blurEnabled -> Modifier.background(theme.glassFallback)
+        lens != null -> lens.lens(
+            shape = shape,
+            tint = tint,
+            active = true,
+            liquid = LiquidGlassOptics(blur, theme.isDark, theme.wallpaper.first(), theme.glassFallback),
+        )
+        haze == null -> Modifier.background(theme.glassFallback).liquidGlassSheen(theme.isDark)
+        settings.blurScale == 0f -> Modifier.background(tint).liquidGlassSheen(theme.isDark)
+        else -> Modifier.hazeEffect(
+            state = haze,
+            style = HazeStyle(
+                backgroundColor = theme.wallpaper.first(),
+                tints = listOf(HazeTint(tint)),
+                blurRadius = blur,
+                noiseFactor = 0f,
+                fallbackTint = HazeTint(theme.glassFallback),
+            ),
+        ).liquidGlassSheen(theme.isDark)
+    }
+    return shadow(elevation * 0.7f, shape, ambientColor = shadowColor, spotColor = shadowColor)
+        .clip(shape)
+        .then(surface)
+        .glassRim(shape)
+}
+
 /** Glass for panels and cards that sit on the wallpaper. No blur needed: the wallpaper is calm. */
 @Composable
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val film = theme.panelFill
+    if (theme.isLiquidGlass && film != null && LocalGlassSettings.current.blurEnabled) {
+        return clip(shape).background(film).liquidGlassSheen(theme.isDark).glassRim(shape)
+    }
     // A see-through frosted film with depth (29 Oct) while the glass effect is on; solid when "Turn off glass effect" is on.
     return if (film != null && LocalGlassSettings.current.blurEnabled) {
         this.clip(shape).background(film).glassDepth().glassRim(shape)
@@ -246,6 +291,8 @@ fun Modifier.glassPanel(shape: Shape): Modifier {
 @Composable
 fun Modifier.glassDepth(): Modifier {
     if (!LocalGlassSettings.current.blurEnabled) return this
+    val theme = LocalGlassTheme.current
+    if (theme.isLiquidGlass) return liquidGlassSheen(theme.isDark)
     // Calm glass (18 Nov): only a faint light along the top, no shade along the bottom.
     val top = if (GlassFinish.CALM) 0.07f else 0.16f
     val bottom = if (GlassFinish.CALM) 0f else 0.14f
@@ -266,8 +313,9 @@ fun Modifier.glassDepth(): Modifier {
 fun Modifier.frostedEdge(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val edge = theme.glassRim
-    // Calm glass (18 Nov): an even line on night themes; day themes' soft shade needs none.
-    if (GlassFinish.CALM) return if (theme.accentFill == null || !theme.isDark) this else this.border(1.dp, Color.White.copy(alpha = 0.18f), shape)
+    // Calm glass (18 Nov): an even line on night themes; day themes' soft shade needs none. Liquid Glass (20 Nov) keeps
+    // the fine bright edge it was designed with.
+    if (GlassFinish.CALM && !theme.isLiquidGlass) return if (theme.accentFill == null || !theme.isDark) this else this.border(1.dp, Color.White.copy(alpha = 0.18f), shape)
     return if (theme.accentFill == null) this else this.border(
         1.dp,
         Brush.linearGradient(listOf(edge.copy(alpha = 0.55f), edge.copy(alpha = 0.12f), edge.copy(alpha = 0.3f))),

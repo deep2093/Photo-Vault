@@ -17,6 +17,8 @@ enum class GlassThemeId {
     LUMINOUS_DARK, LIQUID_DARK, PHOTO_DAY, VIVID_DAY,
     /** Pearl (20 Nov): Skywing's Liquid Day brought over and improved, with a night version. */
     PEARL_DAY, PEARL_NIGHT,
+    /** Liquid Glass (20 Nov): Deepak's own iOS-style theme, Light and Dark. */
+    LIQUID_GLASS_LIGHT, LIQUID_GLASS_DARK,
 }
 
 /**
@@ -107,6 +109,9 @@ data class GlassTheme(
 ) {
     /** The pale-background version: white text on a pale page can only reach 3:1 on its glass cards, so tests allow that for it. */
     val isPaleVariant: Boolean get() = !isDark
+
+    val isLiquidGlass: Boolean
+        get() = id == GlassThemeId.LIQUID_GLASS_LIGHT || id == GlassThemeId.LIQUID_GLASS_DARK
 }
 
 /** What a selected pill, button or tick is filled with: the frosted film where the theme has one, else the accent. */
@@ -268,19 +273,24 @@ object GlassThemes {
         hues = listOf(0xFFB9C4D6, 0xFFD8C8DA, 0xFFA9C9D4, 0xFFE3D6C8, 0xFF9DB0C8),
         milky = false,
     ).let { deep ->
+        // 20 Nov (Deepak: "Pearl Day doesn't have any depth; give it some, like the night version"): light from above,
+        // a deeper cool pearl lower down with a little shade in its lower corners, and stronger lights of colour, so
+        // cards and bars stand off the page instead of melting into it.
         pale(
             deep,
-            listOf(0xFFF7F8FB, 0xFFF3F1F6, 0xFFE9EEF4),
+            listOf(0xFFF6F7FB, 0xFFE9EBF3, 0xFFD9DEEA),
             listOf(
-                Glow(0.85f, 0.08f, 0.8f, Color(0x38FFD9A0)),
-                Glow(0.08f, 0.6f, 0.8f, Color(0x2659C8FF)),
-                Glow(0.8f, 0.98f, 0.7f, Color(0x2ED9A6E0)),
-                Glow(0.35f, 0.18f, 0.45f, Color(0x80FFFFFF)),
+                Glow(0.85f, 0.06f, 0.75f, Color(0x4DFFD9A0)),
+                Glow(0.05f, 0.55f, 0.75f, Color(0x3359C8FF)),
+                Glow(0.85f, 1.0f, 0.7f, Color(0x40D9A6E0)),
+                Glow(0.3f, 0.12f, 0.5f, Color(0xB3FFFFFF)),
+                Glow(1.0f, 1.05f, 0.75f, Color(0x1F4A5878)),
+                Glow(0.0f, 1.05f, 0.6f, Color(0x144A5878)),
             ),
             ink = 0xFF14171C,
             frost = 0xF8F9FB,
         )
-    }.copy(lustre = listOf(Color(0x1AFFD6E8), Color(0x26FFFFFF), Color(0x1AD6F2FF)))
+    }.copy(lustre = listOf(Color(0x26FFD6E8), Color(0x40FFFFFF), Color(0x26D6F2FF)))
 
     /** Pearl Night: a black pearl. Cool charcoal with a moonlit light and soft teal and rose sheens, silver-edged glass. */
     val PearlNight: GlassTheme = glass(
@@ -296,6 +306,48 @@ object GlassThemes {
         milky = false,
         smoke = 0x0B0C10, solid = 0x1B1D24,
     ).copy(lustre = listOf(Color(0x0CE38AC4), Color(0x10FFFFFF), Color(0x0C6FD6CF)))
+
+    // ---- Liquid Glass (20 Nov, Deepak's own iOS-style theme, made as a patch on main and merged here) ----
+    // The bars bend the photos behind their rounded edges and catch a light on them (Android 13 and newer; blur on
+    // Android 12; a solid fill before that). Its own neutral pages, frost and polished edge, not the calm look.
+
+    val LiquidGlassLight: GlassTheme = LiquidDay.pale!!.copy(
+        id = GlassThemeId.LIQUID_GLASS_LIGHT,
+        displayName = "Liquid Glass Light",
+        bestFor = "Clear, rounded glass over a neutral light gallery",
+        wallpaper = listOf(Color(0xFFF8F9FB), Color(0xFFEEF1F5), Color(0xFFE6EAF0)),
+        glows = emptyList(),
+        glassTint = Color(0xA4F8FAFD),
+        glassFallback = Color(0xFFEFF2F7),
+        glassRim = White,
+        onGlass = Color(0xFF171C24),
+        onGlassSecondary = Color(0xFF2C3440),
+        onWallpaper = Color(0xFF171C24),
+        accent = Color(0xFF171C24),
+        onAccent = Color(0xFF171C24),
+        accentFill = Color(0x76FFFFFF),
+        panelFill = Color(0x54FFFFFF),
+        blurRadius = 7.dp,
+        rimWidth = 0.75.dp,
+        rimStrength = 0.75f,
+    )
+
+    val LiquidGlassDark: GlassTheme = LiquidGlassLight.copy(
+        id = GlassThemeId.LIQUID_GLASS_DARK,
+        displayName = "Liquid Glass Dark",
+        bestFor = "Smoked, rounded glass over a neutral dark gallery",
+        isDark = true,
+        wallpaper = listOf(Color(0xFF101217), Color(0xFF171B22), Color(0xFF1D232C)),
+        glassTint = Color(0xAB131720),
+        glassFallback = Color(0xFF212730),
+        onGlass = White,
+        onGlassSecondary = Color(0xFFEFF2F7),
+        onWallpaper = White,
+        accent = White,
+        onAccent = White,
+        accentFill = Color(0x1FFFFFFF),
+        panelFill = Color(0x15FFFFFF),
+    )
 
     // ---- Dark themes ----
 
@@ -365,7 +417,7 @@ object GlassThemes {
         ),
     ).copy(id = GlassThemeId.VIVID_DAY, displayName = "Prism Day", bestFor = "Pastel colours from your photos")
 
-    /** The five themes, each with its day and night (18 Nov; Pearl added 20 Nov). Liquid first: everyone starts on it. */
+    /** The six themes, each with its day and night (18 Nov; Pearl and Liquid Glass added 20 Nov). Liquid first: everyone starts on it. */
     val families: List<ThemeFamily> = listOf(
         // 18 Nov (Deepak: "name them after what they look like"): new names only; the saved keys stay, so everyone keeps
         // the theme they chose.
@@ -374,6 +426,7 @@ object GlassThemes {
         ThemeFamily("LUMINOUS", "Aurora", "Lilac and mint by day, northern lights at night", AuroraGlassLight.pale!!, LuminousNight),
         ThemeFamily("PHOTO", "Gallery", "Warm paper by day, graphite at night, one soft light from your photos", PhotoDay, AdaptiveMidnight),
         ThemeFamily("VIVID", "Prism", "Colours from your photos: pastels by day, deep jewels at night", VividDay, AdaptiveVivid),
+        ThemeFamily("LIQUID_GLASS", "Liquid Glass", "Clear, rounded glass like iOS that bends what's behind it: light by day, smoked at night", LiquidGlassLight, LiquidGlassDark),
     )
 
     /** The theme a saved id belongs to, whether it was saved as the day or the night version; else Liquid. */

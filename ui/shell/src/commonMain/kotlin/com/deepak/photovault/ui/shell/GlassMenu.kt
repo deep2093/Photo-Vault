@@ -56,6 +56,11 @@ internal fun BoxScope.GlassMenuLayer(
     val insets = LocalScreenInsets.current
     Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null, onClick = onDismiss))
     val shape = RoundedCornerShape(20.dp)
+    val theme = LocalGlassTheme.current
+    val legibilityTint = if (theme.isLiquidGlass) Modifier else Modifier.background(
+        theme.glassFallback.copy(alpha = if (solid) 0.97f else 0.82f),
+        shape,
+    )
     Column(
         Modifier
             .align(if (bottom != null) Alignment.BottomEnd else Alignment.TopEnd)
@@ -71,8 +76,7 @@ internal fun BoxScope.GlassMenuLayer(
             )
             .widthIn(min = 150.dp, max = 220.dp)
             .glassChrome(shape, elevation = 12.dp)
-            // A firmer tint under the words (31 Oct: the plain glass was hard to read over photos); still the theme's own colour.
-            .background(LocalGlassTheme.current.glassFallback.copy(alpha = if (solid) 0.97f else 0.82f), shape)
+            .then(legibilityTint)
             .padding(vertical = 4.dp),
         content = content,
     )

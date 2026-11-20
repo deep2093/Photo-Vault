@@ -18,6 +18,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import com.deepak.photovault.designsystem.LocalGlassSettings
+import com.deepak.photovault.designsystem.lensGlassActive
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
@@ -126,7 +127,7 @@ fun GlassScreen(
     // Lens glass for this screen's pills and top bar: this screen's own content is recorded (the pills sit inside the
     // navigation bar's recording, so they cannot use that layer without drawing themselves). Always attached; it only
     // draws while lens glass is on.
-    val lensOn = LocalGlassSettings.current.lensEnabled && LocalGlassTheme.current.lens
+    val lensOn = lensGlassActive()
     val lens = com.deepak.photovault.ui.shell.rememberLensGlass()
     Box(Modifier.fillMaxSize()) {
         // The pill and the bar take the same room, so starting a selection on Photos doesn't shift the grid.

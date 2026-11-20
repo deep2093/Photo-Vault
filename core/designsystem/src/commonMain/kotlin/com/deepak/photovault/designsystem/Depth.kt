@@ -19,7 +19,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun glassDepthOn(): Boolean {
     val settings = LocalGlassSettings.current
-    return settings.lensEnabled && settings.blurEnabled && LocalGlassTheme.current.lens
+    val theme = LocalGlassTheme.current
+    return settings.lensEnabled && settings.blurEnabled && theme.lens && !theme.isLiquidGlass
 }
 
 @Composable

@@ -32,6 +32,7 @@ import com.deepak.photovault.core.media.DetailsFormat
 import com.deepak.photovault.core.media.MediaDetails
 import com.deepak.photovault.core.media.MediaDetailsSource
 import com.deepak.photovault.designsystem.LocalGlassSettings
+import com.deepak.photovault.designsystem.lensGlassActive
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.fadeIn
@@ -135,6 +136,8 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 
 /**
  * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to fade the filmstrip and actions
@@ -234,8 +237,16 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalGlassSettings.current.reduceMotion
     // Lens glass on the toolbar too (25 Oct): the photo is recorded so the bar can look through it.
-    val lensOn = LocalGlassSettings.current.lensEnabled && com.deepak.photovault.designsystem.LocalGlassTheme.current.lens
-    val lens = rememberLensGlass()
+    val lensOn = lensGlassActive()
+    val liquidGlass = LocalGlassTheme.current.isLiquidGlass
+    // HDR video plays on a separate Android surface outside the Compose backdrop.
+    val canSampleBackdrop = !liquidGlass || !videoStarted || !video.hdr
+    val lens = if (canSampleBackdrop) rememberLensGlass() else null
+    val liquidHaze = if (liquidGlass && canSampleBackdrop && LocalGlassSettings.current.blurEnabled && lens == null) {
+        remember { HazeState() }
+    } else {
+        null
+    }
 
     // 0 = photo only, 1 = details panel fully open.
     val progress = remember { Animatable(0f) }
@@ -315,8 +326,8 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
             }
         }
 
-        // No blur source here: the bars use solid glass over the photo.
-        CompositionLocalProvider(LocalHazeState provides null) {
+        // Older Android versions can use Haze for the Liquid Glass viewer controls.
+        CompositionLocalProvider(LocalHazeState provides liquidHaze) {
             HorizontalPager(
                 state = pager,
                 key = { ids[it] },
@@ -324,6 +335,10 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (areaPx != null) Modifier.height(with(density) { areaPx.toDp() }) else Modifier.fillMaxHeight())
+                    .then(if (liquidHaze != null) Modifier.hazeSource(liquidHaze) else Modifier)
+                    // No black painted behind the photo here (unlike the Secured viewer): it would cover the grid that
+                    // shows through while a photo is pulled down to close. The Liquid Glass lens fills see-through parts
+                    // with its own dark backdrop, so the bars look the same.
                     .then(lens?.source(lensOn) ?: Modifier)
                     .trackSpot(photoSpot)
                     .graphicsLayer {
@@ -544,26 +559,30 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 }
             }
             val moreItem = current
-            GlassMenuLayer(
-                moreOpen && !viewer.trash,
-                onDismiss = { moreOpen = false },
-                solid = true,
-                bottom = system.calculateBottomPadding() + 12.dp + 60.dp + 8.dp,
+            CompositionLocalProvider(
+                com.deepak.photovault.designsystem.LocalLensGlass provides if (liquidGlass) lens else null,
             ) {
-                // Edit (Phase 11): photos and (16 Nov) videos on this phone; it saves a copy, the original stays.
-                val editable = if (moreItem.isVideo) state.editor.platform.trimSupported else state.editor.platform.supported
-                if (!moreItem.isDriveOnly && !gallery.isExternal(moreItem) && editable) {
-                    GlassMenuItem(Icons.Rounded.Tune, "Edit", onClick = { moreOpen = false; state.open(Overlay.Edit(moreItem.id)) })
-                }
-                if (!moreItem.isVideo) {
-                    GlassMenuItem(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = { moreOpen = false; wallpaperItem = moreItem })
-                }
-                if (!gallery.isExternal(moreItem) && !moreItem.isDriveOnly) {
-                    GlassMenuItem(Icons.Rounded.Lock, "Move to Secured folder", onClick = {
-                        moreOpen = false
-                        val fly = { photoSpot.bounds?.let { listOf(FlyingPhoto(moreItem.uri, moreItem.isVideo, it, fit = true)) }.orEmpty() }
-                        secureMover.request(listOf(moreItem), fly = fly, aim = { lockSpot.bounds })
-                    })
+                GlassMenuLayer(
+                    moreOpen && !viewer.trash,
+                    onDismiss = { moreOpen = false },
+                    solid = true,
+                    bottom = system.calculateBottomPadding() + 12.dp + 60.dp + 8.dp,
+                ) {
+                    // Edit (Phase 11): photos and (16 Nov) videos on this phone; it saves a copy, the original stays.
+                    val editable = if (moreItem.isVideo) state.editor.platform.trimSupported else state.editor.platform.supported
+                    if (!moreItem.isDriveOnly && !gallery.isExternal(moreItem) && editable) {
+                        GlassMenuItem(Icons.Rounded.Tune, "Edit", onClick = { moreOpen = false; state.open(Overlay.Edit(moreItem.id)) })
+                    }
+                    if (!moreItem.isVideo) {
+                        GlassMenuItem(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = { moreOpen = false; wallpaperItem = moreItem })
+                    }
+                    if (!gallery.isExternal(moreItem) && !moreItem.isDriveOnly) {
+                        GlassMenuItem(Icons.Rounded.Lock, "Move to Secured folder", onClick = {
+                            moreOpen = false
+                            val fly = { photoSpot.bounds?.let { listOf(FlyingPhoto(moreItem.uri, moreItem.isVideo, it, fit = true)) }.orEmpty() }
+                            secureMover.request(listOf(moreItem), fly = fly, aim = { lockSpot.bounds })
+                        })
+                    }
                 }
             }
         }

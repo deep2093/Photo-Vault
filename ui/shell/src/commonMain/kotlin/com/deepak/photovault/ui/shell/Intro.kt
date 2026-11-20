@@ -100,10 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-20-3"
+    const val ID = "2026-11-20-4"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "New theme: Pearl", "Pearl white with clear glass by day, a black pearl with a soft teal and rose sheen at night. It's Skywing's Liquid Day, with words that stay easy to read over photos. Settings > Appearance."),
+        Change(ChangeKind.NEW, "Liquid Glass theme", "Your iOS-style theme: rounded glass that bends the photos behind the bars and catches the light at its edges. Light by day, Dark at night. Settings > Appearance."),
+        Change(ChangeKind.NEW, "Pearl Day with depth", "Light from above and a deeper pearl lower down, so cards and bars stand off the page like they do at night."),
+        Change(ChangeKind.NEW, "Smoothness meter by screen", "Tap the meter at the top to see which screens the late frames came from, worst first. Count again starts over."),
     )
 }
 

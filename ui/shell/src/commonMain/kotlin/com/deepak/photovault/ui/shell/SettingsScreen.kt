@@ -560,7 +560,7 @@ private fun ThemeGrid(state: ShellState) {
             }
         }
     }
-    // What the chosen theme is like, day and night, so the four are easy to tell apart.
+    // What the chosen theme is like, day and night, so they are easy to tell apart.
     Text(
         "${chosen.name}: ${chosen.about}",
         color = theme.onGlassSecondary,
@@ -584,7 +584,7 @@ internal fun appearanceSummary(state: ShellState): String {
     return "${state.themeFamily.name} · ${mode.label}"
 }
 
-/** How much the glass blurs what is behind it: 0 is none (a clear film), 4 is the most. */
+/** How much the glass blurs what is behind it. The Liquid Glass lens stays active at zero. */
 @Composable
 private fun BlurSlider(state: ShellState) {
     val theme = LocalGlassTheme.current
@@ -593,7 +593,12 @@ private fun BlurSlider(state: ShellState) {
         Icon(Icons.Rounded.BlurOn, contentDescription = null, tint = theme.onGlassSecondary)
         Spacer(Modifier.width(16.dp))
         Text("Blur", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text(if (step == 0) "None" else "$step of 4", color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
+        val strength = when {
+            step > 0 -> "$step of 4"
+            theme.isLiquidGlass -> "Clear"
+            else -> "None"
+        }
+        Text(strength, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
     }
     Slider(
         value = step.toFloat(),

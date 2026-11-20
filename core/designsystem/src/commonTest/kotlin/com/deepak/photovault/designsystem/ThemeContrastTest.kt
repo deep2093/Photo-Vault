@@ -81,6 +81,19 @@ class ThemeContrastTest {
     }
 
     @Test
+    fun liquidGlassFallbackInkStaysReadableOverBlackAndWhitePhotos() {
+        for (theme in listOf(GlassThemes.LiquidGlassLight, GlassThemes.LiquidGlassDark)) {
+            for (photo in listOf(Color.Black, Color.White)) {
+                val glass = theme.glassTint.compositeOver(photo)
+                for (ink in listOf(theme.onGlass, theme.onGlassSecondary)) {
+                    assertTrue(Contrast.ratio(ink, glass) >= Contrast.TEXT, theme.displayName)
+                    assertTrue(Contrast.ratio(ink, theme.glassFallback) >= Contrast.TEXT, theme.displayName)
+                }
+            }
+        }
+    }
+
+    @Test
     fun adaptiveThemesAreDistinct() {
         // Feedback 22 and 23 Oct: they looked alike. Each needs its own wallpaper shape among the day themes and among
         // the night ones (18 Nov: a theme's day and night versions share theirs).
@@ -95,8 +108,8 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Ocean Day", "Pearl Day", "Aurora Day", "Gallery Day", "Prism Day"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Ocean Night", "Pearl Night", "Aurora Night", "Gallery Night", "Prism Night"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Day", "Pearl Day", "Aurora Day", "Gallery Day", "Prism Day", "Liquid Glass Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Night", "Pearl Night", "Aurora Night", "Gallery Night", "Prism Night", "Liquid Glass Dark"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })
@@ -104,9 +117,9 @@ class ThemeCatalogTest {
 
     @Test
     fun everyThemeHasALightDayAndADarkNight() {
-        // 18 Nov: each theme has a day version (light page, dark text) and a night one (deep page, white text). Five
-        // since Pearl came over from Skywing (20 Nov).
-        assertEquals(5, GlassThemes.families.size)
+        // 18 Nov: each theme has a day version (light page, dark text) and a night one (deep page, white text). Six
+        // since Pearl came over from Skywing and Deepak's Liquid Glass was added (20 Nov).
+        assertEquals(6, GlassThemes.families.size)
         GlassThemes.families.forEach { family ->
             assertFalse(family.day.isDark, family.name)
             assertTrue(family.night.isDark, family.name)
@@ -138,7 +151,8 @@ class ThemeCatalogTest {
         assertEquals("Pearl", pearl.name)
         assertEquals(GlassThemes.PearlDay, pearl.day)
         assertEquals(GlassThemes.PearlNight, pearl.night)
-        assertTrue(pearl.day.wallpaper.all { Contrast.relativeLuminance(it) > 0.8 }, "Pearl Day's page is nearly white")
+        // A light page (deeper at the bottom since 20 Nov, for depth) under dark words.
+        assertTrue(pearl.day.wallpaper.all { Contrast.relativeLuminance(it) > 0.7 }, "Pearl Day's page is light")
         assertTrue(pearl.night.wallpaper.all { Contrast.relativeLuminance(it) < 0.02 }, "Pearl Night's page is nearly black")
         assertEquals(3, pearl.day.lustre?.size)
         assertEquals(3, pearl.night.lustre?.size)

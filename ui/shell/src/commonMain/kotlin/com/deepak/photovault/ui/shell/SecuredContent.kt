@@ -95,6 +95,7 @@ import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.GlassDialog
 import com.deepak.photovault.designsystem.GlassIconButton
 import com.deepak.photovault.designsystem.LocalGlassSettings
+import com.deepak.photovault.designsystem.lensGlassActive
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.LocalLensGlass
@@ -104,6 +105,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 
 /**
  * Moving phone photos and videos into the Secured folder (Phase 8A, 1 Nov): asks once, encrypts and checks each copy,
@@ -594,12 +597,28 @@ private fun SecuredViewer(
     val video = remember(current.id) { VideoControls() }
     var videoStarted by remember(current.id) { mutableStateOf(false) }
     val keys = remember(items) { items.map { it.id } }
-    // The same glass as the main viewer (3 Nov: it was darker here): no blur source, the lens looks through the photo.
-    val lensOn = LocalGlassSettings.current.lensEnabled && LocalGlassTheme.current.lens
-    val lens = rememberLensGlass()
-    CompositionLocalProvider(LocalHazeState provides null) {
+    // The secured viewer uses the same glass renderer as the photo viewer.
+    val lensOn = lensGlassActive()
+    val liquidGlass = LocalGlassTheme.current.isLiquidGlass
+    // HDR video plays on a separate Android surface outside the Compose backdrop.
+    val canSampleBackdrop = !liquidGlass || !videoStarted || !video.hdr
+    val lens = if (canSampleBackdrop) rememberLensGlass() else null
+    val liquidHaze = if (liquidGlass && canSampleBackdrop && LocalGlassSettings.current.blurEnabled && lens == null) {
+        remember { HazeState() }
+    } else {
+        null
+    }
+    CompositionLocalProvider(LocalHazeState provides liquidHaze) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        HorizontalPager(pager, Modifier.fillMaxSize().then(lens?.source(lensOn) ?: Modifier), userScrollEnabled = !zoomed, key = { items[it].id }) { page ->
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (liquidHaze != null) Modifier.hazeSource(liquidHaze) else Modifier)
+                .then(lens?.source(lensOn, if (liquidGlass) Color.Black else Color.Unspecified) ?: Modifier),
+            userScrollEnabled = !zoomed,
+            key = { items[it].id },
+        ) { page ->
             val item = items[page]
             val onTap = { barsVisible = !barsVisible }
             if (item.isVideo) {
