@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.IntOffset
@@ -104,7 +105,7 @@ fun OpeningAnimation(icon: ImageBitmap, glyph: IconGlyph, background: Color, onD
             val window = g >= REVEAL_DIP
             val zoom = if (!window) 1f - 0.12f * (g / REVEAL_DIP) else 0.88f + (REVEAL_ZOOM - 0.88f) * ((g - REVEAL_DIP) / (1f - REVEAL_DIP)).pow(2.4f)
             val topLeft = Offset(center.x - iconPx * pieces.centerX, center.y - iconPx * pieces.centerY)
-            androidx.compose.ui.graphics.drawscope.scale(zoom, zoom, pivot = center) {
+            scale(zoom, zoom, pivot = center) {
                 drawImage(
                     icon,
                     srcOffset = IntOffset.Zero,

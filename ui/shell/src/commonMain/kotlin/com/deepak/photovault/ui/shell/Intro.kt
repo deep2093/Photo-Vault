@@ -107,6 +107,8 @@ object WhatsNew {
         Change(ChangeKind.FIXED, "Glass depth", "Liquid Glass and Clear Glass: the chosen option in a chooser, chosen chips, switches, the red delete buttons and progress bars now have the same glass edge and shine as the other buttons."),
         Change(ChangeKind.NEW, "More touch feedback", "A small vibration when you swipe or drag between sections, change Years / Months / All, open a menu or a photo, tap rows, cards and pills, and when a backup finishes."),
         Change(ChangeKind.NEW, "Opening the app", "With Extra animations on: the app icon opens up as a window onto your photos, which arrive in a wave. On the Backup page the numbers count up."),
+        Change(ChangeKind.NEW, "Albums and Search open from where you tap", "With Extra animations on: an album grows out of its card and shrinks back into it, and Search opens as a circle from its button."),
+        Change(ChangeKind.NEW, "Deleted for good", "With Extra animations on: a photo you delete for good breaks into small pieces that fall away."),
     )
 }
 

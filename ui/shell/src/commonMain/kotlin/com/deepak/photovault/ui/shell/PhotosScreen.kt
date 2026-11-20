@@ -1,5 +1,7 @@
 package com.deepak.photovault.ui.shell
 
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PhotoAlbum
 import androidx.compose.material.icons.rounded.PhoneAndroid
@@ -160,7 +162,11 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     enter = androidx.compose.animation.fadeIn(com.deepak.photovault.designsystem.motionSpec(180)) + androidx.compose.animation.expandHorizontally(com.deepak.photovault.designsystem.motionSpec(180)),
                     exit = androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(140)) + androidx.compose.animation.shrinkHorizontally(com.deepak.photovault.designsystem.motionSpec(180)),
                 ) {
-                    SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
+                    // Extra animations (21 Nov): Search opens as a circle growing out of this button.
+                    val searchSpot = remember { arrayOfNulls<androidx.compose.ui.geometry.Rect>(1) }
+                    Box(Modifier.onGloballyPositioned { searchSpot[0] = it.boundsInRoot() }) {
+                        SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search, searchSpot[0]?.let { OpenOrigin(it, circle = true) }) }
+                    }
                 }
             }
             if (pillTheme === baseTheme) buttons()

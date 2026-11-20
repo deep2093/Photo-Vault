@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.selection.selectableGroup
@@ -256,7 +257,7 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
                         cornerRadius = corner,
                     )
                     if (glassy) {
-                        androidx.compose.ui.graphics.drawscope.inset(left = left, top = 0f, right = (size.width - left - segment).coerceAtLeast(0f), bottom = 0f) {
+                        inset(left = left, top = 0f, right = (size.width - left - segment).coerceAtLeast(0f), bottom = 0f) {
                             drawRoundRect(SolidGlassSheen, cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
                             drawLiquidGlassEdge(size.height / 2f, if (glassDark) 1f else 0f, glassLight?.value ?: DefaultGlassLight)
                         }

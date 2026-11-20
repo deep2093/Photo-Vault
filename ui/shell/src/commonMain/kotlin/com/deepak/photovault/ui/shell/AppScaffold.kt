@@ -14,6 +14,7 @@ import com.deepak.photovault.designsystem.PageEasing
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.derivedStateOf
@@ -112,6 +113,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.positionInRoot
@@ -539,6 +541,51 @@ private class PageEntry(val overlay: Overlay, shown: Float) {
 
     /** How dark the black behind a closing viewer starts (lighter when its photo was pulled down to close it, 20 Nov). */
     var backdropFrom = 1f
+
+    /**
+     * Extra animations (21 Nov): the page grows out of this (in the page host's own coordinates) and shrinks back into
+     * it, instead of sliding. Null: it slides. Cleared when a back gesture carries the page away to the side.
+     */
+    var origin by mutableStateOf<OpenOrigin?>(null)
+}
+
+/** Where a page growing out of [origin] is at [p] (0 at its origin, 1 the whole [size]). */
+private fun growRect(origin: androidx.compose.ui.geometry.Rect, size: androidx.compose.ui.geometry.Size, p: Float): androidx.compose.ui.geometry.Rect =
+    androidx.compose.ui.geometry.Rect(
+        left = origin.left * (1f - p),
+        top = origin.top * (1f - p),
+        right = origin.right + (size.width - origin.right) * p,
+        bottom = origin.bottom + (size.height - origin.bottom) * p,
+    )
+
+/**
+ * The window a growing page is seen through, drawn around the page's own layer: for a card, a rounded rectangle that
+ * grows from the card to the screen; for a round button, a circle that grows from the button until it covers the screen.
+ */
+private fun Modifier.growWindow(entry: PageEntry, cardCorner: Dp): Modifier = drawWithContent {
+    val origin = entry.origin
+    val p = entry.p.value
+    if (origin == null || p >= 1f) {
+        drawContent()
+        return@drawWithContent
+    }
+    val window = androidx.compose.ui.graphics.Path()
+    if (origin.circle) {
+        val centre = origin.rect.center
+        val far = maxOf(
+            kotlin.math.hypot(centre.x, centre.y),
+            kotlin.math.hypot(size.width - centre.x, centre.y),
+            kotlin.math.hypot(centre.x, size.height - centre.y),
+            kotlin.math.hypot(size.width - centre.x, size.height - centre.y),
+        )
+        val start = origin.rect.minDimension / 2f
+        window.addOval(androidx.compose.ui.geometry.Rect(centre, start + (far - start) * p))
+    } else {
+        val r = growRect(origin.rect, size, p)
+        val corner = cardCorner.toPx() * (1f - p)
+        window.addRoundRect(androidx.compose.ui.geometry.RoundRect(r, androidx.compose.ui.geometry.CornerRadius(corner, corner)))
+    }
+    clipPath(window) { this@drawWithContent.drawContent() }
 }
 
 /**
@@ -612,6 +659,7 @@ private fun OverlayHost(
 ) {
     val reduceMotion = LocalGlassSettings.current.reduceMotion
     androidx.compose.runtime.SideEffect { state.reduceMotionNow = reduceMotion }
+    val lively = com.deepak.photovault.designsystem.extraMotionOn()
     val scope = rememberCoroutineScope()
     val entries = remember { mutableStateListOf<PageEntry>().also { list -> state.overlays.forEach { list.add(PageEntry(it, 1f)) } } }
     val wanted = state.overlays.toList()
@@ -653,6 +701,8 @@ private fun OverlayHost(
                 // Let go by the back gesture: carries on from where the finger left it, always out to the right.
                 val from = (1f - state.pageBack.value).coerceIn(0f, 1f)
                 entry.slide?.cancel()
+                // Carried off to the side by the finger: it finishes that way, not back into its card.
+                entry.origin = null
                 entry.p.snapTo(from)
                 state.pageBack.snapTo(0f)
                 entry.slide = scope.launch {
@@ -692,6 +742,12 @@ private fun OverlayHost(
             // The full photo starts loading now, while it flies open (17 Nov).
             if (overlay is Overlay.Viewer) gallery.find(overlay.startId)?.let { FullPhoto.preload(platformContext, it) }
             val entry = PageEntry(overlay, if (reduceMotion) 1f else 0f)
+            // Extra animations: an album grows out of its card and Search out of its button (and back again).
+            val from = state.openOrigin
+            state.openOrigin = null
+            if (from != null && lively && i == 0 && overlay.slidesSideways()) {
+                entry.origin = OpenOrigin(from.rect.translate(-hostOrigin[0], -hostOrigin[1]), from.circle)
+            }
             if (overlay is Overlay.Viewer && !reduceMotion) {
                 val tile = tileOf(overlay.startId, same + i)
                 entry.fly = flyFor(overlay.startId, tile, tile?.let { thumbBucket(it.width.toInt()) } ?: 256)
@@ -772,9 +828,24 @@ private fun OverlayHost(
                     Box(
                         Modifier
                             .fillMaxSize()
+                            .growWindow(entry, GROW_CARD_CORNER)
                             .graphicsLayer {
                                 val width = size.width
-                                if (sideways) {
+                                val growFrom = entry.origin
+                                if (growFrom != null && entry.p.value < 1f) {
+                                    val p = entry.p.value
+                                    if (!growFrom.circle) {
+                                        // The page itself grows from the card's size, its top left corner on the card's.
+                                        val r = growRect(growFrom.rect, size, p)
+                                        val s = (r.width / width).coerceIn(0.02f, 1f)
+                                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                                        scaleX = s
+                                        scaleY = s
+                                        translationX = r.left
+                                        translationY = r.top
+                                    }
+                                    alpha = (p * 5f).coerceIn(0f, 1f)
+                                } else if (sideways) {
                                     val top = entries.lastOrNull { !it.closing }
                                     val own = (1f - entry.p.value) * width
                                     // The finger always pulls the page out to the right (6 Nov), whichever edge it starts from.
@@ -868,6 +939,9 @@ private fun FlyingCopy(fly: Fly, progress: () -> Float) {
             },
     )
 }
+
+/** How round the window of a page growing out of a card starts (the album cards' own corners). */
+private val GROW_CARD_CORNER = 24.dp
 
 /** A photo's flight between its tile and the viewer: short, quick off the mark and soft at the end, like Google Photos. */
 private const val VIEWER_MS = 250
@@ -1069,7 +1143,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             settingsDot = screens.settingsDot,
             shrink = { shrink.value },
             onExpand = { state.chrome.hidden = false },
-            onSearch = { state.open(Overlay.Search) },
+            onSearch = { from -> state.open(Overlay.Search, from?.let { OpenOrigin(it, circle = true) }) },
             dragTabs = iosBar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1715,7 +1789,8 @@ private fun FloatingNavigationBar(
     shrink: () -> Float = { 0f },
     /** A tap on the shrunk bar brings it back. */
     onExpand: () -> Unit = {},
-    onSearch: (() -> Unit)? = null,
+    /** Given where the Search circle is (root coordinates), so the Search page can grow out of it. */
+    onSearch: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
     /** Clear Glass with Apple's motion: dragging along the bar moves the chosen-section droplet with the finger. */
     dragTabs: Boolean = false,
 ) {
@@ -1823,9 +1898,11 @@ private fun FloatingNavigationBar(
         if (shrunk && onSearch != null) {
             val side = NAV_ITEM_HEIGHT + 12.dp
             val press = remember { MutableInteractionSource() }
+            val searchSpot = remember { arrayOfNulls<androidx.compose.ui.geometry.Rect>(1) }
             Box(
                 Modifier
                     .align(Alignment.CenterEnd)
+                    .onGloballyPositioned { searchSpot[0] = it.boundsInRoot() }
                     .graphicsLayer {
                         val k = shrink()
                         alpha = k
@@ -1836,7 +1913,7 @@ private fun FloatingNavigationBar(
                     .size(side)
                     .glassChrome(androidx.compose.foundation.shape.CircleShape)
                     .liquidGlassTouch(press)
-                    .clickable(interactionSource = press, indication = LocalIndication.current, role = Role.Button, onClickLabel = "Search", onClick = com.deepak.photovault.designsystem.hapticClick(onSearch)),
+                    .clickable(interactionSource = press, indication = LocalIndication.current, role = Role.Button, onClickLabel = "Search", onClick = com.deepak.photovault.designsystem.hapticClick { onSearch(searchSpot[0]) }),
                 contentAlignment = Alignment.Center,
             ) {
                 com.deepak.photovault.designsystem.DepthIcon(androidx.compose.material.icons.Icons.Rounded.Search, "Search", theme.onGlass, Modifier.size(26.dp))

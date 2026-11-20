@@ -535,7 +535,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                                 flight.prepare(flying)
                                 prompt.deleteForever(actions, listOf(current)) { agreed ->
                                     if (agreed) {
-                                        flight.launch(flying, bin.bounds)
+                                        flight.launch(flying, bin.bounds, crumble = true)
                                         gallery.dropNow(setOf(current.id))
                                     }
                                 }

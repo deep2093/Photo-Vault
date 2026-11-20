@@ -50,15 +50,19 @@ import kotlin.math.roundToInt
  */
 @Stable
 class DeleteFlight {
-    internal class Flight(val id: Long, val photos: List<FlyingPhoto>, val target: Offset)
+    internal class Flight(val id: Long, val photos: List<FlyingPhoto>, val target: Offset, val crumble: Boolean = false)
 
     internal var flights by mutableStateOf<List<Flight>>(emptyList())
         private set
     private var nextId = 0L
 
-    fun launch(photos: List<FlyingPhoto>, target: Rect?) {
+    /**
+     * [crumble] (extra animations, 21 Nov): the photos break into small pieces that fall away, for deleting for good,
+     * instead of being drawn down into the bin. Only when the extra animations are on; otherwise the usual flight.
+     */
+    fun launch(photos: List<FlyingPhoto>, target: Rect?, crumble: Boolean = false) {
         if (photos.isEmpty() || target == null) return
-        flights = flights + Flight(nextId++, photos.take(MAX_FLYING), target.center)
+        flights = flights + Flight(nextId++, photos.take(MAX_FLYING), target.center, crumble)
     }
 
     internal fun done(id: Long) {
@@ -199,6 +203,10 @@ private fun FlightView(f: DeleteFlight.Flight, flight: DeleteFlight, onDone: () 
         onDone()
     }
     if (reduceMotion) return
+    if (f.crumble && com.deepak.photovault.designsystem.extraMotionOn()) {
+        f.photos.forEachIndexed { index, p -> CrumblingPhoto(p, painters[index]) { FlightMath.progress(t.value, index, f.photos.size) } }
+        return
+    }
     f.photos.forEachIndexed { index, p ->
         val painter = painters[index]
         // Drawn in thin horizontal strips, each squeezed and pulled toward the bin on its own, bottom first:
@@ -231,6 +239,52 @@ private fun FlightView(f: DeleteFlight.Flight, flight: DeleteFlight, onDone: () 
         }
     }
 }
+
+/**
+ * Deleted for good (extra animations, 21 Nov): the photo breaks into small pieces that drop away, turning and fading,
+ * the lower ones first. Each piece is the photo's own picture seen through a small window that moves.
+ */
+@Composable
+private fun CrumblingPhoto(p: FlyingPhoto, painter: androidx.compose.ui.graphics.painter.Painter, progress: () -> Float) {
+    val pieces = remember(p) {
+        val random = kotlin.random.Random(p.uri.hashCode())
+        List(CRUMBLE_COLUMNS * CRUMBLE_ROWS) { floatArrayOf(random.nextFloat(), random.nextFloat(), random.nextFloat()) }
+    }
+    Canvas(Modifier.fillMaxSize()) {
+        val k = progress()
+        if (k >= 1f) return@Canvas
+        val intrinsic = painter.intrinsicSize
+        val image = GenieMath.imageRect(p.bounds, intrinsic.takeIf { it.isSpecified && it.width > 0f && it.height > 0f }, p.fit)
+        val area = if (p.fit) image else p.bounds
+        val w = area.width / CRUMBLE_COLUMNS
+        val h = area.height / CRUMBLE_ROWS
+        for (row in 0 until CRUMBLE_ROWS) {
+            for (column in 0 until CRUMBLE_COLUMNS) {
+                val luck = pieces[row * CRUMBLE_COLUMNS + column]
+                // The bottom rows let go first; each piece a little sooner or later than its neighbours.
+                val wait = (1f - (row + 1f) / CRUMBLE_ROWS) * 0.35f + luck[0] * 0.15f
+                val local = ((k - wait) / (1f - wait)).coerceIn(0f, 1f)
+                val left = area.left + column * w
+                val top = area.top + row * h
+                val fall = local * local * (size.height * 0.45f)
+                val drift = (luck[1] - 0.5f) * 90.dp.toPx() * local
+                val turn = (luck[2] - 0.5f) * 260f * local
+                withTransform({
+                    translate(drift, fall)
+                    rotate(turn, Offset(left + w / 2f, top + h / 2f))
+                    clipRect(left, top, left + w, top + h)
+                }) {
+                    translate(image.left, image.top) {
+                        with(painter) { draw(image.size, alpha = (1f - local * local).coerceIn(0f, 1f)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val CRUMBLE_COLUMNS = 7
+private const val CRUMBLE_ROWS = 9
 
 /** The shape maths of the genie effect, tested. */
 object GenieMath {

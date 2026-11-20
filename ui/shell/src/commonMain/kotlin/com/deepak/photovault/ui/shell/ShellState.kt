@@ -37,6 +37,13 @@ enum class Destination(val label: String, val icon: ImageVector) {
 
 /** Whether the floating pills and navigation bar are tucked away while scrolling. */
 @Stable
+/**
+ * Where a page grows out of when it opens and shrinks back into when it closes (extra animations, 21 Nov): [rect] in
+ * root coordinates. [circle]: a round button (Search), the page is uncovered by a growing circle; otherwise a card (an
+ * album), the page itself grows from the card's size.
+ */
+class OpenOrigin(val rect: androidx.compose.ui.geometry.Rect, val circle: Boolean = false)
+
 class ChromeState {
     var hidden by mutableStateOf(false)
 
@@ -514,7 +521,20 @@ class ShellState(private val store: AppearanceStore) {
 
     fun scrollKey(overlay: Overlay? = overlays.lastOrNull()) = "${destination.name}|$overlay"
 
+    /**
+     * Extra animations (21 Nov): where the page being opened should grow out of (an album's card, the Search button),
+     * taken by the page host when it builds that page. Null: the page slides in as always.
+     */
+    var openOrigin: OpenOrigin? = null
+
+    /** Opens [overlay] growing out of [from] (root coordinates) when the extra animations are on. */
+    fun open(overlay: Overlay, from: OpenOrigin?) {
+        open(overlay)
+        openOrigin = from
+    }
+
     fun open(overlay: Overlay) {
+        openOrigin = null
         // A page opened fresh starts at the top; only a page returned to from a photo keeps its place.
         if (overlay !is Overlay.Viewer) savedScroll.remove(scrollKey(overlay))
         selected = emptySet()

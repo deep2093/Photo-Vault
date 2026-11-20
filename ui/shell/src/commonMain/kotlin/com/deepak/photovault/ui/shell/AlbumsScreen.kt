@@ -268,7 +268,15 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     if (state.albumsSelected.isNotEmpty() || state.albumsSelectMode) {
                         state.albumsSelected = if (card.id in state.albumsSelected) state.albumsSelected - card.id else state.albumsSelected + card.id
                     } else {
-                        state.open(Overlay.Album(card.kind))
+                        // Extra animations (21 Nov): the album grows out of its card, and shrinks back into it.
+                        val info = gridState.layoutInfo
+                        val from = info.visibleItemsInfo.firstOrNull { it.key == "card:${card.id}" }?.let { item ->
+                            val left = gridOrigin[0] + item.offset.x
+                            val top = gridOrigin[1] + item.offset.y - info.viewportStartOffset
+                            OpenOrigin(androidx.compose.ui.geometry.Rect(left, top, left + item.size.width, top + item.size.height))
+                        }
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.ContextClick)
+                        state.open(Overlay.Album(card.kind), from)
                     }
                 }
 

@@ -308,7 +308,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
                 flight.prepare(flying)
                 prompt.deleteForever(actions, selected) { agreed ->
                     if (agreed) {
-                        flight.launch(flying, bin.bounds)
+                        flight.launch(flying, bin.bounds, crumble = true)
                         gallery.dropNow(selected.map { it.id }.toSet())
                         state.selected = emptySet()
                     }
