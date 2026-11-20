@@ -309,7 +309,8 @@ private fun ViewButtons(gallery: GalleryState) {
             )
             Box(
                 Modifier
-                    .heightIn(min = if (theme.isLiquidGlass) 48.dp else 30.dp)
+                    // The same size in every theme (21 Nov, Deepak: Liquid Glass's were bigger than the others').
+                    .heightIn(min = 30.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(background)
                     .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
@@ -344,7 +345,7 @@ internal fun SmallPillButton(icon: androidx.compose.ui.graphics.vector.ImageVect
     val press = if (theme.isLiquidGlass) remember { MutableInteractionSource() } else null
     Box(
         Modifier
-            .size(if (theme.isLiquidGlass) 48.dp else 32.dp)
+            .size(32.dp)
             .clip(androidx.compose.foundation.shape.CircleShape)
             .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
             .clickable(

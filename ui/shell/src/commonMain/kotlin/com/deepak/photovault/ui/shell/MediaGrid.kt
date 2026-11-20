@@ -17,6 +17,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.clickable
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.solidGlass
+import com.deepak.photovault.designsystem.glassChrome
+import com.deepak.photovault.designsystem.lensGlassActive
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -436,6 +438,12 @@ fun MediaGrid(
             state.tileRevealers += reveal
             onDispose { state.tileRevealers -= reveal }
         }
+        // 21 Nov (Deepak: "the date underneath doesn't have glass"): the floating date and Back to top sit inside the
+        // page, so they can't look through the screen's own recording (it holds them). Liquid Glass records the grid on
+        // its own as well, and those two look through that instead: real glass, with the lens keeping the words readable.
+        val liquidHere = LocalGlassTheme.current.isLiquidGlass
+        val gridLens = if (liquidHere) rememberLensGlass() else null
+        val gridLensOn = liquidHere && lensGlassActive()
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
@@ -444,6 +452,7 @@ fun MediaGrid(
             verticalArrangement = Arrangement.spacedBy(GRID_SPACING),
             modifier = Modifier
                 .fillMaxSize()
+                .then(gridLens?.source(gridLensOn) ?: Modifier)
                 .then(topFade)
                 .pinchDrawing(pinch, pictureA, pictureB)
                 .onGloballyPositioned { val p = it.positionInRoot(); gridOrigin[0] = p.x; gridOrigin[1] = p.y }
@@ -506,6 +515,7 @@ fun MediaGrid(
             footer?.invoke(this)
         }
 
+        androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides gridLens) {
         if (continuous) FloatingDate(
             grid = gridState,
             photos = gridFirst,
@@ -525,6 +535,7 @@ fun MediaGrid(
             onClick = { topTaps++ },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp),
         )
+        }
         if (parts != null) {
             // Mixed sizes: the slider counts grid items, and names the day of the first photo in each.
             val starts = remember(gridFirst, sections, headerItems) {
@@ -574,7 +585,11 @@ internal fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier:
         Box(
             Modifier
                 .size(48.dp)
-                .solidGlass(androidx.compose.foundation.shape.CircleShape)
+                // Liquid Glass (21 Nov): a real glass droplet looking through the photos (no shadow, as above).
+                .then(
+                    if (theme.isLiquidGlass) Modifier.glassChrome(androidx.compose.foundation.shape.CircleShape, elevation = 0.dp)
+                    else Modifier.solidGlass(androidx.compose.foundation.shape.CircleShape),
+                )
                 .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -1016,7 +1031,12 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
             maxLines = 1,
             modifier = modifier
                 .graphicsLayer { alpha = shown }
-                .solidGlass(RoundedCornerShape(percent = 50))
+                // Liquid Glass (21 Nov): clear glass over the photos, the lens keeping the date readable. No shadow:
+                // under the fade it would show as a square.
+                .then(
+                    if (theme.isLiquidGlass) Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 0.dp)
+                    else Modifier.solidGlass(RoundedCornerShape(percent = 50)),
+                )
                 .padding(horizontal = FLOATING_PILL_TEXT_INSET, vertical = 5.dp),
         )
         return

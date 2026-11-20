@@ -100,13 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-21-1"
+    const val ID = "2026-11-21-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Liquid Glass, like iOS", "Clear glass now, never frosted or blurred. The bars look straight through to your photos and bend them at their rounded edges like water droplets, with light catching the edges and a soft shadow below. Android 13 and newer."),
-        Change(ChangeKind.NEW, "The selected tab is a droplet", "In Liquid Glass the section you're on is a small drop of brighter glass that magnifies what passes under it."),
-        Change(ChangeKind.CHANGED, "Glossy edges on cards and buttons", "Liquid Glass cards, buttons and menus get the same lit glass edge: a bright line at the top left and a glint at the bottom right."),
-        Change(ChangeKind.REMOVED, "Blur slider in Liquid Glass", "Liquid Glass never blurs, so it has no Blur slider. The other themes keep theirs."),
+        Change(ChangeKind.CHANGED, "The date is glass too", "In Liquid Glass the date that shows while you scroll Photos, and Back to top, are now clear glass over your photos, and still easy to read."),
+        Change(ChangeKind.FIXED, "Buttons at the top the right size", "In Liquid Glass, Years, Months, All and the small round buttons beside them are the same size as in the other themes again."),
     )
 }
 
