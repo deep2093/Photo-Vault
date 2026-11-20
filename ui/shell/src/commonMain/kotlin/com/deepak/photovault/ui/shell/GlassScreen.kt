@@ -187,26 +187,24 @@ fun GlassScreen(
             exit = androidx.compose.animation.slideOutVertically(com.deepak.photovault.designsystem.motionSpec(220)) { it } + androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(220)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = systemBottom + 12.dp),
         ) {
+            // Clear Glass: at the bottom the glass turns dark over dark photos and light over light ones, like iOS.
             lastBottom?.let { actions -> AdaptiveGlass { adapt -> FloatingPill(adapt, content = actions) } }
         }
         if (title == null) {
             // The top pills (Years / Months / All, Search, an album's back button) always stay in view (24 Oct);
             // only the navigation bar tucks away while scrolling.
             val pillMotion = Modifier
-            // Clear Glass: each pill turns dark over dark photos and light over light ones (iOS, 21 Nov).
+            // Clear Glass: the pills at the top keep the page's own look, light by day and dark at night (21 Nov,
+            // Deepak's recordings: changing with the photos, one pill was light and its neighbour dark). The photos fade
+            // to the page's colour up here for the phone's clock and icons, so the glass matches that.
             if (floatingStartActions != null) {
-                AdaptiveGlass { adapt ->
-                    FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding).then(adapt), compact = true, content = floatingStartActions)
-                }
+                FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding), compact = true, content = floatingStartActions)
             }
             if (floatingActions != null) {
-                AdaptiveGlass { adapt ->
-                    FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding).then(adapt), compact = true, content = floatingActions)
-                }
+                FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding), compact = true, content = floatingActions)
             }
         } else {
         // With a bottom bar, the top bar is only the count and Cancel; it doesn't slide away.
-        AdaptiveGlass { adapt ->
         GlassTopBar(
             title = title,
             subtitle = subtitle,
@@ -223,10 +221,8 @@ fun GlassScreen(
                     start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
                     end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
                     top = insets.calculateTopPadding() + 8.dp,
-                )
-                .then(adapt),
+                ),
         )
-        }
         }
         if (overlay != null) overlay.invoke(this@Box)
         }

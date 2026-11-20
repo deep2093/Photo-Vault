@@ -106,9 +106,11 @@ fun GlassButton(
                 when {
                     danger -> Modifier.clip(shape).background(DangerColor).glassDepth().glassRim(shape)
                     // Clear Glass (iOS's prominent glass): the main button is blue glass with white words.
-                    primary && prominent != null -> Modifier.clip(shape).background(prominent).glassRim(shape)
+                    primary && prominent != null -> Modifier.clip(shape).background(prominent).solidButtonEdge(shape)
                     // Calm glass (18 Nov, Deepak: "Move to bin isn't correct in any theme"): the main button is solid in
-                    // the theme's accent colour, not a soft shade that looked greyed out.
+                    // the theme's accent colour, not a soft shade that looked greyed out. Liquid Glass (21 Nov, "Move to
+                    // bin doesn't have the glass effect"): still solid, with the lit glass edge Cancel has beside it.
+                    primary && GlassFinish.CALM && theme.isLiquidGlass -> Modifier.clip(shape).background(theme.accent).solidButtonEdge(shape)
                     primary && GlassFinish.CALM -> Modifier.clip(shape).background(theme.accent)
                     primary -> Modifier.clip(shape).background(theme.accentSurface).glassDepth().glassRim(shape)
                     else -> Modifier.glassPanel(shape)
@@ -205,23 +207,43 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
             placed = true
         }
     }
-    // Clear Glass (iOS): the thumb is light glass (white by day, grey at night) under the usual words, not blue.
-    val thumbFill = if (theme.isClearGlass) theme.accentSurface else theme.accent
+    // Clear Glass (iOS): a grey strip with a raised marker on the chosen option, white by day and lighter grey at
+    // night, under the usual words (21 Nov: the white marker used to sit on a white strip and couldn't be seen).
+    val thumbFill = theme.segmentThumb
     val thumbText = if (theme.isClearGlass) theme.onGlass else readableOn(theme.accent)
+    val track = theme.segmentTrack
+    val raised = theme.isClearGlass
     Box(
         modifier
             .fillMaxWidth()
             .heightIn(min = MinTouchTarget)
-            .glassPanel(Capsule)
+            .then(if (track != null) Modifier.clip(Capsule).background(track) else Modifier.glassPanel(Capsule))
             .padding(3.dp)
             .onSizeChanged { widthPx = it.width }
             .drawBehind {
                 if (segment > 0) {
+                    val left = if (placed) slide.value else target.toFloat()
+                    val corner = androidx.compose.ui.geometry.CornerRadius(size.height / 2f)
+                    if (raised) {
+                        // A soft shadow under the marker, so it sits above the strip as iOS's does.
+                        drawRoundRect(
+                            color = Color.Black.copy(alpha = 0.10f),
+                            topLeft = androidx.compose.ui.geometry.Offset(left - 0.5.dp.toPx(), 1.5.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(segment + 1.dp.toPx(), size.height + 0.5.dp.toPx()),
+                            cornerRadius = corner,
+                        )
+                        drawRoundRect(
+                            color = Color.Black.copy(alpha = 0.08f),
+                            topLeft = androidx.compose.ui.geometry.Offset(left - 0.5.dp.toPx(), -0.5.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(segment + 1.dp.toPx(), size.height + 1.dp.toPx()),
+                            cornerRadius = corner,
+                        )
+                    }
                     drawRoundRect(
                         color = thumbFill,
-                        topLeft = androidx.compose.ui.geometry.Offset(if (placed) slide.value else target.toFloat(), 0f),
+                        topLeft = androidx.compose.ui.geometry.Offset(left, 0f),
                         size = androidx.compose.ui.geometry.Size(segment.toFloat(), size.height),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
+                        cornerRadius = corner,
                     )
                 }
             },
@@ -339,17 +361,21 @@ private fun GlassToggle(checked: Boolean, press: androidx.compose.foundation.int
     // see-through knob let its shadow show through.
     val dark = theme.isDark
     val ink = theme.onGlass
+    // Clear Glass (21 Nov): green when on, as on iOS, with no dark edge around the green.
+    val green = theme.switchOn
     val track = when {
+        checked && green != null -> green
         checked -> if (dark) Color.White.copy(alpha = 0.55f) else ink.copy(alpha = 0.75f)
         else -> if (dark) Color.Black.copy(alpha = 0.30f) else ink.copy(alpha = 0.14f)
     }
     val edge = if (dark) Color.White else ink
+    val edgeAlpha = if (checked && green != null) 0f else if (checked) 0.9f else 0.6f
     Box(
         Modifier
             .size(width = 52.dp, height = 30.dp)
             .clip(shape)
             .background(track)
-            .border(1.5.dp, edge.copy(alpha = if (checked) 0.9f else 0.6f), shape)
+            .border(1.5.dp, edge.copy(alpha = edgeAlpha), shape)
             .padding(3.dp),
     ) {
         val knob = if (checked || !dark) Color.White else Color(0xFFE6E8EE)

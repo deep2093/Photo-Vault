@@ -31,9 +31,17 @@ interface LensGlass {
     /**
      * How bright the recorded content is behind [rect] (root coordinates), as average linear luminance from 0 (black)
      * to 1 (white), with [backdrop] where it is see-through. Null when it can't tell (nothing recorded yet). Clear Glass
-     * uses it to turn a bar dark over dark photos and light over light ones (21 Nov).
+     * uses it to turn a bar dark over dark photos and light over light ones (21 Nov). [fresh]: measure from a new
+     * copy even if the content doesn't seem to have been drawn again.
      */
-    suspend fun brightnessBehind(rect: Rect, backdrop: Color): Float?
+    suspend fun brightnessBehind(rect: Rect, backdrop: Color, fresh: Boolean = false): Float?
+
+    /**
+     * Which [version] the last [brightnessBehind] answer was measured from. Small copies are made at most a few times a
+     * second, so an answer can be a moment old: a bar looks again until this has caught up with [version] (21 Nov, a
+     * pill that asked just after its neighbour kept the old answer for good and stayed the wrong colour).
+     */
+    val measuredVersion: Long
 }
 
 @Composable

@@ -276,8 +276,8 @@ private fun Modifier.liquidGlassChrome(
                 fallback = theme.glassFallback,
                 inkFloor = ink.dayFloor,
                 inkCeiling = ink.nightCeiling,
-                frost = if (tinted) LiquidGlassInk.TINTED_FROST else 0f,
-                frostColor = LiquidGlassInk.tintedFrostColor(theme.isDark),
+                frost = if (tinted) LiquidGlassInk.TINTED_FROST else if (theme.isClearGlass) LiquidGlassInk.CLEAR_FILM else 0f,
+                frostColor = LocalGlassDarkness.current?.let { LiquidGlassInk.tintedFrostColor(it.value) } ?: LiquidGlassInk.tintedFrostColor(theme.isDark),
                 light = LocalGlassLight.current,
                 darkness = LocalGlassDarkness.current,
             ),
@@ -294,11 +294,10 @@ private fun Modifier.liquidGlassChrome(
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val film = theme.panelFill
-    // Liquid Glass (21 Nov): a clear film with the lit droplet edge, no sheen across it. Clear Glass's Tinted: firmer.
+    // Liquid Glass (21 Nov): a clear film with the lit droplet edge, no sheen across it. Clear Glass's Tinted leaves
+    // cards as they are (it made them lighter grey at night and changed nothing by day); it is for the floating glass.
     if (theme.isLiquidGlass && film != null && LocalGlassSettings.current.blurEnabled) {
-        val tinted = theme.isClearGlass && LocalGlassSettings.current.tinted
-        val fill = if (tinted) film.copy(alpha = (film.alpha + 0.2f).coerceAtMost(1f)) else film
-        return clip(shape).background(fill).liquidGlassEdge(shape)
+        return clip(shape).background(film).liquidGlassEdge(shape)
     }
     // A see-through frosted film with depth (29 Oct) while the glass effect is on; solid when "Turn off glass effect" is on.
     return if (film != null && LocalGlassSettings.current.blurEnabled) {
@@ -347,6 +346,28 @@ fun Modifier.frostedEdge(shape: Shape): Modifier {
         Brush.linearGradient(listOf(edge.copy(alpha = 0.55f), edge.copy(alpha = 0.12f), edge.copy(alpha = 0.3f))),
         shape,
     )
+}
+
+/**
+ * Liquid Glass: a solid main button ("Move to bin") as a glossy droplet (21 Nov, Deepak: "doesn't have the glass effect
+ * in both day and night"). The colour stays solid so the words read; over it a soft light along the top, a little
+ * shade along the bottom and the lit glass edge every other Liquid Glass button has. The middle, where the words sit,
+ * is untouched. The area must already be clipped to [shape].
+ */
+@Composable
+internal fun Modifier.solidButtonEdge(shape: Shape): Modifier {
+    if (!LocalGlassSettings.current.blurEnabled) return this
+    return drawWithContent {
+        drawRect(
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.20f),
+                0.42f to Color.Transparent,
+                0.62f to Color.Transparent,
+                1f to Color.Black.copy(alpha = 0.16f),
+            ),
+        )
+        drawContent()
+    }.liquidGlassEdge(shape)
 }
 
 /** The calm glass's edge: a faint white line on night themes, a faint dark one on day themes. */

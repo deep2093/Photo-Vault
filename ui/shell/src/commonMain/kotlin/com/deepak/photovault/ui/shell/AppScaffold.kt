@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
 import com.deepak.photovault.designsystem.accentSurface
+import com.deepak.photovault.designsystem.chosenRowFill
 import com.deepak.photovault.designsystem.frostedEdge
 import com.deepak.photovault.designsystem.PageEasing
 import androidx.compose.ui.graphics.Brush
@@ -55,6 +56,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -353,6 +355,10 @@ fun PhotoVaultApp(
                     // A real tablet (18 Nov): its shorter side is tablet-sized too, so a phone turned sideways (wide but
                     // short) still counts as a phone and keeps the bottom bar.
                     val tabletDevice = minOf(maxWidth, maxHeight) >= AdaptiveLayout.SIDE_RAIL_MIN_WIDTH_DP.dp
+                    // Liquid Glass (21 Nov, Deepak: "Undo delete should match the other glass"): while a message is showing,
+                    // everything under it is recorded so its pill is the same clear glass as the bars.
+                    val messageLens = rememberLensGlass()
+                    MessageLensSource(messageLens, state) {
                     CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL), LocalTabletDevice provides tabletDevice) {
                         // 18 Nov (Deepak): tablets get the side bar by default; Settings > Appearance can switch it back
                         // to the floating bar at the bottom. Phones always have the bottom bar.
@@ -385,7 +391,10 @@ fun PhotoVaultApp(
                     DeletePromptHost(LocalDeletePrompt.current)
                     IntroHost(state.intro)
                     JoinRequestPrompt(drive, signals.foreground)
-                    MessageBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = system.calculateBottomPadding() + 96.dp))
+                    }
+                    CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides messageLens) {
+                        MessageBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = system.calculateBottomPadding() + 96.dp))
+                    }
                     // The smoothness meter (a test in Settings > About, 20 Nov), at the top in the middle.
                     val meter = state.frameMeter
                     if (state.appearance.frameMeterTest && meter != null) {
@@ -395,6 +404,17 @@ fun PhotoVaultApp(
             }
         }
     }
+}
+
+/**
+ * Everything under the app's short messages. While one is showing in a lens theme it is recorded, so the message's
+ * glass can look through it; the rest of the time it is drawn as it always was. The message is read here, not by the
+ * caller, so a message coming or going doesn't lay the whole app out again.
+ */
+@Composable
+private fun MessageLensSource(lens: com.deepak.photovault.designsystem.LensGlass?, state: ShellState, content: @Composable BoxScope.() -> Unit) {
+    val on = lensGlassActive() && state.message != null
+    Box(Modifier.fillMaxSize().then(lens?.source(on) ?: Modifier), content = content)
 }
 
 /**
@@ -425,8 +445,12 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
         if (act != null && label != null) {
             // 18 Nov (Deepak: "just Undo delete, short, with an undo arrow, in the centre"): a small pill in the middle,
             // the whole pill the button. TalkBack reads the full sentence, then the button.
+            // Clear Glass: dark over dark photos and light over light ones, like the bar under it.
+            com.deepak.photovault.designsystem.AdaptiveGlass(grouped = false) { adapt ->
+            val glass = LocalGlassTheme.current
             Row(
                 Modifier
+                    .then(adapt)
                     .glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp)
                     .clickable(role = androidx.compose.ui.semantics.Role.Button) {
                         state.dismissMessage(shown)
@@ -441,8 +465,9 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.Undo, null, tint = theme.onGlass, modifier = Modifier.size(20.dp))
-                Text(label, color = theme.onGlass, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.Undo, null, tint = glass.onGlass, modifier = Modifier.size(20.dp))
+                Text(label, color = glass.onGlass, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            }
             }
             return@AnimatedVisibility
         }
@@ -947,11 +972,14 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val glassTheme = LocalGlassTheme.current
     val glassSettings = LocalGlassSettings.current
     val iosBar = glassTheme.isClearGlass && glassSettings.iosMotion && glassSettings.blurEnabled && !glassSettings.reduceMotion
-    val scrollHidden = state.chrome.hidden && !pinned && state.destination in Destination.hidesChrome
+    val scrolledAway = state.chrome.hidden && state.destination in Destination.hidesChrome
+    val scrollHidden = scrolledAway && !pinned
     val selectingNow = state.selecting || state.albumsSelected.isNotEmpty()
     val tucked = selectingNow || (scrollHidden && !iosBar)
+    // The bar shrinks even with "Keep the bottom bar in place" on (21 Nov, Deepak: "when the iOS toggle is on the
+    // bottom bar should shrink, currently it does nothing"): it stays on the screen, only smaller.
     val shrink = androidx.compose.animation.core.animateFloatAsState(
-        if (iosBar && scrollHidden && !selectingNow) 1f else 0f,
+        if (iosBar && scrolledAway && !selectingNow) 1f else 0f,
         androidx.compose.animation.core.spring(dampingRatio = 0.78f, stiffness = 380f),
         label = "bar shrink",
     )
@@ -962,8 +990,12 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     // switching to a lens theme while the app is open works at once instead of after a restart.
     val lensOn = lensGlassActive()
     val lens = rememberLensGlass()
+    // Clear Glass: the bar, Back to top and the selection bar change between light and dark glass together, and the
+    // fade under them goes with them (21 Nov).
+    val glassGroup = com.deepak.photovault.designsystem.rememberAdaptiveGlassGroup()
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
+            com.deepak.photovault.designsystem.LocalAdaptiveGlassGroup provides glassGroup,
             LocalScreenInsets provides PaddingValues(
                 start = system.calculateStartPadding(LayoutDirection.Ltr),
                 top = system.calculateTopPadding(),
@@ -987,7 +1019,11 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
         // Clear Glass (21 Nov, iOS's scroll edge effect, without blur): the photos fade softly toward the page's colour
         // under the bar, so it reads over anything. It goes with the bar.
         if (glassTheme.isClearGlass && glassSettings.blurEnabled) {
-            val wall = glassTheme.wallpaper.first()
+            // The fade is light under light glass and dark under dark glass, so the two always go together.
+            val family = remember(glassTheme.id) { com.deepak.photovault.designsystem.GlassThemes.familyOf(glassTheme.id.name) }
+            val dayWall = family.day.wallpaper.first()
+            val nightWall = family.night.wallpaper.first()
+            val homeDark = glassTheme.isDark
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -997,17 +1033,24 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                         val y = maxOf(shift.value, travel * state.sectionCover())
                         alpha = 1f - (y / travel).coerceIn(0f, 1f)
                     }
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            0f to androidx.compose.ui.graphics.Color.Transparent,
-                            0.45f to wall.copy(alpha = 0.42f),
-                            1f to wall.copy(alpha = 0.8f),
-                        ),
-                    ),
+                    .drawBehind {
+                        val t = glassGroup?.darkness?.value ?: if (homeDark) 1f else 0f
+                        val wall = androidx.compose.ui.graphics.lerp(dayWall, nightWall, t)
+                        drawRect(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                0f to wall.copy(alpha = 0f),
+                                0.45f to wall.copy(alpha = 0.42f),
+                                1f to wall.copy(alpha = 0.8f),
+                            ),
+                        )
+                    },
             )
         }
         // Only the bar gets the lens; anything inside the recorded sections would otherwise draw itself.
-        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
+        CompositionLocalProvider(
+            com.deepak.photovault.designsystem.LocalLensGlass provides lens,
+            com.deepak.photovault.designsystem.LocalAdaptiveGlassGroup provides glassGroup,
+        ) {
         // Clear Glass: the bar turns dark over dark photos and light over light ones (iOS); other themes as they were.
         com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
         FloatingNavigationBar(
@@ -1114,7 +1157,7 @@ private fun SideRail(
                 .offset { IntOffset(0, ((RAIL_ITEM_HEIGHT + RAIL_ITEM_GAP) * indicator()).roundToPx()) }
                 .size(RAIL_INDICATOR_WIDTH, RAIL_INDICATOR_HEIGHT)
                 .clip(RoundedCornerShape(percent = 50))
-                .background(theme.accentSurface)
+                .background(theme.chosenRowFill)
                 .frostedEdge(RoundedCornerShape(percent = 50)),
         )
         Column(
@@ -1440,7 +1483,7 @@ private fun FoldingSideRail(
                         }
                         .size(pillW, pillH)
                         .clip(RoundedCornerShape(percent = 50))
-                        .background(theme.accentSurface)
+                        .background(theme.chosenRowFill)
                         .frostedEdge(RoundedCornerShape(percent = 50)),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(RAIL_ITEM_GAP)) {

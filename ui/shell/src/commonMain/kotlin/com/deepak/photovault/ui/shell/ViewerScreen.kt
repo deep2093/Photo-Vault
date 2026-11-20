@@ -127,6 +127,7 @@ import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.solidGlass
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import com.deepak.photovault.designsystem.LocalHazeState
@@ -319,6 +320,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
             }
         }
 
+        val bottomShade = animateFloatAsState(if (liquidGlass && barsVisible && !state.detailsOpen) 1f else 0f, motionSpec(200), label = "viewer shade")
         // Liquid Glass never blurs (21 Nov): nothing here is recorded for a blur; the lens looks through instead.
         CompositionLocalProvider(LocalHazeState provides null) {
             HorizontalPager(
@@ -332,6 +334,27 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                     // shows through while a photo is pulled down to close. The Liquid Glass lens fills see-through parts
                     // with its own dark backdrop, so the bars look the same.
                     .then(lens?.source(lensOn) ?: Modifier)
+                    // Liquid Glass (21 Nov, Deepak's screenshots: a screenshot's own buttons and words showed through the
+                    // clear toolbar, between ours): a soft dark shade at the bottom while the buttons are showing. It is
+                    // inside what the lens records, so the toolbar's glass sees the shaded photo and our buttons stand out.
+                    .drawWithContent {
+                        drawContent()
+                        val k = bottomShade.value * (1f - (dismiss.value / heightPx).coerceIn(0f, 1f) * 4f).coerceIn(0f, 1f)
+                        if (k > 0.001f) {
+                            val h = minOf(VIEWER_SHADE_HEIGHT.toPx(), size.height)
+                            drawRect(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    0.45f to Color.Black.copy(alpha = 0.40f * k),
+                                    1f to Color.Black.copy(alpha = 0.72f * k),
+                                    startY = size.height - h,
+                                    endY = size.height,
+                                ),
+                                topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h),
+                                size = androidx.compose.ui.geometry.Size(size.width, h),
+                            )
+                        }
+                    }
                     .trackSpot(photoSpot)
                     .graphicsLayer {
                         // The photo slides up as the panel rises, leaving it fully visible above the panel; pulled
@@ -707,6 +730,9 @@ private fun WallpaperDialog(onDismiss: () -> Unit, onPick: (WallpaperTarget) -> 
     }
 }
 
+/** How far up from the bottom the viewer's soft shade reaches: past the toolbar and the row of small photos. */
+private val VIEWER_SHADE_HEIGHT = 230.dp
+
 @Composable
 private fun ViewerActions(
     favourite: Boolean,
@@ -721,34 +747,7 @@ private fun ViewerActions(
     onMore: (() -> Unit)? = null,
     moreModifier: Modifier = Modifier,
 ) {
-    // Clear Glass (21 Nov, like iOS 26's toolbars): buttons that belong together share a pill, in two groups, sharing
-    // and keeping, then removing and More.
-    if (LocalGlassTheme.current.isClearGlass) {
-        Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(horizontal = 6.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
-                if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
-                if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
-                if (onFavourite != null) GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
-                if (onLiving != null) GlassIconButton(Icons.Rounded.AutoAwesome, "Make it move", onClick = onLiving)
-            }
-            if (onDelete != null || onMore != null) {
-                Row(
-                    Modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(horizontal = 6.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
-                    if (onMore != null) GlassIconButton(Icons.Rounded.MoreVert, "More", onClick = onMore, modifier = moreModifier)
-                }
-            }
-        }
-        return
-    }
+    // One pill in every theme (21 Nov, Deepak: "make a single toolbar"; Clear Glass had two groups for a day, as iOS).
     // Same size buttons with the same gap (8 Nov: seven didn't fit and the last was cut off); the rarer ones are in More.
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(horizontal = 8.dp, vertical = 6.dp),

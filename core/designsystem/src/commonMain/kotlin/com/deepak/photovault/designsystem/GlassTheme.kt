@@ -131,6 +131,41 @@ data class GlassTheme(
 /** What a selected pill, button or tick is filled with: the frosted film where the theme has one, else the accent. */
 val GlassTheme.accentSurface: Color get() = accentFill ?: accent
 
+/**
+ * A chooser (GlassSegmented): the colour of its strip where the theme gives it one of its own. Clear Glass uses iOS's
+ * grey strip (21 Nov, Deepak: "cannot see which option is selected": its white marker sat on a white strip). Null: the
+ * theme's usual glass panel.
+ */
+val GlassTheme.segmentTrack: Color? get() = when {
+    !isClearGlass -> null
+    isDark -> Color(0x52000000)
+    else -> Color(0x3D767680)
+}
+
+/** A chooser's marker on the chosen option: the accent, or in Clear Glass iOS's raised white (grey at night) marker. */
+val GlassTheme.segmentThumb: Color get() = when {
+    !isClearGlass -> accent
+    isDark -> Color(0xFF636366)
+    else -> Color.White
+}
+
+/**
+ * The quiet highlight behind a chosen row on a card (the side bar's section). Clear Glass: iOS's grey, since its
+ * near-white [accentSurface] is for glass over photos and can't be seen on a white card.
+ */
+val GlassTheme.chosenRowFill: Color get() = when {
+    !isClearGlass -> accentSurface
+    isDark -> Color(0x5C767680)
+    else -> Color(0x29767680)
+}
+
+/** A switch that is on. Clear Glass: iOS green; null in the other themes (their own light or dark track). */
+val GlassTheme.switchOn: Color? get() = when {
+    !isClearGlass -> null
+    isDark -> Color(0xFF30D158)
+    else -> Color(0xFF34C759)
+}
+
 object GlassThemes {
     private val White = Color(0xFFFFFFFF)
     private val lightIds = setOf(GlassThemeId.AURORA_GLASS_LIGHT, GlassThemeId.LIQUID_DAY)
@@ -495,7 +530,7 @@ object GlassThemes {
         ThemeFamily("PHOTO", "Gallery", "Warm paper by day, graphite at night, one soft light from your photos", PhotoDay, AdaptiveMidnight),
         ThemeFamily("VIVID", "Prism", "Colours from your photos: pastels by day, deep jewels at night", VividDay, AdaptiveVivid),
         ThemeFamily("LIQUID_GLASS", "Liquid Glass", "Clear glass like iOS, never blurred: its edges bend the photos like water droplets. Light by day, smoked at night", LiquidGlassLight, LiquidGlassDark),
-        ThemeFamily("CLEAR_GLASS", "Clear Glass", "A copy of iOS 26's clear glass: bars that turn dark over dark photos and light over light, light that moves as you tilt the phone, iOS blue. Clear or Tinted", ClearGlassLight, ClearGlassDark),
+        ThemeFamily("CLEAR_GLASS", "Clear Glass", "A copy of iOS 26's clear glass: the bottom bar and menus turn dark over dark photos and light over light, light that moves as you tilt the phone, iOS blue. Clear or Tinted", ClearGlassLight, ClearGlassDark),
     )
 
     /** The theme a saved id belongs to, whether it was saved as the day or the night version; else Liquid. */

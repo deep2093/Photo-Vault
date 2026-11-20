@@ -108,7 +108,13 @@ class ThemeContrastTest {
         for (theme in GlassThemes.all.filter { it.isLiquidGlass }) {
             val ink = theme.glassInk!!
             for (photo in photos) {
-                val looks = mutableListOf("clear" to LiquidGlassInk.throughGlass(photo, theme.isDark, ink.dayFloor, ink.nightCeiling))
+                // Clear Glass's Clear has its light film; Liquid Glass none.
+                val film = if (theme.isClearGlass) LiquidGlassInk.CLEAR_FILM else 0f
+                val looks = mutableListOf(
+                    "clear" to LiquidGlassInk.throughGlass(
+                        photo, theme.isDark, ink.dayFloor, ink.nightCeiling, film, LiquidGlassInk.tintedFrostColor(theme.isDark),
+                    ),
+                )
                 if (theme.isClearGlass) {
                     looks += "tinted" to LiquidGlassInk.throughGlass(
                         photo, theme.isDark, ink.dayFloor, ink.nightCeiling,
@@ -136,6 +142,71 @@ class ThemeContrastTest {
             }
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
+    }
+
+    @Test
+    fun theChosenOptionShowsInEveryTheme() {
+        // 21 Nov (Deepak: "cannot see which option is selected"): Clear Glass's white marker sat on a white strip. The
+        // marker must stand out from its strip in every theme, and the chosen option's words must read on it.
+        val bad = mutableListOf<String>()
+        for (theme in GlassThemes.all) {
+            val cards = Contrast.panelBackgrounds(theme).ifEmpty { listOf(theme.glassFallback) }
+            for (card in cards) {
+                val strip = theme.segmentTrack?.compositeOver(card) ?: card
+                val marker = theme.segmentThumb.compositeOver(strip)
+                val stands = Contrast.ratio(marker, strip)
+                if (stands < 1.3) bad += "${theme.displayName} (pale=${theme.isPaleVariant}): marker on its strip $stands"
+                // Clear Glass keeps the usual words on its marker; they must read there. The quiet highlight behind a
+                // chosen row (the side bar) must show on the card too.
+                if (theme.isClearGlass) {
+                    val reads = Contrast.ratio(theme.onGlass, marker)
+                    if (reads < Contrast.TEXT) bad += "${theme.displayName}: words on the marker $reads"
+                    val row = Contrast.ratio(theme.chosenRowFill.compositeOver(card), card)
+                    if (row < 1.15) bad += "${theme.displayName}: chosen row on its card $row"
+                }
+            }
+        }
+        assertTrue(bad.isEmpty(), bad.joinToString("; "))
+    }
+
+    @Test
+    fun adaptiveGlassKeepsThePagesLookUnlessPhotosAreClearlyTheOtherWay() {
+        // 21 Nov (Deepak's recordings): at night the bar turned white over grey album cards, and bars flickered.
+        // A day page: light glass, dark only over clearly dark photos, light again once they are clearly not.
+        assertFalse(adaptNight(night = false, luma = 0.50f, home = false))
+        assertFalse(adaptNight(night = false, luma = 0.12f, home = false))
+        assertTrue(adaptNight(night = false, luma = 0.05f, home = false))
+        assertTrue(adaptNight(night = true, luma = 0.12f, home = false))
+        assertFalse(adaptNight(night = true, luma = 0.20f, home = false))
+        // A night page: dark glass, light only over clearly light photos (grey cards, about 0.14, stay dark).
+        assertTrue(adaptNight(night = true, luma = 0.14f, home = true))
+        assertTrue(adaptNight(night = true, luma = 0.35f, home = true))
+        assertFalse(adaptNight(night = true, luma = 0.60f, home = true))
+        assertFalse(adaptNight(night = false, luma = 0.35f, home = true))
+        assertTrue(adaptNight(night = false, luma = 0.25f, home = true))
+        // A gap each way, so glass over mid-grey photos never flickers.
+        assertTrue(DAY_PAGE_BACK_TO_LIGHT - DAY_PAGE_TO_DARK >= 0.05f)
+        assertTrue(NIGHT_PAGE_TO_LIGHT - NIGHT_PAGE_BACK_TO_DARK >= 0.05f)
+    }
+
+    @Test
+    fun tintedIsClearlyMoreSolidThanClear() {
+        // 21 Nov (Deepak: "Tinted and Clear differences hard to find, specially in day"). A black and a white photo
+        // behind the glass: Clear keeps them well apart, Tinted brings them close together.
+        assertTrue(LiquidGlassInk.TINTED_FROST - LiquidGlassInk.CLEAR_FILM >= 0.35f)
+        for (theme in listOf(GlassThemes.ClearGlassLight, GlassThemes.ClearGlassDark)) {
+            val ink = theme.glassInk!!
+            fun spread(frost: Float): Double {
+                val film = LiquidGlassInk.tintedFrostColor(theme.isDark)
+                val black = LiquidGlassInk.throughGlass(Color.Black, theme.isDark, ink.dayFloor, ink.nightCeiling, frost, film)
+                val white = LiquidGlassInk.throughGlass(Color.White, theme.isDark, ink.dayFloor, ink.nightCeiling, frost, film)
+                return Contrast.ratio(black, white)
+            }
+            val clear = spread(LiquidGlassInk.CLEAR_FILM)
+            val tinted = spread(LiquidGlassInk.TINTED_FROST)
+            assertTrue(clear >= 1.5, "${theme.displayName}: Clear still shows the photo ($clear)")
+            assertTrue(tinted <= 1.35, "${theme.displayName}: Tinted is nearly solid ($tinted)")
+        }
     }
 
     @Test

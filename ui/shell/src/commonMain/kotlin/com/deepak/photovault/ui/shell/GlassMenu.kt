@@ -71,8 +71,9 @@ internal fun BoxScope.GlassMenuLayer(
         }
         g
     } else null
-    // Clear Glass: the menu turns dark over dark photos and light over light ones, like the bars.
-    com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
+    // Clear Glass: the menu turns dark over dark photos and light over light ones, like the bars. It decides for
+    // itself: it floats on its own, away from them.
+    com.deepak.photovault.designsystem.AdaptiveGlass(grouped = false) { adapt ->
     Column(
         Modifier
             .align(if (bottom != null) Alignment.BottomEnd else Alignment.TopEnd)

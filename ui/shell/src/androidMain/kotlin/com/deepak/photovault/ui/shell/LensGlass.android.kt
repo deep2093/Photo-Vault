@@ -69,6 +69,7 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer, private v
     private var probeDensity: Density? = null
 
     override val version: Long get() = drawn
+    override val measuredVersion: Long get() = snapshotVersion
 
     override fun source(active: Boolean, background: Color): Modifier = Modifier
         .onGloballyPositioned { sourceOrigin = it.positionInRoot() }
@@ -95,15 +96,19 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer, private v
     private var snapshotVersion = -1L
     private var snapshotAt = 0L
 
-    override suspend fun brightnessBehind(rect: Rect, backdrop: Color): Float? = probing.withLock {
+    override suspend fun brightnessBehind(rect: Rect, backdrop: Color, fresh: Boolean): Float? = probing.withLock {
         val origin = sourceOrigin ?: return@withLock null
         val whole = sourceLayer.size
         if (whole.width <= 0 || whole.height <= 0 || rect.width < 1f || rect.height < 1f) return@withLock null
         val now = SystemClock.uptimeMillis()
-        if (snapshot == null || (snapshotVersion != drawn && now - snapshotAt >= PROBE_EVERY_MS) || snapshotOf != whole) {
-            takeSnapshot(whole, backdrop) ?: return@withLock null
-            snapshotVersion = drawn
+        val wanted = snapshot == null || snapshotOf != whole || fresh || snapshotVersion != drawn
+        if (wanted && now - snapshotAt >= PROBE_EVERY_MS) {
+            // The version is read before the copy is made: content drawn while it is made counts as newer.
+            val copying = drawn
+            // Set first, so a copy that can't be made is not tried again on every look.
             snapshotAt = now
+            takeSnapshot(whole, backdrop) ?: return@withLock null
+            snapshotVersion = copying
         }
         averageLuminance(rect, origin, whole)
     }

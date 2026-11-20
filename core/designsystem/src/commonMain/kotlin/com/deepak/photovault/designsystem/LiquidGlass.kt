@@ -8,8 +8,10 @@ import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +32,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import kotlinx.coroutines.delay
 import kotlin.math.exp
@@ -86,8 +89,14 @@ object LiquidGlassInk {
     const val SELECTED_DAY_FLOOR = 0.42f
     const val SELECTED_NIGHT_CEILING = 0.17f
 
-    /** Clear Glass's Tinted look (iOS 26.1): this much of a firm film over the picture. */
-    const val TINTED_FROST = 0.55f
+    /**
+     * Clear Glass lays a light film of the glass's own colour over the picture (never a blur), as iOS's glass is a
+     * little milky: the photo's own words and lines behind a bar are fainter than the bar's (21 Nov, Deepak's
+     * recordings: a screenshot's text showed through the bar's words). Clear is this much film; Tinted (iOS 26.1) is
+     * nearly solid, so the two are easy to tell apart (they were 0 and 0.55, hard to tell apart by day).
+     */
+    const val CLEAR_FILM = 0.40f
+    const val TINTED_FROST = 0.86f
 
     /** Clear Glass's chosen tab: a light film by day, iOS's dark grey glass by night. */
     const val SELECTED_FROST_DAY = 0.30f
@@ -135,8 +144,11 @@ object LiquidGlassInk {
     /** The film Clear Glass lays over its chosen tab: white by day, iOS's dark grey (3A3A3C) by night. */
     fun selectedFrostColor(dark: Boolean): Color = if (dark) Color(0xFF3A3A3C) else Color.White
 
-    /** The film of Tinted: white by day, iOS's dark glass (1C1C1E) by night. */
+    /** The film of Clear and Tinted: white by day, iOS's dark glass (1C1C1E) by night. */
     fun tintedFrostColor(dark: Boolean): Color = if (dark) Color(0xFF1C1C1E) else Color.White
+
+    /** The same film while a bar changes over ([darkness] 0 light glass .. 1 dark glass). */
+    fun tintedFrostColor(darkness: Float): Color = lerp(tintedFrostColor(false), tintedFrostColor(true), darkness.coerceIn(0f, 1f))
 
     private fun toLinear(c: Float): Double {
         val v = c.toDouble().coerceIn(0.0, 1.0)
@@ -231,13 +243,83 @@ fun Modifier.liquidGlassDroplet(shape: Shape): Modifier {
 }
 
 /**
+ * Clear Glass: bars that sit together change over together (21 Nov, Deepak's recordings: one pill light and its
+ * neighbour dark). Each bar in the group reports how bright the photos behind it are; the group decides once, from
+ * their average, and every bar and the fade under them follow its [darkness].
+ */
+@Stable
+class AdaptiveGlassGroup internal constructor(private val home: Boolean) {
+    private val lumas = HashMap<Any, Float>()
+
+    /** True while the group's glass is dark. Starts as the page is (day: light, night: dark). */
+    var night by mutableStateOf(home)
+        private set
+
+    /** 0 light glass .. 1 dark glass, moving smoothly when the group changes over. Read while drawing. */
+    lateinit var darkness: State<Float>
+        internal set
+
+    internal fun report(member: Any, luma: Float) {
+        lumas[member] = luma
+        night = adaptNight(night, lumas.values.sum() / lumas.size, home)
+    }
+
+    internal fun leave(member: Any) {
+        lumas.remove(member)
+    }
+}
+
+/** The group the bars below belong to; null outside Clear Glass (each [AdaptiveGlass] then decides for itself). */
+val LocalAdaptiveGlassGroup = staticCompositionLocalOf<AdaptiveGlassGroup?> { null }
+
+/**
+ * A group for [LocalAdaptiveGlassGroup], or null when the theme isn't Clear Glass or the glass effect is off. A new one
+ * for each theme, so changing between day and night starts from the page's own look.
+ */
+@Composable
+fun rememberAdaptiveGlassGroup(): AdaptiveGlassGroup? {
+    val page = LocalGlassTheme.current
+    val settings = LocalGlassSettings.current
+    if (!page.isClearGlass || !settings.blurEnabled) return null
+    val group = remember(page.id) { AdaptiveGlassGroup(page.isDark) }
+    group.darkness = animateFloatAsState(
+        if (group.night) 1f else 0f,
+        if (settings.reduceMotion) snap() else tween(ADAPT_FLIP_MS),
+        label = "glass flip",
+    )
+    return group
+}
+
+/**
+ * Whether glass should be dark now, given how bright the photos behind it are ([luma], linear, 0 to 1). Glass keeps
+ * the page's own look ([home]: true on a night page) unless the photos are clearly the other way, and there is a gap
+ * before it changes back, so it never flickers over mid-grey photos (21 Nov: at night the bar turned white over grey
+ * album cards).
+ */
+internal fun adaptNight(night: Boolean, luma: Float, home: Boolean): Boolean = when {
+    home -> if (night) luma < NIGHT_PAGE_TO_LIGHT else luma < NIGHT_PAGE_BACK_TO_DARK
+    else -> if (night) luma < DAY_PAGE_BACK_TO_LIGHT else luma < DAY_PAGE_TO_DARK
+}
+
+/** A day page: light glass turns dark below the first (clearly dark photos) and light again above the second. */
+internal const val DAY_PAGE_TO_DARK = 0.09f
+internal const val DAY_PAGE_BACK_TO_LIGHT = 0.17f
+
+/** A night page: dark glass turns light above the first (clearly light photos) and dark again below the second. */
+internal const val NIGHT_PAGE_TO_LIGHT = 0.42f
+internal const val NIGHT_PAGE_BACK_TO_DARK = 0.30f
+
+/**
  * Clear Glass (21 Nov, like iOS): a bar turns dark over dark photos and light over light ones, words and all. It looks
  * at the photos behind it through the screen's lens recording, a few times a second while they move, and changes over
  * smoothly. The caller puts the given Modifier on the bar itself (it learns where the bar is from it); nothing else is
  * laid out. Other themes, Android 12 and older, or the glass effect off: the content as it is.
+ *
+ * [grouped]: join the [LocalAdaptiveGlassGroup] around it, if there is one, and change over with the other bars there.
+ * A menu or anything else that floats on its own decides for itself.
  */
 @Composable
-fun AdaptiveGlass(content: @Composable (Modifier) -> Unit) {
+fun AdaptiveGlass(grouped: Boolean = true, content: @Composable (Modifier) -> Unit) {
     val page = LocalGlassTheme.current
     val settings = LocalGlassSettings.current
     val lens = LocalLensGlass.current
@@ -245,35 +327,49 @@ fun AdaptiveGlass(content: @Composable (Modifier) -> Unit) {
         content(Modifier)
         return
     }
+    val shared = if (grouped) LocalAdaptiveGlassGroup.current else null
+    val group = shared ?: rememberAdaptiveGlassGroup()
+    if (group == null) {
+        content(Modifier)
+        return
+    }
     val family = remember(page.id) { GlassThemes.familyOf(page.id.name) }
     val backdrop = page.wallpaper.first()
+    val member = remember { Any() }
     var bounds by remember { mutableStateOf<Rect?>(null) }
-    var night by remember(page.id) { mutableStateOf(page.isDark) }
     val luma = remember { mutableStateOf<Float?>(null) }
-    LaunchedEffect(lens, page.id) {
+    DisposableEffect(group, member) { onDispose { group.leave(member) } }
+    LaunchedEffect(lens, group) {
         var seenVersion = -1L
         var seenBounds: Rect? = null
+        var quietTicks = 0
         while (true) {
             val b = bounds
-            val v = lens.version
-            if (b != null && (v != seenVersion || b != seenBounds)) {
-                seenVersion = v
-                seenBounds = b
-                val l = lens.brightnessBehind(b, backdrop)
-                if (l != null) {
-                    luma.value = l
-                    // A gap between the two, so a bar over mid-grey photos doesn't flicker between them.
-                    night = if (night) l < ADAPT_DARK_TO_LIGHT else l < ADAPT_LIGHT_TO_DARK
+            if (b == null) {
+                // Off the screen (tucked away, hidden, or on a page that isn't showing): no say in the group.
+                group.leave(member)
+                seenBounds = null
+            } else {
+                val changed = lens.version != seenVersion || b != seenBounds
+                // Once more a little after everything has stopped moving, from a fresh copy: the last frames of a
+                // scroll or a page change are the ones that count.
+                quietTicks = if (changed) 0 else quietTicks + 1
+                val settle = quietTicks == ADAPT_SETTLE_TICKS || quietTicks == ADAPT_SETTLE_TICKS * 3
+                if (changed || settle) {
+                    val l = lens.brightnessBehind(b, backdrop, fresh = settle)
+                    // The answer may be a moment old (see measuredVersion): until it has caught up, look again.
+                    seenVersion = lens.measuredVersion
+                    seenBounds = b
+                    if (l != null) {
+                        luma.value = l
+                        group.report(member, l)
+                    }
                 }
             }
             delay(ADAPT_EVERY_MS)
         }
     }
-    val darkness = animateFloatAsState(
-        if (night) 1f else 0f,
-        if (settings.reduceMotion) snap() else tween(ADAPT_FLIP_MS),
-        label = "glass flip",
-    )
+    val darkness = group.darkness
     val t = darkness.value
     val shown = when {
         t >= 0.999f -> family.night
@@ -286,17 +382,23 @@ fun AdaptiveGlass(content: @Composable (Modifier) -> Unit) {
         LocalBackdropLuma provides luma,
         LocalGlassBackdrop provides backdrop,
     ) {
-        content(Modifier.onGloballyPositioned { bounds = it.boundsInRoot() })
+        content(
+            Modifier.onGloballyPositioned {
+                // Only the part that is on the screen counts; none of it: null.
+                val root = it.findRootCoordinates().size
+                val seen = it.boundsInRoot().intersect(Rect(0f, 0f, root.width.toFloat(), root.height.toFloat()))
+                bounds = if (seen.width >= 1f && seen.height >= 1f) seen else null
+            },
+        )
     }
 }
-
-/** Below this (linear luminance) light glass turns dark; above [ADAPT_DARK_TO_LIGHT] dark glass turns light. */
-private const val ADAPT_LIGHT_TO_DARK = 0.12f
-private const val ADAPT_DARK_TO_LIGHT = 0.22f
 
 /** How often a bar looks behind itself while the photos move, and how long it takes to change over. */
 private const val ADAPT_EVERY_MS = 250L
 private const val ADAPT_FLIP_MS = 320
+
+/** This many quiet looks after the photos stop (and three times as many), a bar looks once more from a fresh copy. */
+private const val ADAPT_SETTLE_TICKS = 2
 
 /** Halfway between a theme's day and night versions, for a bar changing over (only the colours words and glass use). */
 internal fun lerpGlassTheme(day: GlassTheme, night: GlassTheme, t: Float): GlassTheme {

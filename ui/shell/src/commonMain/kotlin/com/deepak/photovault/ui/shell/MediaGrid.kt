@@ -516,8 +516,9 @@ fun MediaGrid(
         }
 
         androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides gridLens) {
-        // Clear Glass (21 Nov): the date and Back to top turn dark over dark photos and light over light ones too.
-        if (continuous) com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
+        // Clear Glass (21 Nov): the date keeps the page's look like the pills above it; Back to top, at the bottom,
+        // turns dark over dark photos and light over light ones together with the bar.
+        if (continuous) {
             FloatingDate(
                 grid = gridState,
                 photos = gridFirst,
@@ -530,7 +531,7 @@ fun MediaGrid(
                     start = (if (com.deepak.photovault.designsystem.GlassFinish.CALM) FLOATING_PILL_START else if (state.selecting) 30.dp else 24.dp) +
                         contentPadding.calculateStartPadding(LayoutDirection.Ltr),
                     top = (contentPadding.calculateTopPadding() - (if (com.deepak.photovault.designsystem.GlassFinish.CALM) 28.dp else 30.dp)).coerceAtLeast(0.dp),
-                ).then(adapt),
+                ),
             )
         }
         if (topButton) com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->

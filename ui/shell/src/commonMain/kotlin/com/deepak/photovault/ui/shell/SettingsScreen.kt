@@ -481,7 +481,8 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
     PageCard("Appearance", Icons.Rounded.Palette, Modifier.cardWidth(), summary = appearanceSummary(state)) {
         ThemeGrid(state)
         GlassSwitchRow(
-            if (state.appearance.blurOn) "Turn off glass effect" else "Turn on glass effect",
+            // 21 Nov: "Glass effect", on when the glass is on. It read "Turn off glass effect" while on, backwards.
+            "Glass effect",
             state.appearance.blurOn,
             { on -> state.updateAppearance { it.copy(blurOn = on) } },
             icon = Icons.Rounded.BlurOn,
@@ -586,7 +587,7 @@ private fun ThemeGrid(state: ShellState) {
             Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
         )
         Text(
-            "Tinted makes the glass less see-through, with more contrast, as on iOS 26.1.",
+            "Clear lets the photos show through the bars and menus. Tinted makes them almost solid, as on iOS 26.1.",
             color = theme.onGlassSecondary,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.fillMaxWidth(),
@@ -782,8 +783,9 @@ private fun AboutSection(state: ShellState) {
             state.appearance.iosMotionTest,
             { on -> state.updateAppearance { it.copy(iosMotionTest = on) } },
             description = "With the Clear Glass theme: the bottom bar shrinks to a small pill while you scroll down, with " +
-                "Search beside it; drag along the bar to move between sections; buttons swell and bounce when pressed; " +
-                "menus grow out of their button; switch knobs turn to glass while held. Off: it moves like the other themes.",
+                "Search beside it (also with Keep the bottom bar in place on); drag along the bar to move between " +
+                "sections; buttons swell and bounce when pressed; menus grow out of their button; switch knobs turn to " +
+                "glass while held. Off: it moves like the other themes.",
             icon = Icons.Rounded.AutoAwesome,
         )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")

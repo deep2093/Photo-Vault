@@ -398,7 +398,8 @@ private fun SortBar(order: FileOrder, onTap: (FileSort) -> Unit) {
                 Modifier
                     .heightIn(min = 40.dp)
                     .glassPanel(RoundedCornerShape(percent = 50))
-                    .background(if (active) theme.accentSurface else androidx.compose.ui.graphics.Color.Transparent)
+                    // Clear Glass: blue with white words, like its chips (its near-white accent can't be seen on a card).
+                    .background(if (active) (theme.prominent ?: theme.accentSurface) else androidx.compose.ui.graphics.Color.Transparent)
                     .selectable(selected = active, role = Role.Button, onClick = {
                         haptics.tick()
                         onTap(key)
@@ -409,7 +410,7 @@ private fun SortBar(order: FileOrder, onTap: (FileSort) -> Unit) {
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val fg = if (active) theme.onAccent else theme.onGlass
+                val fg = if (active) (if (theme.prominent != null) androidx.compose.ui.graphics.Color.White else theme.onAccent) else theme.onGlass
                 Text(key.label, color = fg, style = MaterialTheme.typography.labelLarge)
                 if (active) {
                     Spacer(Modifier.width(4.dp))
