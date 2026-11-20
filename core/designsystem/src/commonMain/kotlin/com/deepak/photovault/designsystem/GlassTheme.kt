@@ -532,7 +532,7 @@ object GlassThemes {
         ThemeFamily("PHOTO", "Gallery", "Warm paper by day, graphite at night, one soft light from your photos", PhotoDay, AdaptiveMidnight),
         ThemeFamily("VIVID", "Prism", "Colours from your photos: pastels by day, deep jewels at night", VividDay, AdaptiveVivid),
         ThemeFamily("LIQUID_GLASS", "Liquid Glass", "Clear glass like iOS, never blurred: its edges bend the photos like water droplets. Light by day, smoked at night", LiquidGlassLight, LiquidGlassDark),
-        ThemeFamily("CLEAR_GLASS", "Clear Glass", "A copy of iOS 26's clear glass: dark glass bars over white or black pages, light that moves as you tilt the phone, iOS blue. Clear or Tinted", ClearGlassLight, ClearGlassDark),
+        ThemeFamily("CLEAR_GLASS", "Clear Glass", "A copy of iOS 26's clear glass: see-through bars and menus over white pages by day and black ones at night, light that moves as you tilt the phone, iOS blue. Clear or Tinted", ClearGlassLight, ClearGlassDark),
     )
 
     /** The theme a saved id belongs to, whether it was saved as the day or the night version; else Liquid. */

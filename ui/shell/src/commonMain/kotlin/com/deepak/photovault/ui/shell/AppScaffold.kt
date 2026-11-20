@@ -772,6 +772,8 @@ private fun OverlayHost(
                         withFrameNanos { }
                         withFrameNanos { }
                         entry.reveal.animateTo(1f, tween(90))
+                        // One more frame with the viewer fully shown under the copy, then the copy steps aside.
+                        withFrameNanos { }
                         if (!entry.closing) entry.copyOn = false
                     }
                 }
@@ -903,9 +905,9 @@ private fun OverlayHost(
                     }
                     // The flying copy, on top until it has landed (then the viewer's own photo is under it, in place).
                     val fly = entry.fly
-                    // While the viewer fades in under it, the copy fades out, so if the two differ by a pixel or two
-                    // there is no moment with both showing at full strength (the double edge on landing, 21 Nov).
-                    if (fly != null && entry.copyOn) FlyingCopy(fly, fade = { if (entry.landed && !entry.closing) 1f - entry.reveal.value else 1f }) { entry.p.value }
+                    // The copy stays solid until the viewer is fully shown under it (21 Nov: fading the copy out while the
+                    // viewer faded in let the black behind both show through, a flicker on every photo opened).
+                    if (fly != null && entry.copyOn) FlyingCopy(fly) { entry.p.value }
                 }
             }
         }
@@ -914,7 +916,7 @@ private fun OverlayHost(
 
 /** The photo's small picture at its place for now: cropped to the tile's shape at one end, whole at the other. */
 @Composable
-private fun FlyingCopy(fly: Fly, fade: () -> Float = { 1f }, progress: () -> Float) {
+private fun FlyingCopy(fly: Fly, progress: () -> Float) {
     coil3.compose.AsyncImage(
         model = com.deepak.photovault.core.media.Thumb(fly.uri, fly.isVideo, fly.px),
         contentDescription = null,
@@ -931,7 +933,7 @@ private fun FlyingCopy(fly: Fly, fade: () -> Float = { 1f }, progress: () -> Flo
             .graphicsLayer {
                 val p = progress().coerceIn(0f, 1f)
                 // With no tile to go to it fades as it shrinks a little; with one it stays solid all the way.
-                alpha = (if (fly.tile == null) p else 1f) * fade().coerceIn(0f, 1f)
+                if (fly.tile == null) alpha = p
                 clip = true
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp * (1f - p))
             },
@@ -1747,7 +1749,8 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
         // All four sections stay ready, so switching never builds a screen from scratch mid-slide
         // (quick taps between far sections stuttered, 23 Oct). Off-screen ones aren't drawn.
         beyondViewportPageCount = Destination.entries.size - 1,
-        userScrollEnabled = !state.selecting && state.albumsSelected.isEmpty(),
+        // Only with "Swipe between sections" on (21 Nov); the bar at the bottom always works.
+        userScrollEnabled = state.appearance.swipeSections && !state.selecting && state.albumsSelected.isEmpty(),
         modifier = Modifier.fillMaxSize(),
     ) { page ->
         SectionContent(Destination.entries[page], screens)

@@ -111,6 +111,16 @@ object LiquidGlassInk {
     const val TOP_FILM = 0.68f
     const val TINTED_FROST = 0.86f
 
+    /**
+     * A big glass pane full of photos and words over a busy picture (Places' sheet over the map, 21 Nov): more film than
+     * the bars, as iOS's sheets are frosted, so the map's own roads and names show through softly behind the sheet's
+     * words instead of competing with them. Still less than Tinted, so it reads as glass in every theme.
+     */
+    const val SHEET_FILM_DAY = 0.62f
+    const val SHEET_FILM_NIGHT = 0.76f
+
+    fun sheetFilm(dark: Boolean): Float = if (dark) SHEET_FILM_NIGHT else SHEET_FILM_DAY
+
     /** Clear Glass's chosen tab: a light film by day, iOS's dark grey glass by night. */
     const val SELECTED_FROST_DAY = 0.30f
     const val SELECTED_FROST_NIGHT = 0.65f

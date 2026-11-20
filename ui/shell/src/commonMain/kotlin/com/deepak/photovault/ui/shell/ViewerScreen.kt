@@ -2,8 +2,8 @@ package com.deepak.photovault.ui.shell
 
 import androidx.compose.ui.semantics.heading
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Wallpaper
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Download
@@ -543,10 +543,16 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                             binModifier = Modifier.trackSpot(bin),
                         )
                     } else {
+                        // Edit on the toolbar (21 Nov): photos and videos on this phone that the editor can open.
+                        val canEdit = !current.isDriveOnly && !gallery.isExternal(current) &&
+                            (if (current.isVideo) state.editor.platform.trimSupported else state.editor.platform.supported)
+                        // At most six buttons (seven didn't fit, 8 Nov): Edit is only for photos on this phone, and Save
+                        // only for ones that aren't, so the two never show together.
                         ViewerActions(
                             favourite = gallery.isFavourite(current),
                             onShare = { actions.share(listOf(current)) },
                             onFamily = if (LocalFamilyAlbum.current) ({ actions.shareToFamilyAlbum(listOf(current)) }) else null,
+                            onEdit = if (canEdit) ({ state.open(Overlay.Edit(current.id)) }) else null,
                             onSave = when {
                                 current.isDriveOnly -> ({ actions.saveToPhone(listOf(current)) })
                                 gallery.isExternal(current) -> ({ actions.saveOpenedFile(current) })
@@ -585,11 +591,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                     solid = true,
                     bottom = system.calculateBottomPadding() + 12.dp + 60.dp + 8.dp,
                 ) {
-                    // Edit (Phase 11): photos and (16 Nov) videos on this phone; it saves a copy, the original stays.
-                    val editable = if (moreItem.isVideo) state.editor.platform.trimSupported else state.editor.platform.supported
-                    if (!moreItem.isDriveOnly && !gallery.isExternal(moreItem) && editable) {
-                        GlassMenuItem(Icons.Rounded.Tune, "Edit", onClick = { moreOpen = false; state.open(Overlay.Edit(moreItem.id)) })
-                    }
+                    // Edit is on the toolbar now (21 Nov, Jakob's Law).
                     if (!moreItem.isVideo) {
                         GlassMenuItem(Icons.Rounded.Wallpaper, "Set as wallpaper", onClick = { moreOpen = false; wallpaperItem = moreItem })
                     }
@@ -750,17 +752,17 @@ private fun ViewerActions(
     moreModifier: Modifier = Modifier,
     /** The photo the heart belongs to: it pops when this photo becomes a favourite, not when another photo comes in. */
     heartKey: Any? = null,
+    /** Edit (21 Nov, Jakob's Law: Samsung Gallery, Google Photos and iPhone all have it on the photo's toolbar). */
+    onEdit: (() -> Unit)? = null,
 ) {
     // One pill in every theme (21 Nov, Deepak: "make a single toolbar"; Clear Glass had two groups for a day, as iOS).
-    // Same size buttons with the same gap (8 Nov: seven didn't fit and the last was cut off); the rarer ones are in More.
+    // In Deepak's order (21 Nov): favourite, Edit, share, (save), family, bin, More. Same size buttons with the same
+    // gap; six at most (seven didn't fit, 8 Nov), as Edit and Save are never both there.
     Row(
         modifier.glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp).padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
-        if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
-        if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
         if (onFavourite != null) {
             GlassIconButton(
                 if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
@@ -770,6 +772,10 @@ private fun ViewerActions(
                 modifier = Modifier.heartPop(favourite, heartKey, LocalGlassTheme.current.onGlass),
             )
         }
+        if (onEdit != null) GlassIconButton(Icons.Rounded.Edit, "Edit", onClick = onEdit)
+        GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
+        if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
+        if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
         if (onLiving != null) GlassIconButton(Icons.Rounded.AutoAwesome, "Make it move", onClick = onLiving)
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
         // More (8 Nov): Set as wallpaper and Move to Secured folder.

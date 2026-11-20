@@ -188,6 +188,34 @@ class ThemeContrastTest {
     }
 
     @Test
+    fun placesSheetIsFrostedGlassThatStillShowsTheMap() {
+        // 21 Nov (Deepak: the map page had "no day and night clear glass or any other glass"). The sheet over the map is
+        // glass now: more film than the bars, so its photos and words aren't lost in the map's roads and names, and less
+        // than Tinted, so the map still shows through it.
+        for (dark in listOf(false, true)) {
+            val film = LiquidGlassInk.sheetFilm(dark)
+            assertTrue(film > LiquidGlassInk.clearFilm(dark) && film < LiquidGlassInk.TINTED_FROST)
+        }
+        // A map's land, parks, water, roads and dark place names, and the extremes.
+        val land = Color(0xFFF2EFE9)
+        val names = Color(0xFF333333)
+        val map = listOf(land, Color(0xFFC8E6C0), Color(0xFFAAD3DF), Color(0xFFFCD6A4), names, Color.White, Color.Black)
+        for (theme in GlassThemes.all.filter { it.isLiquidGlass }) {
+            val ink = theme.glassInk!!
+            fun seen(c: Color) = LiquidGlassInk.throughGlass(
+                c, theme.isDark, ink.dayFloor, ink.nightCeiling, LiquidGlassInk.sheetFilm(theme.isDark), LiquidGlassInk.tintedFrostColor(theme.isDark),
+            )
+            for (c in map) for (words in listOf(theme.onGlass, theme.onGlassSecondary)) {
+                val ratio = Contrast.ratio(words, seen(c))
+                assertTrue(ratio >= Contrast.TEXT, "${theme.displayName}: words on the sheet over $c read at $ratio")
+            }
+            // The map shows softly: its names can still be told from the land, but far fainter than the sheet's words.
+            val showing = Contrast.ratio(seen(land), seen(names))
+            assertTrue(showing in 1.2..1.8, "${theme.displayName}: the map through the sheet ($showing)")
+        }
+    }
+
+    @Test
     fun tintedIsClearlyMoreSolidThanClear() {
         // 21 Nov (Deepak: "Tinted and Clear differences hard to find, specially in day"). A black and a white photo
         // behind the glass: Clear keeps them well apart, Tinted brings them close together.

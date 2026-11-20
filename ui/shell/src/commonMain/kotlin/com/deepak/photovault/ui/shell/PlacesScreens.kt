@@ -17,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.datetime.toLocalDateTime
@@ -51,6 +50,10 @@ import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.glassPanel
+import com.deepak.photovault.designsystem.glassChrome
+import com.deepak.photovault.designsystem.LiquidGlassInk
+import com.deepak.photovault.designsystem.readableOn
+import kotlin.math.roundToInt
 import kotlinx.datetime.TimeZone
 
 /**
@@ -88,6 +91,8 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
     val cellPx = with(density) { 72.dp.toPx() }
     val bubbles = remember(settled, points) { settled?.let { MapClusters.bubbles(points, it, cellPx) }.orEmpty() }
     val inView = remember(settled, points) { settled?.let { v -> points.filter { v.contains(it.lat, it.lon) }.sortedByDescending { it.takenAt }.map { it.id } }.orEmpty() }
+    // The room the page keeps at the bottom (the same as GlassScreen gives its content).
+    val sheetBottom = LocalScreenInsets.current.calculateBottomPadding() + 24.dp
     GlassScreen(
         title = "Places",
         subtitle = when {
@@ -97,9 +102,24 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
         },
         onBack = { state.back() },
         pinned = true,
-    ) { padding ->
-        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
-            val screenHeight = maxHeight
+        // The sheet is drawn above the map, outside what the glass looks through, so it can be glass itself (21 Nov,
+        // Deepak: the map page had no glass, day or night).
+        overlay = {
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+                PlacesSheet(
+                    state = state,
+                    shown = shown,
+                    inView = inView,
+                    trips = trips,
+                    zone = zone,
+                    screenHeight = maxHeight,
+                    bottomPadding = sheetBottom,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+                )
+            }
+        },
+    ) { _ ->
+        Box(Modifier.fillMaxSize()) {
             // The map waits for the photos, so it opens on your newest photo (zoomed in), not somewhere empty.
             if (places.loaded) {
                 val start = remember {
@@ -165,9 +185,11 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
                                 }
                             }
                             if (b.ids.size > 1) {
+                                // The badge's colours read in every theme (21 Nov: Clear Glass at night has a white
+                                // accent, so its numbers were white on white).
                                 Text(
                                     if (b.ids.size > 999) "999+" else "${b.ids.size}",
-                                    color = androidx.compose.ui.graphics.Color.White,
+                                    color = if (theme.prominent != null) androidx.compose.ui.graphics.Color.White else readableOn(theme.accent),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
@@ -175,7 +197,7 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
                                         .offset(x = 8.dp, y = (-4).dp)
                                         .shadow(3.dp, RoundedCornerShape(10.dp))
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(theme.accent)
+                                        .background(theme.prominent ?: theme.accent)
                                         .padding(horizontal = 6.dp, vertical = 1.dp),
                                 )
                             }
@@ -210,16 +232,6 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
                     GlassButton("Allow", primary = true, onClick = { platform.askForLocations() })
                 }
             }
-            PlacesSheet(
-                state = state,
-                shown = shown,
-                inView = inView,
-                trips = trips,
-                zone = zone,
-                screenHeight = screenHeight,
-                bottomPadding = padding.calculateBottomPadding(),
-                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
-            )
         }
     }
 }
@@ -228,6 +240,9 @@ fun PlacesScreen(state: ShellState, gallery: GalleryState) {
  * The sheet under the map (7B-2; 7 Nov: drag it). Three resting heights: a small bar (just the title, so the map is
  * free), the middle (a strip of the photos in view and your trips), and almost the whole screen (every photo in view).
  * It follows the finger and settles with a soft spring; only its position changes while moving, so it stays smooth.
+ *
+ * Glass (21 Nov): it was solid (7 Nov), as the glass couldn't see the map then. Frosted more than the bars, as iOS's
+ * sheets are, so the photos and words in it are easy to see; the map shows through softly.
  */
 @Composable
 private fun PlacesSheet(
@@ -273,16 +288,18 @@ private fun PlacesSheet(
         androidx.compose.foundation.gestures.Orientation.Vertical,
         onDragStopped = { v -> settle(v) },
     )
+    val tuckPx = with(density) { SHEET_TUCK.toPx() }
     Column(
         modifier
             .fillMaxWidth()
-            .height(full)
-            .graphicsLayer { translationY = fullPx - shownPx.value }
+            // Taller than it ever shows by SHEET_TUCK, so its lower corners stay below the screen: the glass rounds all
+            // four corners alike.
+            .height(full + SHEET_TUCK)
+            // Moved where it is laid out, not only where it is drawn, so the glass knows where it is and shows the part
+            // of the map really behind it.
+            .offset { androidx.compose.ui.unit.IntOffset(0, (fullPx - shownPx.value + tuckPx).roundToInt()) }
             .padding(horizontal = 6.dp)
-            .shadow(16.dp, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-            // Solid, so photos and words are easy to see over the map.
-            .background(if (theme.isDark) androidx.compose.ui.graphics.Color(0xFF1C1C1F) else androidx.compose.ui.graphics.Color(0xFFFAFAFC)),
+            .glassChrome(RoundedCornerShape(28.dp), elevation = 16.dp, film = LiquidGlassInk.sheetFilm(theme.isDark)),
     ) {
         Column(grab) {
             Box(
@@ -383,7 +400,7 @@ private fun PlacesSheet(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(96.dp),
             modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp),
-            contentPadding = PaddingValues(bottom = bottomPadding + 12.dp),
+            contentPadding = PaddingValues(bottom = bottomPadding + 12.dp + SHEET_TUCK),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
@@ -402,6 +419,9 @@ private fun PlacesSheet(
         }
     }
 }
+
+/** How far the Places sheet runs on below the screen, so its rounded lower corners are never seen. */
+private val SHEET_TUCK = 40.dp
 
 /** "Sydney, March 2026" (a trip over two months: "Sydney, Mar–Apr 2026"). */
 private fun tripTitle(trip: Trip, zone: TimeZone): String {

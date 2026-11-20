@@ -176,16 +176,19 @@ internal fun Modifier.gradientRim(theme: GlassTheme, shape: Shape): Modifier {
  * Glass for floating chrome (navigation bar, top bar) that sits over scrolling photos. Blurs what passes
  * underneath when blur is on and the screen provides [LocalHazeState]; otherwise uses the solid fallback.
  * On Android 11 the blur library falls back to the same tint by itself.
+ *
+ * [film]: a firmer frosted film for a large pane full of photos and words (Places' sheet over the map, 21 Nov), so the
+ * picture behind shows through softly instead of competing with them. Clear and never blurred in Liquid Glass.
  */
 @Composable
-fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
+fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp, film: Float? = null): Modifier {
     val noShadow = false
     val noRim = false
     val noBlur = false
     val theme = LocalGlassTheme.current
     val haze = LocalHazeState.current
     val settings = LocalGlassSettings.current
-    if (theme.isLiquidGlass) return liquidGlassChrome(shape, elevation, theme, settings)
+    if (theme.isLiquidGlass) return liquidGlassChrome(shape, elevation, theme, settings, film)
     val blur = settings.blurEnabled && haze != null && !noBlur
     // Lens glass (experimental): only for themes that offer it, and only where the platform gave the bar a lens.
     val lens = if (noBlur) null else LocalLensGlass.current
@@ -204,7 +207,7 @@ fun Modifier.glassChrome(shape: Shape, elevation: Dp = 16.dp): Modifier {
                 Modifier
             } else if (blur && haze != null && settings.blurScale <= 0f) {
                 // No blur (experiment): a clear film only, a little stronger so text still reads over sharp photos.
-                Modifier.background(theme.glassTint.copy(alpha = maxOf(theme.glassTint.alpha, 0.30f)))
+                Modifier.background(theme.glassTint.copy(alpha = maxOf(theme.glassTint.alpha, 0.30f, film ?: 0f)))
             } else if (blur && haze != null) {
                 Modifier.hazeEffect(
                     state = haze,
@@ -249,6 +252,7 @@ private fun Modifier.liquidGlassChrome(
     elevation: Dp,
     theme: GlassTheme,
     settings: GlassSettings,
+    film: Float? = null,
 ): Modifier {
     val lens = LocalLensGlass.current
     val ink = theme.glassInk ?: GlassInk.LIQUID
@@ -276,17 +280,26 @@ private fun Modifier.liquidGlassChrome(
                 fallback = theme.glassFallback,
                 inkFloor = ink.dayFloor,
                 inkCeiling = ink.nightCeiling,
-                frost = when {
-                    tinted -> LiquidGlassInk.TINTED_FROST
-                    theme.isClearGlass -> maxOf(LiquidGlassInk.clearFilm(theme.isDark), LocalGlassFilm.current ?: 0f)
-                    else -> 0f
-                },
+                frost = maxOf(
+                    film ?: 0f,
+                    when {
+                        tinted -> LiquidGlassInk.TINTED_FROST
+                        theme.isClearGlass -> maxOf(LiquidGlassInk.clearFilm(theme.isDark), LocalGlassFilm.current ?: 0f)
+                        else -> 0f
+                    },
+                ),
                 frostColor = LocalGlassDarkness.current?.let { LiquidGlassInk.tintedFrostColor(it.value) } ?: LiquidGlassInk.tintedFrostColor(theme.isDark),
                 light = LocalGlassLight.current,
                 darkness = LocalGlassDarkness.current,
             ),
         )
-        else -> Modifier.background(if (tinted) theme.glassFallback.copy(alpha = 0.9f) else theme.glassTint).liquidGlassEdge(shape)
+        else -> Modifier.background(
+            when {
+                tinted -> theme.glassFallback.copy(alpha = maxOf(0.9f, film ?: 0f))
+                film != null -> theme.glassFallback.copy(alpha = maxOf(theme.glassTint.alpha, film))
+                else -> theme.glassTint
+            },
+        ).liquidGlassEdge(shape)
     }
     return shadow(elevation * 0.7f, shape, ambientColor = shadowColor, spotColor = shadowColor)
         .clip(shape)

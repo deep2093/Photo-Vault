@@ -18,6 +18,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.offline.OfflineManager
 
@@ -59,7 +60,10 @@ actual fun PhotoMap(
     val report by rememberUpdatedState(onViewport)
     val view = remember {
         ensureMapLibre(context)
-        MapView(context).apply { onCreate(null) }
+        // Drawn in a TextureView (21 Nov), not MapLibre's usual SurfaceView. A SurfaceView is put on screen by the system,
+        // apart from the app's own drawing, so the glass over the map (the top bar, the sheet) couldn't see the map and
+        // showed a plain dark or white backing instead, and the map ignored rounded corners and page animations.
+        MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)).apply { onCreate(null) }
     }
     // The map follows the screen's life: started, paused and closed with it.
     DisposableEffect(lifecycle, view) {

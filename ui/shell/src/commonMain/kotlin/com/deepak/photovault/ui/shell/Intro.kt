@@ -100,12 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-21-7"
+    const val ID = "2026-11-21-8"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Clear Glass by day is clear again", "The bars, pills, headers and menus are see-through glass with depth and dark words, with no dark tint behind them. At night they stay dark glass. They never change colour as you scroll."),
-        Change(ChangeKind.FIXED, "Opening a photo", "It opens at once (the small dip before it is gone), the buttons and the row of photos come in right after it, and there is no double edge as it lands."),
-        Change(ChangeKind.CHANGED, "Wrong PIN", "A wrong PIN in the Secured folder now gives two firm double knocks, stronger than any other vibration, so you can't miss it."),
+        Change(ChangeKind.FIXED, "Opening a photo", "The quick flicker as a photo opened is gone: the photo stays fully shown the whole way in."),
+        Change(ChangeKind.CHANGED, "Edit on the photo's toolbar", "An open photo now has favourite, Edit, share, Family, bin and More, in that order, like Samsung Gallery and the iPhone. Edit is no longer hidden in More."),
+        Change(ChangeKind.CHANGED, "Places is glass", "The bar at the top and the sheet of photos over the map are now glass, by day and at night, and the map shows softly through them. The number on a group of photos reads in every theme."),
+        Change(ChangeKind.CHANGED, "Swiping between sections is off", "Change sections with the bar at the bottom, as in Samsung Gallery and Google Photos. Turn it back on in Settings > Appearance > Swipe between sections."),
+        Change(ChangeKind.CHANGED, "A clearer Memories button", "Memories has a slideshow picture instead of the clock."),
     )
 }
 

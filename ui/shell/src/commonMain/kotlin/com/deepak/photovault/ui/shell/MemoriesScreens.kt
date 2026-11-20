@@ -28,7 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Slideshow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -94,7 +94,8 @@ internal fun MemoriesButton(state: ShellState, gallery: GalleryState) {
     val fresh = day.isNotEmpty() && state.appearance.memoriesSeen != todayKey()
     val dot by animateFloatAsState(if (fresh) 1f else 0f, motionSpec(), label = "memoriesDot")
     Box {
-        SmallPillButton(Icons.Rounded.History, if (fresh) "Memories, new today" else "Memories") { state.open(Overlay.Memories) }
+        // 21 Nov (Jakob's Law): photos that play like a story, not a clock (which reads as "history" or "recent").
+        SmallPillButton(Icons.Rounded.Slideshow, if (fresh) "Memories, new today" else "Memories") { state.open(Overlay.Memories) }
         if (dot > 0f) {
             Box(
                 Modifier
@@ -131,7 +132,7 @@ fun MemoriesScreen(state: ShellState, gallery: GalleryState) {
         if (day.isEmpty() && month.isEmpty()) {
             item(key = "empty") {
                 com.deepak.photovault.designsystem.EmptyCard(
-                    Icons.Rounded.History,
+                    Icons.Rounded.Slideshow,
                     "No memories today",
                     "Photos you took on this day, or this month, in earlier years show here. Come back another day.",
                     Modifier.cardWidth().padding(horizontal = SCREEN_MARGIN),

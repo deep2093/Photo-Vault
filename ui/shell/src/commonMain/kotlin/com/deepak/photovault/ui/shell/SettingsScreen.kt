@@ -6,6 +6,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.rounded.Slideshow
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.CloudQueue
@@ -508,6 +510,16 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
                 icon = Icons.Rounded.PushPin,
             )
         }
+        if (!tabletDevice || !state.appearance.tabletSideBar) {
+            GlassSwitchRow(
+                "Swipe between sections",
+                state.appearance.swipeSections,
+                { on -> state.updateAppearance { it.copy(swipeSections = on) } },
+                description = "Swipe left or right to move between Photos, Albums, Family and Settings. Off: use the bar at " +
+                    "the bottom, as in Samsung Gallery and Google Photos.",
+                icon = Icons.Rounded.SwapHoriz,
+            )
+        }
         GlassSwitchRow(
             "Mixed photo sizes",
             state.appearance.mixedGrid,
@@ -812,7 +824,7 @@ private fun AboutSection(state: ShellState) {
         InfoRow(Icons.Rounded.Groups, "People", "Done")
         // What comes next (7 Nov).
         InfoRow(Icons.Rounded.Place, "Places", "Done")
-        InfoRow(Icons.Rounded.History, "Memories and tags", "Done")
+        InfoRow(Icons.Rounded.Slideshow, "Memories and tags", "Done")
         InfoRow(Icons.Rounded.PhotoLibrary, "Living photos", "Done")
         // 10 Nov: Google Drive backup comes before Family roles.
         InfoRow(Icons.Rounded.Storage, "Google Drive backup", "Done")

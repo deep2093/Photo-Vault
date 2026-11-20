@@ -118,6 +118,12 @@ data class AppearanceSettings(
     val memoriesWatched: String = "",
     /** Photos > All shows some photos double size (16 Nov, [Mosaic]). */
     val mixedGrid: Boolean = true,
+    /**
+     * Swiping sideways moves between Photos, Albums, Family and Settings. Off by default (21 Nov, Jakob's Law: Samsung
+     * Gallery and Google Photos change sections only with the bar at the bottom, so a sideways swipe on the photos
+     * changed section by surprise). Settings > Appearance turns it back on.
+     */
+    val swipeSections: Boolean = false,
     /** Settings > Notifications (8 Nov): each kind of notification on or off. On by default. */
     val notifyBackupProblems: Boolean = true,
     val notifyPeople: Boolean = true,

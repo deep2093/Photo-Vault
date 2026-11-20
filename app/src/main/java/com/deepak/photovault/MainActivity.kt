@@ -991,6 +991,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         blurOn = prefs.getBoolean("blur", true),
         reduceMotion = prefs.getBoolean("reduce_motion", false),
         mixedGrid = prefs.getBoolean("mixed_grid", true),
+        swipeSections = prefs.getBoolean("swipe_sections", false),
         // A new name (18 Nov): the side bar is the default on every tablet, whatever an older version saved.
         tabletSideBar = prefs.getBoolean("tablet_side_bar", true),
         mirrorTest = prefs.getBoolean("mirror_test", false),
@@ -1038,6 +1039,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("blur", settings.blurOn)
             .putBoolean("reduce_motion", settings.reduceMotion)
             .putBoolean("mixed_grid", settings.mixedGrid)
+            .putBoolean("swipe_sections", settings.swipeSections)
             .putBoolean("tablet_side_bar", settings.tabletSideBar)
             .putBoolean("mirror_test", settings.mirrorTest)
             .putBoolean("show_all_backups", settings.showAllBackups)
