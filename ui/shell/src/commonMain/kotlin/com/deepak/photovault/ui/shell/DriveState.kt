@@ -64,6 +64,12 @@ interface DrivePlatform {
     /** Opens the drive and checks the address, share and password; throws with a readable reason. */
     suspend fun open(connection: DriveConnection): DriveFileSystem
 
+    /**
+     * A second connection, apart from [open]'s (21 Nov): photos and thumbnails being fetched use it, so lists, deletes
+     * and restores never wait behind them. Null where there is none (the one connection is shared then).
+     */
+    suspend fun openSecond(connection: DriveConnection): DriveFileSystem? = null
+
     /** SMB servers answering on this Wi-Fi. */
     suspend fun discover(knownHost: String): List<String>
 
@@ -222,6 +228,7 @@ class DriveState(private val platform: DrivePlatform) {
         connection = use
         drive = fs
         store = HouseholdStore(fs, platform::now)
+        dropMediaDrive()
         refreshLocked()
     }
 
@@ -235,6 +242,8 @@ class DriveState(private val platform: DrivePlatform) {
         connection = null
         drive = null
         store = null
+        dropMediaDrive()
+        catalogCache.clear()
         membership = null
         usage = emptyMap()
         requests = emptyList()
@@ -903,8 +912,9 @@ class DriveState(private val platform: DrivePlatform) {
     suspend fun myBackupRecords(): List<com.deepak.photovault.core.backup.BackupRecord>? {
         val me = joined?.me ?: return null
         val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return null
-        val catalog = BackupCatalog(fs, me.userId, myVault())
+        val catalog = catalogFor(fs, me.userId)
         val list = runCatching { catalog.records() }.getOrNull() ?: return null
+        lastUsedMillis = platform.now()
         // 10 Nov: lists that couldn't be opened (a Private backup's key not ready, or damaged) never show as "nothing
         // backed up": the last good list stays and the reason is said.
         if (list.isEmpty() && catalog.listsUnreadable > 0) {
@@ -920,12 +930,88 @@ class DriveState(private val platform: DrivePlatform) {
     var backupListProblem by mutableStateOf<String?>(null)
         private set
 
+    // ---- Keeping the drive quick (21 Nov, Deepak: "deleted photo didn't appear in Recently deleted until I refreshed,
+    // restored one didn't come back in Backup; manual refresh takes too long; sometimes only a restart showed them") ----
+
+    /** List files and trash notes already read (they never change once written), so each is read only once. */
+    private val catalogCache = com.deepak.photovault.core.backup.CatalogCache()
+    private var catalogCacheUser: String? = null
+
+    private fun catalogFor(fs: DriveFileSystem, userId: String): BackupCatalog {
+        if (catalogCacheUser != userId) {
+            catalogCache.clear()
+            catalogCacheUser = userId
+        }
+        return BackupCatalog(fs, userId, myVault(), catalogCache)
+    }
+
+    /**
+     * Bumped by every change this app makes to the backup list or the drive's Recently deleted. A read that started
+     * before a change may have missed it, so it never replaces the newer list; it reads again instead.
+     */
+    private var recordsVersion = 0
+    private var trashVersion = 0
+
+    /** A read asked for while one is already under way runs again after it, instead of being skipped. */
+    private var recordsAgain = false
+    private var trashLoading = false
+    private var trashAgain = false
+
+    /** Photos and thumbnails being fetched use a connection of their own, so the lists never wait behind them. */
+    private var mediaDrive: DriveFileSystem? = null
+    private val mediaLock = Mutex()
+
+    /** No second connection on this platform, or the last try failed this long ago (tried again after a while). */
+    private var secondUnsupported = false
+    private var secondFailedAt = 0L
+
+    private suspend fun mediaFs(): DriveFileSystem? {
+        mediaDrive?.let { return it }
+        if (secondUnsupported || platform.now() - secondFailedAt < SECOND_RETRY_MS) return null
+        val c = connection?.takeIf { it.isComplete } ?: return null
+        return mediaLock.withLock {
+            mediaDrive ?: try {
+                platform.openSecond(c).also {
+                    if (it == null) secondUnsupported = true
+                    mediaDrive = it
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                secondFailedAt = platform.now()
+                null
+            }
+        }
+    }
+
+    private fun dropMediaDrive() {
+        val old = mediaDrive ?: return
+        mediaDrive = null
+        runCatching { (old as? AutoCloseable)?.close() }
+    }
+
+    /** When this app last used the drive. */
+    private var lastUsedMillis = 0L
+
+    /**
+     * After time away (the app in the background, the phone asleep) the drive has usually dropped the connection, and
+     * using it would wait for a timeout first; it is opened afresh instead (21 Nov: "only a restart showed them").
+     */
+    fun freshenAfterIdle() {
+        val now = platform.now()
+        if (lastUsedMillis != 0L && now - lastUsedMillis > IDLE_FRESH_MS) {
+            store = null
+            drive = null
+            dropMediaDrive()
+        }
+    }
+
     /**
      * Streams one file of the drive to [sink] (a drive-only photo being opened or shown as a thumbnail). Returns false
      * when the drive can't be reached or the file is gone. Runs next to other drive work, not inside its lock.
      */
     suspend fun readDriveFile(path: String, sink: (ByteArray, Int) -> Unit): Boolean {
-        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return false
+        val fs = mediaFs() ?: runCatching { ensureStore(); drive }.getOrNull() ?: return false
         return try {
             val kind = when {
                 path.endsWith(".pxo") -> com.deepak.photovault.core.backup.ObjectKind.MEDIA
@@ -969,18 +1055,35 @@ class DriveState(private val platform: DrivePlatform) {
     }
 
     suspend fun loadBackupRecords(force: Boolean = false) {
-        if (backupRecordsLoading || (!force && backupRecords != null)) return
+        if (!force && backupRecords != null) return
+        // 21 Nov: asked for while a read is under way, it reads again after that one (it was skipped, so a pull to
+        // refresh could bring back nothing new).
+        if (backupRecordsLoading) {
+            recordsAgain = true
+            return
+        }
         // 10 Nov: the list last read shows straight away, then the drive's fresh one replaces it.
         val me = joined?.me?.userId
         if (backupRecords == null && me != null) runCatching { platform.rememberedBackupRecords(me) }.getOrNull()?.let { backupRecords = it }
         backupRecordsLoading = true
         try {
-            // A failed read keeps the list already on screen: an empty folder after a hiccup was a bug (30 Oct).
-            myBackupRecords()?.let {
-                backupRecords = it
-                libraryReadAtMillis = platform.now()
-                if (me != null) runCatching { platform.rememberBackupRecords(me, it) }
-            }
+            var rounds = 0
+            do {
+                recordsAgain = false
+                val version = recordsVersion
+                // A failed read keeps the list already on screen: an empty folder after a hiccup was a bug (30 Oct).
+                val fresh = myBackupRecords()
+                if (fresh != null) {
+                    if (version == recordsVersion) {
+                        backupRecords = fresh
+                        libraryReadAtMillis = platform.now()
+                        if (me != null) runCatching { platform.rememberBackupRecords(me, fresh) }
+                    } else {
+                        // Something was deleted or brought back while this read was under way: read again.
+                        recordsAgain = true
+                    }
+                }
+            } while (recordsAgain && ++rounds < MAX_REREADS)
         } finally {
             backupRecordsLoading = false
         }
@@ -1051,8 +1154,27 @@ class DriveState(private val platform: DrivePlatform) {
     /** Reads the drive's Recently deleted and clears what is older than 30 days. */
     suspend fun loadDriveTrash() {
         val me = joined?.me ?: return
-        val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
-        runCatching { BackupCatalog(fs, me.userId, myVault()).purgeExpired(platform.now()) }.getOrNull()?.let { driveTrash = it }
+        if (trashLoading) {
+            trashAgain = true
+            return
+        }
+        trashLoading = true
+        try {
+            var rounds = 0
+            do {
+                trashAgain = false
+                val version = trashVersion
+                val fs = runCatching { ensureStore(); drive }.getOrNull() ?: return
+                val fresh = runCatching { catalogFor(fs, me.userId).purgeExpired(platform.now()) }.getOrNull()
+                if (fresh != null) {
+                    lastUsedMillis = platform.now()
+                    // A read that started before a delete or a restore here would put back the old list.
+                    if (version == trashVersion) driveTrash = fresh else trashAgain = true
+                }
+            } while (trashAgain && ++rounds < MAX_REREADS)
+        } finally {
+            trashLoading = false
+        }
     }
 
     /** Moves backups (by drive path) into the drive's Recently deleted. Returns an error, or null. */
@@ -1062,23 +1184,46 @@ class DriveState(private val platform: DrivePlatform) {
         if (!mayDelete(records)) return VIEW_ONLY_NOTE
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            val catalog = BackupCatalog(fs, me.userId, myVault())
-            catalog.trash(records, platform.deviceId, platform.now())
-            backupRecords = backupRecords?.filterNot { it.drivePath in paths }
-            driveTrash = catalog.trashed()
+            val catalog = catalogFor(fs, me.userId)
+            val notes = catalog.trash(records, platform.deviceId, platform.now())
+            // 21 Nov: the lists change straight away from what was just done, instead of after reading the whole drive.
+            // If not everything went as asked (a second try after a dropped connection), both are read again; the
+            // files already read are remembered, so that is quick too.
+            val shown = driveTrash
+            if (notes.size == records.size && shown != null) {
+                val gone = notes.map { it.record.drivePath }.toSet()
+                backupRecords = backupRecords?.filterNot { it.drivePath in gone }
+                driveTrash = (notes + shown).distinctBy { it.trashPath }.sortedByDescending { it.deletedAtMillis }
+            } else {
+                backupRecords = catalog.records()
+                driveTrash = catalog.trashed()
+            }
+            recordsVersion++
+            trashVersion++
         }
     }
 
     /** Brings backups back from the drive's Recently deleted ([trashPaths] are where they are now). */
     suspend fun restoreBackups(trashPaths: Set<String>): String? {
         val me = joined?.me ?: return "Join your family drive first."
-        val items = driveTrash.orEmpty().filter { it.trashPath in trashPaths }
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            val catalog = BackupCatalog(fs, me.userId, myVault())
-            catalog.restore(items, platform.deviceId, platform.now())
-            driveTrash = catalog.trashed()
-            backupRecords = catalog.records()
+            val catalog = catalogFor(fs, me.userId)
+            // The list on screen if there is one; otherwise read it (a restore never does nothing for want of it).
+            val items = (driveTrash ?: catalog.trashed()).filter { it.trashPath in trashPaths }
+            val back = catalog.restore(items, platform.deviceId, platform.now())
+            // 21 Nov: back in the lists straight away (it read the whole backup list again first, so it came back late).
+            if (back.size == items.size && driveTrash != null && backupRecords != null) {
+                val returned = back.map { it.trashPath }.toSet()
+                val paths = back.map { it.record.drivePath }.toSet()
+                driveTrash = driveTrash?.filterNot { it.trashPath in returned }
+                backupRecords = backupRecords?.let { list -> list.filterNot { it.drivePath in paths } + back.map { it.record } }
+            } else {
+                driveTrash = catalog.trashed()
+                backupRecords = catalog.records()
+            }
+            trashVersion++
+            recordsVersion++
         }
     }
 
@@ -1089,9 +1234,10 @@ class DriveState(private val platform: DrivePlatform) {
         if (!mayDelete(items.map { it.record })) return VIEW_ONLY_NOTE
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            val catalog = BackupCatalog(fs, me.userId, myVault())
-            catalog.deleteForever(items)
-            driveTrash = catalog.trashed()
+            catalogFor(fs, me.userId).deleteForever(items)
+            val gone = items.map { it.trashPath }.toSet()
+            driveTrash = driveTrash?.filterNot { it.trashPath in gone }
+            trashVersion++
         }
     }
 
@@ -1105,8 +1251,9 @@ class DriveState(private val platform: DrivePlatform) {
         if (!mayDelete(records)) return VIEW_ONLY_NOTE
         return guarded {
             val fs = ensureStore()?.let { drive } ?: throw IllegalStateException("No drive")
-            BackupCatalog(fs, me.userId, myVault()).remove(records, platform.deviceId, platform.now())
+            catalogFor(fs, me.userId).remove(records, platform.deviceId, platform.now())
             backupRecords = backupRecords?.filterNot { it.drivePath in paths }
+            recordsVersion++
         }
     }
 
@@ -1289,7 +1436,11 @@ class DriveState(private val platform: DrivePlatform) {
         val fs = platform.open(c)
         drive = fs
         // The drive may have been found at a new address (24 Oct); show and use the one that worked.
-        platform.loadConnection()?.takeIf { it.isComplete && it.host != c.host }?.let { connection = it }
+        platform.loadConnection()?.takeIf { it.isComplete && it.host != c.host }?.let {
+            connection = it
+            // The photos' own connection still points at the old address.
+            dropMediaDrive()
+        }
         return HouseholdStore(fs, platform::now).also { store = it }
     }
 
@@ -1312,6 +1463,7 @@ class DriveState(private val platform: DrivePlatform) {
                 drive = null
                 block()
             }
+            lastUsedMillis = platform.now()
             null
         } catch (e: CancellationException) {
             throw e
@@ -1338,6 +1490,15 @@ class DriveState(private val platform: DrivePlatform) {
         /** Space used is recounted at most this often (it walks the whole drive). */
         const val USAGE_EVERY_MS = 5 * 60_000L
         const val OWNER_UNLOCK_MS = 5 * 60_000L
+
+        /** After this long without using the drive, its connection is opened afresh rather than trusted (21 Nov). */
+        const val IDLE_FRESH_MS = 5 * 60_000L
+
+        /** How many times a list is read again when the app changed it during a read. */
+        const val MAX_REREADS = 3
+
+        /** A second connection that couldn't be opened is tried again after this long; the first one is used meanwhile. */
+        const val SECOND_RETRY_MS = 30_000L
     }
 }
 

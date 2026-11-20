@@ -530,13 +530,21 @@ fun MediaGrid(
         if (continuous) androidx.compose.runtime.CompositionLocalProvider(
             com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.topFilm(LocalGlassTheme.current.isDark),
         ) {
+            // 21 Nov (Deepak): while Years / Months / All is away (scrolling down), the date rises into its place, at the
+            // same pace as the pill and the bottom bar; it goes back down when they return.
+            val pillAway by animateFloatAsState(if (LocalChrome.current?.hidden == true) 1f else 0f, motionSpec(CHROME_MS), label = "date rise")
+            val risePx = with(LocalDensity.current) { (TopBarHeight - 18.dp).toPx() }
             FloatingDate(
                 grid = gridState,
                 photos = gridFirst,
                 headerItems = headerItems,
                 places = state.places.photos,
                 color = dateColor,
-                modifier = Modifier.align(Alignment.TopStart).padding(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    // Moved where it is laid out, so its glass knows where it is.
+                    .offset { androidx.compose.ui.unit.IntOffset(0, -(pillAway * risePx).toInt()) }
+                    .padding(
                     // Calm glass (18 Nov): on its own glass pill, its left edge in line with the Years / Months / All pill
                     // above (Deepak: "isn't aligned"). Before: plain text, moved in to line up with "N selected" (16 Nov).
                     start = (if (com.deepak.photovault.designsystem.GlassFinish.CALM) FLOATING_PILL_START else if (state.selecting) 30.dp else 24.dp) +

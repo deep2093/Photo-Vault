@@ -111,23 +111,24 @@ internal fun StorageContent(
         }
     }
     val records = drive.backupRecords
-    val driveFiles = remember(records, gallery.items) {
-        // Album names come with each backup since 24 Oct; older ones are matched to the phone's photos.
-        val albumByKey = gallery.items.associate { BackupSelection.key(it) to it.albumName }
-        records?.map { r ->
-            StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album ?: albumByKey[r.key] ?: "Not on this phone", r.drivePath, r.isVideo)
-        }
-    }
+    val driveFiles = remember(records, gallery.items) { records?.let { driveStoredFiles(it, gallery.items) } }
     val driveLoading = drive.backupRecordsLoading && records == null
     // Every part of a chart opens the files behind it (23 Oct).
     fun open(onDrive: Boolean, google: Boolean = false) = { title: String, files: List<StoredFile> ->
         if (files.isNotEmpty()) state.open(Overlay.StorageFiles(title, onDrive, files.map { it.ref }, google))
     }
+    // 21 Nov: the family drive's lists say which part they are, so they follow the drive while open.
+    fun openSlice(onDrive: Boolean) = { title: String, files: List<StoredFile>, slice: String ->
+        if (files.isNotEmpty()) state.open(Overlay.StorageFiles(title, onDrive, files.map { it.ref }, slice = slice.takeIf { onDrive }))
+    }
     var cacheVersion by remember { mutableStateOf(0) }
     var showCache by remember { mutableStateOf(false) }
     var showFreeUp by remember { mutableStateOf(false) }
     fun typeOpener(files: List<StoredFile>, types: List<StorageSlice>, onDrive: Boolean, google: Boolean = false) = { i: Int ->
-        types.getOrNull(i)?.let { open(onDrive, google)(it.label, StorageStats.ofType(files, types, it.label)) }
+        types.getOrNull(i)?.let {
+            if (google) open(true, google = true)(it.label, StorageStats.ofType(files, types, it.label))
+            else openSlice(onDrive)(it.label, StorageStats.ofType(files, types, it.label), "type:${it.label}")
+        }
         Unit
     }
     Column(Modifier.pageWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -180,7 +181,7 @@ internal fun StorageContent(
                         Text("Photos and videos: ${DetailsFormat.size(media)}", color = theme.onGlass, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                Breakdown(phoneFiles, zone, open(false))
+                Breakdown(phoneFiles, zone, openSlice(false))
                 // 15 Nov: the ways to make room, one line each, at the end.
                 GlassCard(Modifier.fillMaxWidth()) {
                     SectionHeader("Free up space")
@@ -229,7 +230,7 @@ internal fun StorageContent(
                         "Your backup on the drive",
                         slices,
                         "${DetailsFormat.size(used)} of your ${joined.me.limitGb} GB" + (space?.takeIf { drive.isOwner }?.let { " · drive ${DetailsFormat.size(it.freeBytes)} free of ${DetailsFormat.size(it.totalBytes)}" } ?: ""),
-                        onOpen = { i -> if (i == 0) driveFiles?.let { open(true)("Your backup", it) } },
+                        onOpen = { i -> if (i == 0) driveFiles?.let { openSlice(true)("Your backup", it, "all") } },
                         types = types,
                         onType = typeOpener(df, types, true),
                         typesSummary = "${LibraryCounts.grouped(df.size)} files · ${DetailsFormat.size(df.sumOf { it.bytes })}",
@@ -260,7 +261,7 @@ internal fun StorageContent(
                         Modifier.fillMaxWidth(),
                     ) { GlassButton("Open Backup", primary = true, onClick = { state.open(Overlay.Backup) }) }
                     // 10 Nov: the drive's albums, below By year like the phone's.
-                    else -> Breakdown(files, zone, open(true), albumsTitle = "Backed-up albums")
+                    else -> Breakdown(files, zone, openSlice(true), albumsTitle = "Backed-up albums")
                 }
                 if (joined != null) {
                     // 18 Nov: a full-width row like Free up space, so it lines up with the cards above it.
@@ -468,7 +469,7 @@ private fun SpaceBar(parts: List<Long>, total: Long) {
 private fun Breakdown(
     files: List<StoredFile>,
     zone: TimeZone,
-    onOpen: (String, List<StoredFile>) -> Unit,
+    onOpen: (String, List<StoredFile>, String) -> Unit,
     albumsTitle: String = "Albums",
 ) {
     val theme = LocalGlassTheme.current
@@ -477,7 +478,7 @@ private fun Breakdown(
     var allYears by remember { mutableStateOf(false) }
     var allAlbums by remember { mutableStateOf(false) }
     fun openAlbum(i: Int) {
-        albums.getOrNull(i)?.let { onOpen(it.label, StorageStats.ofAlbum(files, albums, it.label)) }
+        albums.getOrNull(i)?.let { onOpen(it.label, StorageStats.ofAlbum(files, albums, it.label), "album:${it.label}") }
     }
     @Composable
     fun albumsCard() {
@@ -497,7 +498,7 @@ private fun Breakdown(
         if (years.size > 1) {
             GlassCard(Modifier.fillMaxWidth()) {
                 SectionHeader("By year")
-                YearBars(if (allYears) years else years.takeLast(5)) { year -> onOpen(year, StorageStats.ofYear(files, year, zone)) }
+                YearBars(if (allYears) years else years.takeLast(5)) { year -> onOpen(year, StorageStats.ofYear(files, year, zone), "year:$year") }
                 if (years.size > 5) ShowAll(allYears, years.size) { allYears = !allYears }
             }
         }
@@ -850,4 +851,21 @@ object DonutMath {
         }
         return sizes.lastIndex
     }
+}
+
+/** The family drive's backups as Storage lists them; album names come with each backup since 24 Oct, older ones from the phone. */
+internal fun driveStoredFiles(records: List<com.deepak.photovault.core.backup.BackupRecord>, items: List<com.deepak.photovault.core.media.MediaItem>): List<StoredFile> {
+    val albumByKey = items.associate { BackupSelection.key(it) to it.albumName }
+    return records.map { r ->
+        StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album ?: albumByKey[r.key] ?: "Not on this phone", r.drivePath, r.isVideo)
+    }
+}
+
+/** The files of one part of Storage's lists ([Overlay.StorageFiles.slice]), worked out again from [files]; null if unknown. */
+internal fun storageSlice(files: List<StoredFile>, slice: String, zone: TimeZone): List<StoredFile>? = when {
+    slice == "all" -> files
+    slice.startsWith("type:") -> StorageStats.ofType(files, StorageStats.byType(files), slice.removePrefix("type:"))
+    slice.startsWith("album:") -> StorageStats.ofAlbum(files, StorageStats.byAlbum(files), slice.removePrefix("album:"))
+    slice.startsWith("year:") -> StorageStats.ofYear(files, slice.removePrefix("year:"), zone)
+    else -> null
 }

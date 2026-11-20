@@ -303,7 +303,7 @@ fun RecentlyDeletedScreen(state: ShellState, gallery: GalleryState, actions: Med
                 actions.restore(selected)
                 state.selected = emptySet()
             })
-            GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = {
+            GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", modifier = Modifier.trackSpot(bin), danger = true, onClick = {
                 val flying = spots.flying(selected)
                 flight.prepare(flying)
                 prompt.deleteForever(actions, selected) { agreed ->

@@ -114,7 +114,9 @@ fun DeletePromptHost(prompt: DeletePrompt) {
         onDismiss = { prompt.answer(false) },
         buttons = {
             GlassButton(r.cancel, onClick = { prompt.answer(false) })
-            GlassButton(r.confirm, primary = true, onClick = { prompt.answer(true) })
+            // Delete and Move to bin are red in every theme (21 Nov, Deepak); Allow stays the theme's main button.
+            val deletes = com.deepak.photovault.designsystem.isDeleteAction(r.confirm)
+            GlassButton(r.confirm, primary = !deletes, danger = deletes, onClick = { prompt.answer(true) })
         },
     ) {
         Text(r.body, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)

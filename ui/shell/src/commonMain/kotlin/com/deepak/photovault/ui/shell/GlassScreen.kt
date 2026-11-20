@@ -92,6 +92,12 @@ fun GlassScreen(
     overlay: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
     /** In place of the title and subtitle (Search: the search box sits in the bar, 7 Nov). */
     titleContent: (@Composable () -> Unit)? = null,
+    /**
+     * Photos (21 Nov, Deepak: "hide the Years Months All when scrolling down and move the date where it is, smoother,
+     * like the other animations here"): the pill at the top left slides up out of sight while scrolling down, at the
+     * bottom bar's pace, and comes back on scrolling up. The date rises into its place ([MediaGrid]).
+     */
+    hideStartOnScroll: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     // Photos and Albums: scrolling down tucks the pills and the navigation bar away; scrolling up brings them back.
@@ -187,7 +193,23 @@ fun GlassScreen(
             // Deepak's recordings: changing with the photos, one pill was light and its neighbour dark). The photos fade
             // to the page's colour up here for the phone's clock and icons, so the glass matches that.
             if (floatingStartActions != null) {
-                FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding), compact = true, content = floatingStartActions)
+                val startAway by androidx.compose.animation.core.animateFloatAsState(
+                    if (hideStartOnScroll && chrome?.hidden == true) 1f else 0f,
+                    com.deepak.photovault.designsystem.motionSpec(CHROME_MS),
+                    label = "start pill",
+                )
+                val travel = with(density) { (insets.calculateTopPadding() + 8.dp + TopBarHeight).toPx() }
+                FloatingPill(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        // Moved where it is laid out, so its glass knows where it is.
+                        .offset { androidx.compose.ui.unit.IntOffset(0, -(startAway * travel).toInt()) }
+                        .graphicsLayer { alpha = 1f - startAway }
+                        .then(pillMotion)
+                        .then(barPadding),
+                    compact = true,
+                    content = floatingStartActions,
+                )
             }
             if (floatingActions != null) {
                 FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding), compact = true, content = floatingActions)

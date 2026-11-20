@@ -596,4 +596,5 @@ private val dangerWords = listOf("delete", "remove", "leave", "erase", "forget",
  * True when a button's words mean something is lost or can't be undone, so it is drawn red everywhere (13 Nov).
  * Clearing a cache loses nothing, so that one stays an ordinary button.
  */
-fun isDangerous(label: String): Boolean = label.lowercase().let { l -> "cache" !in l && dangerWords.any { l.startsWith(it) } }
+fun isDangerous(label: String): Boolean =
+    com.deepak.photovault.designsystem.isDeleteAction(label) || label.lowercase().let { l -> "cache" !in l && dangerWords.any { l.startsWith(it) } }

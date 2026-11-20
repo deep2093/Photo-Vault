@@ -515,8 +515,28 @@ class BackupEngine(
     }
 }
 
+/**
+ * What a [BackupCatalog] has already read from the drive, kept between reads (21 Nov, Deepak: "manual refresh takes too
+ * long"). A list file (manifest) and a trash note never change once written, so each is read once; one that has gone
+ * from the drive is dropped from here too. Used from one thread at a time (the app's main thread).
+ */
+class CatalogCache {
+    internal val manifests = HashMap<String, Manifest>()
+    internal val notes = HashMap<String, TrashedBackup>()
+
+    fun clear() {
+        manifests.clear()
+        notes.clear()
+    }
+}
+
 /** Reads what a person has on the drive: every manifest from every one of their phones. */
-class BackupCatalog(private val drive: DriveFileSystem, userId: String, private val vault: PrivateVault? = null) {
+class BackupCatalog(
+    private val drive: DriveFileSystem,
+    userId: String,
+    private val vault: PrivateVault? = null,
+    private val cache: CatalogCache? = null,
+) {
     private val userFolder = HouseholdStore.userFolder(userId)
     private val manifests = DrivePaths.join(userFolder, BackupEngine.MANIFESTS)
 
@@ -537,9 +557,11 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
         }.sortedBy { it.substringAfterLast('/') }
         val out = LinkedHashMap<String, BackupRecord>()
         listsFound = files.size
+        cache?.manifests?.keys?.retainAll(files.toSet())
         for (path in files) {
-            val manifest = try {
-                readManifest(path) ?: run { listsUnreadable++; null } ?: continue
+            val manifest = cache?.manifests?.get(path) ?: try {
+                // A list that can't be opened yet (a Private key not ready) isn't kept, so it is tried again next time.
+                readManifest(path)?.also { cache?.manifests?.put(path, it) } ?: run { listsUnreadable++; null } ?: continue
             } catch (_: DriveNotFound) {
                 continue
             } catch (e: CancellationException) {
@@ -573,7 +595,9 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
         drive.mkdirs(folder)
         val note = Manifest(deviceId = deviceId, createdAtMillis = now, records = emptyList(), removed = own.map { it.drivePath })
         val bytes = BackupEngine.encodeManifest(vault, note)
-        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(now, vault != null)), bytes)) Unit
+        var path = DrivePaths.join(folder, BackupEngine.manifestName(now, vault != null))
+        while (!drive.createNew(path, bytes)) path = DrivePaths.join(folder, BackupEngine.manifestName(now, vault != null))
+        cache?.manifests?.put(path, note)
         for (r in own) {
             try {
                 drive.delete(r.drivePath)
@@ -602,18 +626,25 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
         val bytes = BackupEngine.encodeManifest(vault, note)
         var at = now
         // Manifest names start with the time; a clash means another note landed in the same millisecond.
-        while (!drive.createNew(DrivePaths.join(folder, BackupEngine.manifestName(at, vault != null)), bytes)) at++
+        var path = DrivePaths.join(folder, BackupEngine.manifestName(at, vault != null))
+        while (!drive.createNew(path, bytes)) {
+            at++
+            path = DrivePaths.join(folder, BackupEngine.manifestName(at, vault != null))
+        }
+        cache?.manifests?.put(path, note)
     }
 
     /**
      * Moves backups into the drive's Recently deleted instead of deleting them. A small note beside each file keeps
-     * its record, so it can come back exactly as it was. The photo leaves the list at once.
+     * its record, so it can come back exactly as it was. The photo leaves the list at once. Returns the notes of what
+     * went (21 Nov: the app shows them in Recently deleted straight away, without reading the drive again).
      */
-    suspend fun trash(records: List<BackupRecord>, deviceId: String, now: Long) {
+    suspend fun trash(records: List<BackupRecord>, deviceId: String, now: Long): List<TrashedBackup> {
         val chosen = own(records)
-        if (chosen.isEmpty()) return
+        if (chosen.isEmpty()) return emptyList()
         drive.mkdirs(trashFiles)
         val moved = mutableListOf<BackupRecord>()
+        val notes = mutableListOf<TrashedBackup>()
         for ((i, r) in chosen.withIndex()) {
             // An encrypted file keeps its random ID in the trash, so nothing about the photo is readable there.
             val target = DrivePaths.join(trashFiles, if (r.encrypted) "$now-$i-${PrivatePaths.idOf(r.drivePath)}.pxo" else "$now-$i-${r.fileName}")
@@ -623,30 +654,45 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
             // The note first, so a file in the trash can never be without its record.
             if (!drive.createNew(noteFile, vault?.sealRecord(noteBytes, BackupEngine.NOTE_PURPOSE) ?: noteBytes)) continue
             try {
-                if (drive.rename(r.drivePath, target)) moved += r else drive.delete(noteFile)
+                if (drive.rename(r.drivePath, target)) {
+                    moved += r
+                    notes += note
+                    cache?.notes?.put(noteFile, note)
+                } else {
+                    drive.delete(noteFile)
+                }
             } catch (_: DriveNotFound) {
                 drive.delete(noteFile)
             }
         }
         if (moved.isNotEmpty()) writeManifest(deviceId, now, emptyList(), moved.map { it.drivePath })
+        return notes
     }
 
-    /** What is in the drive's Recently deleted, newest first. */
-    suspend fun trashed(): List<TrashedBackup> =
-        drive.list(trashFolder).filter { !it.isFolder && (it.name.endsWith(".json") || it.name.endsWith(".pxn")) }.mapNotNull { f ->
-            try {
-                val raw = drive.read(DrivePaths.join(trashFolder, f.name))
-                val plain = if (f.name.endsWith(".pxn")) (vault?.openRecord(raw, BackupEngine.NOTE_PURPOSE) ?: return@mapNotNull null) else raw
-                BackupEngine.json.decodeFromString(TrashedBackup.serializer(), plain.decodeToString())
+    /** What is in the drive's Recently deleted, newest first. Notes already read are not read again ([cache]). */
+    suspend fun trashed(): List<TrashedBackup> {
+        val names = drive.list(trashFolder).filter { !it.isFolder && (it.name.endsWith(".json") || it.name.endsWith(".pxn")) }.map { it.name }
+        cache?.notes?.keys?.retainAll(names.map { DrivePaths.join(trashFolder, it) }.toSet())
+        return names.mapNotNull { name ->
+            val path = DrivePaths.join(trashFolder, name)
+            cache?.notes?.get(path) ?: try {
+                val raw = drive.read(path)
+                val plain = if (name.endsWith(".pxn")) (vault?.openRecord(raw, BackupEngine.NOTE_PURPOSE) ?: return@mapNotNull null) else raw
+                BackupEngine.json.decodeFromString(TrashedBackup.serializer(), plain.decodeToString()).also { cache?.notes?.put(path, it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
                 null
             }
         }.sortedByDescending { it.deletedAtMillis }
+    }
 
-    /** Puts backups back where they were. A file whose old place is taken stays in the trash. */
-    suspend fun restore(items: List<TrashedBackup>, deviceId: String, now: Long) {
+    /**
+     * Puts backups back where they were. A file whose old place is taken stays in the trash. Returns the ones that went
+     * back (21 Nov: the app shows them again straight away).
+     */
+    suspend fun restore(items: List<TrashedBackup>, deviceId: String, now: Long): List<TrashedBackup> {
+        val restored = mutableListOf<TrashedBackup>()
         val back = mutableListOf<BackupRecord>()
         for (t in items) {
             own(listOf(t.record))
@@ -658,10 +704,12 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
             }
             if (ok) {
                 back += t.record
+                restored += t
                 forgetNote(t)
             }
         }
         if (back.isNotEmpty()) writeManifest(deviceId, now, back, emptyList())
+        return restored
     }
 
     /** Deletes backups from the trash for good. */
@@ -689,8 +737,10 @@ class BackupCatalog(private val drive: DriveFileSystem, userId: String, private 
         // The note is named after the file in the trash: "<time>-<n>-<name>" -> "<time>-<n>.json".
         val stem = t.trashPath.substringAfterLast('/').split('-', limit = 3).take(2).joinToString("-")
         for (ext in listOf("json", "pxn")) {
+            val path = DrivePaths.join(trashFolder, "$stem.$ext")
+            cache?.notes?.remove(path)
             try {
-                drive.delete(DrivePaths.join(trashFolder, "$stem.$ext"))
+                drive.delete(path)
             } catch (_: DriveNotFound) {
             }
         }

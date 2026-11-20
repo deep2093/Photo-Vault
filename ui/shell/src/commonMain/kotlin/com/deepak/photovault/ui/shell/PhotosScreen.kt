@@ -150,6 +150,8 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
             if (pillTheme === baseTheme) ViewButtons(gallery)
             else androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { ViewButtons(gallery) }
         },
+        // 21 Nov (Deepak): Years / Months / All goes away while scrolling down and the date takes its place.
+        hideStartOnScroll = true,
         floatingActions = {
             val buttons: @Composable () -> Unit = {
                 // 18 Nov (Deepak: "move it to the top, in line with the other icons"): this device, or all my backups.
@@ -221,13 +223,18 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                             }
                         }
                         LibraryView.ALL -> PullToRefresh(padding, onRefresh = {
-                            // Pull down at the top (24 Oct): reload the phone's photos and check the drive.
-                            gallery.refresh()
-                            drive.refresh()
-                            // And fetch what the drive holds (Phase 5A): new backups and the drive's Recently deleted.
-                            if (drive.joined != null) {
-                                drive.loadBackupRecords(force = true)
-                                drive.loadDriveTrash()
+                            // Pull down at the top (24 Oct): reload the phone's photos and check the drive. 21 Nov: the
+                            // phone and the drive at the same time, not one after the other.
+                            kotlinx.coroutines.coroutineScope {
+                                launch { gallery.refresh() }
+                                launch {
+                                    drive.refresh()
+                                    // And fetch what the drive holds (Phase 5A): new backups and the drive's Recently deleted.
+                                    if (drive.joined != null) {
+                                        drive.loadBackupRecords(force = true)
+                                        drive.loadDriveTrash()
+                                    }
+                                }
                             }
                         }) { MediaGrid(
                             sections = sections,
@@ -412,6 +419,8 @@ fun SelectableScreen(
     tileSpots: TileSpots = remember { TileSpots() },
     /** In place of the title while not selecting (Search's box, 7 Nov). */
     titleContent: (@Composable () -> Unit)? = null,
+    /** Photos (21 Nov): the pill at the top left slides away while scrolling down (see [GlassScreen]). */
+    hideStartOnScroll: Boolean = false,
     content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
 ) {
     val selectedItems = state.selected.mapNotNull(gallery::find)
@@ -433,6 +442,7 @@ fun SelectableScreen(
         titleContent = if (state.selecting) null else titleContent,
         floatingActions = floatingActions,
         floatingStartActions = floatingStartActions,
+        hideStartOnScroll = hideStartOnScroll,
         actions = {
             if (!state.selecting) {
                 normalActions()
@@ -478,7 +488,7 @@ fun SelectableScreen(
                     modifier = Modifier.trackSpot(lockSpot),
                     onClick = { secureMover.request(selectedItems, fly = { tileSpots.flying(selectedItems) }, aim = { lockSpot.bounds }) },
                 )
-                GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
+                GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), danger = true, onClick = {
                     // Where the photos are now: by the time Android has asked, the grid may have changed.
                     val flying = tileSpots.flying(selectedItems)
                     flight.prepare(flying)

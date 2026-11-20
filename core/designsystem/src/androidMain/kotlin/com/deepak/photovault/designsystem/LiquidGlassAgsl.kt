@@ -100,8 +100,101 @@ float3 glassLight(float2 n, float x, float slope, float panel) {
 }
 """
 
-    /** A floating bar's glass: the photos behind, bent at the edge, never blurred. */
+    /**
+     * A floating bar's glass: the photos behind, bent at the edge, never blurred. Its sums are done in linear light,
+     * reached through the shader language's own colour-space functions, so the glass looks the same in any screen mode.
+     */
     const val LENS = UNIFORMS + """
+uniform shader content;
+uniform float3 backdrop;
+uniform float inkFloor;
+uniform float inkCeiling;
+uniform float frost;
+uniform float3 frostColor;
+""" + GLASS + """
+float3 srgbToLinear(float3 c) {
+    c = clamp(c, 0.0, 1.0);
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, float3(2.4)), step(float3(0.04045), c));
+}
+
+float3 linearToSrgb(float3 c) {
+    c = clamp(c, 0.0, 1.0);
+    return mix(c * 12.92, 1.055 * pow(c, float3(1.0 / 2.4)) - 0.055, step(float3(0.0031308), c));
+}
+
+// What is behind the glass here, in linear light. Where the recorded content is see-through, the page's own colour
+// shows. Read through the colour-space functions (21 Nov): while a photo is HDR the screen works in another colour
+// space, and reading it as sRGB made the glass lighter or darker as the screen changed over.
+float3 scene(float2 p) {
+    half4 pixel = content.eval(clamp(p, float2(0.5), max(float2(0.5), size - 0.5)));
+    float a = float(pixel.a);
+    float3 c = a > 0.0001 ? float3(toLinearSrgb(pixel.rgb / pixel.a)) * a : float3(0.0);
+    return c + srgbToLinear(backdrop) * (1.0 - a);
+}
+
+// The ink rule (LiquidGlassInk in Kotlin): by day at least inkFloor of light behind dark words, keeping the colour
+// where it can; by night at most inkCeiling behind white words, like smoked glass. Clear Glass's bars change over
+// between the two smoothly (darkMode between 0 and 1). amount < 1 only at the edge.
+float3 toneForInk(float3 lin, float amount) {
+    float luma = max(dot(lin, float3(0.2126, 0.7152, 0.0722)), 0.00001);
+    float nightTarget = inkCeiling * (1.0 - exp(-luma / inkCeiling));
+    float3 night = lin * (nightTarget / luma);
+    float dayTarget = inkFloor + (1.0 - inkFloor) * luma;
+    float brightest = max(max(lin.r, max(lin.g, lin.b)), 0.00001);
+    float gain = min(min(dayTarget / luma, 1.0 / brightest), 3.0);
+    float lifted = luma * gain;
+    float3 day = mix(lin * gain, float3(1.0), max(0.0, (dayTarget - lifted) / max(1.0 - lifted, 0.00001)));
+    float3 toned = mix(day, night, clamp(darkMode, 0.0, 1.0));
+    return mix(lin, toned, amount);
+}
+
+// Where a ray looking straight down lands after entering the glass (Snell's law), relative to where it entered.
+float2 refractShift(float2 n, float slope, float height, float ior) {
+    float3 N = normalize(float3(n * slope, 1.0));
+    float eta = 1.0 / ior;
+    float c = N.z;
+    float k = 1.0 - eta * eta * (1.0 - c * c);
+    float3 t = float3(0.0, 0.0, -eta) + (eta * c - sqrt(max(k, 0.0))) * N;
+    return t.xy * (height / max(-t.z, 0.1));
+}
+
+half4 main(float2 coord) {
+    float2 hs = size * 0.5;
+    float2 p = coord - hs;
+    float r = clamp(radius, 0.0, min(hs.x, hs.y));
+    float depth = max(0.0, -edgeDistance(p, hs, r));
+    float2 n = outward(p, hs, r);
+    float k = roundnessOf(hs);
+    float bezel = bezelWidth(hs, r);
+    float thick = bezel * mix(0.8, 1.0, k);
+    float x = clamp(depth / bezel, 0.0, 1.0);
+    float slope = (thick / bezel) * bezelSlope(max(x, 0.001));
+    float height = thick * bezelHeight(x);
+    // A droplet magnifies a little all over; a long bar hardly at all.
+    float2 base = hs + p * (1.0 - mix(0.012, 0.05, k * k));
+    float2 shift = refractShift(n, slope, height, 1.5);
+    float3 rgb = scene(base + shift);
+    if (length(shift) > 0.35 * dp) {
+        rgb.r = scene(base + refractShift(n, slope, height, 1.472)).r;
+        rgb.b = scene(base + refractShift(n, slope, height, 1.54)).b;
+    }
+    float rim = 1.0 - smoothstep(0.08, 0.32, x);
+    float3 lin = toneForInk(rgb, 1.0 - 0.45 * rim);
+    // Clear Glass: Tinted's firmer film, or the chosen tab's (0 for Liquid Glass).
+    lin = mix(lin, frostColor, frost);
+    float3 l = glassLight(n, x, slope, 0.0);
+    lin = lin * (1.0 - l.x);
+    lin = lin + (1.0 - lin) * l.y;
+    lin = lin + (1.0 - lin) * l.z;
+    return half4(fromLinearSrgb(half3(lin)), 1.0);
+}
+"""
+
+    /**
+     * [LENS] as it was before 21 Nov, for a phone whose shader language lacks the colour-space functions: it assumes the
+     * screen works in ordinary sRGB, so its greys come out wrong while the screen is in HDR.
+     */
+    const val LENS_SRGB = UNIFORMS + """
 uniform shader content;
 uniform float3 backdrop;
 uniform float inkFloor;

@@ -23,10 +23,13 @@ class DriveAwareActions(
     /** A photo saved only to Google (13 Nov). */
     private fun MediaItem.onGoogle() = DriveTimeline.pathOf(uri)?.let(::isGooglePath) == true
 
-    /** After a change on the drive: re-read the lists so every screen agrees. */
+    /**
+     * After a change on the drive. The backup list and Recently deleted have already changed, from what was just done
+     * (21 Nov: before, the whole drive was read again first, so a deleted photo reached Recently deleted, and a restored
+     * one came back, only after a long wait); the screens take them now. Only the Family Album is read again, in case a
+     * photo in it was deleted or brought back.
+     */
     private suspend fun reread() {
-        drive.loadBackupRecords(force = true)
-        drive.loadDriveTrash()
         timelineRecords(drive.backupRecords, google?.records)?.let(gallery::setDriveRecords)
         drive.driveTrash?.let(gallery::setDriveTrash)
         drive.loadFamilyAlbum()
@@ -90,9 +93,13 @@ class DriveAwareActions(
     override fun restore(items: List<MediaItem>) {
         val (onDrive, onPhone) = items.partition { it.isDriveOnly }
         if (onPhone.isNotEmpty()) phone.restore(onPhone)
-        if (onDrive.isNotEmpty()) scope.launch {
-            drive.restoreBackups(onDrive.paths())
-            reread()
+        if (onDrive.isNotEmpty()) {
+            // They leave Recently deleted at once, as deleted ones leave the timeline (21 Nov).
+            gallery.dropNow(onDrive.map { it.id }.toSet())
+            scope.launch {
+                drive.restoreBackups(onDrive.paths())?.let(phone::toast)
+                reread()
+            }
         }
     }
 

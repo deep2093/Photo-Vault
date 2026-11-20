@@ -79,8 +79,22 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier, onWallpaper: Bool
 val DangerColor = Color(0xFFD93025)
 
 /**
+ * True for a button that deletes or bins something (21 Nov, Deepak: "make all delete, move to bin red"): Delete...,
+ * Remove..., Move to bin, Move ... to Recently deleted. Such buttons are red in every theme.
+ */
+fun isDeleteAction(label: String): Boolean {
+    val l = label.trim().lowercase()
+    return l.startsWith("delete") || l.startsWith("remove") || l.startsWith("move to bin") ||
+        l.endsWith("to recently deleted") || l.endsWith("to the bin")
+}
+
+/** The red of a bin or delete icon on glass: iOS's red, a touch lighter on dark glass so it reads there. */
+fun dangerIconColor(theme: GlassTheme): Color = if (theme.isDark) Color(0xFFFF453A) else DangerColor
+
+/**
  * Capsule button. [primary] fills with the accent; otherwise it is glass. [danger] (13 Nov): red, for deleting,
- * leaving and anything that can't be undone, so it never looks like an ordinary choice.
+ * leaving and anything that can't be undone, so it never looks like an ordinary choice. Buttons that delete or bin
+ * something are red by themselves ([isDeleteAction], 21 Nov).
  */
 @Composable
 fun GlassButton(
@@ -90,7 +104,7 @@ fun GlassButton(
     primary: Boolean = false,
     icon: ImageVector? = null,
     centered: Boolean = false,
-    danger: Boolean = false,
+    danger: Boolean = isDeleteAction(text),
     /** Starting something (extra animations, 21 Nov): a small ring turns where the icon was, and taps wait. */
     busy: Boolean = false,
 ) {
@@ -135,8 +149,9 @@ fun GlassButton(
     }
 }
 
+/** A round icon button. [danger] (21 Nov): a red icon, for bin and delete buttons, in every theme. */
 @Composable
-fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier, danger: Boolean = false) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
     val press = if (theme.isLiquidGlass) remember { androidx.compose.foundation.interaction.MutableInteractionSource() } else null
@@ -153,7 +168,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        DepthIcon(icon, null, theme.onGlass, Modifier.size(24.dp))
+        DepthIcon(icon, null, if (danger) dangerIconColor(theme) else theme.onGlass, Modifier.size(24.dp))
     }
 }
 

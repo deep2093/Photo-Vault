@@ -119,7 +119,11 @@ fun StorageFilesScreen(
     // Google Drive's own list (14 Nov), or the family drive's.
     val records = if (page.google) state.google.records.orEmpty() else drive.backupRecords.orEmpty()
     val files: List<StoredFile> = remember(page, gallery.items, records) {
-        if (page.onDrive) {
+        val slice = page.slice
+        if (page.onDrive && !page.google && slice != null) {
+            // 21 Nov: follows the drive while open (a backup brought back from Recently deleted joins the list).
+            storageSlice(driveStoredFiles(records, gallery.items), slice, zone).orEmpty()
+        } else if (page.onDrive) {
             val byPath = records.associateBy { it.drivePath }
             page.refs.mapNotNull { path -> byPath[path]?.let { r -> StoredFile(r.fileName, r.sizeBytes, r.takenAtMillis, r.album.orEmpty(), r.drivePath, r.isVideo) } }
         } else {
@@ -167,10 +171,10 @@ fun StorageFilesScreen(
                     message = "Saving ${LibraryCounts.grouped(chosen.size)} to the phone, back to their folders. Ones already on the phone are skipped."
                     state.filesSelected = emptySet()
                 })
-                GlassIconButton(Icons.Rounded.DeleteForever, if (page.google) "Delete from Google Drive" else "Delete from drive", modifier = Modifier.trackSpot(bin), onClick = { confirmDelete = true })
+                GlassIconButton(Icons.Rounded.DeleteForever, if (page.google) "Delete from Google Drive" else "Delete from drive", modifier = Modifier.trackSpot(bin), danger = true, onClick = { confirmDelete = true })
             } else {
                 GlassIconButton(Icons.Rounded.Share, "Share", onClick = { actions.share(chosen.mapNotNull { it.ref.toLongOrNull()?.let(gallery::find) }) })
-                GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), onClick = {
+                GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", modifier = Modifier.trackSpot(bin), danger = true, onClick = {
                     val items = chosen.mapNotNull { it.ref.toLongOrNull()?.let(gallery::find) }
                     val flying = items.mapNotNull { item -> thumbs[item.id.toString()]?.let { FlyingPhoto(item.uri, item.isVideo, it) } }
                     flight.prepare(flying)
@@ -319,7 +323,8 @@ fun StorageFilesScreen(
             drive.refresh()
             if (drive.joined != null) {
                 drive.loadBackupRecords(force = true)
-                drive.refreshUsage(force = true)
+                // Counting the space walks the whole drive: done after, without holding the list up (21 Nov).
+                scope.launch { drive.refreshUsage(force = true) }
             }
         }, content = refreshList) else refreshList()
     }

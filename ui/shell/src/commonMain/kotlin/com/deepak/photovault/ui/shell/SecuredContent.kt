@@ -417,7 +417,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
             bottomActions = if (!selecting) null else ({
                 GlassIconButton(Icons.Rounded.Share, "Share", onClick = { share(sec.selected.toList()) })
                 GlassIconButton(Icons.Rounded.LockOpen, "Move out of the Secured folder", onClick = { moveOut(sec.selected.toList()) })
-                GlassIconButton(Icons.Rounded.Delete, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = { confirmDelete = sec.selected.toList() })
+                GlassIconButton(Icons.Rounded.Delete, "Delete for good", modifier = Modifier.trackSpot(bin), danger = true, onClick = { confirmDelete = sec.selected.toList() })
             }),
         ) { padding ->
             Box(Modifier.fillMaxSize()) {
@@ -654,7 +654,7 @@ private fun SecuredViewer(
                     ) {
                         GlassIconButton(Icons.Rounded.Share, "Share", onClick = { onShare(current.id) })
                         GlassIconButton(Icons.Rounded.LockOpen, "Move out of the Secured folder", onClick = { onMoveOut(current.id) })
-                        GlassIconButton(Icons.Rounded.Delete, "Delete for good", modifier = Modifier.trackSpot(bin), onClick = { onDelete(current.id) })
+                        GlassIconButton(Icons.Rounded.Delete, "Delete for good", modifier = Modifier.trackSpot(bin), danger = true, onClick = { onDelete(current.id) })
                     }
                 }
             }

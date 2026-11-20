@@ -217,7 +217,12 @@ sealed interface Overlay {
     /** Albums > menu > Hide albums: a switch for every album (31 Oct; replaced Settings > Albums). */
     data object HiddenAlbums : Overlay
 
-    data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>, val google: Boolean = false) : Overlay
+    /**
+     * [slice] (21 Nov): which part of the drive's backups this is ("all", "type:Videos", "album:Camera", "year:2025"),
+     * so the list follows the drive (a backup brought back from Recently deleted joins it) instead of [refs], the files
+     * there when it was opened.
+     */
+    data class StorageFiles(val title: String, val onDrive: Boolean, val refs: List<String>, val google: Boolean = false, val slice: String? = null) : Overlay
 
     /** [trash]: photos in Recently deleted, shown with Restore and Delete for good (23 Oct). */
     data class Viewer(val ids: List<Long>, val startId: Long, val trash: Boolean = false) : Overlay

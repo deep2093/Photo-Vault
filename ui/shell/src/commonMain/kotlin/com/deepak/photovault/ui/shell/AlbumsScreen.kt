@@ -230,7 +230,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 state.open(Overlay.CoverPicker(single.id, single.name))
             })
             if (chosen.any { it.kind is AlbumKind.Phone }) {
-                GlassIconButton(Icons.Rounded.Delete, "Delete", modifier = Modifier.trackSpot(bin), onClick = { deleteAlbums(chosen.filter { it.kind is AlbumKind.Phone }) })
+                GlassIconButton(Icons.Rounded.Delete, "Delete", modifier = Modifier.trackSpot(bin), danger = true, onClick = { deleteAlbums(chosen.filter { it.kind is AlbumKind.Phone }) })
             }
         }),
     ) { padding ->

@@ -101,6 +101,12 @@ class AndroidDrivePlatform(context: Context) : DrivePlatform {
     suspend fun openDetached(connection: DriveConnection): SmbDriveFileSystem = openChecked(connection)
 
     /**
+     * Photos and thumbnails being fetched get their own connection too (21 Nov), so the lists, deletes and restores on
+     * the screens' one never wait behind a download.
+     */
+    override suspend fun openSecond(connection: DriveConnection): DriveFileSystem? = openDetached(connection)
+
+    /**
      * Opens the drive at its saved address. If nothing answers there (24 Oct: the drive sometimes moves between
      * 192.168.71.250 and .249), it looks for it on the same home network, nearest addresses first, and keeps
      * the new address once the same share and sign-in open there and the family's folder is on it.

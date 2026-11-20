@@ -2,6 +2,7 @@ package com.deepak.photovault.ui.shell
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DeleteFlightTest {
@@ -113,5 +114,19 @@ class DeleteFlightTest {
         state.selected = emptySet()
         state.open(Overlay.Viewer(listOf(1L), 1L)) // the photo viewer keeps its own close
         assertTrue(!state.canDragBack)
+    }
+
+    @Test
+    fun deleteAndBinButtonsAreRedInEveryTheme() {
+        // 21 Nov (Deepak: "make all delete, move to bin red"): the pop-up's Delete and Move to bin, and the other
+        // buttons that delete or bin something; ordinary choices are not.
+        val red = listOf("Delete", "Move to bin", "Delete for good", "Delete with backup", "Remove from family", "Move 12 to Recently deleted")
+        for (label in red) assertTrue(com.deepak.photovault.designsystem.isDeleteAction(label), label)
+        for (label in listOf("Allow", "Cancel", "Not now", "Restore", "Keep", "Clear cache", "Back up now", "Edit")) {
+            assertFalse(com.deepak.photovault.designsystem.isDeleteAction(label), label)
+        }
+        // The confirm pop-ups treat them the same way.
+        assertTrue(isDangerous("Move to bin"))
+        assertFalse(isDangerous("Clear cache"))
     }
 }

@@ -156,7 +156,14 @@ fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryStat
     // (a light theme drew a pale bar over the black page), matching the Living photo page.
     // The chosen theme's night version (18 Nov), so the viewer matches the theme even in the day.
     val chrome = state.viewerTheme
-    androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides chrome) {
+    // 21 Nov (Deepak's two screenshots: the toolbar dark grey in one, lighter grey with a brighter edge in the other,
+    // changing as he zoomed or brought the buttons back): the viewer's glass is pinned to the night look, so nothing can
+    // turn it into day glass over the black page.
+    val night = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalGlassTheme provides chrome,
+        com.deepak.photovault.designsystem.LocalGlassDarkness provides night,
+    ) {
         ViewerBody(viewer, state, gallery, actions)
     }
 }
@@ -777,7 +784,7 @@ private fun ViewerActions(
         if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
         if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
         if (onLiving != null) GlassIconButton(Icons.Rounded.AutoAwesome, "Make it move", onClick = onLiving)
-        if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
+        if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier, danger = true)
         // More (8 Nov): Set as wallpaper and Move to Secured folder.
         if (onMore != null) GlassIconButton(Icons.Rounded.MoreVert, "More", onClick = onMore, modifier = moreModifier)
     }
@@ -791,7 +798,7 @@ private fun TrashActions(onRestore: () -> Unit, onDelete: () -> Unit, binModifie
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         GlassIconButton(Icons.Rounded.Restore, "Restore", onClick = onRestore)
-        GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", onClick = onDelete, modifier = binModifier)
+        GlassIconButton(Icons.Rounded.DeleteForever, "Delete for good", onClick = onDelete, modifier = binModifier, danger = true)
     }
 }
 

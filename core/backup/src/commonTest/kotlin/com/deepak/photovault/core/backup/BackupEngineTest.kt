@@ -1,6 +1,7 @@
 package com.deepak.photovault.core.backup
 
 import com.deepak.photovault.core.drive.BytesSource
+import com.deepak.photovault.core.drive.DriveFileSystem
 import com.deepak.photovault.core.drive.MemoryDrive
 import com.deepak.photovault.core.media.MediaItem
 import com.deepak.photovault.core.media.MediaType
@@ -164,6 +165,36 @@ class BackupEngineTest {
         assertTrue(drive.exists(first.drivePath))
         assertEquals(setOf("IMG_1.jpg", "IMG_2.jpg"), catalog.records().map { it.originalName }.toSet())
         assertTrue(catalog.trashed().isEmpty())
+    }
+
+    @Test
+    fun aCachedCatalogReadsEachListOnceAndShowsChangesAtOnce() = runTest {
+        // 21 Nov (Deepak: "manual refresh takes too long"; a deleted photo missing from Recently deleted until a refresh).
+        // List files and trash notes never change once written, so with a cache each is read once, and what the
+        // catalog writes itself (a delete, a restore) is known without reading it back. The answers stay the same.
+        run(engine(), listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg")))
+        val counting = CountingDrive(drive)
+        val catalog = BackupCatalog(counting, USER, cache = CatalogCache())
+        val first = catalog.records()
+        val reads = counting.reads
+        assertTrue(reads > 0)
+        assertEquals(first.toSet(), catalog.records().toSet())
+        assertEquals(reads, counting.reads)
+        val notes = catalog.trash(listOf(first.single { it.originalName == "IMG_1.jpg" }), PHONE, clock)
+        assertEquals(1, notes.size)
+        val afterTrash = counting.reads
+        assertEquals(listOf("IMG_2.jpg"), catalog.records().map { it.originalName })
+        assertEquals(notes, catalog.trashed())
+        assertEquals(afterTrash, counting.reads)
+        val back = catalog.restore(notes, PHONE, clock + 1000)
+        assertEquals(1, back.size)
+        assertEquals(setOf("IMG_1.jpg", "IMG_2.jpg"), catalog.records().map { it.originalName }.toSet())
+        assertTrue(catalog.trashed().isEmpty())
+        // A new backup is read, and nothing else; the result matches a catalog that reads everything.
+        run(engine(), listOf(photo(1, "IMG_1.jpg"), photo(2, "IMG_2.jpg"), photo(3, "IMG_3.jpg")))
+        val beforeNew = counting.reads
+        assertEquals(BackupCatalog(drive, USER).records().toSet(), catalog.records().toSet())
+        assertEquals(beforeNew + 1, counting.reads)
     }
 
     @Test
@@ -447,5 +478,15 @@ class ScheduleAndPolicyTest {
         assertEquals(RetryPolicy.Action.NOTHING, RetryPolicy.after(run(BackupTrigger.MANUAL, FailureReason.DRIVE_UNREACHABLE)))
         assertEquals(RetryPolicy.Action.NOTHING, RetryPolicy.after(run(BackupTrigger.SCHEDULED, FailureReason.STOPPED)))
         assertEquals(60 * 60_000L, RetryPolicy.RETRY_DELAY_MILLIS)
+    }
+}
+
+/** Counts the files read from [inner] (21 Nov: the catalog's cache test). */
+private class CountingDrive(private val inner: DriveFileSystem) : DriveFileSystem by inner {
+    var reads = 0
+
+    override suspend fun read(path: String): ByteArray {
+        reads++
+        return inner.read(path)
     }
 }

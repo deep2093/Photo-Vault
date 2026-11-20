@@ -104,9 +104,14 @@ object WhatsNew {
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
         Change(ChangeKind.FIXED, "Opening a photo", "The quick flicker as a photo opened is gone: the photo stays fully shown the whole way in."),
-        Change(ChangeKind.CHANGED, "Edit on the photo's toolbar", "An open photo now has favourite, Edit, share, Family, bin and More, in that order, like Samsung Gallery and the iPhone. Edit is no longer hidden in More."),
-        Change(ChangeKind.CHANGED, "Places is glass", "The bar at the top and the sheet of photos over the map are now glass, by day and at night, and the map shows softly through them. The number on a group of photos reads in every theme."),
-        Change(ChangeKind.CHANGED, "Swiping between sections is off", "Change sections with the bar at the bottom, as in Samsung Gallery and Google Photos. Turn it back on in Settings > Appearance > Swipe between sections."),
+        Change(ChangeKind.FIXED, "The open photo's toolbar keeps its colour", "It no longer turns lighter or darker for a moment when you zoom or bring the buttons back."),
+        Change(ChangeKind.CHANGED, "Edit on the photo's toolbar", "An open photo has favourite, Edit, share, Family, bin and More, in that order, like Samsung Gallery and the iPhone."),
+        Change(ChangeKind.CHANGED, "Delete is red", "Delete, Move to bin and every bin button are red in every theme, so they never look like an ordinary choice."),
+        Change(ChangeKind.NEW, "Card slide", "A page now slides in as a card while the one under it shrinks back, like a stack of cards. Settings > About > Extra animations turns it off."),
+        Change(ChangeKind.CHANGED, "More room at the top of Photos", "Years, Months and All slide away while you scroll down and the date takes their place; scroll up and they come back."),
+        Change(ChangeKind.FIXED, "Drive deletes and restores show at once", "A photo deleted from the drive is in Recently deleted straight away, and one you restore is back in your backups straight away. Pull to refresh is much quicker."),
+        Change(ChangeKind.CHANGED, "Places is glass", "The bar at the top and the sheet of photos over the map are glass, by day and at night, with the map showing softly through."),
+        Change(ChangeKind.CHANGED, "Swiping between sections is off", "Change sections with the bar at the bottom, as in Samsung Gallery and Google Photos. Settings > Appearance > Swipe between sections turns it back on."),
         Change(ChangeKind.CHANGED, "A clearer Memories button", "Memories has a slideshow picture instead of the clock."),
     )
 }

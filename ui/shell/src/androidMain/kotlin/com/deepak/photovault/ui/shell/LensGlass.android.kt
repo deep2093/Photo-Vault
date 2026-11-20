@@ -74,11 +74,7 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
     private fun lensModifier(shape: Shape, tint: Color, active: Boolean, liquid: LiquidGlassOptics?): Modifier {
         val effectLayer = rememberGraphicsLayer()
         val shader = remember(active, liquid != null) {
-            if (!active) null else try {
-                RuntimeShader(if (liquid == null) LENS_SHADER else LiquidGlassAgsl.LENS)
-            } catch (_: IllegalArgumentException) {
-                null
-            }
+            if (!active) null else if (liquid == null) LensShaders.compile(LENS_SHADER) else LensShaders.liquid()
         }
         var barOrigin by remember { mutableStateOf<Offset?>(null) }
         val applied = remember(shader, liquid) { FloatArray(APPLIED_COUNT) { Float.NaN } }
@@ -150,6 +146,29 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
                 if (liquid == null) drawRect(tint)
                 drawContent()
             }
+    }
+}
+
+/**
+ * Liquid Glass's lens shader (21 Nov): the colour-managed one, which looks the same while the screen is in HDR; on a
+ * phone whose shader language lacks the colour-space functions, the older sRGB one (found out once, then remembered).
+ */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private object LensShaders {
+    @Volatile private var colourManaged = true
+
+    fun compile(source: String): RuntimeShader? = try {
+        RuntimeShader(source)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+
+    fun liquid(): RuntimeShader? {
+        if (colourManaged) {
+            compile(LiquidGlassAgsl.LENS)?.let { return it }
+            colourManaged = false
+        }
+        return compile(LiquidGlassAgsl.LENS_SRGB)
     }
 }
 

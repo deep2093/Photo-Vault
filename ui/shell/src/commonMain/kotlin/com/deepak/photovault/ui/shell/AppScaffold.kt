@@ -148,6 +148,16 @@ private const val PAGE_MS = 640
 private const val DRIFT_DIVISOR = 4f
 private const val PAGE_DIM = 0.28f
 private val PAGE_SHADOW_WIDTH = 28.dp
+
+/**
+ * The card slide (21 Nov, Rightpoint's RZTransitions, Deepak: "yes, need card slide"): with Extra animations a page
+ * comes in as a rounded card with a shadow, and what it covers shrinks back by this much, its corners rounding, on a
+ * backdrop that darkens to this.
+ */
+private const val CARD_SHRINK = 0.06f
+private val CARD_CORNER = 22.dp
+private val CARD_SHADOW = 18.dp
+private const val CARD_BACKDROP = 0.9f
 /** While the app is open the drive is checked once an hour (28 Oct; was every minute, which kept a hard disk awake). */
 private const val DRIVE_REFRESH_MS = 60 * 60_000L
 
@@ -212,6 +222,8 @@ fun PhotoVaultApp(
     val actions = remember(phoneActions, drive, gallery, backup) { DriveAwareActions(phoneActions, drive, gallery, backup, scope, state.google) }
     // Load the phone's photos, and reload whenever they change or access is granted.
     LaunchedEffect(gallery, gallery.access) { gallery.watch() }
+    // 21 Nov: back from time away, the drive's connection is opened afresh rather than waited on until it times out.
+    LaunchedEffect(drive, signals.foreground) { if (signals.foreground) drive.freshenAfterIdle() }
     // Check the family drive when the app opens, then every minute while it is on screen, so Backup, Family and
     // Settings show real figures and the owner sees the dot on Family when a phone asks to join (24 Oct: no push).
     LaunchedEffect(drive, signals.foreground, state.appearance.autoDriveCheck) {
@@ -826,6 +838,13 @@ private fun OverlayHost(
                     Box(
                         Modifier
                             .fillMaxSize()
+                            // The card slide: a page shrinking back under another darkens what is behind it.
+                            .drawBehind {
+                                if (lively && sideways) {
+                                    val c = coverAbove(entries, state, entries.indexOf(entry))
+                                    if (c > 0.001f) drawRect(Color.Black, alpha = c * CARD_BACKDROP)
+                                }
+                            }
                             .growWindow(entry, GROW_CARD_CORNER)
                             .graphicsLayer {
                                 val width = size.width
@@ -848,8 +867,24 @@ private fun OverlayHost(
                                     val own = (1f - entry.p.value) * width
                                     // The finger always pulls the page out to the right (6 Nov), whichever edge it starts from.
                                     val pulled = if (entry === top) state.pageBack.value * width else 0f
-                                    val drift = -coverAbove(entries, state, entries.indexOf(entry)) * width / DRIFT_DIVISOR
-                                    translationX = own + pulled + drift
+                                    val cover = coverAbove(entries, state, entries.indexOf(entry))
+                                    if (lively) {
+                                        // The card slide (21 Nov): the page comes in as a card with rounded corners and a
+                                        // shadow, and shrinks back like one when another page covers it.
+                                        translationX = own + pulled
+                                        val moving = ((own + pulled) / width).coerceIn(0f, 1f)
+                                        cardBack(cover)
+                                        if (moving > 0.001f) {
+                                            shape = RoundedCornerShape(CARD_CORNER.toPx() * maxOf((moving * 6f).coerceAtMost(1f), (cover * 3f).coerceAtMost(1f)))
+                                            clip = true
+                                            shadowElevation = CARD_SHADOW.toPx()
+                                        } else {
+                                            shadowElevation = 0f
+                                        }
+                                    } else {
+                                        val drift = -cover * width / DRIFT_DIVISOR
+                                        translationX = own + pulled + drift
+                                    }
                                 } else {
                                     val p = entry.p.value
                                     if (entry.fly != null) {
@@ -891,8 +926,9 @@ private fun OverlayHost(
                             // Leaving: only its last picture, which takes no taps.
                             Box(Modifier.fillMaxSize().drawBehind { drawLayer(picture) })
                         }
-                        if (sideways) {
-                            // A soft shadow runs down the page's leading edge (its left side now).
+                        if (sideways && !lively) {
+                            // A soft shadow runs down the page's leading edge (its left side now). The card slide has
+                            // the card's own shadow instead.
                             Box(
                                 Modifier
                                     .align(Alignment.CenterStart)
@@ -960,6 +996,48 @@ private fun coverAbove(entries: List<PageEntry>, state: ShellState, index: Int):
     val next = entries.getOrNull(index + 1) ?: return 0f
     if (!next.overlay.slidesSideways()) return 0f
     return next.p.value * (1f - pulledAway(entries, state, next))
+}
+
+/**
+ * What happens to a section under a page sliding in over it. With Extra animations, the card slide: it shrinks back
+ * like a card in a stack, its corners rounding, on a darkening backdrop, with [wallpaper] painted inside the card so
+ * the page keeps its own colour there. Otherwise it drifts aside, a quarter as far as the page (Samsung style). Both
+ * darken. [cover] is read only while drawing.
+ */
+private fun Modifier.underPage(cover: () -> Float, card: Boolean, wallpaper: List<Color>): Modifier =
+    if (!card) {
+        graphicsLayer { translationX = -cover() * size.width / DRIFT_DIVISOR }.dimmedBy { cover() * PAGE_DIM }
+    } else {
+        drawBehind {
+            val c = cover()
+            if (c > 0.001f) drawRect(Color.Black, alpha = c * CARD_BACKDROP)
+        }
+            .graphicsLayer { cardBack(cover()) }
+            .drawBehind {
+                val c = cover()
+                if (c > 0.001f && wallpaper.isNotEmpty()) {
+                    val colors = if (wallpaper.size == 1) listOf(wallpaper[0], wallpaper[0]) else wallpaper
+                    drawRect(
+                        Brush.linearGradient(colors, start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(size.width, size.height)),
+                        alpha = (c * 4f).coerceAtMost(1f),
+                    )
+                }
+            }
+            .dimmedBy { cover() * PAGE_DIM }
+    }
+
+/** A card shrinking back under another one ([cover] 0 = not covered, 1 = fully): smaller, with rounded corners. */
+private fun androidx.compose.ui.graphics.GraphicsLayerScope.cardBack(cover: Float) {
+    val s = 1f - CARD_SHRINK * cover
+    scaleX = s
+    scaleY = s
+    if (cover > 0.001f) {
+        shape = RoundedCornerShape(CARD_CORNER.toPx() * (cover * 3f).coerceAtMost(1f))
+        clip = true
+    } else {
+        shape = androidx.compose.ui.graphics.RectangleShape
+        clip = false
+    }
 }
 
 /** Darkens what it draws over by the fraction given (read only while drawing, so it never recomposes). */
@@ -1051,6 +1129,7 @@ private fun Modifier.blockTouchesBelow(): Modifier = pointerInput(Unit) {
 
 @Composable
 private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
+    val cardSlide = com.deepak.photovault.designsystem.extraMotionOn()
     val state = screens.state
     val barSpace = 88.dp
     val nav = rememberSectionNav(state)
@@ -1101,8 +1180,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { translationX = -state.sectionCover() * size.width / DRIFT_DIVISOR }
-                    .dimmedBy { state.sectionCover() * PAGE_DIM },
+                    .underPage({ state.sectionCover() }, cardSlide, LocalGlassTheme.current.wallpaper),
             ) {
                 // Lens glass (experimental): the sections are also recorded so the bar can look through them.
                 Box(Modifier.fillMaxSize().then(lens?.source(lensOn) ?: Modifier)) {
@@ -1168,6 +1246,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
  */
 @Composable
 private fun SideBarLayout(screens: Screens, system: PaddingValues) {
+    val cardSlide = com.deepak.photovault.designsystem.extraMotionOn()
     val state = screens.state
     val nav = rememberSectionNav(state)
     val start = system.calculateStartPadding(LayoutDirection.Ltr)
@@ -1176,8 +1255,7 @@ private fun SideBarLayout(screens: Screens, system: PaddingValues) {
     Box(
         Modifier
             .fillMaxSize()
-            .graphicsLayer { translationX = -state.sectionCover() * size.width / DRIFT_DIVISOR }
-            .dimmedBy { state.sectionCover() * PAGE_DIM },
+            .underPage({ state.sectionCover() }, cardSlide, LocalGlassTheme.current.wallpaper),
     ) {
         CompositionLocalProvider(
             LocalScreenInsets provides PaddingValues(
@@ -1310,6 +1388,7 @@ private fun RailItem(destination: Destination, indicator: Float, onClick: () -> 
  */
 @Composable
 private fun TestSideBarLayout(screens: Screens, system: PaddingValues, motion: RailMotion, foldable: Boolean) {
+    val cardSlide = com.deepak.photovault.designsystem.extraMotionOn()
     val state = screens.state
     val start = system.calculateStartPadding(LayoutDirection.Ltr)
     val selecting = state.selecting || state.albumsSelected.isNotEmpty()
@@ -1328,8 +1407,7 @@ private fun TestSideBarLayout(screens: Screens, system: PaddingValues, motion: R
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .graphicsLayer { translationX = -state.sectionCover() * size.width / DRIFT_DIVISOR }
-            .dimmedBy { state.sectionCover() * PAGE_DIM },
+            .underPage({ state.sectionCover() }, cardSlide, LocalGlassTheme.current.wallpaper),
     ) {
         val portrait = maxHeight > maxWidth
         val barWidth = androidx.compose.ui.unit.lerp(RAIL_WIDTH, RAIL_OPEN_WIDTH, openness)
@@ -1920,7 +1998,7 @@ private fun FloatingNavigationBar(
     }
 }
 
-private const val CHROME_MS = 220
+internal const val CHROME_MS = 220
 
 private val NAV_ITEM_HEIGHT = 58.dp
 
