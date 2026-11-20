@@ -6,10 +6,11 @@ photo gallery and SMB backup app for several family members sharing one drive. F
 
 ## What is left before release
 
-`docs/RELEASE_CHECKLIST.md` (16 Nov 2026) is the single list of what is left before an official release, with the
-action plan and who does what. When Deepak asks "what's left", read it first and answer from it. Tick items there
-in the same change that finishes them (only after Deepak has tried it on a phone, unless it is paperwork), add new
-loose ends as they are found, and run `python3 tools/make_checklist_pdf.py` to refresh the PDF beside it.
+`docs/ROADMAP.md` is the one plan: the phases, where things stand and what comes next, the release checklist
+(16 Nov 2026) with the action plan and who does what, and the dated notes from every build (the roadmap and the
+release checklist were joined into it on 20 Nov 2026). When Deepak asks "what's left", read it first and answer from
+it. Tick items there in the same change that finishes them (only after Deepak has tried it on a phone, unless it is
+paperwork), add new loose ends as they are found, and run `python3 tools/make_plan_pdf.py` to refresh the PDF beside it.
 
 ## Every phase
 

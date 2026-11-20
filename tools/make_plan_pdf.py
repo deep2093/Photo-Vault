@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Makes docs/RELEASE_CHECKLIST.pdf from docs/RELEASE_CHECKLIST.md (run again after the checklist changes).
+"""Makes docs/ROADMAP.pdf from docs/ROADMAP.md, the one Pixallery plan (run again after the plan changes).
 
-    python3 tools/make_checklist_pdf.py [input.md] [output.pdf]
+    python3 tools/make_plan_pdf.py [input.md] [output.pdf]
 """
 import re
 import sys
@@ -12,8 +12,8 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, HRFlowable, KeepTogether
 
-SRC = sys.argv[1] if len(sys.argv) > 1 else "docs/RELEASE_CHECKLIST.md"
-OUT = sys.argv[2] if len(sys.argv) > 2 else "docs/RELEASE_CHECKLIST.pdf"
+SRC = sys.argv[1] if len(sys.argv) > 1 else "docs/ROADMAP.md"
+OUT = sys.argv[2] if len(sys.argv) > 2 else "docs/ROADMAP.pdf"
 
 INK = colors.HexColor("#1b1b1f")
 MUTED = colors.HexColor("#5a5a66")
@@ -67,7 +67,7 @@ def build(lines):
                     rows.append(cells)
                 i += 1
             data = [[Paragraph(inline(c), S["cellb"] if r == 0 else S["cell"]) for c in row] for r, row in enumerate(rows)]
-            table = Table(data, colWidths=[14 * mm, 62 * mm, 32 * mm, 62 * mm][: len(rows[0])], repeatRows=1)
+            table = Table(data, colWidths=column_widths(rows[0]), repeatRows=1)
             table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#ececf6")),
                 ("LINEBELOW", (0, 0), (-1, -1), 0.4, RULE),
@@ -95,6 +95,18 @@ def build(lines):
             else:
                 story.append(Paragraph(inline(text), S["p"]))
     return story
+
+
+# Column widths in mm for the plan's tables, by their first heading; any other table shares the page width.
+WIDTHS = {"Phase": [40, 82, 52], "Stage": [14, 62, 32, 62]}
+PAGE_WIDTH = 174
+
+
+def column_widths(header):
+    widths = WIDTHS.get(header[0])
+    if widths is None or len(widths) != len(header):
+        widths = [PAGE_WIDTH / len(header)] * len(header)
+    return [w * mm for w in widths]
 
 
 class Box(Flowable):
@@ -127,12 +139,12 @@ def footer(canvas, doc):
     canvas.saveState()
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(MUTED)
-    canvas.drawString(18 * mm, 10 * mm, "Pixallery release checklist and action plan")
+    canvas.drawString(18 * mm, 10 * mm, "Pixallery plan")
     canvas.drawRightString(A4[0] - 18 * mm, 10 * mm, "Page %d" % doc.page)
     canvas.restoreState()
 
 
 doc = SimpleDocTemplate(OUT, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=18 * mm,
-                        title="Pixallery release checklist and action plan", author="Pixallery")
+                        title="Pixallery plan", author="Pixallery")
 doc.build(build(open(SRC, encoding="utf-8").read().split("\n")), onFirstPage=footer, onLaterPages=footer)
 print("wrote", OUT)

@@ -1,30 +1,113 @@
-# Roadmap
+# Pixallery plan
+
+The one plan for Pixallery. On 20 Nov 2026 the roadmap (the phases) and the release checklist (written 16 Nov
+from a full release audit) were joined into this single file. From the top: where things stand, what comes
+next, the phases, the release checklist and action plan, the rules for every build, and the dated notes from
+every build. A PDF copy sits beside it as `ROADMAP.pdf` (`python3 tools/make_plan_pdf.py` makes it again).
+
+**How to use it.** When Deepak asks "what's left", read this file first. Tick an item (`[x]`) in the same change
+that finishes it, with the date and the branch. Add new loose ends here as they are found. Never tick an item
+that was only built: an item is done when it was also tried on a phone, unless it says "paperwork".
+
+**Who.** Claude = code or text Claude can write. Deepak = needs Deepak's own accounts, phone or decision.
+Both = Claude prepares, Deepak approves or carries out.
+
+---
+
+## Where things stand (20 Nov 2026)
+
+- **Phases 0 to 11** are built and merged into `main` (by 16 Nov). The code clean-up
+  (`feature/cleanup`) was tried and merged on 17 Nov.
+- **`feature/redesign`** (built on top, not merged yet): calmer glass and four day-and-night themes (Ocean,
+  Aurora, Gallery, Prism), serif titles, the tablet side bar, the stage 2 safety fixes (A1, A2, A7, A8, E5), the
+  "all my backups" test with device permissions, people letting in their own devices, instant drive deletes,
+  HDR video like Skywing, the tablet video strip and the side bar tests.
+- **Deepak has confirmed** on his devices: HEIC edits save as JPEG, the side bar placement, instant drive
+  deletes, HDR video colour and sound. The rest of `feature/redesign` waits for his tests.
+- **Release checklist:** 1 of 53 items ticked (E1); stage 1 answered apart from B7 and D9; stage 2 built and
+  waiting for Deepak's tests.
+
+## What comes next, in order
+
+1. **Phase 12 leftovers** (Claude, started 20 Nov): foldable phones, the photo growing from the grid into the
+   viewer and back, smoother pinch, faster start-up and scrolling, and a smoothness meter to check on real phones.
+2. **Deepak tests `feature/redesign`**: the stage 2 safety fixes, the side bar tests and Phase 12. Then
+   **stage 0**: Claude merges it into `main`.
+3. **The release stages** (Phase 13), in the action plan below: stage 3 release app, stage 4 policy and
+   notices, stage 5 remaining features, stage 6 full quality pass, stage 7 Play Console and launch.
+
+Waiting on Deepak whenever he is ready: **B7** the support email address, **D9** the Private DNS check,
+**D19** a drive that moved address, **D17** housekeeping.
+
+---
+
+## Phases
 
 Phone app first; each phase on its own branch and approved before the next starts. Re-planned 22 Oct 2026
 after the Phase 1 review, to add Recently deleted, Places, the Secured folder, 100 GB per person, adaptive
 themes and the Adaptive Light, Translucent and Frosted themes, and to put the most useful features first: a great gallery, then safe backup, then everything that
 builds on backup.
 
-| Phase | What gets built | Done when | Status |
-| --- | --- | --- | --- |
-| 0 Foundation | Plan documents, repo setup, SMB and VPN code copied out of Veyra | Clean CI build | **Done, merged** |
-| 1 Design | Liquid Glass components, 4 glass themes + 3 adaptive themes (from Veyra), sample screens, phone and tablet layouts, pinch-only photo sizing | Readable on every theme, smooth, blur fallback works | **Done, merged** |
-| 2 Phone gallery | Real photos and videos from the phone: timeline (day/month/year), pinch, viewer with zoom and video, favourites, phone albums, select, share, search, **Recently deleted** (30 days), adaptive colours from real photos, **three more themes: Adaptive Light, Translucent, Frosted**, **swipe-up details panel** (date, file, folder, camera, lens, exposure, size, location as coordinates with Open in Maps) | 20,000+ photos scroll smoothly; delete and restore work; every theme passes the contrast tests | **Done, merged** |
-| 3 Drive and family | Connect to the drive (Veyra's SMB code), first-run setup, family on one drive, one folder per person, **100 GB per person by default, changeable in Settings** | Two people's files never mix; limits are enforced | **Done, merged** |
-| 4 Verified backup | Backup engine with read-back check, daily/weekly/monthly schedule at a set time, home Wi-Fi and charging conditions, mobile data with warning, space-limit checks, restore, history. **Storage saver (photos only, decided 24 Oct):** optional per-phone setting, off by default (Original quality); photos are shrunk to about 12-16 MP and saved as JPEG at a slightly lower quality, with date, location and camera details kept, and the read-back check runs on the uploaded copy; videos are never compressed; Free up space is allowed with it on only after a clear warning pop-up that the full-quality original will be gone for good. **Failure handling (decided 24 Oct):** if a scheduled backup fails it retries once after one hour; if that also fails the user gets a notification saying plainly why (drive unreachable, Wi-Fi/VPN not connected, drive or space limit full, drive password changed, and so on) | Survives Wi-Fi drop, router restart, full drive, full space limit | **Built 24 Oct, waiting for your test** |
-| 4A Encryption keys (planned 24 Oct) | Per-person keys with Google Tink, 24-word recovery code, optional recovery helper, identity; opt-in per person (off by default, warning pop-up). See docs/ENCRYPTION_PLAN.md | Recovery tested on a fresh phone | Plan waiting for approval |
-| 4B Encrypted backup | Phase 4 engine writes encrypted objects and manifests for people who chose encryption; decrypt-verify before VERIFIED; restore | USB drive on a PC shows nothing readable for them | Built 25 Oct (CI green, not device-tested) |
-| 5 One timeline, remote access, invites and Family Album | Phone and drive photos together (so backed-up photos deleted from the phone still show in Photos and Albums, asked 24 Oct), drive thumbnails cached, works offline, open drive-only photos, Recently deleted on the drive (30 days), pull down on Photos also fetches new drive photos. **Family Album (moved from Phase 10, 24 Oct):** shared albums everyone in the family sees; a "Share to Family Album" button in the selection bar, the viewer's bottom bar and inside albums; the album holds pointers to photos in each person's own folder, never copies; for someone with encrypted backup only that photo's key is shared (a few bytes), the photo stays encrypted in place; each person's additions are written in their own folder. **Animated storage charts (asked 24 Oct, both the phone ring and the drive ring):** when Settings > Storage opens, both rings sweep round and the year bars grow into place (instant with reduce motion). **Invites (24 Oct):** the invite file / QR, locked with a code, also carries the drive address, share and sign-in; joining has "Import invite"; the password is never shown. **Plus (moved from Phase 9, 24 Oct):** WireGuard (from Veyra) so family away from home can use the drive; **connects only while the app is on screen and disconnects the moment it is minimised, left or closed**; Settings: "Use VPN for this app only" and "Connect automatically". **Plus invites:** invite file and QR locked with a code, one-use, expires, owner attaches a per-person WireGuard config; so 1 or 2 other people can join and see the library | Offline and reconnect behave; nothing lost on delete; VPN is off whenever the app is not in view; only app traffic uses it. **Away-from-home backup toggle (decided 24 Oct):** per-phone setting "Back up away from home in background", off by default; when on, a scheduled backup may start the VPN by itself (after the one-time Android VPN permission) and turns it off right after, with a notification while it runs. Needed for family abroad whose phones always need the VPN. **Open photos and videos with Pixallery (asked 23 Oct):** Pixallery offered for every photo and video other apps open (Files, My Files, WhatsApp, Chrome downloads, share "Open with"), including the camera's "review" action; opens in Pixallery's viewer, swiping to the rest of that folder when the file is in the phone's gallery, or just that one file when it comes from another app; Settings row "Open photos and videos with Pixallery" that explains and takes you to Android's own default-app setting (Android lets only the person pick "Always", an app can't set itself); Samsung Camera's own preview button may still open Samsung Gallery, which Pixallery can't change. Shown in What's new. **Added 24 Oct (evening) and started:** pages slide like a sliding door and follow the back swipe; compact Years / Months / All and Search pills; themes sorted into Light, Dark and Photo sections, Aurora Frost and Transparent removed, Aurora Glass and Crystal Glass folded in as Luminous and Clear (experimental); **Lens glass (started 24 Oct on branch phase-5-timeline-remote-access):** Settings > Appearance > "Lens glass (experimental)" on the Clear themes, Android 13+, off by default: the floating bottom bar bends and magnifies the photos behind it (AGSL shader), the top pills keep the normal blur for now | |
-| 6 Free up space | Opt-in auto-cleanup after verified backup, 7/30/90-day wait, re-check, Android delete prompt | Nothing unverified can ever be deleted | |
-| 7 Places and memories | **Photos by location** on a map (on the phone, no Google key), Places album, search by place, "On this day", **People: face search (decided 24 Oct), optional and off by default; faces found and grouped on the phone only, face data never uploaded to the drive, name a person and search by name, merge groups by hand**. **Details panel completed as in Samsung Gallery:** map preview with the photo pinned, street address, nearby place name, and tags (add, edit, search by tag) | Location never leaves the phone unless shared | |
-| 8A Secured folder (split 31 Oct) | **PIN/fingerprint locked folder**, encrypted on the phone and on the drive, hidden everywhere else, recovery code. Includes: "Move to Secured folder" in the viewer's 3-dot menu and in photo selection, a Secured folder tile in the "Move to" picker (behind its lock), the Secured folder tile on Albums switched on, the back-to-top button and Select all inside it | Locked photos never appear outside the folder | |
-| 8B Free up space for Private backup (split 31 Oct) | Free up space also works for Private backup: decrypt the drive copy, compare it with the phone original, check the small private preview, then move to Recently deleted; nothing is removed if any step fails. Uses the encryption code from 8A, so it comes after it | Nothing unverified can ever be deleted, Private backup included | |
-| 9 Remote access | **Moved into Phase 5** | | Merged into 5 |
-| 10 Family sharing | Family Album moved into Phase 5 (24 Oct). Left here: viewer/contributor roles, remove access | Removed members lose access | |
-| 10A Google Drive backup (planned 24 Oct) | Several Google accounts, each with its own albums or folders to back up, alongside the family drive (per album: family drive, a Google account, or both); backed-up photos keep showing after the phone's copy is deleted, like the drive. Also: the Private <-> Normal converter for existing family-drive backups (honours convertPrivateToNormal; home Wi-Fi + charging, verify before delete, resumable). **Ask Deepak how it should work and look before building.** Needs a Google sign-in setup and Google's app review | Same checks as the family drive: verified before counted | |
-| 11 Editor and duplicates | Crop, rotate, light and colour, filters (saved as a copy), duplicate finder (exact copies by checksum, then look-alike photos; asked for again 24 Oct) | Originals never changed | |
-| 12 Motion and smoothness | **Foldable phones (24 Oct):** layouts for folded and unfolded screens, tested on Android's foldable emulators and real Galaxy Z Folds through Samsung's free Remote Test Lab. A full pass over the whole app: shared-element transitions (photo grid to viewer), smoother pinch, 120 Hz scrolling, startup and scroll profiles, jank checks on a mid-range phone. **HDR (added 24 Oct):** Ultra HDR photos shown in HDR (the viewer switches the screen to HDR only while one is open), HDR videos checked on the S26, a small HDR badge, Storage saver keeps the HDR layer or leaves HDR photos as they are | No dropped frames in the main flows; every animation respects reduce motion | |
-| 13 Release | Full tests, speed and battery check, security review, Play Store readiness, **in-app setup guide** (drive, WireGuard on the router, adding family; see below), **feedback web inbox (decided 23 Oct):** a small free Cloudflare inbox so Send feedback works for anyone without showing Deepak's email (photos and videos up to about 50 MB, an email alert to him); until then feedback goes to the family drive | All critical tests pass | |
+| Phase | What | Status |
+| --- | --- | --- |
+| 0 Foundation | Plan documents, the repository, the drive and VPN code from Veyra | Done, merged |
+| 1 Design | Glass look, themes, phone and tablet layouts, pinch to size photos | Done, merged |
+| 2 Phone gallery | Photos and videos from the phone: timeline, viewer, albums, search, Recently deleted, details | Done, merged |
+| 3 Drive and family | Connect to the drive, a family on one drive, a folder and a space limit for each person | Done, merged |
+| 4 Verified backup | Backup checked by reading it back, schedules and conditions, restore, failure handling | Done, merged |
+| 4A Encryption keys (planned 24 Oct) | Each person's own keys, 24 recovery words, the recovery helper | Done, merged |
+| 4B Encrypted backup | Private backup: photos scrambled on the drive | Done, merged |
+| 5 One timeline, remote access, invites and Family Album | Phone and drive photos together, remote access (VPN), invites, Family Album, What's new | Done, merged |
+| 6 Free up space | Free up space, only after a checked backup | Done, merged |
+| 7 Places and memories | Places on a map, On this day, People (face search), the full details panel | Done, merged |
+| 8A Secured folder (split 31 Oct) | The Secured folder, locked and scrambled on the phone and the drive | Done, merged |
+| 8B Free up space for Private backup (split 31 Oct) | Free up space for Private backup too | Done, merged |
+| 9 Remote access | Moved into Phase 5 | Merged into 5 |
+| 10 Family sharing | Family roles and removing access | Done, merged (16 Nov) |
+| 10A Google Drive backup (planned 24 Oct) | Google Drive backup, and turning Private backups back into Normal ones | Done, merged (16 Nov) |
+| 11 Editor and duplicates | Photo editor and duplicate finder | Done, merged (16 Nov) |
+| 12 Motion and smoothness | Foldable phones, the photo growing into the viewer, smoother pinch, speed checks, HDR | Partly done: HDR photos (17 Nov) and HDR video (19 Nov); the rest started 20 Nov |
+| 13 Release | The release checklist and action plan below | Under way: see Where things stand |
+
+### Phase details
+
+Each phase as it was planned (the text of the old roadmap table).
+
+- **0 Foundation.** Plan documents, repo setup, SMB and VPN code copied out of Veyra. **Done when:** Clean CI build.
+
+- **1 Design.** Liquid Glass components, 4 glass themes + 3 adaptive themes (from Veyra), sample screens, phone and tablet layouts, pinch-only photo sizing. **Done when:** Readable on every theme, smooth, blur fallback works.
+
+- **2 Phone gallery.** Real photos and videos from the phone: timeline (day/month/year), pinch, viewer with zoom and video, favourites, phone albums, select, share, search, **Recently deleted** (30 days), adaptive colours from real photos, **three more themes: Adaptive Light, Translucent, Frosted**, **swipe-up details panel** (date, file, folder, camera, lens, exposure, size, location as coordinates with Open in Maps). **Done when:** 20,000+ photos scroll smoothly; delete and restore work; every theme passes the contrast tests.
+
+- **3 Drive and family.** Connect to the drive (Veyra's SMB code), first-run setup, family on one drive, one folder per person, **100 GB per person by default, changeable in Settings**. **Done when:** Two people's files never mix; limits are enforced.
+
+- **4 Verified backup.** Backup engine with read-back check, daily/weekly/monthly schedule at a set time, home Wi-Fi and charging conditions, mobile data with warning, space-limit checks, restore, history. **Storage saver (photos only, decided 24 Oct):** optional per-phone setting, off by default (Original quality); photos are shrunk to about 12-16 MP and saved as JPEG at a slightly lower quality, with date, location and camera details kept, and the read-back check runs on the uploaded copy; videos are never compressed; Free up space is allowed with it on only after a clear warning pop-up that the full-quality original will be gone for good. **Failure handling (decided 24 Oct):** if a scheduled backup fails it retries once after one hour; if that also fails the user gets a notification saying plainly why (drive unreachable, Wi-Fi/VPN not connected, drive or space limit full, drive password changed, and so on). **Done when:** Survives Wi-Fi drop, router restart, full drive, full space limit.
+
+- **4A Encryption keys (planned 24 Oct).** Per-person keys with Google Tink, 24-word recovery code, optional recovery helper, identity; opt-in per person (off by default, warning pop-up). See docs/ENCRYPTION_PLAN.md. **Done when:** Recovery tested on a fresh phone.
+
+- **4B Encrypted backup.** Phase 4 engine writes encrypted objects and manifests for people who chose encryption; decrypt-verify before VERIFIED; restore. **Done when:** USB drive on a PC shows nothing readable for them.
+
+- **5 One timeline, remote access, invites and Family Album.** Phone and drive photos together (so backed-up photos deleted from the phone still show in Photos and Albums, asked 24 Oct), drive thumbnails cached, works offline, open drive-only photos, Recently deleted on the drive (30 days), pull down on Photos also fetches new drive photos. **Family Album (moved from Phase 10, 24 Oct):** shared albums everyone in the family sees; a "Share to Family Album" button in the selection bar, the viewer's bottom bar and inside albums; the album holds pointers to photos in each person's own folder, never copies; for someone with encrypted backup only that photo's key is shared (a few bytes), the photo stays encrypted in place; each person's additions are written in their own folder. **Animated storage charts (asked 24 Oct, both the phone ring and the drive ring):** when Settings > Storage opens, both rings sweep round and the year bars grow into place (instant with reduce motion). **Invites (24 Oct):** the invite file / QR, locked with a code, also carries the drive address, share and sign-in; joining has "Import invite"; the password is never shown. **Plus (moved from Phase 9, 24 Oct):** WireGuard (from Veyra) so family away from home can use the drive; **connects only while the app is on screen and disconnects the moment it is minimised, left or closed**; Settings: "Use VPN for this app only" and "Connect automatically". **Plus invites:** invite file and QR locked with a code, one-use, expires, owner attaches a per-person WireGuard config; so 1 or 2 other people can join and see the library. **Done when:** Offline and reconnect behave; nothing lost on delete; VPN is off whenever the app is not in view; only app traffic uses it. **Away-from-home backup toggle (decided 24 Oct):** per-phone setting "Back up away from home in background", off by default; when on, a scheduled backup may start the VPN by itself (after the one-time Android VPN permission) and turns it off right after, with a notification while it runs. Needed for family abroad whose phones always need the VPN. **Open photos and videos with Pixallery (asked 23 Oct):** Pixallery offered for every photo and video other apps open (Files, My Files, WhatsApp, Chrome downloads, share "Open with"), including the camera's "review" action; opens in Pixallery's viewer, swiping to the rest of that folder when the file is in the phone's gallery, or just that one file when it comes from another app; Settings row "Open photos and videos with Pixallery" that explains and takes you to Android's own default-app setting (Android lets only the person pick "Always", an app can't set itself); Samsung Camera's own preview button may still open Samsung Gallery, which Pixallery can't change. Shown in What's new. **Added 24 Oct (evening) and started:** pages slide like a sliding door and follow the back swipe; compact Years / Months / All and Search pills; themes sorted into Light, Dark and Photo sections, Aurora Frost and Transparent removed, Aurora Glass and Crystal Glass folded in as Luminous and Clear (experimental); **Lens glass (started 24 Oct on branch phase-5-timeline-remote-access):** Settings > Appearance > "Lens glass (experimental)" on the Clear themes, Android 13+, off by default: the floating bottom bar bends and magnifies the photos behind it (AGSL shader), the top pills keep the normal blur for now.
+
+- **6 Free up space.** Opt-in auto-cleanup after verified backup, 7/30/90-day wait, re-check, Android delete prompt. **Done when:** Nothing unverified can ever be deleted.
+
+- **7 Places and memories.** **Photos by location** on a map (on the phone, no Google key), Places album, search by place, "On this day", **People: face search (decided 24 Oct), optional and off by default; faces found and grouped on the phone only, face data never uploaded to the drive, name a person and search by name, merge groups by hand**. **Details panel completed as in Samsung Gallery:** map preview with the photo pinned, street address, nearby place name, and tags (add, edit, search by tag). **Done when:** Location never leaves the phone unless shared.
+
+- **8A Secured folder (split 31 Oct).** **PIN/fingerprint locked folder**, encrypted on the phone and on the drive, hidden everywhere else, recovery code. Includes: "Move to Secured folder" in the viewer's 3-dot menu and in photo selection, a Secured folder tile in the "Move to" picker (behind its lock), the Secured folder tile on Albums switched on, the back-to-top button and Select all inside it. **Done when:** Locked photos never appear outside the folder.
+
+- **8B Free up space for Private backup (split 31 Oct).** Free up space also works for Private backup: decrypt the drive copy, compare it with the phone original, check the small private preview, then move to Recently deleted; nothing is removed if any step fails. Uses the encryption code from 8A, so it comes after it. **Done when:** Nothing unverified can ever be deleted, Private backup included.
+
+- **9 Remote access.** **Moved into Phase 5**.
+
+- **10 Family sharing.** Family Album moved into Phase 5 (24 Oct). Left here: viewer/contributor roles, remove access. **Done when:** Removed members lose access.
+
+- **10A Google Drive backup (planned 24 Oct).** Several Google accounts, each with its own albums or folders to back up, alongside the family drive (per album: family drive, a Google account, or both); backed-up photos keep showing after the phone's copy is deleted, like the drive. Also: the Private <-> Normal converter for existing family-drive backups (honours convertPrivateToNormal; home Wi-Fi + charging, verify before delete, resumable). **Ask Deepak how it should work and look before building.** Needs a Google sign-in setup and Google's app review. **Done when:** Same checks as the family drive: verified before counted.
+
+- **11 Editor and duplicates.** Crop, rotate, light and colour, filters (saved as a copy), duplicate finder (exact copies by checksum, then look-alike photos; asked for again 24 Oct). **Done when:** Originals never changed.
+
+- **12 Motion and smoothness.** **Foldable phones (24 Oct):** layouts for folded and unfolded screens, tested on Android's foldable emulators and real Galaxy Z Folds through Samsung's free Remote Test Lab. A full pass over the whole app: shared-element transitions (photo grid to viewer), smoother pinch, 120 Hz scrolling, startup and scroll profiles, jank checks on a mid-range phone. **HDR (added 24 Oct):** Ultra HDR photos shown in HDR (the viewer switches the screen to HDR only while one is open), HDR videos checked on the S26, a small HDR badge, Storage saver keeps the HDR layer or leaves HDR photos as they are. **Done when:** No dropped frames in the main flows; every animation respects reduce motion.
+
+- **13 Release.** Full tests, speed and battery check, security review, Play Store readiness, **in-app setup guide** (drive, WireGuard on the router, adding family; see below), **feedback web inbox (decided 23 Oct):** a small free Cloudflare inbox so Send feedback works for anyone without showing Deepak's email (photos and videos up to about 50 MB, an email alert to him); until then feedback goes to the family drive. **Done when:** All critical tests pass.
 
 **Invites (decided 23 Oct, moved into Phase 5 on 24 Oct):** the owner makes an invite (drive details, optional WireGuard config) locked with a code and
 shared as a file and QR over WhatsApp; the new person joins in one step with no approval wait. Built in Phase 5
@@ -39,6 +122,388 @@ fallback. Text is shipped in the app so it works offline.
 
 **Later:** NAS support (real per-person logins, second backup copy), the Windows PC app (paused; code stays
 shared, see ARCHITECTURE.md), invite links for people outside home, optional encryption of the whole library.
+
+---
+
+## Release checklist (Phase 13): what the audit found
+
+Written 16 Nov 2026 from a full release audit of the code, build files, manifest, privacy policy and roadmap notes.
+This file is the single list of what is left before an official release.
+
+### A. Can hurt a user (fix before anyone outside the family uses it)
+
+- [ ] **A1 · Recovery helper is half-built.** Who: Claude builds. Decided 17 Nov: finish it (stage 2).
+  Private setup lets a person pick a family member as "recovery helper" and saves a key for them on the drive, but
+  no screen lets the helper hand the key back. Someone relying on it could lose their backup. Finish it, or hide
+  the option until it is finished.
+  Built 18 Nov on `feature/redesign`, waiting for a phone test: "Lost your words? Ask your recovery helper" on the
+  restore page; the helper sees the request on the Family page with a 6-digit code that must match on both phones;
+  the key is checked before it is kept. Test: two phones, one restoring, the other its helper.
+- [ ] **A2 · Google PIN is too easy to guess.** Who: Claude.
+  A Google-only Private backup is locked by a PIN of 6 or more characters; six digits is allowed. Anyone inside the
+  Google account can copy the locked key and try every 6-digit PIN on a fast computer in hours. Require a longer
+  passphrase (or many more digits), show its strength, and let existing users change it.
+  Built 18 Nov on `feature/redesign`, waiting for a phone test: 8+ characters with a strength line; an old short PIN
+  still opens the key but asks for a new password ("Change your Google password", also in Backup privacy).
+- [ ] **A3 · Privacy policy says the wrong thing.** Who: Claude writes, Deepak approves.
+  It says Private backups can be opened by "members of your family". In the app only the person themselves can.
+- [ ] **A4 · Privacy policy leaves things out.** Who: Claude writes, Deepak approves.
+  Face matching (People); the offer to save recovery words to the phone's password manager; the cut-out model
+  Google Play services downloads; the optional face model from Hugging Face; the VPN.
+- [ ] **A5 · The real release build has never been installed or run.** Who: Both.
+  Every build installed so far is the "preview" type, which keeps code names readable. The release type scrambles
+  names, which can break saved settings, encryption and Google sign-in. The automatic checks do build an unsigned
+  release each time (so it compiles and shrinks), but nobody has run one. Sign it and run the whole test plan on it.
+  (Corrected 16 Nov: the first version of this list wrongly said it had never been built.)
+- [ ] **A6 · No release signing key, no release Google sign-in.** Who: Deepak (accounts), Claude (build set-up).
+  A release key must be made and kept safe outside the repository. Google sign-in needs a second client in the
+  Google Cloud project tied to the release package name and that key.
+- [ ] **A7 · Private-to-Normal leftovers after an interruption.** Who: Claude.
+  One unscrambled photo can be left in the app's private storage, and a few scrambled files can be orphaned on
+  the drive. Clear the phone folder at the start of every run; remove private files already recorded as converted.
+  Built 17 Nov on `feature/cleanup` (with tests), waiting for a phone test: turn the drive or Wi-Fi off part-way
+  through a conversion, then let it carry on.
+- [ ] **A8 · Unscrambled copies kept on the phone.** Who: Claude.
+  Private drive-only photos that are opened, Secured folder items being played or shared, edits and trims are
+  written unscrambled into cache folders. Check each folder: give it a size limit and a guaranteed clean-up
+  (when the app starts, and when the Secured folder locks). Built 17 Nov on `feature/cleanup`, waiting for a phone
+  test. Found on the way: shared Secured folder copies and shared drive photos were never deleted; now after 15 minutes.
+- [ ] **A9 · Moving each phone from the test app to the release app.** Who: Claude, then Deepak tests. (Added 17 Nov.)
+  The family phones run the test app (`com.deepak.photovault.preview`). To Android the release app is a different
+  app, whatever its package name, so nothing kept only inside the test app comes across: settings, the drive
+  connection, the WireGuard set-up, the Private backup key on the phone, and possibly Secured folder photos (kept
+  in the app's own folder, so uninstalling the test app deletes them). Claude: list everything that lives only on
+  the phone, then add a way to carry it over (for example a locked export to the drive) or a plain
+  "before you uninstall" guide. Must be ready before the first phone moves to the release app.
+  18 Nov: moved to stage 3, beside the package change (B8), so it can be tested from the real test app to the real
+  release app. What lives only on the phone (listed 18 Nov): settings (appearance, albums, backup, VPN, tags, place
+  names, memories, intro, Google backup, favourites), the drive's saved password, the Secured folder (its key and
+  its files), People (names and faces), the private key's phone copy, the backup lists (`backup/*.json`), and the
+  owner check.
+
+### B. Store rules (can block the Play listing)
+
+- [ ] **B1 · VPN rule.** Who: Claude builds, Deepak fills in the form. Decided 17 Nov: declare it.
+  Play's rule, read on 17 Nov 2026: only apps whose main job is a VPN may use one, with listed exceptions that
+  include "network tools (for example remote access)". Play also asks for: a mention in the store listing; the
+  data encrypted (WireGuard does this); an in-app notice that says what the VPN does and asks for a clear "yes"
+  before first use, shown on its own (the privacy policy alone is not enough); a declaration form in Play
+  Console with a demo video of 90 seconds or less; and never steering other apps' traffic.
+  Plan: declare it as remote access to the person's own home drive. In the Play version, the tunnel carries only
+  Pixallery's own traffic (today that is the default, but a switch lets the whole phone use it: remove the
+  switch). Add the notice-and-yes screen before the first connection (stage 4). Keep a one-line way to build
+  without the VPN, so a refusal in review does not hold up the launch (then the person uses the WireGuard or
+  Tailscale app beside Pixallery).
+- [ ] **B2 · Target Android version.** Who: Claude.
+  The app targets Android 15 (level 35). Check Play's current minimum and move to Android 16 (36) if required;
+  re-test edge-to-edge, back gesture and background limits after the move.
+- [ ] **B3 · 16 KB memory pages.** Who: Claude.
+  Required by Play for apps targeting Android 15 and up. OpenCV 4.10, WireGuard, MapLibre and LiteRT ship native
+  code. Check each, update the ones that fail, and test on a 16 KB emulator.
+- [ ] **B4 · Long backups.** Who: Claude.
+  Android 15 stops a background "data sync" job after 6 hours a day. A first backup of a big library can pass
+  that. Make the backup stop cleanly and carry on later, and tell the person. Play also wants this job type
+  declared with a short demo video.
+- [ ] **B5 · Declarations and forms.** Who: Both (paperwork).
+  Photo and video permission form; "manage media" access; Data safety form; content rating; target audience.
+- [ ] **B6 · Face data notice.** Who: Claude builds, Deepak approves wording.
+  Face matching counts as biometric data in the EU and some US states. People needs a clear notice before the
+  first scan, and its off switch must delete the face data (on the phone and the drive copy).
+- [ ] **B7 · Support contact.** Who: Deepak makes the address, Claude adds it.
+  The policy's only contact is "open a GitHub issue". Play needs a support email address. Decided 17 Nov: a new
+  address just for Pixallery (Play shows it publicly). Waiting for Deepak to make it and send it.
+- [ ] **B8 · App identity is permanent.** Who: Claude changes (stage 3). Name and version decided 17 Nov.
+  The package is `com.deepak.photovault`, the version `0.0.1`, the app is called Pixallery. The package can never
+  change after release. Decided 17 Nov: the name stays **Pixallery**, the package is **`app.pixallery`**, the
+  first public version is **1.0.0**. Only the package (what Android and Play see) changes; the code's own folder
+  names can stay as they are.
+- [ ] **B9 · Closed testing first.** Who: Deepak.
+  New personal Play developer accounts must run a closed test (currently 12 testers for 14 days) before
+  production. Check the current rule when the account is made and line up the testers early.
+
+### C. Legal and housekeeping
+
+- [ ] **C1 · Public repository without a licence.** Who: Deepak (on GitHub), Claude prepares. Decided 17 Nov:
+  make it private, later. Before that day: the website with the privacy policy must move to its own small public
+  repository, because GitHub's free plan only runs websites from public repositories; and the automatic builds
+  start counting against the free plan's 2,000 minutes a month (the pace since 1 Nov, about 96 builds of about
+  11 minutes in 17 days, is close to that limit).
+- [ ] **C2 · Third-party notices are incomplete.** Who: Claude.
+  The file lists 3 of about 20: add OpenCV, Tink, Coil, Haze, MapLibre, ZXing, Media3, LiteRT, Bouncy Castle,
+  SLF4J, kotlinx libraries, the YuNet and SFace models, AuraFace, GeoNames. Show them in the app (Settings >
+  About > Licences) and show the OpenStreetMap / OpenFreeMap credit on the map.
+- [ ] **C3 · Build downloads are not pinned.** Who: Claude.
+  The face models and place names are fetched at build time and checked only by size. Check them against a
+  fixed SHA-256 so a changed file upstream fails the build.
+- [ ] **C4 · A beta library in the release.** Who: Claude.
+  Google's subject cut-out library is a beta. Move to a stable release if there is one, or accept and note it.
+- [ ] **C5 · Test signing key is public.** Who: Deepak decides.
+  Fine for test builds, but anyone could make an "update" the test phones would accept. Acceptable while the
+  repository is public only if testers install only from Deepak. Goes away when the repository is made private (C1).
+
+### D. Unfinished or undecided features
+
+- [ ] **D1 · AuraFace test model: keep or remove.** Who: Claude. Decided 17 Nov: remove it before release, after
+  more testing (stage 5).
+- [ ] **D2 · Tester feedback feature: ship or remove.** Who: Claude. Decided 17 Nov: remove it before release
+  (testers use Play's own feedback). It sends notes and photos to the drive and checks every 3 hours.
+- [ ] **D3 · Private-to-Normal for Google Drive copies and Recently deleted.** Who: Claude. Decided 17 Nov: not in
+  version 1. Check the app says plainly that these stay private for now.
+- [ ] **D4 · Private photos in the Family Album.** Who: Claude. Decided 17 Nov: not in version 1.
+  Not possible today; say so clearly in the app where a person would try it.
+- [ ] **D5 · Removed members keep the drive password.** Who: Claude.
+  The app only suggests changing it. Add a guided "change the drive password" step that updates every phone.
+- [ ] **D6 · Owner PIN limits said plainly.** Who: Claude (text).
+  It stops casual changes only; someone with the drive password can get past it. Say so where the PIN is set.
+- [ ] **D7 · Drive connection signing and encryption.** Who: Claude.
+  Off by default. Add an option (or turn on when the drive supports it) and a note.
+- [ ] **D8 · In-app set-up guide.** Who: Claude. Drive, WireGuard on the router, importing the config, adding family.
+- [ ] **D9 · Private DNS notice.** Who: Deepak checks, Claude builds. Raised 30 Oct (Deepak uses an ad-block
+  DNS); the details were only in an older chat. 17 Nov: Deepak will check whether the notice still shows when
+  remote access is on. Claude's likely fix if it does: the tunnel stops setting its own DNS, since the app
+  reaches the drive by number (.250).
+- [ ] **D10 · People tuning.** Who: Both. Black-and-white photos, faces in videos, children, look-alikes.
+- [ ] **D11 · Secured folder viewer dark theme.** Who: Claude.
+- [ ] **D12 · Tablets and foldables (Phase 12).** Who: Claude. Animations everywhere, foldable layouts, two panes.
+- [ ] **D13 · Old "not done" notes checked.** Who: Claude.
+  Some older roadmap notes for the Secured folder and People say "not done", and one says moving from Photos to
+  Settings can stick on Family while the drive answers. Check each against today's code and add anything real
+  to this list.
+- [ ] **D14 · Leftovers removed.** Who: Claude.
+  8 retired app-icon entries (after checking no phone still uses them), one unused VPN flag, the last two
+  copies of the bytes-to-text helper. `desktop/` stays.
+- [ ] **D15 · Conversion and editor rough edges.** Who: Claude.
+  Closing a zoomed photo jumps; the flying photo looks soft for a moment before the full one takes over; the
+  status lines for Private-to-Normal are lost when the app closes; a trimmed video can start up to a second early.
+  Added 17 Nov: Log videos are recognised by a guess (10-bit wide colour, no HDR tag); checked on a real Log video
+  on 17 Nov and it shows "Log (probably)". Messages use Android's toast, which shows only two lines (an in-app
+  message bar would not cut off).
+- [ ] **D16 · A real depth model for living photos.** Who: Claude, later. Decided 17 Nov: not in version 1.
+  Today's effect uses a subject cut-out only.
+- [ ] **D17 · Deepak's housekeeping.** Who: Deepak.
+  Delete the nine old, fully merged branches on GitHub (Claude's session is not allowed to); decide what happens
+  to `codex/experimental-preview-glass`, `feature/experimental-preview-glass` and `round5-part2-wip` (they hold
+  work that is not in `main`); set the family drive's address to .250 once on each phone.
+- [ ] **D18 · Pixallery is offered for every unknown file.** Who: Claude. (Added on the recheck, 16 Nov.)
+  So that invite files open, the app lists itself for all files of unknown type. Narrow it to invite files only,
+  or it will look like a nuisance in "Open with" lists.
+- [ ] **D20 · HDR photos, Save over the original, saved copies in the viewer.** Who: Claude built them, Deepak
+  tests. (Added 17 Nov, Deepak.) HDR photos open in HDR (Android 14+); the editor has Save beside Save copy (the
+  original goes to Recently deleted for 30 days); a saved copy shows in the viewer at once. Built 17 Nov on
+  `feature/cleanup`, not yet tried on a phone.
+  Next build (Deepak, 18 Nov): photos that can't be written back in their own kind (HEIC and the rest) get Save
+  too: the edit is saved as a JPEG with the same name in the same album, with the date, place and camera details;
+  the original goes to Recently deleted for 30 days (Android asks first); its favourite mark is carried over.
+  Built 18 Nov on `feature/redesign` (`AndroidEditor.saveAsJpeg`): the JPEG is saved first, then Android is asked
+  to move the original to Recently deleted; if the person says no, both stay.
+  18 Nov (Deepak): HEIC saved as JPEG works on his phone. HDR and the other Save cases still to try.
+  19 Nov (Deepak, tablet): HDR video now plays in true colour with the right sound; deleting a drive photo is
+  instant (the drive catches up in the background).
+- [ ] **D19 · Finding a drive that moved: a switch, explained during set-up.** Who: Claude built it, Deepak tests.
+  (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
+  Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to
+  type the new address or turn the switch on. Built 17 Nov on `feature/cleanup`, not yet tried on a phone.
+  17 Nov (Deepak): text made much shorter and simpler; it says the search goes above and below (it always did:
+  nearest first, either side, the whole .1 to .254 range). Built on `feature/cleanup`, waiting for a phone test.
+  18 Nov (Deepak): the switch shows in Settings > Drive; he will test a moved drive in a few days (the drive's
+  address hasn't changed yet). Left till the end.
+
+### E. Quality and testing
+
+- [x] **E1 · Today's work tried on a phone.** Who: Deepak. Done 17 Nov, `feature/cleanup`.
+  Photo animation, straighten, undo and redo, HDR copy, video trim, family roles and removal, Private-to-Normal,
+  the Backup privacy window, and the clean-up (saving edits, restores, Secured folder restores, Storage lists).
+- [ ] **E2 · Full test plan on the release build.** Who: Both. Every feature, on a phone and a tablet (needs A5).
+- [ ] **E3 · Accessibility pass.** Who: Both.
+  87 pictures have no spoken description. Run TalkBack, the largest font size and high contrast through every page.
+- [ ] **E4 · Battery and speed.** Who: Both.
+  Six background jobs run every 3 to 24 hours. Measure a week of battery use; merge or slow the jobs if needed.
+- [ ] **E5 · Hidden errors reviewed.** Who: Claude.
+  46 places ignore errors on purpose. Check each one cannot hide a failed backup, restore or delete.
+  Done 18 Nov on `feature/redesign` (77 places by then). Two could hide a failure and are fixed: a backup whose
+  last list couldn't be saved counted its last photos as backed up (now they go again and the run says it failed),
+  and a failed Secured folder copy to the drive kept showing the older "copied" line. Waiting for CI and a phone
+  test (turn the drive off right at the end of a backup).
+- [ ] **E6 · Old and new versions together.** Who: Claude.
+  Test an older app version against a drive written by a newer one (and the other way) with real files.
+- [ ] **E7 · On-device automated tests for the riskiest paths.** Who: Claude.
+  A few tests that drive the real app: back up, restore, delete, free up space. 350 logic tests exist; none open
+  a screen.
+- [ ] **E8 · Languages.** Who: nobody for version 1. Decided 17 Nov: English only for version 1; move the text
+  out of the code later, when a second language is wanted.
+- [ ] **E9 · Crash reports.** Who: Claude. Decided 17 Nov: use Play's own crash reports, and add a "send to
+  developer" button on the crash screen that the person chooses to tap (it emails the details to the B7
+  address). Crashes today show only on the person's phone. The privacy policy must mention both (A4).
+- [ ] **E10 · Android's own code checks: review what they let through.** Who: Claude. (Added 16 Nov, corrected 17 Nov.)
+  The automatic build does run Android lint and stops on its errors (it caught one on 17 Nov). Still to do: read
+  its warnings once and decide which should also stop the build (wrong-version calls, missing permissions).
+
+---
+
+## Release action plan
+
+Seven stages, in order. Inside a stage, the items are done together because they touch the same code or the same
+forms. A stage starts when the one before it is finished, except where "can run alongside" says otherwise.
+
+| Stage | What | Who leads | Depends on |
+| --- | --- | --- | --- |
+| 0 | Test and merge today's work | Deepak | nothing |
+| 1 | Decisions | Deepak | nothing (can run alongside 0) |
+| 2 | Safety fixes | Claude | stage 0 |
+| 3 | Release build foundations | Both | stages 1 and 2 |
+| 4 | Policy, notices and licences | Claude drafts | stage 1 (can run alongside 3) |
+| 5 | Remaining features | Claude | stage 3 |
+| 6 | Full quality pass | Both | stage 5 |
+| 7 | Play Console and launch | Deepak | stages 4 and 6 |
+
+### Stage 0. Test and merge today's work
+
+Why first: everything later is built on top of it, and nothing in it has run on a phone.
+
+1. Deepak installs the latest `feature/cleanup` build and goes through **E1**.
+2. Claude fixes what he reports, one build at a time.
+3. When Deepak is happy, Claude merges `feature/cleanup` into `main`.
+4. Deepak: **D17** housekeeping (old branches, the three experimental branches, the drive address).
+
+Done when: E1 is ticked and `main` holds the work.
+
+### Stage 1. Decisions (Deepak, about an hour, no code)
+
+Why now: each answer changes what gets built later, and three of them can never be changed after release.
+
+Answer these together, in one sitting:
+
+1. **B8** final package name and first version number (permanent). Answered 17 Nov.
+2. **C1** open source or private repository (also settles **C5**). Answered 17 Nov.
+3. **B1** VPN in the Play version: declare it, or leave it out. Answered 17 Nov.
+4. **A1** recovery helper: finish it, or hide it for version 1. Answered 17 Nov.
+5. **D1** AuraFace: keep or remove. Answered 17 Nov.
+6. **D2** tester feedback: ship or remove. Answered 17 Nov.
+7. **D3**, **D4**, **D16** Google conversion, private photos in the Family Album, a real depth model: version 1 or
+   later. Answered 17 Nov.
+8. **E8** English only for version 1? Answered 17 Nov.
+9. **E9** crash reports: how. Answered 17 Nov.
+10. **B7** the support email address. Answered 17 Nov; Deepak is making the address.
+11. **D9** the Private DNS question. Deepak is checking whether it still happens.
+
+Done when: each of these has an answer written next to it in this file.
+
+### Stage 2. Safety fixes (Claude, one or two builds)
+
+Why before anything else is built: these are the only items that can lose or expose someone's photos.
+
+Build together (all touch keys and temporary files):
+
+1. **A2** stronger Google PIN, with a way to change an existing one.
+2. **A7** clean up after an interrupted Private-to-Normal.
+3. **A8** size limits and clean-up for every folder of unscrambled copies.
+4. **A1** finish the recovery helper (decided 17 Nov).
+5. **E5** review of ignored errors (same files, done while there).
+6. **A9** carry-over from the test app to the release app (it touches the same keys and phone-only files).
+   18 Nov: moved to stage 3, beside B8, so it is tested end to end.
+
+Then Deepak tests: Private backup set-up on Google only, a conversion interrupted on purpose (turn the drive
+off part-way), the Secured folder after locking.
+
+Done when: A1, A2, A7, A8 and E5 are ticked (A9 now in stage 3).
+18 Nov: all five built; waiting for Deepak's phone test.
+
+### Stage 3. Release build foundations (Both)
+
+Why together: they all change the build, and each needs the others to be tested properly.
+
+Order inside the stage:
+
+1. Claude: **B8** apply the package name and version (first, because the signing key and Google client depend on it).
+2. Deepak: **A6** make the release key (Claude gives exact steps), store it and its passwords somewhere safe
+   outside the repository, and give the build access to it as secrets.
+3. Deepak: **A6** add the release Google sign-in client in Google Cloud Console (Claude gives the values).
+4. Claude: **B2** target Android version, **B3** 16 KB pages (library updates), **C3** pinned downloads,
+   **C4** beta library, **D14** leftovers, **D18** offered only for invite files.
+5. Claude: **A5** the release build in the automatic checks signed with the release key; **E10** Android lint in the same checks.
+6. Deepak: installs the release build and does a short run through every section (the full pass is stage 6).
+   Claude: **A9** the carry-over from the test app (moved here 18 Nov), tried on one phone before the others move.
+7. Claude: **B4** long-backup handling (needs the new target version to test against).
+
+Done when: a signed release build installs, signs in to Google and backs up, and A9, B2, B3, B4, C3, C4, A5, A6, B8,
+D14, D18 and E10 are ticked.
+
+### Stage 4. Policy, notices and licences (Claude drafts, Deepak approves; can run alongside stage 3)
+
+Why together: it is all text about the same facts, and the store forms in stage 7 are copied from it.
+
+1. **A3**, **A4** rewrite the privacy policy; publish it on the website.
+2. **B6** face data notice in People, and the off switch deletes the data.
+3. **C2** full third-party notices, a Licences page in the app, map credit.
+4. **C1** licence file or private repository, as decided.
+5. **D6** owner PIN wording.
+6. **B7** support email on the website and in the app.
+
+Done when: A3, A4, B6, B7, C1, C2 and D6 are ticked and Deepak has read the published policy.
+
+### Stage 5. Remaining features (Claude, several builds, each tested by Deepak)
+
+Why after the foundations: so each is built and tested on the release build, not redone later.
+
+Suggested order (biggest risk first, look-and-feel last):
+
+1. **D5** guided drive password change, **D7** connection signing and encryption (both touch the drive connection).
+2. **D8** set-up guide, **D9** Private DNS notice (both are help and first-run pages).
+3. **D3**, **D4**: not in version 1 (decided 17 Nov), so only the plain "not yet" wording in the app.
+4. **D13** check the old "not done" notes; **D15** rough edges.
+5. **D10** People tuning, **D1** remove AuraFace after more testing. (**D16** is not in version 1.)
+6. **D11** Secured folder dark theme, **D12** tablets and foldables (last: they touch every screen).
+7. **D2** remove the feedback feature; **E9** the "send to developer" button. (**E8**: English only, nothing to do.)
+
+Done when: every D item is ticked or marked "not in version 1" with Deepak's agreement.
+
+### Stage 6. Full quality pass (Both)
+
+Why last before launch: testing before the features are finished would have to be done twice.
+
+1. Claude: **E6** old-and-new version test, **E7** on-device automated tests.
+2. Deepak with Claude's checklist: **E2** the full test plan on the release build, on a phone and a tablet.
+3. Both: **E3** accessibility pass; **E4** a week of normal use for battery and speed.
+4. Claude fixes what turns up; repeat the affected parts of E2.
+
+Done when: E2, E3, E4, E6 and E7 are ticked and no known fault is open against sections A or B.
+
+### Stage 7. Play Console and launch (Deepak, with Claude's drafts)
+
+1. Deepak: make the Play developer account (if not made) and the app entry with the final package name.
+2. Claude drafts, Deepak pastes: store description, what's new, screenshots list, **B5** forms and declarations
+   (photo and video permission, manage media, Data safety, content rating), **B1** VPN declaration if kept,
+   **B4** the background job declaration and its demo video script.
+3. Deepak: upload the release build to closed testing; invite testers (**B9**).
+4. Both: fix anything Play's review or the testers raise.
+5. Deepak: apply for production once the closed test period is over.
+
+Done when: the app is live on Play.
+
+## Checking in
+
+- **"What's left?"** Claude reads this file, counts ticked and unticked items by section, names the current
+  stage and the next three things to do, and says who each is waiting on.
+- **After every build.** Claude ticks what the build finished (only after Deepak has tried it, unless it is
+  paperwork), adds the date and branch, and adds any new loose end found on the way.
+- **Rules that may have changed.** The Play rules in section B were read from the code's point of view on
+  16 Nov 2026, not from Play's own pages. Before stage 3 and again before stage 7, check each against Play's
+  current wording and correct this file.
+- **What this audit did not cover.** It did not run the app or read every screen line by line. Stage 6 is where
+  that gap closes.
+
+---
+
+## Rules for every build (set 26 Oct)
+- **What's new in every build (updated 28 Oct):** every new build replaces `WhatsNew.items` (Intro.kt) with ONLY what changed in that build, including fixes, under New, Changed, Removed and Fixed (leave out a kind with nothing in it). Never carry entries from older builds. Nothing ships without it, and each entry is one plain sentence. Change `WhatsNew.ID` so the list shows once.
+- **Settings order:** Albums, Appearance, Backup, Drive, Remote access, Storage (A to Z); then always last, in this order: Open with Pixallery, Send feedback, About.
+- **Storage kinds:** Photos (JPEG, HEIC and other pictures), Videos (every video format), PNG, GIF. Sort by Name, Date, Size or Type wherever files are sorted.
+- **Photos filter (decided 26 Oct):** removed. Photos shows phone photos plus drive-only photos in one timeline; no button, chips or setting.
+- **Phase 6, Select all (27 Oct):** add the Select all button (beside the X, same size) to Search results and the Storage file lists too. Already in albums, Favourites, Family Album and Recently deleted; not in Photos by design.
+- **Secured folder (Phase 8) must include "Move to Secured folder" in the photo viewer's three-dot menu (26 Oct).** The row already exists and says "Soon"; it has to move the open photo into the Secured folder, and be offered in photo selection too. Set as wallpaper already works from that menu.
+- **Phone storage "Everything else"** only explains and opens Android's storage page, because Android doesn't let an app list other apps' files. Showing sizes per app would need the "usage access" permission: ask before adding it.
+
+- Secured folder (Phase 8): must include the back-to-top button (MediaGrid `topButton = true`) and Select all (SelectableScreen `selectAllItems`), like albums and Recently deleted (27 Oct).
 
 ## Why this order
 
@@ -57,7 +522,44 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
   before release.
 - **Secured folder after backup (8):** its copies on the drive reuse the verified backup engine, encrypted.
 
-## Decisions 25 Oct
+---
+
+## Release decisions log
+
+**17 Nov 2026, stage 1 part 1 (Deepak):**
+
+- **B8.** The app's name is final: **Pixallery**. First public version: Deepak left it to Claude. Claude's choice:
+  **1.0.0** for the first upload to Play's closed test; fixes after that 1.0.1, 1.0.2 and so on; new features
+  1.1.0. The hidden build number keeps rising by itself with each automatic build, as it does now. Package name
+  still open.
+- **C1.** The repository will be made private, but not now (see C1 for what to do first).
+- **B1.** Declare the VPN in Play (see B1 for Play's rule and the plan).
+- **A1.** Finish the recovery helper.
+- **D1.** Remove AuraFace before release, after more testing.
+- **E1.** "The last fixes work, tick it." Log video detection checked on a real Log video.
+
+**17 Nov 2026, stage 1 part 2 (Deepak):**
+
+- **B8.** Package name **`app.pixallery`** (Deepak did not want his name in it).
+- **D2.** Remove the tester feedback feature before release.
+- **D3, D4, D16.** None of them in version 1; all can come in later updates.
+- **E8.** English only for version 1.
+- **E9.** Play's own crash reports plus a "send to developer" button.
+- **B7.** A new email address just for Pixallery; Deepak will make it.
+- **D9.** Deepak will check whether the Private DNS notice still shows.
+
+## Release done log
+
+- 17 Nov 2026 · `feature/cleanup` · **E1** Deepak tried the build on his phone and said the fixes work; the branch
+  was merged into `main` the same day.
+
+---
+
+## Build notes and decisions (dated)
+
+Everything decided and built, phase by phase, newest at the bottom.
+
+### Decisions 25 Oct
 - Phase 6 cleanup only warns when there is no second copy (no block, no second-copy requirement).
 - Manual "Backup now" queue (FIFO with a position pop-up) shows only when: a scheduled backup is running and someone taps Backup now, or 2-3 devices tap Backup now at the same time. Scheduled backups keep the quiet wait and retry after 30 minutes, no pop-up. Build in Phase 5/6 backup work (not started).
 - Phase 5 also includes (asked 25 Oct): a **What's new** pop-up for people who already have the app (shown once after an update, plain list from docs/PENDING_FIXES notes, reopenable from Settings > About) and a **Welcome tour** for new users (short swipeable pages: photos, albums, drive and backup, family, remote access; skippable, reopenable from Settings). Order inside Phase 5: combined timeline, What's new + tour, Family Album, remote access, invites.
@@ -68,21 +570,10 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **4B built (25 Oct, CI green, not device-tested):** Private people upload encrypted objects under random names (objects/, thumbs/), sealed manifests (.pxm) and sealed Recently deleted notes (.pxn); each upload is read back, decrypted and checked against the photo's SHA-256 before it counts. Restore and viewing (photos, video thumbnails) decrypt on the way. Family Album refuses Private photos for now. Not built: recovery-helper hand-back screen, sharing Private photos with others.
 - **4A started and built (25 Oct, CI green, not device-tested):** core:crypto (Tink), choice screen, Private setup with 24 words, recovery file and public identity on the drive, restore on a new phone, optional recovery helper (key sealed to the helper, hand-back screen not built yet), Keystore storage, backup waits for a choice and does not upload for Private people until 4B. Also built: Share/Save only for photos opened from other apps; invites turn the VPN on when joining away from home.
 
-## Rules for every build (set 26 Oct)
-- **What's new in every build (updated 28 Oct):** every new build replaces `WhatsNew.items` (Intro.kt) with ONLY what changed in that build, including fixes, under New, Changed, Removed and Fixed (leave out a kind with nothing in it). Never carry entries from older builds. Nothing ships without it, and each entry is one plain sentence. Change `WhatsNew.ID` so the list shows once.
-- **Settings order:** Albums, Appearance, Backup, Drive, Remote access, Storage (A to Z); then always last, in this order: Open with Pixallery, Send feedback, About.
-- **Storage kinds:** Photos (JPEG, HEIC and other pictures), Videos (every video format), PNG, GIF. Sort by Name, Date, Size or Type wherever files are sorted.
-- **Photos filter (decided 26 Oct):** removed. Photos shows phone photos plus drive-only photos in one timeline; no button, chips or setting.
-- **Phase 6, Select all (27 Oct):** add the Select all button (beside the X, same size) to Search results and the Storage file lists too. Already in albums, Favourites, Family Album and Recently deleted; not in Photos by design.
-- **Secured folder (Phase 8) must include "Move to Secured folder" in the photo viewer's three-dot menu (26 Oct).** The row already exists and says "Soon"; it has to move the open photo into the Secured folder, and be offered in photo selection too. Set as wallpaper already works from that menu.
-- **Phone storage "Everything else"** only explains and opens Android's storage page, because Android doesn't let an app list other apps' files. Showing sizes per app would need the "usage access" permission: ask before adding it.
-
-- Secured folder (Phase 8): must include the back-to-top button (MediaGrid `topButton = true`) and Select all (SelectableScreen `selectAllItems`), like albums and Recently deleted (27 Oct).
-
-## Phase 6 split (28 Oct)
+### Phase 6 split (28 Oct)
 **6A (clean-up, built 28 Oct):** header line removed and Header test deleted; Back to top as blurry glass without the square shadow; flat charts removed; themes in Light and Dark only with new names; Select all for Search and Storage lists is NOT in 6A (moved to 6B). **6B (Free up space; started 28 Oct with pages keeping their scroll place everywhere):** the main feature plus the questions about Backup now queue, linking old backups, drive thumbnails and moved photos; then Select all for Search and Storage lists.
 
-## Phase 6 checklist (set 27 Oct)
+### Phase 6 checklist (set 27 Oct)
 **Main feature:** Free up space (opt-in auto-cleanup after verified backup; Off option; days setting; re-verify each file against the drive before deleting the phone copy; phone copy goes to the phone's Recently deleted first; includes favourites and all albums; photos stay as cloud photos; warns when there is no second copy).
 
 **Start of Phase 6 (clean-up and questions, asked one at a time):**
@@ -93,7 +584,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 5. Themes (27 Oct): put Photo Glow, Photo Night and Photo Vivid in the Dark section and Photo Light in the Light section; the separate Photo section goes away. Rename them clearly (proposal, to confirm: Photo Light stays; Photo Glow becomes Glow Night; Photo Vivid becomes Vivid Night; Photo Night stays). Anyone with a saved theme keeps it.
 6. Select all (27 Oct): add it to Search results and the Storage file lists.
 
-## 6B split in two (28 Oct)
+### 6B split in two (28 Oct)
 **6B-1 (built 28 Oct):** pages keep their scroll place; moved and linked photos (already worked, tests added); fewer drive checks; drive previews; **Glassmorphism themes (Glass Light, Glass Night)**; **Backup now queue ("you're number N", family phones take turns in the order they asked)**; **Select all in Search** (Storage file lists already had it).
 **6B-2 (next):** **Liquid Night and Liquid Day themes (built 28 Oct; frosted selected pills, panels and album folders; regular glass with a little frost, no lens bending; Night has white text, Day is white with dark text; from Deepak's iOS 26 screen recording: clear lens glass, tint 0.5, always-on lens from Android 13, no Lens switch; Glass Light was removed at his request)**, then Free up space (setting page, Off, days, per-file re-verify, phone Recently deleted first, consent by Media management permission or Android's pop-up, warnings, link to Android's permission screen).
 
@@ -101,7 +592,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 
 **29 Oct (Deepak's change):** one glass look in every theme (clear bars with depth, frosted cards, album folders and selected items, glass switches, white text); one switch "Turn off glass effect" (default off); Lens glass switch and Glass blur switch removed; Violet, Glass, Clear and Glow Night removed (Glass Light, Liquid-lens ideas gone earlier). Light themes ship two ways for comparison: deep backgrounds (default) or pale backgrounds with dark text on the page (About > experiment). **In 6B-2 remove the one Deepak does not prefer**, and delete the unused lens code if lens glass stays gone.
 
-## 6B decisions (28 Oct, Deepak's answers)
+### 6B decisions (28 Oct, Deepak's answers)
 - **Backup now queue: yes.** Pop-up shows your place in line; backups run one after another.
 - **Linking old backups after a reset: yes, automatically.** Photos that match the drive are marked backed up; nothing uploads twice.
 - **Real thumbnails on the drive: yes.** Backup saves a small preview beside each photo (about 1-2% extra space); a catch-up for old backups.
@@ -174,7 +665,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **3 Nov 03:01 (Deepak): fingerprint/PIN prompt popped up after leaving the folder**, and answering it left the folder open for the next visit. Cause: the Part 1 build locked the folder the moment back was pressed, so while the page slid away it redrew as the lock screen, and the lock screen asks for the fingerprint as soon as it appears. Fixed: leaving no longer locks (follow-up build), and the lock screen only asks when the folder is the page actually being opened (covers Lock now too).
 - **Phase 8A Part 2 built (5 Nov, CI pending, not device-tested): drive copy and new-phone restore.** The phone's Secured files are already encrypted with the folder's own key, so they go to `users/<id>/secured/` as they are (objects/<id>.pxs and .pxt), each read back and compared (SHA-256 and size) before it counts; the list goes as `index-<time>.pxi`, sealed with the same key (names never readable on the drive); `recovery.pxr` holds the folder key locked by the 24 words (or the own code, with its salt). Copy runs after every backup (inside the same drive session, never fails the backup), a moment after moving items in, deleting, moving out or opening the folder, and with Copy now. Delete for good and Move out remember the item and delete its drive copy at the next copy. Items on the drive that this phone doesn't have (another phone's) are kept in the list, never wiped; a drive list that doesn't open with this key stops the copy before anything is sent. New phone: Secured folder > Restore from the family drive: recovery words or code, a new PIN; the key is checked against the drive copy, kept in the Keystore, and every item is downloaded, decrypted and checked before it is taken in. Drive copy is ON by default; the cloud button inside the folder shows the last copy and has a switch and Copy now. Tests: SecuredDriveCopyTest (new phone gets everything, nothing readable on the drive, deletes reach the drive and don't come back, other phone's items kept, damaged copy refused, wrong key never replaces the list). Limits: the copy needs the home Wi-Fi or the VPN like backups; a backup and a Secured copy never run at the same moment (the later one waits for the next turn). Phase 8 is complete after Deepak's test.
 
-## Phase 7 decisions (5 Nov, Deepak)
+### Phase 7 decisions (5 Nov, Deepak)
 - **Order changed:** 7A = People (faces), 7B = Places (map, Places album, search by place, details panel map and address), 7C = On this day and tags.
 - **Map:** OpenStreetMap (OpenFreeMap tiles, no key, about 100 MB of map squares kept on the phone, dark map for dark themes); "Open in Maps" still opens the phone's maps app (Google Maps on Samsung). Place names from a small list inside the app (works offline); full street address only on "Show address" (Android's own lookup, answered by Google on Samsung), remembered once looked up. Places page: place cards plus a Map with pins that merge into numbered bubbles. Backups will also save each photo's location (encrypted for Private). Location permission asked the first time Places opens. Photos without a location are left out for now.
 - **On this day:** a card at the top of Photos, swipe away for the day; daily notification optional, off by default. **Tags:** saved in the person's folder on the family drive (encrypted for Private backup).
@@ -232,7 +723,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Build (6 Nov 19:13, Deepak).** Warm pause now at THERMAL_STATUS_SEVERE. Album shortcuts: Rows only (Round and Pictures removed, setting removed). Pages slide in from the right and out to the right (page under drifts left; section under drifts left; shadow on the page's left edge); back-gesture follow unchanged. Tap during a closing slide: a closing page is now only its last recorded picture (GraphicsLayer recorded while open; content disposed when closing), so it takes no taps and the tap reaches the page underneath. Not device-tested.
 - **Build (6 Nov 20:05, Deepak's video 0aa9f113: closing went right-to-left with the back swipe from the right edge; quick tap reopened the leaving page).** Back swipe always pulls the page out to the right (pageBackDir ignored); on let-go (finishBack) the page is closed at once (pageBackCommit): the host turns it into its last picture (no taps) and slides it the rest of the way from where the finger left it. This is me: button only on the marked person while someone is marked. Person.cover (people.json "cover"): select one photo on a person page -> "Use as picture" (that photo's face; circle cut around the face). Automatic cover now prefers a face alone in the photo (x1 / 2 faces x0.55 / 3+ x0.4) and not tiny (side < 0.06 of the photo x0.5), on top of facing, sharp, eyes, confidence, size. Not device-tested.
 
-## 7 Nov
+### 7 Nov
 - **7A remaining items moved to the last phase (Deepak, 7 Nov 01:39):** cut-off tuning, AuraFace decision and release steps, Both-agree mode, black-and-white measuring, video frames, child looks. 7A in daily testing; working fine so far.
 - **7B split in two (7 Nov).** **7B-1 (built now):** each photo's and video's location read on the phone (EXIF / video metadata with ACCESS_MEDIA_LOCATION, files/places/locations.bin, read in the background at app start and when Places opens); town/city names offline from GeoNames cities15000 (CC BY 4.0; fetched and converted in CI by tools/make_places.py into assets/places/cities.tsv): the biggest city within 25 km, else the nearest town within 150 km. Albums > Places: a card per place (most photos first, newest photo as cover), tap for its photos; Search finds town, region or country; Details show the place and "Show address" (Android Geocoder, only on tap, remembered). **7B-2 (next):** the map (OpenFreeMap / OpenStreetMap tiles kept on the phone, pins merging into numbered bubbles, dark map for dark themes), map preview in Details, locations for drive-only photos (backups save each photo's location; encrypted for Private).
 - **Same build:** Search box in the top bar with a short hint inside ("Names, places, months, years, albums"); five people with the most photos sized to fit one row + "…" (opens People); About: Secured folder and People Done, next phases listed (7B, 7C, 7D, 10, 10A, 11, 12, 13); credits incl. GeoNames. Not device-tested.
@@ -297,7 +788,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Private made normal: the last of Phase 10A (16 Nov, Deepak: "do phase 10A also"). Branch `feature/cleanup`.** `PrivateToNormal` (core:backup, unit tested with the real vault): for each of the person's still-private records, newest first: decrypt into a phone temp file (`Spool`; Android `FileSpool` in the app's cache) checking size and SHA-256 against the record, write to the drive under a temporary name, read back and check, publish into users/<id>/albums/<album>/<year>/<month>/<name> (`DrivePublish`, now shared with BackupEngine: same name rules, an identical file already there is reused), copy the preview, then every 20 files write a readable manifest (normal record added, private path removed) and only then delete the private object and its preview. A file that fails a check stays private. Safe to stop anywhere. BackupRunner runs it after a family-drive backup when privacy is Normal and `convertPrivateToNormal` is set and the key is on the phone; the flag clears when nothing is left. Not done: copies in Google Drive stay private (it would mean downloading and uploading everything again); private files in Recently deleted stay as they are; no progress shown while converting. The popup text says what happens. Not device-tested.
 - **Viewer opens out of the tile and closes back into it; Private-to-Normal status (16 Nov, Deepak: "there is no animation when opening and closing a photo or video"; and the status I offered). Branch `feature/cleanup`.** Hero animation in OverlayHost for `Overlay.Viewer`: each MediaGrid registers a tile lookup in `ShellState.tileLookups` with its page depth (`LocalPageDepth`: 0 = section, n = nth page); on open the viewer entry gets `Hero(tile rect, photo aspect)` from the grid on the page just below; the page is scaled so the fitted photo covers the tile, moved onto it and clipped to a tile-shaped rounded opening (`OpeningShape`), and all three grow to full screen with p (320 ms). On close the page below is given three frames to lay out again, then the tile of the photo now showing (`ShellState.viewerShowing`) is looked up; no tile on screen, no grid on that page (Storage lists, Places rows), or reduce motion: the old grow-and-fade. Status: `BackupState.converting` (done to total) and `convertNote` set by BackupRunner; the Backup page's last card shows the line under Backup privacy; the flag is now cleared through `state.update` so the screen's settings agree. Not device-tested (the animation most of all: it has never been seen running).
 - **Viewer animation rebuilt; privacy popup (16 Nov, from Deepak's recording and screenshot). Branch `feature/cleanup`.** Recording showed (frame by frame): on closing, the photo and button bar vanished while the page was still full screen and a black page shrank to the tile; on opening, a black box grew with the photo inside. Cause: a closing page is only a recorded picture of its last frame, and the viewer's photo, video and glass bar are drawn on their own layers, which are freed when the page is disposed (the old quick fade hid this); and the whole page was being scaled and clipped, not the photo. Now `Fly` + `FlyingCopy` in OverlayHost: a copy of the grid's own thumbnail (same size bucket, so it is in memory) is laid out at a rect that goes from the tile to the photo's fitted place (ContentScale.Crop, so square crop becomes whole photo), black fades in behind (alpha = p), and the viewer page stays invisible until p 0.6 then fades up under the copy; the copy is removed once landed. Closing: the copy of the photo showing now covers the page's photo at once, three frames for the page below to lay out, tile looked up, copy flies back; no tile: it shrinks a little and fades. Hero/OpeningShape removed. Privacy popup: the outdated "ones already saved stay as they are" line now says what really happens to older private backups, with Make old backups normal / Keep old backups private (the choice used to be asked only once, when switching). Not device-tested.
-- **Release audit and action plan (16 Nov, Deepak: "find all the loose ends... everything required before official release", then "make a PDF, save it in the project, and an action plan").** `docs/RELEASE_CHECKLIST.md` (+ `.pdf`, made by `tools/make_checklist_pdf.py`): 46 items in five groups (can hurt a user; store rules; legal; unfinished features; quality) and a seven-stage plan (test and merge; decisions; safety fixes; release build; policy; features; quality pass; Play launch). PROJECT_PLAN.md points to it for "what's left". The main line is `main` since 16 Nov.
+- **Release audit and action plan (16 Nov, Deepak: "find all the loose ends... everything required before official release", then "make a PDF, save it in the project, and an action plan").** `docs/RELEASE_CHECKLIST.md` (+ `.pdf`, made by `tools/make_checklist_pdf.py`; both joined into this file on 20 Nov): 46 items in five groups (can hurt a user; store rules; legal; unfinished features; quality) and a seven-stage plan (test and merge; decisions; safety fixes; release build; policy; features; quality pass; Play launch). PROJECT_PLAN.md points to it for "what's left". The main line is `main` since 16 Nov.
 - **Viewer animation made smooth (16 Nov, Deepak's two recordings: Pixallery beside Google Photos). Branch `feature/cleanup`.** Frame by frame: Google starts on the next frame and takes about 6 even steps each way; Pixallery waited about 5 frames then jumped on opening, and jumped through the first half on closing. Cause: the viewer was built during the opening flight and taken apart during the closing one, frames dropped, and the time-based animation skipped them; plus a deliberate two/three-frame wait. Now: the flight starts in the frame of the tap; the viewer page is not built until the copy has landed (`PageEntry.landed`), then fades in under the copy (`reveal`, 140 ms) and the copy steps aside (`copyOn`); on closing the viewer stays built but fades out (90 ms) while the copy flies, and is disposed after the flight; a page under a viewer no longer counts as covered, so it stays built and its tile is found at once; 250 ms with an emphasized ease. Not device-tested.
 - **Memories row and story player (16 Nov, Deepak's Google Photos screenshots). Branch `feature/cleanup`.** `MemoriesStrip` in the Photos > All grid header: a card per memory not played today (`AppearanceSettings.memoriesWatched` = today's date + memory keys; `ShellState.markMemoryWatched`); nothing when there are none; the Memories button stays. `Overlay.Story(memories, index)` + `StoryScreen`: black page, segmented bar (one piece per picture), photos 4.5 s with a slow drift (not with reduce motion), videos their length within 3 to 15 s (muted, with a sound button), tap right/left, hold to pause, swipe down or the cross to close, runs on into the next memory; favourite, share and Open (the viewer on top; the story pauses under it). The Memories page's cards open the story too (they used to open a photo list). No music, no AI titles. Not device-tested.
 - **Mixed-size photo grid (16 Nov, Deepak: like Google Photos, but on either side). Branch `feature/cleanup`.** `Mosaic` (ui/shell, unit tested): a block is two rows, one photo 2 x 2 and normal ones in the other columns (2 x columns - 3 photos, order kept); which photos may be big comes from the photo's ID (about one in six), a block only starts where such a photo falls first in a row (left block) or in the last-but-one cell of the first row (right block), and a plain row always separates two blocks. MediaGrid `mixed` (Photos > All only, 3 to 5 columns, `AppearanceSettings.mixedGrid`, Settings > Appearance > Mixed photo sizes): plain runs stay one grid item per photo; a block is one full-width item with its tiles placed inside. Because the grid no longer has one item per photo there, `visibleTiles()` now gives every photo's rectangle (blocks opened up) and drives tap and slide-select hit testing, the delete flight, and the open/close photo animation; the floating date, side slider and jump-to count grid items through `gridFirst`. Not device-tested; slide-select across a block and the side slider are the parts to watch.
@@ -305,7 +796,7 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **Five fixes from Deepak's phone (17 Nov). Branch `feature/cleanup`.** (1) Editor and video trimmer in landscape: the tools took the whole height and the picture got none; both pages are now built from parts (top bar, picture, undo, tools, tabs) laid out one above the other when tall and picture-beside-tools (side panel up to 400/420 dp, scrolls) when wide. (2) "Saved a copy (a little smaller, to fit this phone's memory)": the save budget used the app's Java heap, but since Android 8 bitmap pixels are native, so even 12 MP photos were shrunk; now a quarter of the phone's free memory (ActivityManager), 4 to 50 MP; messages shortened to fit Android's two-line toast and name the size when smaller. (3) Full photo took ~0.4 s after the viewer appeared (frame-by-frame on his recording): `FullPhoto` request (screen size, FIT, 110 ms fade) is enqueued the moment a tile is tapped, the viewer uses the same request. (4) HDR videos showed as SDR: TextureView can't show HDR; videos whose track is HDR (Media3 `ColorInfo.isTransferHdr`) now use a SurfaceView, removed at once when the page starts closing (`LocalPageLeaving`) as it can't fade. (5) Details: `VideoColour` (HDR10/HDR10+/HLG/Dolby Vision/SDR, bit depth from profile, BT.2020/709/601, codec) from MediaExtractor; "Log (probably)" for 10-bit BT.2020 without an HDR transfer; "HDR photo" for gain-map photos (API 34+). Tests for the colour reading. Not device-tested; Log is a guess until checked against a real Log file.
 - **Finding a drive that moved is a switch (17 Nov, Deepak: for the public release, tell people during set-up and let them turn it on there). Branch `feature/cleanup`.** Before: when the drive stopped answering at its saved address, the app always searched the nearby addresses on the home network (`LanDiscovery.around`, then `SmbErrors.nearbyFirst` + `neighbours`) and kept the new address if it was the same drive. Now `DrivePlatform.findMovedDrive()` / `setFindMovedDrive()` (Android: pref `find_moved_drive` in "family"); when off, `openChecked` throws `DriveNotAtAddress` (an IOException, so it still counts as unreachable) and the message says to type the new address or turn the switch on. Default: on for phones that already had a drive saved when the setting first appeared (no change for the family), off for new set-ups. Switch "Find the drive if its address changes" on the set-up page (under Remember password, with the explanation and the fixed-address tip) and in Settings > Drive. "Find drives" in set-up is unchanged (it only looks for drives, port 445). Not device-tested.
 - **Back to top in Photos janky again (17 Nov, Deepak: Albums is smooth). Branch `feature/cleanup`.** Cause: the mixed-size grid (16 Nov). The glide guessed the distance to the top by counting grid items, 4 to a row, but a big-photo block is ONE item two rows tall, so in the "All" grid the distance came out far too short; the glide eased off screens early and crawled. The Memories row above the photos was not counted either. Fix: `GridRows` (ScrollToTop.kt, unit tested) gives the rows of tiles above each photo item (plain grid or mosaic plan); MediaGrid passes it for the continuous grid; the pixels per row are measured from two photo items on screen, and the height above the first photo item is measured whenever the page is at the top. Albums, Years/Months and lists keep the old guess. Also fixed: the first drive-switch build failed (a function and the property's setter had the same name). Not device-tested.
-- **17 Nov, 19:43:** Deepak: back to top in Photos works as intended. Next build: shorter, simpler text under the drive switch (see D19 in the release checklist).
+- **17 Nov, 19:43:** Deepak: back to top in Photos works as intended. Next build: shorter, simpler text under the drive switch (see D19 in the release checklist above).
 - **Clean-up build: A7, A8 and shorter drive text (17 Nov, Deepak). Branch `feature/cleanup`.** (A7, drive) `PrivateToNormal.run` now starts by deleting this phone's own half-written `.part` files in `.incoming` (shared `DrivePublish.clearOwnTemporaryFiles`, also used by the backup engine; before, the backup only cleared them when it had new photos) and by finishing an interrupted `settle`: it reads this phone's newest readable lists (up to 12), finds the last conversion list (every removed path private, paired one-to-one with normal records), and deletes each private file and preview it took off, only when the private path is no longer listed and its normal copy is. Three new tests. (A7 and A8, phone) `CacheCleaner.sweep` runs once per app start on a background thread and deletes only files from before that start: `convert`, `edits`, `storage-saver`, `secured_play`, `secured_dl` (filesDir); `drive-shared` and `secured_share` once also 15 minutes old; private drive originals (`.pxo`) and half-downloads in `drive-originals` (normal ones stay cached, 800 MB limit as before); invite WireGuard temp files; living-photo `.tmp` files and a 400 MB limit on `living`. Found on the way: Secured folder shared copies sit in one folder per item and the old 15-minute clean-up deleted only empty folders, so they were never removed; drive photos shared to other apps were never removed at all. Both now cleared after 15 minutes (on share, on start, and for Secured also when the folder locks or is left). Played Secured videos: only the newest 3 kept while the folder is open. Drive switch text shortened (both switches in Settings > Drive and the set-up page; says "above and below"); the message when the switch is off is shorter. Not device-tested.
 - **HDR photos, Save over the original, copies in the viewer (17 Nov, Deepak). Branch `feature/cleanup`.** (1) HDR photos: the viewer turns the window to `COLOR_MODE_HDR` (Android 14+, `MediaActions.showHdr`, MainActivity) only while the current page is a photo whose loaded bitmap has a gainmap (`coil3.Image.hasHdrMap`, from the full photo's `onState`), the viewer is on top and not closing; off again otherwise and when the viewer goes. Untested risk: if Coil's decode drops the gainmap (resizing, turning), the photo simply stays normal. (2) Save over the original: `EditorPlatform.canReplace/replace`; Android: JPEG, PNG and WebP photos on the phone; asks Android first (`createWriteRequest`, `MainActivity.askToChange`), renders the full photo (shared `make`, same as Save copy), refuses if it would have to be made smaller, then saves an untouched copy of the original straight into Recently deleted (`GallerySave.saveUri(trashed = true)`, IS_TRASHED with IS_PENDING; if Android won't trash it, it stays visible beside the photo and the message says so), then writes the edit over the photo ("wt"). Editor top bar: one rounded control, outlined "Save" half and white "Save copy" half (Save copy stays the main, safe choice); Save asks "Save over the original?" first. HEIC and other kinds show only Save copy. Pictures in memory for that photo are dropped, and phone thumbnails and the full photo now carry the file size as a version (`Thumb.version`, `memoryCacheKeyExtra`), so the new pixels show everywhere after the library refreshes. The edited photo has a new size, so backup sees it as a new file; the drive keeps the original backup. (3) Saved copies: `EditSaved.newId`; `ShellState.copySaved` records each copy under its original; the open viewer puts copies just before their original and slides to the new one once the library has it (editor and trimmer wait up to 3 s for the library refresh before closing). Not device-tested.
 - **Redesign, stage A: three switchable styles (18 Nov, Deepak: "all three, switchable", on a new branch). Branch `feature/redesign` (from `feature/cleanup`).** Design canvas "Pixallery redesign directions" (claude.ai artifact). `AppStyle` (designsystem/AppStyle.kt): Classic glass (unchanged), Clear Glass, Material You, Darkroom; `ThemeMode` (as the phone / light / dark; Classic keeps its own theme choices). The colours are `GlassTheme`s (`StyleThemes`: Clear Glass and Darkroom light/dark, Material You from the phone's wallpaper scheme on Android 12+ or a Pixallery-blue fallback), so every screen that reads the theme gets them; new `GlassTheme` fields `sheen`, `accentSoft`, `onAccentSoft`; new theme ids. The shared pieces read the style: `glassChrome` (solid bars for Material You and Darkroom, lighter glass with a hairline for Clear Glass), `glassPanel` (plain cards), `glassRim`/`glassDepth` (Classic only), `styled()` shapes (Darkroom square, style card corners), switches (accent track; Material's growing knob; Darkroom square), chips and segmented controls (Material's soft container colour), dialogs and sheets. Typography per style (`styleTypography`): Inter (Clear Glass), Roboto (Material You), Libre Bodoni for titles and dates with Public Sans (Darkroom); the fonts are bundled (`app/src/main/res/font`, trimmed to Latin, about 490 KB, OFL, credited in THIRD-PARTY-NOTICES). Settings > Appearance: style cards with a small preview, then As the phone / Light / Dark; the classic theme grid and blur slider only for Classic glass. Everyone starts on Clear Glass. The Photos header's black-to-white trick and the plain floating date are Classic-only; the new styles put the date on a small bar. The viewer uses the style's own dark colours. Tests: `StyleThemesTest` (contrast on pages, cards, bars, accent, soft choice, Clear Glass over bright and dark photos), `ShellStateTest` (styles, modes, fallback). Not device-tested. Next: stage B (bottom bar per style, magazine dates, top pills), stage C (audit fixes), stage D (Impeccable critique and polish).
@@ -321,3 +812,4 @@ shared, see ARCHITECTURE.md), invite links for people outside home, optional enc
 - **18 Nov, tablet second pass and instant drive deletes (Deepak's tablet photos).** Why his phone's backups didn't show on the tablet: the tablet is in the family as its own person (Storage > Drive showed "Your backup 2.66 MB" of 25 GB and the phone's backup under "Rest of the family"); the mirror only shows the person's own backups, so the tablet must leave and join again as Deepak. Rail redone the Material 3 way (`SideRail`): one full-height glass panel on the left edge (the cards' frosted film, drawn the same in every section; before, its blur depended on what was behind it, so it was clear in Photos and white elsewhere), sections at the top in line with the pages' top buttons, a 56 x 32 dp pill sliding behind the chosen icon, names under the icons; it dims and ignores taps while selecting. The backups switch moved to the top (`BackupsSwitch`: two round icons, this tablet/phone or the cloud, the same highlight as Years / Months / All; beside Search in Photos, beside the menu in Albums at title-bar size; a short message says which is shown). Settings two-pane: the page's cards fill their column (`LocalCardMaxWidth`), so the list and every page line up evenly. Storage on tablets: one year means no years card, so the albums take the whole width; Recently deleted on the drive is a full-width row. Drive deletes: a drive photo leaves the app at once (`DriveState.trashLater`, kept on the phone as `pending_trash_<user>`); the drive's Recently deleted gets it in the background (`finishPendingTrash`), retried when the app comes back, when the drive answers again and every 5 minutes while waiting; meanwhile the gallery keeps them off screen (`GalleryState.setWaitingToDelete`). Not device-tested.
 - **18 Nov, separate views, start-up list, theme names, people adding their own devices (Deepak: "do the others as you suggested").** Views: Photos and Albums read `GalleryState.viewItems` / `viewAlbums` (`LibrarySource` ALL / DEVICE / BACKUPS); with the test on, the tablet icon shows only what is on the device and the cloud only the backups not on it; every other screen keeps seeing everything. Start-up: the backup list kept on the phone shows when the app opens (`DriveState.showRememberedBackups`, with its read time from the file, so the three-hour refresh survives a restart), and Google's list no longer replaces the drive's at start-up (the timeline waits for the drive's kept list). Themes renamed (names only, keys unchanged): Liquid → Ocean, Luminous → Aurora, Photo → Gallery, Vivid → Prism. Own devices: a device joining as someone already in the family asks that person's devices (`HouseholdStore.approveOwnDevice` / `declineOwnDevice`, checked against the approving device's person); a six-digit code on both (`joinCode`); View only / View and delete chosen by the person; no owner PIN; the owner gets no pop-up for these but can still approve with the PIN, and their Family page lists every device anyone adds (`NewDevice`, seen per owner as `all-<id>`). Members' Family checks for such requests every 30 s while open. Key hand-over: the key request (A1) also reaches one's own devices that hold the key (`keyRequestsForMe(haveMyKey)`, answered with `shareOwnKey`). Test: `aPersonLetsInTheirOwnSecondDeviceButNobodyElses`. Not device-tested.
 - **20 Nov, side bar tests and the tablet video strip (Deepak: "add both animations as tests in About without touching the current one"; "the strip works on the phone, so don't change it there").** Settings > About on tablets: "Test: side bar motion" (`RailMotion`: Sideways = today's, Up and down, Fade) and "Test: side bar that folds out" (`railFoldTest`, open state `railOpen`). With both off, `SideBarLayout` runs exactly as before; otherwise `TestSideBarLayout`: Up and down and Fade show one section at a time (`SectionStackPages`: all four stay composed, only the shown and leaving pages are laid out; up and down moves 48 dp with a fade, direction from the bar; fade is Material's fade-through, out in the first 35 %, in from 92 % size), no sideways swipe between sections; the fold-out bar (`FoldingSideRail`) has a menu button, opens to 256 dp with the app name, the highlight stretching into a wide pill and names sliding in beside the icons; landscape moves the pages over, portrait lays the bar over them with a shade and closes on a pick. Tablet video strip (`FittedVideoTimeline`, only when `LocalTabletDevice`): the whole video fitted in a centred strip (78 % of the width, at most 720 dp) from the frames already read ahead, a moving playhead, tap or drag to jump; the time row (`VideoBar`) takes the same width so its ends line up. Phones keep `VideoScrubber` and the full-width row. Stage 3 waits: stage 2 is built but not yet tested on the phone. Not device-tested.
+- **20 Nov, 21:47, the roadmap and the release checklist joined (Deepak: "Merge both files together in single file so easy to remember").** `docs/RELEASE_CHECKLIST.md` became part of this file: the phases at the top with a short table (the full text of each phase is under Phase details), then the release checklist, the action plan, Checking in, and both logs; the dated notes stay at the bottom. New at the top: where things stand and what comes next. The PDF is now `docs/ROADMAP.pdf`, made by `tools/make_plan_pdf.py`. Next: the Phase 12 leftovers, then the release stages.
