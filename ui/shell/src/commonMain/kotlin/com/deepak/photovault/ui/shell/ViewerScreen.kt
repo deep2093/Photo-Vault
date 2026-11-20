@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.produceState
@@ -1242,10 +1243,10 @@ private fun FittedVideoTimeline(item: MediaItem, video: VideoControls, onTouch: 
                 .height(THUMB_H)
                 .clip(RoundedCornerShape(8.dp))
                 .pointerInput(item.id, duration) {
-                    androidx.compose.foundation.gestures.detectTapGestures { o -> seekTo(o.x / size.width) }
+                    detectTapGestures { o -> seekTo(o.x / size.width) }
                 }
                 .pointerInput(item.id, duration) {
-                    androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                    detectHorizontalDragGestures(
                         onDragStart = { o ->
                             dragging = true
                             seekTo(o.x / size.width)
