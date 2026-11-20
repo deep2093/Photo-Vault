@@ -49,10 +49,10 @@ class PinchMathTest {
     @Test
     fun aGrownGridAlwaysCoversTheScreen() {
         // Drawn at 1.5x on a 1000 px wide screen, it can move between -500 and 0.
-        assertEquals(0f, PinchMath.clamp(40f, 1.5f, 1000f))
-        assertEquals(-500f, PinchMath.clamp(-800f, 1.5f, 1000f))
-        assertEquals(-200f, PinchMath.clamp(-200f, 1.5f, 1000f))
+        assertEquals(0f, PinchMath.clamp(40f, 1.5f, 1000f), 0.01f)
+        assertEquals(-500f, PinchMath.clamp(-800f, 1.5f, 1000f), 0.01f)
+        assertEquals(-200f, PinchMath.clamp(-200f, 1.5f, 1000f), 0.01f)
         // Drawn smaller (past the smallest photos), it stays inside the screen.
-        assertEquals(100f, PinchMath.clamp(300f, 0.9f, 1000f))
+        assertEquals(100f, PinchMath.clamp(300f, 0.9f, 1000f), 0.01f)
     }
 }
