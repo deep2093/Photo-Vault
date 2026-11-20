@@ -11,9 +11,10 @@ package com.deepak.photovault.designsystem
  * - [EDGE] is the same glass edge for panels and buttons that sit on the calm page, where there is nothing to bend.
  *   It is drawn as a brush, under the words.
  *
- * Light falls from the top left. The rounded edge catches it as a thin bright line (Fresnel: glass reflects most where
- * it is steepest), with a soft gloss on the lit side and a smaller glint opposite. A faint shade inside the edge, away
- * from the light, gives the glass its thickness. Light focused through the edge brightens the far side a little.
+ * Light falls from the top left (Clear Glass: wherever tilting the phone moves it, `lightDir`). The rounded edge catches
+ * it as a thin bright line (Fresnel: glass reflects most where it is steepest), with a soft gloss on the lit side and a
+ * smaller glint opposite. A faint shade inside the edge, away from the light, gives the glass its thickness. Light
+ * focused through the edge brightens the far side a little.
  *
  * The words on the glass stay readable without frost: by day the picture behind is brightened just enough for dark
  * words, keeping its colour where it can; by night it is dimmed like smoked glass for white words. [LiquidGlassInk]
@@ -26,6 +27,7 @@ uniform float2 size;
 uniform float radius;
 uniform float dp;
 uniform float darkMode;
+uniform float2 lightDir;
 """
 
     private const val GLASS = """
@@ -73,7 +75,7 @@ float bezelWidth(float2 hs, float r) {
 // Returns (shade, caustic, light): how much to darken, then brighten from below, then light from above.
 float3 glassLight(float2 n, float x, float slope, float panel) {
     float3 N = normalize(float3(n * slope, 1.0));
-    float3 L = normalize(float3(-0.42, -0.76, 0.5));
+    float3 L = normalize(float3(lightDir, 0.5));
     float3 H = normalize(L + float3(0.0, 0.0, 1.0));
     float3 H2 = normalize(float3(-L.x, -L.y, L.z) + float3(0.0, 0.0, 1.0));
     float gloss = pow(max(dot(N, H), 0.0), 40.0);
@@ -83,7 +85,7 @@ float3 glassLight(float2 n, float x, float slope, float panel) {
     float toLight = max(facing, 0.0);
     float away = max(-facing, 0.0);
     float rimLight = fresnel * (0.25 + 0.75 * toLight * toLight + 0.35 * away * away);
-    float night = darkMode;
+    float night = clamp(darkMode, 0.0, 1.0);
     float zone = 1.0 - smoothstep(0.3, 0.45, x);
     float band = panel > 0.5
         ? smoothstep(0.0, 0.07, x) * (1.0 - smoothstep(0.12, 0.4, x))
@@ -104,6 +106,8 @@ uniform shader content;
 uniform float3 backdrop;
 uniform float inkFloor;
 uniform float inkCeiling;
+uniform float frost;
+uniform float3 frostColor;
 """ + GLASS + """
 // What is behind the glass here. Where the recorded content is see-through, the page's own colour shows.
 float3 scene(float2 p) {
@@ -122,20 +126,18 @@ float3 linearToSrgb(float3 c) {
 }
 
 // The ink rule (LiquidGlassInk in Kotlin): by day at least inkFloor of light behind dark words, keeping the colour
-// where it can; by night at most inkCeiling behind white words, like smoked glass. amount < 1 only at the edge.
+// where it can; by night at most inkCeiling behind white words, like smoked glass. Clear Glass's bars change over
+// between the two smoothly (darkMode between 0 and 1). amount < 1 only at the edge.
 float3 toneForInk(float3 lin, float amount) {
     float luma = max(dot(lin, float3(0.2126, 0.7152, 0.0722)), 0.00001);
-    float3 toned;
-    if (darkMode > 0.5) {
-        float target = inkCeiling * (1.0 - exp(-luma / inkCeiling));
-        toned = lin * (target / luma);
-    } else {
-        float target = inkFloor + (1.0 - inkFloor) * luma;
-        float brightest = max(max(lin.r, max(lin.g, lin.b)), 0.00001);
-        float gain = min(min(target / luma, 1.0 / brightest), 3.0);
-        float lifted = luma * gain;
-        toned = mix(lin * gain, float3(1.0), max(0.0, (target - lifted) / max(1.0 - lifted, 0.00001)));
-    }
+    float nightTarget = inkCeiling * (1.0 - exp(-luma / inkCeiling));
+    float3 night = lin * (nightTarget / luma);
+    float dayTarget = inkFloor + (1.0 - inkFloor) * luma;
+    float brightest = max(max(lin.r, max(lin.g, lin.b)), 0.00001);
+    float gain = min(min(dayTarget / luma, 1.0 / brightest), 3.0);
+    float lifted = luma * gain;
+    float3 day = mix(lin * gain, float3(1.0), max(0.0, (dayTarget - lifted) / max(1.0 - lifted, 0.00001)));
+    float3 toned = mix(day, night, clamp(darkMode, 0.0, 1.0));
     return mix(lin, toned, amount);
 }
 
@@ -171,6 +173,8 @@ half4 main(float2 coord) {
     }
     float rim = 1.0 - smoothstep(0.08, 0.32, x);
     float3 lin = toneForInk(srgbToLinear(rgb), 1.0 - 0.45 * rim);
+    // Clear Glass: Tinted's firmer film, or the chosen tab's (0 for Liquid Glass).
+    lin = mix(lin, frostColor, frost);
     float3 l = glassLight(n, x, slope, 0.0);
     lin = lin * (1.0 - l.x);
     lin = lin + (1.0 - lin) * l.y;

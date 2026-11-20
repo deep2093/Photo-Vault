@@ -71,3 +71,10 @@ expect fun rememberLensGlass(): com.deepak.photovault.designsystem.LensGlass?
 
 /** Whether this device can draw lens glass at all (Android 13 and newer), so Settings only offers it there. */
 expect fun lensGlassSupported(): Boolean
+
+/**
+ * Clear Glass (21 Nov, like iOS): where the light on the glass comes from, moved a little as the phone tilts, so the
+ * edges' shine slides like a reflection. Null where the platform has no motion sensor or [enabled] is false.
+ */
+@Composable
+expect fun rememberTiltLight(enabled: Boolean): androidx.compose.runtime.State<androidx.compose.ui.geometry.Offset>?

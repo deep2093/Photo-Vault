@@ -140,7 +140,9 @@ fun Modifier.pressDip(source: androidx.compose.foundation.interaction.Interactio
     val still = LocalGlassSettings.current.reduceMotion
     val scale = androidx.compose.animation.core.animateFloatAsState(
         if (pressed && !still) to else 1f,
-        androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 700f),
+        // Growing instead (Clear Glass's Apple motion, 21 Nov): a softer spring, so it settles with a little bounce.
+        if (to > 1f) androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = 420f)
+        else androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 700f),
         label = "pressDip",
     )
     return graphicsLayer { scaleX = scale.value; scaleY = scale.value }
@@ -249,8 +251,18 @@ private fun Modifier.liquidGlassChrome(
     settings: GlassSettings,
 ): Modifier {
     val lens = LocalLensGlass.current
-    // A soft, lifted shadow, so the glass floats above the photos.
-    val shadowColor = Color.Black.copy(alpha = if (theme.isDark) 0.42f else 0.17f)
+    val ink = theme.glassInk ?: GlassInk.LIQUID
+    // Clear Glass's Tinted (iOS 26.1): a firmer film, less see-through and with more contrast. Still no blur.
+    val tinted = theme.isClearGlass && settings.tinted
+    // A soft, lifted shadow, so the glass floats above the photos. Clear Glass's adapts like iOS's: fainter over bright,
+    // plain photos and stronger over darker, busier ones (once the bar has looked behind itself).
+    val luma = LocalBackdropLuma.current?.value
+    val shadowAlpha = when {
+        theme.isDark -> 0.42f
+        theme.isClearGlass && luma != null -> 0.24f - 0.14f * luma.coerceIn(0f, 1f)
+        else -> 0.17f
+    }
+    val shadowColor = Color.Black.copy(alpha = shadowAlpha)
     val surface = when {
         // "Turn off glass effect": plain and solid.
         !settings.blurEnabled -> Modifier.background(theme.glassFallback).border(1.dp, calmEdge(theme), shape)
@@ -258,9 +270,19 @@ private fun Modifier.liquidGlassChrome(
             shape = shape,
             tint = theme.glassTint,
             active = true,
-            liquid = LiquidGlassOptics(theme.isDark, theme.wallpaper.first(), theme.glassFallback),
+            liquid = LiquidGlassOptics(
+                dark = theme.isDark,
+                backdrop = LocalGlassBackdrop.current ?: theme.wallpaper.first(),
+                fallback = theme.glassFallback,
+                inkFloor = ink.dayFloor,
+                inkCeiling = ink.nightCeiling,
+                frost = if (tinted) LiquidGlassInk.TINTED_FROST else 0f,
+                frostColor = LiquidGlassInk.tintedFrostColor(theme.isDark),
+                light = LocalGlassLight.current,
+                darkness = LocalGlassDarkness.current,
+            ),
         )
-        else -> Modifier.background(theme.glassTint).liquidGlassEdge(shape)
+        else -> Modifier.background(if (tinted) theme.glassFallback.copy(alpha = 0.9f) else theme.glassTint).liquidGlassEdge(shape)
     }
     return shadow(elevation * 0.7f, shape, ambientColor = shadowColor, spotColor = shadowColor)
         .clip(shape)
@@ -272,9 +294,11 @@ private fun Modifier.liquidGlassChrome(
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val film = theme.panelFill
-    // Liquid Glass (21 Nov): a clear film with the lit droplet edge, no sheen across it.
+    // Liquid Glass (21 Nov): a clear film with the lit droplet edge, no sheen across it. Clear Glass's Tinted: firmer.
     if (theme.isLiquidGlass && film != null && LocalGlassSettings.current.blurEnabled) {
-        return clip(shape).background(film).liquidGlassEdge(shape)
+        val tinted = theme.isClearGlass && LocalGlassSettings.current.tinted
+        val fill = if (tinted) film.copy(alpha = (film.alpha + 0.2f).coerceAtMost(1f)) else film
+        return clip(shape).background(fill).liquidGlassEdge(shape)
     }
     // A see-through frosted film with depth (29 Oct) while the glass effect is on; solid when "Turn off glass effect" is on.
     return if (film != null && LocalGlassSettings.current.blurEnabled) {

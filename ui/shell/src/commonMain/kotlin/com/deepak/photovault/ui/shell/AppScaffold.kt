@@ -121,6 +121,12 @@ import com.deepak.photovault.designsystem.NavigationLayout
 import com.deepak.photovault.designsystem.PhotoVaultTheme
 import com.deepak.photovault.designsystem.glassChrome
 import com.deepak.photovault.designsystem.liquidGlassTouch
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import com.deepak.photovault.designsystem.iosSwell
+import androidx.compose.material.icons.rounded.Search
 import com.deepak.photovault.designsystem.liquidGlassDroplet
 import com.deepak.photovault.designsystem.pressDip
 import com.deepak.photovault.designsystem.glassPanel
@@ -333,7 +339,10 @@ fun PhotoVaultApp(
                 }
             }
         }
-        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides drive.canAddToFamilyAlbum, LocalToast provides actions::toast) {
+        // Clear Glass (21 Nov, like iOS): the light on the glass follows the phone's tilt, while the app is on screen.
+        val glassNow = LocalGlassSettings.current
+        val tilt = rememberTiltLight(state.theme.isClearGlass && glassNow.blurEnabled && !glassNow.reduceMotion && signals.foreground)
+        CompositionLocalProvider(LocalHazeState provides hazeState, LocalDeleteFlight provides deleteFlight, LocalDeletePrompt provides deletePrompt, LocalFamilyAlbum provides drive.canAddToFamilyAlbum, LocalToast provides actions::toast, com.deepak.photovault.designsystem.LocalGlassLight provides tilt) {
             GlassBackground(Modifier.fillMaxSize()) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     // Bars and cut-outs only, not the keyboard (24 Oct): reading the keyboard here re-laid out the whole
@@ -933,7 +942,19 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     // The bar rolls down as a page slides over the section and back up as it leaves, with the page (or with the
     // finger on the back gesture); the other reasons to tuck it away animate on their own.
     val pinned = state.appearance.pinBottomBar
-    val tucked = state.selecting || state.albumsSelected.isNotEmpty() || (state.chrome.hidden && !pinned && state.destination in Destination.hidesChrome)
+    // Clear Glass with Apple's motion (21 Nov, a test in About): scrolling down shrinks the bar to a small pill of the
+    // section you're on, with Search beside it, instead of tucking it away, as iOS 26's tab bar does.
+    val glassTheme = LocalGlassTheme.current
+    val glassSettings = LocalGlassSettings.current
+    val iosBar = glassTheme.isClearGlass && glassSettings.iosMotion && glassSettings.blurEnabled && !glassSettings.reduceMotion
+    val scrollHidden = state.chrome.hidden && !pinned && state.destination in Destination.hidesChrome
+    val selectingNow = state.selecting || state.albumsSelected.isNotEmpty()
+    val tucked = selectingNow || (scrollHidden && !iosBar)
+    val shrink = androidx.compose.animation.core.animateFloatAsState(
+        if (iosBar && scrollHidden && !selectingNow) 1f else 0f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.78f, stiffness = 380f),
+        label = "bar shrink",
+    )
     val density = androidx.compose.ui.platform.LocalDensity.current
     val travel = with(density) { (barSpace + system.calculateBottomPadding() + 24.dp).toPx() }
     val shift = androidx.compose.animation.core.animateFloatAsState(if (tucked) travel else 0f, motionSpec(CHROME_MS), label = "bar")
@@ -963,13 +984,41 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                 }
             }
         }
+        // Clear Glass (21 Nov, iOS's scroll edge effect, without blur): the photos fade softly toward the page's colour
+        // under the bar, so it reads over anything. It goes with the bar.
+        if (glassTheme.isClearGlass && glassSettings.blurEnabled) {
+            val wall = glassTheme.wallpaper.first()
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(system.calculateBottomPadding() + barSpace + 12.dp)
+                    .graphicsLayer {
+                        val y = maxOf(shift.value, travel * state.sectionCover())
+                        alpha = 1f - (y / travel).coerceIn(0f, 1f)
+                    }
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            0f to androidx.compose.ui.graphics.Color.Transparent,
+                            0.45f to wall.copy(alpha = 0.42f),
+                            1f to wall.copy(alpha = 0.8f),
+                        ),
+                    ),
+            )
+        }
         // Only the bar gets the lens; anything inside the recorded sections would otherwise draw itself.
         CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
+        // Clear Glass: the bar turns dark over dark photos and light over light ones (iOS); other themes as they were.
+        com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
         FloatingNavigationBar(
             indicator = { nav.indicator.value },
             onSelect = state::tapSection,
             familyDot = screens.familyDot,
             settingsDot = screens.settingsDot,
+            shrink = { shrink.value },
+            onExpand = { state.chrome.hidden = false },
+            onSearch = { state.open(Overlay.Search) },
+            dragTabs = iosBar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 // Moved by layout, not a layer translation: the lens glass must learn where the bar is (25 Oct fix for
@@ -979,8 +1028,10 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                     val y = maxOf(shift.value, travel * state.sectionCover())
                     alpha = 1f - (y / travel).coerceIn(0f, 1f)
                 }
-                .padding(bottom = system.calculateBottomPadding() + 12.dp),
+                .padding(bottom = system.calculateBottomPadding() + 12.dp)
+                .then(adapt),
         )
+        }
         }
     }
 }
@@ -1593,39 +1644,135 @@ private fun SectionContent(destination: Destination, screens: Screens) {
 
 /** Phones: a floating glass capsule with one highlight that slides between sections. */
 @Composable
-private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination) -> Unit, familyDot: Boolean, settingsDot: Boolean, modifier: Modifier = Modifier) {
+private fun FloatingNavigationBar(
+    indicator: () -> Float,
+    onSelect: (Destination) -> Unit,
+    familyDot: Boolean,
+    settingsDot: Boolean,
+    modifier: Modifier = Modifier,
+    /** Clear Glass with Apple's motion (21 Nov): 0 the whole bar .. 1 shrunk to the section you're on, Search beside it. */
+    shrink: () -> Float = { 0f },
+    /** A tap on the shrunk bar brings it back. */
+    onExpand: () -> Unit = {},
+    onSearch: (() -> Unit)? = null,
+    /** Clear Glass with Apple's motion: dragging along the bar moves the chosen-section droplet with the finger. */
+    dragTabs: Boolean = false,
+) {
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
     val settings = LocalGlassSettings.current
     val flexible = theme.isLiquidGlass && settings.blurEnabled && !settings.reduceMotion
+    val count = Destination.entries.size
     BoxWithConstraints(
         modifier
             .widthIn(max = 480.dp)
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .glassChrome(shape)
-            .padding(6.dp),
+            .padding(horizontal = 16.dp),
     ) {
-        val itemWidth = maxWidth / Destination.entries.size
+        val full = maxWidth
+        val itemWidth = (full - 12.dp) / count
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val itemPx = with(density) { itemWidth.toPx() }
+        val fullPx = with(density) { full.toPx() }
+        val compactPx = with(density) { (itemWidth + 12.dp).toPx() }
+        // Dragging the droplet (Apple's motion): where it is, in pixels from the left, while a finger moves it.
+        var dragX by remember { mutableStateOf<Float?>(null) }
+        val position: () -> Float = { dragX?.let { it / itemPx } ?: indicator() }
+        val shrunk by remember { androidx.compose.runtime.derivedStateOf { shrink() > 0.01f } }
         Box(
             Modifier
-                .offset { IntOffset((itemWidth * indicator()).roundToPx(), 0) }
-                .size(itemWidth, NAV_ITEM_HEIGHT)
-                .then(if (flexible) Modifier.graphicsLayer {
-                    val fraction = indicator() % 1f
-                    val stretch = 1f - kotlin.math.abs(2f * fraction - 1f)
-                    scaleX = 1f + 0.10f * stretch
-                    scaleY = 1f - 0.08f * stretch
-                } else Modifier)
-                .then(
-                    // Liquid Glass (21 Nov): the selected tab is a small droplet of brighter glass, as on iOS.
-                    if (theme.isLiquidGlass) Modifier.liquidGlassDroplet(shape)
-                    else Modifier.clip(shape).background(theme.accentSurface).frostedEdge(shape),
-                ),
-        )
-        Row(Modifier.selectableGroup()) {
-            Destination.entries.forEach { destination ->
-                NavItem(destination, indicator(), { onSelect(destination) }, Modifier.weight(1f), dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS))
+                // The bar narrows from its full width to one section's pill (read while laying out, so shrinking
+                // never composes it again).
+                .layout { measurable, constraints ->
+                    val width = (fullPx + (compactPx - fullPx) * shrink()).roundToInt().coerceIn(0, constraints.maxWidth)
+                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                }
+                .glassChrome(shape)
+                .padding(6.dp),
+        ) {
+            // The whole bar, kept at full width and clipped by the glass as it narrows, fading out.
+            Box(
+                Modifier
+                    .wrapContentWidth(Alignment.Start, unbounded = true)
+                    .requiredWidth(full - 12.dp)
+                    .graphicsLayer { alpha = 1f - shrink() }
+                    .then(
+                        if (dragTabs) Modifier.pointerInput(itemPx) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { start -> dragX = (start.x - itemPx / 2f).coerceIn(0f, itemPx * (count - 1)) },
+                                onDragEnd = {
+                                    val at = ((dragX ?: 0f) / itemPx + 0.5f).toInt().coerceIn(0, count - 1)
+                                    dragX = null
+                                    // Let go on the section already open: nothing (a tap there scrolls to the top).
+                                    if (at != indicator().roundToInt()) onSelect(Destination.entries[at])
+                                },
+                                onDragCancel = { dragX = null },
+                            ) { change, amount ->
+                                change.consume()
+                                dragX = ((dragX ?: 0f) + amount).coerceIn(0f, itemPx * (count - 1))
+                            }
+                        } else Modifier,
+                    ),
+            ) {
+                Box(
+                    Modifier
+                        .offset { IntOffset((itemPx * position()).roundToInt(), 0) }
+                        .size(itemWidth, NAV_ITEM_HEIGHT)
+                        .then(if (flexible) Modifier.graphicsLayer {
+                            if (dragX != null) {
+                                // Held by the finger: the droplet lifts and grows a little, as on iOS.
+                                scaleX = 1.12f
+                                scaleY = 1.12f
+                            } else {
+                                val fraction = indicator() % 1f
+                                val stretch = 1f - kotlin.math.abs(2f * fraction - 1f)
+                                scaleX = 1f + 0.10f * stretch
+                                scaleY = 1f - 0.08f * stretch
+                            }
+                        } else Modifier)
+                        .then(
+                            // Liquid Glass (21 Nov): the selected tab is a small droplet of brighter glass, as on iOS.
+                            if (theme.isLiquidGlass) Modifier.liquidGlassDroplet(shape)
+                            else Modifier.clip(shape).background(theme.accentSurface).frostedEdge(shape),
+                        ),
+                )
+                Row(Modifier.selectableGroup()) {
+                    Destination.entries.forEach { destination ->
+                        NavItem(destination, position(), { onSelect(destination) }, Modifier.weight(1f), dot = (familyDot && destination == Destination.FAMILY) || (settingsDot && destination == Destination.SETTINGS))
+                    }
+                }
+            }
+            // Shrunk (Apple's motion): only the section you're on, in its droplet; a tap brings the whole bar back.
+            if (shrunk) {
+                val current = Destination.entries[indicator().roundToInt().coerceIn(0, count - 1)]
+                Box(Modifier.size(itemWidth, NAV_ITEM_HEIGHT).graphicsLayer { alpha = shrink() }) {
+                    Box(Modifier.matchParentSize().liquidGlassDroplet(shape))
+                    NavItem(current, current.ordinal.toFloat(), onExpand, Modifier.fillMaxSize())
+                }
+            }
+        }
+        // Search in its own glass circle at the other end (iOS 26), while the bar is shrunk.
+        if (shrunk && onSearch != null) {
+            val side = NAV_ITEM_HEIGHT + 12.dp
+            val press = remember { MutableInteractionSource() }
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .graphicsLayer {
+                        val k = shrink()
+                        alpha = k
+                        scaleX = 0.6f + 0.4f * k
+                        scaleY = 0.6f + 0.4f * k
+                    }
+                    .iosSwell(press)
+                    .size(side)
+                    .glassChrome(androidx.compose.foundation.shape.CircleShape)
+                    .liquidGlassTouch(press)
+                    .clickable(interactionSource = press, indication = LocalIndication.current, role = Role.Button, onClickLabel = "Search", onClick = onSearch),
+                contentAlignment = Alignment.Center,
+            ) {
+                com.deepak.photovault.designsystem.DepthIcon(androidx.compose.material.icons.Icons.Rounded.Search, "Search", theme.onGlass, Modifier.size(26.dp))
             }
         }
     }

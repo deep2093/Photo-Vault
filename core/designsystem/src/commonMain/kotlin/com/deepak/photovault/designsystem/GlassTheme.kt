@@ -19,6 +19,8 @@ enum class GlassThemeId {
     PEARL_DAY, PEARL_NIGHT,
     /** Liquid Glass (20 Nov): Deepak's own iOS-style theme, Light and Dark. */
     LIQUID_GLASS_LIGHT, LIQUID_GLASS_DARK,
+    /** Clear Glass (21 Nov): a copy of iOS 26's clear Liquid Glass, Light and Dark. */
+    CLEAR_GLASS_LIGHT, CLEAR_GLASS_DARK,
 }
 
 /**
@@ -106,12 +108,24 @@ data class GlassTheme(
      * of the band to the other. Null for the other themes, whose pages stay calm.
      */
     val lustre: List<Color>? = null,
+    /** Liquid Glass and Clear Glass: how the lens keeps words readable without frost ([GlassInk]). Null elsewhere. */
+    val glassInk: GlassInk? = null,
+    /** Clear Glass: the blue of main buttons and chosen chips (iOS's prominent glass), with white words. Null elsewhere. */
+    val prominent: Color? = null,
 ) {
     /** The pale-background version: white text on a pale page can only reach 3:1 on its glass cards, so tests allow that for it. */
     val isPaleVariant: Boolean get() = !isDark
 
+    /** Clear lens glass that never blurs: Liquid Glass and Clear Glass (its iOS copy) share all of it. */
     val isLiquidGlass: Boolean
-        get() = id == GlassThemeId.LIQUID_GLASS_LIGHT || id == GlassThemeId.LIQUID_GLASS_DARK
+        get() = id == GlassThemeId.LIQUID_GLASS_LIGHT || id == GlassThemeId.LIQUID_GLASS_DARK || isClearGlass
+
+    /**
+     * Clear Glass (21 Nov): the copy of iOS. On top of Liquid Glass: bars that turn dark over dark photos and light over
+     * light ones, light that moves as the phone tilts, Clear or Tinted, the scroll edge fade, iOS colours and blue.
+     */
+    val isClearGlass: Boolean
+        get() = id == GlassThemeId.CLEAR_GLASS_LIGHT || id == GlassThemeId.CLEAR_GLASS_DARK
 }
 
 /** What a selected pill, button or tick is filled with: the frosted film where the theme has one, else the accent. */
@@ -335,6 +349,7 @@ object GlassThemes {
         blurRadius = 0.dp,
         rimWidth = 0.75.dp,
         rimStrength = 0.75f,
+        glassInk = GlassInk.LIQUID,
     )
 
     val LiquidGlassDark: GlassTheme = LiquidGlassLight.copy(
@@ -352,6 +367,54 @@ object GlassThemes {
         onAccent = White,
         accentFill = Color(0x1FFFFFFF),
         panelFill = Color(0x15FFFFFF),
+    )
+
+    // ---- Clear Glass (21 Nov, Deepak: "make a new theme which is a total copy of iOS clear glass, including the
+    // toggle and everything") ----
+    // iOS 26's clear Liquid Glass: white and black pages like iOS, black and white words, iOS blue for the chosen tab
+    // and main buttons. It is Liquid Glass (the lens, never blurred) plus what iOS adds: bars that turn dark over dark
+    // photos and light over light ones, light that moves as the phone tilts, the Clear or Tinted choice (iOS 26.1), the
+    // scroll edge fade, and Apple's motion with Settings > About > Test: iOS motion.
+
+    val ClearGlassLight: GlassTheme = LiquidGlassLight.copy(
+        id = GlassThemeId.CLEAR_GLASS_LIGHT,
+        displayName = "Clear Glass Light",
+        bestFor = "iOS clear glass on white, blue for what's chosen",
+        wallpaper = listOf(Color(0xFFFFFFFF), Color(0xFFF9F9FB), Color(0xFFF2F2F7)),
+        glows = emptyList(),
+        glassTint = Color(0xA6FFFFFF),
+        glassFallback = Color(0xFFF2F2F7),
+        glassRim = White,
+        onGlass = Color(0xFF000000),
+        // iOS greys its secondary words with transparency; solid here, dark enough to read through the clear glass.
+        onGlassSecondary = Color(0xFF242428),
+        onWallpaper = Color(0xFF000000),
+        // iOS blue (systemBlue): the chosen tab, ticks and progress.
+        accent = Color(0xFF007AFF),
+        onAccent = Color(0xFF007AFF),
+        accentFill = Color(0xEBFFFFFF),
+        panelFill = Color(0xB3FFFFFF),
+        glassInk = GlassInk.CLEAR,
+        // A shade deeper than systemBlue, so white words on it read at 4.5:1.
+        prominent = Color(0xFF0068D6),
+    )
+
+    val ClearGlassDark: GlassTheme = ClearGlassLight.copy(
+        id = GlassThemeId.CLEAR_GLASS_DARK,
+        displayName = "Clear Glass Dark",
+        bestFor = "iOS clear glass on black, blue for what's chosen",
+        isDark = true,
+        wallpaper = listOf(Color(0xFF000000), Color(0xFF0A0A0C), Color(0xFF1C1C1E)),
+        glassTint = Color(0xB31C1C1E),
+        glassFallback = Color(0xFF1C1C1E),
+        onGlass = White,
+        onGlassSecondary = Color(0xFFEBEBF5),
+        onWallpaper = White,
+        accent = White,
+        // iOS blue for dark mode, on the chosen tab's darker glass.
+        onAccent = Color(0xFF0A84FF),
+        accentFill = Color(0xF72C2C2E),
+        panelFill = Color(0x2EFFFFFF),
     )
 
     // ---- Dark themes ----
@@ -422,7 +485,7 @@ object GlassThemes {
         ),
     ).copy(id = GlassThemeId.VIVID_DAY, displayName = "Prism Day", bestFor = "Pastel colours from your photos")
 
-    /** The six themes, each with its day and night (18 Nov; Pearl and Liquid Glass added 20 Nov). Liquid first: everyone starts on it. */
+    /** The seven themes, each with its day and night (18 Nov; Pearl and Liquid Glass added 20 Nov, Clear Glass 21 Nov). Liquid first: everyone starts on it. */
     val families: List<ThemeFamily> = listOf(
         // 18 Nov (Deepak: "name them after what they look like"): new names only; the saved keys stay, so everyone keeps
         // the theme they chose.
@@ -432,6 +495,7 @@ object GlassThemes {
         ThemeFamily("PHOTO", "Gallery", "Warm paper by day, graphite at night, one soft light from your photos", PhotoDay, AdaptiveMidnight),
         ThemeFamily("VIVID", "Prism", "Colours from your photos: pastels by day, deep jewels at night", VividDay, AdaptiveVivid),
         ThemeFamily("LIQUID_GLASS", "Liquid Glass", "Clear glass like iOS, never blurred: its edges bend the photos like water droplets. Light by day, smoked at night", LiquidGlassLight, LiquidGlassDark),
+        ThemeFamily("CLEAR_GLASS", "Clear Glass", "A copy of iOS 26's clear glass: bars that turn dark over dark photos and light over light, light that moves as you tilt the phone, iOS blue. Clear or Tinted", ClearGlassLight, ClearGlassDark),
     )
 
     /** The theme a saved id belongs to, whether it was saved as the day or the night version; else Liquid. */

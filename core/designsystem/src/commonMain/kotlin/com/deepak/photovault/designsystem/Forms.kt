@@ -229,7 +229,9 @@ fun GlassSheet(
 ) {
     val theme = LocalGlassTheme.current
     val still = LocalGlassSettings.current.reduceMotion
-    val shape = RoundedCornerShape(32.dp)
+    // Clear Glass (21 Nov, like iOS 26): the sheet's corners follow the screen's own (it sits 10 dp in from the edge).
+    val corner = if (theme.isClearGlass) screenCornerRadius() - 10.dp else 0.dp
+    val shape = RoundedCornerShape(if (corner >= 28.dp) corner else 32.dp)
     val shown = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (still) 1f else 0f) }
     androidx.compose.runtime.LaunchedEffect(Unit) { shown.animateTo(1f, androidx.compose.animation.core.tween(280, easing = PageEasing)) }
     // Pulling the top of the sheet down closes it; let go early and it springs back.
@@ -340,3 +342,7 @@ fun StatTile(value: String, label: String, modifier: Modifier = Modifier, strong
         )
     }
 }
+
+/** The screen's own corner radius (Android 12+ reports it), or 0 dp when unknown. Clear Glass fits its sheets to it. */
+@Composable
+internal expect fun screenCornerRadius(): androidx.compose.ui.unit.Dp

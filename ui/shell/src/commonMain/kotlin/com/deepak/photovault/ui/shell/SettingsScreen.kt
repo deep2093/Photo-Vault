@@ -577,6 +577,22 @@ private fun ThemeGrid(state: ShellState) {
         { i -> state.updateAppearance { it.copy(mode = modes[i].name) } },
         Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
     )
+    // Clear Glass (21 Nov): iOS 26.1's choice, Clear or Tinted.
+    if (chosen.day.isClearGlass) {
+        com.deepak.photovault.designsystem.GlassSegmented(
+            listOf("Clear", "Tinted"),
+            if (state.appearance.glassTinted) 1 else 0,
+            { i -> state.updateAppearance { it.copy(glassTinted = i == 1) } },
+            Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+        )
+        Text(
+            "Tinted makes the glass less see-through, with more contrast, as on iOS 26.1.",
+            color = theme.onGlassSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
 }
 
 /** Settings' one-line summary of the look: the theme, then As the phone, Day or Night. */
@@ -759,6 +775,16 @@ private fun AboutSection(state: ShellState) {
             description = "A small counter at the top of the screen: how many frames came late while you scroll, pinch " +
                 "and open photos. Tap it to count again. Turn it off when you're done.",
             icon = androidx.compose.material.icons.Icons.Rounded.Speed,
+        )
+        // 21 Nov (Deepak: "look for Apple-style animations with that theme and put in About a toggle for experiment").
+        GlassSwitchRow(
+            "Test: iOS motion (Clear Glass)",
+            state.appearance.iosMotionTest,
+            { on -> state.updateAppearance { it.copy(iosMotionTest = on) } },
+            description = "With the Clear Glass theme: the bottom bar shrinks to a small pill while you scroll down, with " +
+                "Search beside it; drag along the bar to move between sections; buttons swell and bounce when pressed; " +
+                "menus grow out of their button; switch knobs turn to glass while held. Off: it moves like the other themes.",
+            icon = Icons.Rounded.AutoAwesome,
         )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")

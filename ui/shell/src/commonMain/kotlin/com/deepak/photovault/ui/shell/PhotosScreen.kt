@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.liquidGlassTouch
+import com.deepak.photovault.designsystem.iosSwell
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.runtime.Composable
@@ -140,15 +141,22 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
         state = state,
         gallery = gallery,
         actions = actions,
-        floatingStartActions = { androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { ViewButtons(gallery) } },
+        // Only when the pill's ink differs from the page's: otherwise the pill keeps the theme it is given (Clear Glass
+        // gives a pill over dark photos its dark look, 21 Nov).
+        floatingStartActions = {
+            if (pillTheme === baseTheme) ViewButtons(gallery)
+            else androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { ViewButtons(gallery) }
+        },
         floatingActions = {
-            androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) {
+            val buttons: @Composable () -> Unit = {
                 // 18 Nov (Deepak: "move it to the top, in line with the other icons"): this device, or all my backups.
                 if (state.appearance.mirrorTest) BackupsSwitch(state)
                 // Memories (8 Nov): a button with a dot on days with On this day photos, instead of a row on top.
                 MemoriesButton(state, gallery)
                 SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
             }
+            if (pillTheme === baseTheme) buttons()
+            else androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { buttons() }
         },
     ) { padding ->
         when {
@@ -309,6 +317,7 @@ private fun ViewButtons(gallery: GalleryState) {
             )
             Box(
                 Modifier
+                    .then(if (press != null) Modifier.iosSwell(press) else Modifier)
                     // The same size in every theme (21 Nov, Deepak: Liquid Glass's were bigger than the others').
                     .heightIn(min = 30.dp)
                     .clip(RoundedCornerShape(percent = 50))
@@ -345,6 +354,7 @@ internal fun SmallPillButton(icon: androidx.compose.ui.graphics.vector.ImageVect
     val press = if (theme.isLiquidGlass) remember { MutableInteractionSource() } else null
     Box(
         Modifier
+            .then(if (press != null) Modifier.iosSwell(press) else Modifier)
             .size(32.dp)
             .clip(androidx.compose.foundation.shape.CircleShape)
             .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)

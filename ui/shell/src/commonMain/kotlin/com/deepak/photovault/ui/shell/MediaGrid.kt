@@ -516,25 +516,30 @@ fun MediaGrid(
         }
 
         androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides gridLens) {
-        if (continuous) FloatingDate(
-            grid = gridState,
-            photos = gridFirst,
-            headerItems = headerItems,
-            places = state.places.photos,
-            color = dateColor,
-            modifier = Modifier.align(Alignment.TopStart).padding(
-                // Calm glass (18 Nov): on its own glass pill, its left edge in line with the Years / Months / All pill
-                // above (Deepak: "isn't aligned"). Before: plain text, moved in to line up with "N selected" (16 Nov).
-                start = (if (com.deepak.photovault.designsystem.GlassFinish.CALM) FLOATING_PILL_START else if (state.selecting) 30.dp else 24.dp) +
-                    contentPadding.calculateStartPadding(LayoutDirection.Ltr),
-                top = (contentPadding.calculateTopPadding() - (if (com.deepak.photovault.designsystem.GlassFinish.CALM) 28.dp else 30.dp)).coerceAtLeast(0.dp),
-            ),
-        )
-        if (topButton) BackToTopButton(
-            grid = gridState,
-            onClick = { topTaps++ },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp),
-        )
+        // Clear Glass (21 Nov): the date and Back to top turn dark over dark photos and light over light ones too.
+        if (continuous) com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
+            FloatingDate(
+                grid = gridState,
+                photos = gridFirst,
+                headerItems = headerItems,
+                places = state.places.photos,
+                color = dateColor,
+                modifier = Modifier.align(Alignment.TopStart).padding(
+                    // Calm glass (18 Nov): on its own glass pill, its left edge in line with the Years / Months / All pill
+                    // above (Deepak: "isn't aligned"). Before: plain text, moved in to line up with "N selected" (16 Nov).
+                    start = (if (com.deepak.photovault.designsystem.GlassFinish.CALM) FLOATING_PILL_START else if (state.selecting) 30.dp else 24.dp) +
+                        contentPadding.calculateStartPadding(LayoutDirection.Ltr),
+                    top = (contentPadding.calculateTopPadding() - (if (com.deepak.photovault.designsystem.GlassFinish.CALM) 28.dp else 30.dp)).coerceAtLeast(0.dp),
+                ).then(adapt),
+            )
+        }
+        if (topButton) com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
+            BackToTopButton(
+                grid = gridState,
+                onClick = { topTaps++ },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp).then(adapt),
+            )
+        }
         }
         if (parts != null) {
             // Mixed sizes: the slider counts grid items, and names the day of the first photo in each.

@@ -3,14 +3,15 @@ package com.deepak.photovault.designsystem
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.drawscope.DrawScope
 
 internal actual fun liquidGlassEdgeSupported(): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && EdgeShader.ready()
 
-internal actual fun DrawScope.drawLiquidGlassEdge(radius: Float, dark: Boolean) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) EdgeShader.draw(this, radius, dark)
+internal actual fun DrawScope.drawLiquidGlassEdge(radius: Float, darkness: Float, light: Offset) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) EdgeShader.draw(this, radius, darkness, light)
 }
 
 /**
@@ -30,14 +31,15 @@ private object EdgeShader {
 
     fun ready(): Boolean = shader != null
 
-    fun draw(scope: DrawScope, radius: Float, dark: Boolean) {
+    fun draw(scope: DrawScope, radius: Float, darkness: Float, light: Offset) {
         val s = shader ?: return
         val b = brush ?: return
         if (scope.size.minDimension <= 1f) return
         s.setFloatUniform("size", scope.size.width, scope.size.height)
         s.setFloatUniform("radius", radius)
         s.setFloatUniform("dp", scope.density)
-        s.setFloatUniform("darkMode", if (dark) 1f else 0f)
+        s.setFloatUniform("darkMode", darkness)
+        s.setFloatUniform("lightDir", light.x, light.y)
         scope.drawRect(b)
     }
 }

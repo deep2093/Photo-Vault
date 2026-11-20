@@ -59,6 +59,7 @@ import androidx.compose.foundation.layout.imePadding
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.glassChrome
+import com.deepak.photovault.designsystem.AdaptiveGlass
 import dev.chrisbanes.haze.hazeSource
 
 /**
@@ -149,13 +150,26 @@ fun GlassScreen(
         }
         // A soft fade behind the status bar, so the clock and icons stay readable over scrolling photos.
         val theme = LocalGlassTheme.current
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(insets.calculateTopPadding() + 20.dp)
-                .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
-        )
+        if (theme.isClearGlass && LocalGlassSettings.current.blurEnabled) {
+            // Clear Glass (21 Nov, iOS's scroll edge effect, without blur): the photos fade toward the page's colour under
+            // the status bar and the top pills, so they read over anything.
+            val wall = theme.wallpaper.first()
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(insets.calculateTopPadding() + barRoom + 4.dp)
+                    .background(Brush.verticalGradient(0f to wall.copy(alpha = 0.85f), 0.55f to wall.copy(alpha = 0.45f), 1f to wall.copy(alpha = 0f))),
+            )
+        } else {
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(insets.calculateTopPadding() + 20.dp)
+                    .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
+            )
+        }
         // Only the chrome gets the lens, never the content: anything inside the recorded content would draw itself.
         CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
         val barPadding = Modifier.padding(
@@ -173,20 +187,26 @@ fun GlassScreen(
             exit = androidx.compose.animation.slideOutVertically(com.deepak.photovault.designsystem.motionSpec(220)) { it } + androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(220)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = systemBottom + 12.dp),
         ) {
-            lastBottom?.let { actions -> FloatingPill(Modifier, content = actions) }
+            lastBottom?.let { actions -> AdaptiveGlass { adapt -> FloatingPill(adapt, content = actions) } }
         }
         if (title == null) {
             // The top pills (Years / Months / All, Search, an album's back button) always stay in view (24 Oct);
             // only the navigation bar tucks away while scrolling.
             val pillMotion = Modifier
+            // Clear Glass: each pill turns dark over dark photos and light over light ones (iOS, 21 Nov).
             if (floatingStartActions != null) {
-                FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding), compact = true, content = floatingStartActions)
+                AdaptiveGlass { adapt ->
+                    FloatingPill(Modifier.align(Alignment.TopStart).then(pillMotion).then(barPadding).then(adapt), compact = true, content = floatingStartActions)
+                }
             }
             if (floatingActions != null) {
-                FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding), compact = true, content = floatingActions)
+                AdaptiveGlass { adapt ->
+                    FloatingPill(Modifier.align(Alignment.TopEnd).then(pillMotion).then(barPadding).then(adapt), compact = true, content = floatingActions)
+                }
             }
         } else {
         // With a bottom bar, the top bar is only the count and Cancel; it doesn't slide away.
+        AdaptiveGlass { adapt ->
         GlassTopBar(
             title = title,
             subtitle = subtitle,
@@ -203,8 +223,10 @@ fun GlassScreen(
                     start = insets.calculateStartPadding(LayoutDirection.Ltr) + 12.dp,
                     end = insets.calculateEndPadding(LayoutDirection.Ltr) + 12.dp,
                     top = insets.calculateTopPadding() + 8.dp,
-                ),
+                )
+                .then(adapt),
         )
+        }
         }
         if (overlay != null) overlay.invoke(this@Box)
         }

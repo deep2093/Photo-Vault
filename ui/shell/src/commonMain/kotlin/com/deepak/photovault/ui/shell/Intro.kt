@@ -100,11 +100,12 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-21-2"
+    const val ID = "2026-11-21-3"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "The date is glass too", "In Liquid Glass the date that shows while you scroll Photos, and Back to top, are now clear glass over your photos, and still easy to read."),
-        Change(ChangeKind.FIXED, "Buttons at the top the right size", "In Liquid Glass, Years, Months, All and the small round buttons beside them are the same size as in the other themes again."),
+        Change(ChangeKind.NEW, "Clear Glass theme", "A copy of iOS 26's clear glass: white or black pages, iOS blue for what's chosen, and bars that turn dark over dark photos and light over light ones. The shine on the glass moves as you tilt the phone. Settings > Appearance."),
+        Change(ChangeKind.NEW, "Clear or Tinted", "With Clear Glass you can pick Clear or Tinted, which is less see-through with more contrast, as on iOS 26.1."),
+        Change(ChangeKind.NEW, "Test: iOS motion", "Settings > About, with Clear Glass: the bottom bar shrinks to a small pill while you scroll, with Search beside it; drag along the bar to change section; buttons swell and bounce; menus grow out of their button; switch knobs turn to glass while held."),
     )
 }
 

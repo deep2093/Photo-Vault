@@ -997,6 +997,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         railFoldTest = prefs.getBoolean("rail_fold_test", false),
         railOpen = prefs.getBoolean("rail_open", false),
         frameMeterTest = prefs.getBoolean("frame_meter_test", false),
+        glassTinted = prefs.getBoolean("glass_tinted", false),
+        iosMotionTest = prefs.getBoolean("ios_motion_test", false),
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
@@ -1039,6 +1041,8 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("rail_fold_test", settings.railFoldTest)
             .putBoolean("rail_open", settings.railOpen)
             .putBoolean("frame_meter_test", settings.frameMeterTest)
+            .putBoolean("glass_tinted", settings.glassTinted)
+            .putBoolean("ios_motion_test", settings.iosMotionTest)
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putInt("blur_step", settings.blurStep)

@@ -1,6 +1,7 @@
 package com.deepak.photovault.designsystem
 
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -94,13 +95,18 @@ fun GlassButton(
     val haptics = rememberHaptics()
     val shape = Capsule
     val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    // Clear Glass with Apple's motion (21 Nov): the button swells and bounces instead of dipping.
+    val swell = theme.isClearGlass && LocalGlassSettings.current.iosMotion
+    val prominent = theme.prominent
     Row(
         modifier
-            .pressDip(press)
+            .then(if (swell) Modifier.iosSwell(press) else Modifier.pressDip(press))
             .heightIn(min = MinTouchTarget)
             .then(
                 when {
                     danger -> Modifier.clip(shape).background(DangerColor).glassDepth().glassRim(shape)
+                    // Clear Glass (iOS's prominent glass): the main button is blue glass with white words.
+                    primary && prominent != null -> Modifier.clip(shape).background(prominent).glassRim(shape)
                     // Calm glass (18 Nov, Deepak: "Move to bin isn't correct in any theme"): the main button is solid in
                     // the theme's accent colour, not a soft shade that looked greyed out.
                     primary && GlassFinish.CALM -> Modifier.clip(shape).background(theme.accent)
@@ -117,7 +123,7 @@ fun GlassButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (centered) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
     ) {
-        val fg = if (danger) Color.White else if (primary && GlassFinish.CALM) readableOn(theme.accent) else if (primary) theme.onAccent else theme.onGlass
+        val fg = if (danger || (primary && prominent != null)) Color.White else if (primary && GlassFinish.CALM) readableOn(theme.accent) else if (primary) theme.onAccent else theme.onGlass
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
         Text(text, color = fg, style = MaterialTheme.typography.labelLarge)
     }
@@ -130,6 +136,7 @@ fun GlassIconButton(icon: ImageVector, contentDescription: String, onClick: () -
     val press = if (theme.isLiquidGlass) remember { androidx.compose.foundation.interaction.MutableInteractionSource() } else null
     Box(
         modifier
+            .then(if (press != null) Modifier.iosSwell(press) else Modifier)
             .size(MinTouchTarget)
             .clip(CircleShape)
             .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
@@ -151,7 +158,8 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
     val haptics = rememberHaptics()
     // 10 Nov: the theme's accent, like GlassSegmented's thumb, so the choice shows in every theme (the soft accent
     // surface was hard to see in some).
-    val background by animateColorAsState(if (selected) theme.accent else Color.Transparent, motionSpec())
+    val chosenFill = theme.prominent ?: theme.accent
+    val background by animateColorAsState(if (selected) chosenFill else Color.Transparent, motionSpec())
     Box(
         modifier
             .heightIn(min = MinTouchTarget)
@@ -165,7 +173,7 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) readableOn(theme.accent) else theme.onGlass, style = MaterialTheme.typography.labelLarge)
+        Text(label, color = if (selected) (if (theme.prominent != null) Color.White else readableOn(theme.accent)) else theme.onGlass, style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -197,7 +205,9 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
             placed = true
         }
     }
-    val thumbText = readableOn(theme.accent)
+    // Clear Glass (iOS): the thumb is light glass (white by day, grey at night) under the usual words, not blue.
+    val thumbFill = if (theme.isClearGlass) theme.accentSurface else theme.accent
+    val thumbText = if (theme.isClearGlass) theme.onGlass else readableOn(theme.accent)
     Box(
         modifier
             .fillMaxWidth()
@@ -208,7 +218,7 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
             .drawBehind {
                 if (segment > 0) {
                     drawRoundRect(
-                        color = theme.accent,
+                        color = thumbFill,
                         topLeft = androidx.compose.ui.geometry.Offset(if (placed) slide.value else target.toFloat(), 0f),
                         size = androidx.compose.ui.geometry.Size(segment.toFloat(), size.height),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
@@ -268,15 +278,22 @@ fun GlassSwitchRow(
 ) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
+    val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(modifier.fillMaxWidth()) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = MinTouchTarget)
-                .toggleable(value = checked, role = Role.Switch, onValueChange = { on ->
-                    haptics.toggle(on)
-                    onCheckedChange(on)
-                })
+                .toggleable(
+                    value = checked,
+                    interactionSource = press,
+                    indication = androidx.compose.foundation.LocalIndication.current,
+                    role = Role.Switch,
+                    onValueChange = { on ->
+                        haptics.toggle(on)
+                        onCheckedChange(on)
+                    },
+                )
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -298,7 +315,7 @@ fun GlassSwitchRow(
             }
             Spacer(Modifier.width(12.dp))
             // The row handles the click, so the switch itself is not separately focusable.
-            GlassToggle(checked)
+            GlassToggle(checked, press)
         }
         if (warning != null && checked) WarningNote(warning)
     }
@@ -309,9 +326,14 @@ fun GlassSwitchRow(
  * colour. The row around it handles the touch.
  */
 @Composable
-private fun GlassToggle(checked: Boolean) {
+private fun GlassToggle(checked: Boolean, press: androidx.compose.foundation.interaction.InteractionSource) {
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
+    // Clear Glass with Apple's motion (21 Nov): while pressed the knob stretches into a clear glass droplet, as iOS's does.
+    val settings = LocalGlassSettings.current
+    val droplet = theme.isClearGlass && settings.iosMotion && !settings.reduceMotion
+    val pressed by press.collectIsPressedAsState()
+    val held by animateFloatAsState(if (droplet && pressed) 1f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 500f), label = "knob glass")
     val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, motionSpec(180), label = "knob")
     // Easier to see (29 Oct): off is a darker track with a clear edge, on is a bright track. The knob is solid: a
     // see-through knob let its shadow show through.
@@ -330,13 +352,17 @@ private fun GlassToggle(checked: Boolean) {
             .border(1.5.dp, edge.copy(alpha = if (checked) 0.9f else 0.6f), shape)
             .padding(3.dp),
     ) {
+        val knob = if (checked || !dark) Color.White else Color(0xFFE6E8EE)
         Box(
             Modifier
-                .offset(x = knobX)
-                .size(24.dp)
+                // The droplet grows wider than the knob and stays centred on it.
+                .offset(x = knobX - 5.dp * held)
+                .size(width = 24.dp + 10.dp * held, height = 24.dp)
+                .graphicsLayer { scaleX = 1f + 0.12f * held; scaleY = 1f + 0.12f * held }
                 .clip(CircleShape)
-                .background(if (checked || !dark) Color.White else Color(0xFFE6E8EE))
-                .then(if (dark) Modifier else Modifier.border(1.dp, ink.copy(alpha = 0.25f), CircleShape)),
+                .background(knob.copy(alpha = 1f - 0.8f * held))
+                .then(if (held > 0.01f) Modifier.liquidGlassEdge(CircleShape) else Modifier)
+                .then(if (dark || held > 0.5f) Modifier else Modifier.border(1.dp, ink.copy(alpha = 0.25f), CircleShape)),
         )
     }
 }

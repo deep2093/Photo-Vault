@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -61,6 +62,17 @@ internal fun BoxScope.GlassMenuLayer(
         theme.glassFallback.copy(alpha = if (solid) 0.97f else 0.82f),
         shape,
     )
+    // Clear Glass with Apple's motion (21 Nov, a test in About): the menu grows out of the button that opened it.
+    val glass = com.deepak.photovault.designsystem.LocalGlassSettings.current
+    val grow = if (theme.isClearGlass && glass.iosMotion && !glass.reduceMotion) {
+        val g = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            g.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 420f))
+        }
+        g
+    } else null
+    // Clear Glass: the menu turns dark over dark photos and light over light ones, like the bars.
+    com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
     Column(
         Modifier
             .align(if (bottom != null) Alignment.BottomEnd else Alignment.TopEnd)
@@ -75,11 +87,23 @@ internal fun BoxScope.GlassMenuLayer(
                 },
             )
             .widthIn(min = 150.dp, max = 220.dp)
+            .then(
+                if (grow != null) Modifier.graphicsLayer {
+                    val k = grow.value
+                    scaleX = 0.3f + 0.7f * k
+                    scaleY = 0.3f + 0.7f * k
+                    alpha = (k * 2.5f).coerceAtMost(1f)
+                    // From the corner nearest the button that opened it.
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, if (bottom != null) 1f else 0f)
+                } else Modifier,
+            )
+            .then(adapt)
             .glassChrome(shape, elevation = 12.dp)
             .then(legibilityTint)
             .padding(vertical = 4.dp),
         content = content,
     )
+    }
 }
 
 /** One row of a [GlassMenu]: icon, label and, if wanted, something at the end (a tick or an arrow). */

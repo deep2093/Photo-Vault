@@ -76,6 +76,13 @@ data class AppearanceSettings(
     val railOpen: Boolean = false,
     /** Test (20 Nov, Settings > About): the smoothness meter at the top of the screen (Phase 12 jank checks). */
     val frameMeterTest: Boolean = false,
+    /** Clear Glass (21 Nov): Tinted instead of Clear, like iOS 26.1's choice. */
+    val glassTinted: Boolean = false,
+    /**
+     * Test (21 Nov, Settings > About): Apple's motion in Clear Glass: the bottom bar shrinking while scrolling with Search
+     * beside it, presses that swell and bounce, menus growing out of their button, glass switch knobs, dragging the tab.
+     */
+    val iosMotionTest: Boolean = false,
     /** The person picked a theme themselves. Until then they follow the default (Liquid Day since 29 Oct). */
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
@@ -692,6 +699,8 @@ class ShellState(private val store: AppearanceStore) {
         // Lens glass (thick-glass look, Android 13+) is what the Blur slider's 0 setting means (29 Oct).
         lensEnabled = appearance.blurStep == 0,
         blurScale = BLUR_SCALES[appearance.blurStep.coerceIn(0, 4)],
+        tinted = appearance.glassTinted,
+        iosMotion = appearance.iosMotionTest,
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */

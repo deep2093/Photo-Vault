@@ -82,7 +82,8 @@ class ThemeContrastTest {
 
     @Test
     fun liquidGlassFallbackInkStaysReadableOverBlackAndWhitePhotos() {
-        for (theme in listOf(GlassThemes.LiquidGlassLight, GlassThemes.LiquidGlassDark)) {
+        // Liquid Glass and Clear Glass (21 Nov).
+        for (theme in GlassThemes.all.filter { it.isLiquidGlass }) {
             for (photo in listOf(Color.Black, Color.White)) {
                 val glass = theme.glassTint.compositeOver(photo)
                 for (ink in listOf(theme.onGlass, theme.onGlassSecondary)) {
@@ -103,28 +104,63 @@ class ThemeContrastTest {
             Color(0xFF0B1E3F), Color(0xFFFFE9A8), Color(0xFF1B4D2B),
         )
         val bad = mutableListOf<String>()
-        for (theme in listOf(GlassThemes.LiquidGlassLight, GlassThemes.LiquidGlassDark)) {
+        // Liquid Glass and Clear Glass (21 Nov), each with its own ink rule; Clear Glass also Tinted.
+        for (theme in GlassThemes.all.filter { it.isLiquidGlass }) {
+            val ink = theme.glassInk!!
             for (photo in photos) {
-                val glass = LiquidGlassInk.throughGlass(photo, theme.isDark)
-                for (ink in listOf(theme.onGlass, theme.onGlassSecondary)) {
-                    val ratio = Contrast.ratio(ink, glass)
-                    if (ratio < Contrast.TEXT) bad += "${theme.displayName}: words over $photo $ratio"
+                val looks = mutableListOf("clear" to LiquidGlassInk.throughGlass(photo, theme.isDark, ink.dayFloor, ink.nightCeiling))
+                if (theme.isClearGlass) {
+                    looks += "tinted" to LiquidGlassInk.throughGlass(
+                        photo, theme.isDark, ink.dayFloor, ink.nightCeiling,
+                        LiquidGlassInk.TINTED_FROST, LiquidGlassInk.tintedFrostColor(theme.isDark),
+                    )
+                }
+                for ((look, glass) in looks) {
+                    for (words in listOf(theme.onGlass, theme.onGlassSecondary)) {
+                        val ratio = Contrast.ratio(words, glass)
+                        if (ratio < Contrast.TEXT) bad += "${theme.displayName} ($look): words over $photo $ratio"
+                    }
+                }
+                val frost = when {
+                    !theme.isClearGlass -> 0f
+                    theme.isDark -> LiquidGlassInk.SELECTED_FROST_NIGHT
+                    else -> LiquidGlassInk.SELECTED_FROST_DAY
                 }
                 val selected = LiquidGlassInk.throughGlass(
-                    photo, theme.isDark, LiquidGlassInk.SELECTED_DAY_FLOOR, LiquidGlassInk.SELECTED_NIGHT_CEILING,
+                    photo, theme.isDark, ink.selectedDayFloor, ink.selectedNightCeiling, frost, LiquidGlassInk.selectedFrostColor(theme.isDark),
                 )
+                // Clear Glass's chosen tab is iOS blue on its droplet, at 3:1 like iOS's; Liquid Glass's words at 4.5:1.
+                val need = if (theme.isClearGlass) Contrast.NON_TEXT else Contrast.TEXT
                 val ratio = Contrast.ratio(theme.onAccent, selected)
-                if (ratio < Contrast.TEXT) bad += "${theme.displayName}: selected tab over $photo $ratio"
+                if (ratio < need) bad += "${theme.displayName}: selected tab over $photo $ratio"
             }
         }
         assertTrue(bad.isEmpty(), bad.joinToString("; "))
     }
 
     @Test
+    fun clearGlassIsLiquidGlassWithIosColours() {
+        // 21 Nov: the copy of iOS shares Liquid Glass's lens and adds its own. iOS's white and black pages, blue.
+        val family = GlassThemes.familyOf(GlassThemeId.CLEAR_GLASS_LIGHT.name)
+        assertEquals("Clear Glass", family.name)
+        assertEquals(GlassThemes.ClearGlassLight, family.day)
+        assertEquals(GlassThemes.ClearGlassDark, family.night)
+        for (theme in listOf(family.day, family.night)) {
+            assertTrue(theme.isLiquidGlass && theme.isClearGlass, theme.displayName)
+            assertTrue(theme.prominent != null && theme.glassInk == GlassInk.CLEAR, theme.displayName)
+            // White words on the blue main buttons.
+            assertTrue(Contrast.ratio(Color.White, theme.prominent!!) >= Contrast.TEXT, theme.displayName)
+        }
+        assertEquals(Color.White, family.day.wallpaper.first())
+        assertEquals(Color.Black, family.night.wallpaper.first())
+        assertFalse(GlassThemes.LiquidGlassLight.isClearGlass)
+    }
+
+    @Test
     fun liquidGlassIsClearNotFrosted() {
-        // Never blurs (21 Nov).
-        assertEquals(0f, GlassThemes.LiquidGlassLight.blurRadius.value)
-        assertEquals(0f, GlassThemes.LiquidGlassDark.blurRadius.value)
+        // Never blurs (21 Nov), Clear Glass included.
+        GlassThemes.all.filter { it.isLiquidGlass }.forEach { assertEquals(0f, it.blurRadius.value, it.displayName) }
+        assertEquals(4, GlassThemes.all.count { it.isLiquidGlass })
         // Bright photos pass the day glass untouched and dark ones the night glass: nothing is laid over them.
         assertEquals(Color.White, LiquidGlassInk.throughGlass(Color.White, dark = false))
         assertEquals(Color.Black, LiquidGlassInk.throughGlass(Color.Black, dark = true))
@@ -150,8 +186,8 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Ocean Day", "Pearl Day", "Aurora Day", "Gallery Day", "Prism Day", "Liquid Glass Light"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Ocean Night", "Pearl Night", "Aurora Night", "Gallery Night", "Prism Night", "Liquid Glass Dark"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Day", "Pearl Day", "Aurora Day", "Gallery Day", "Prism Day", "Liquid Glass Light", "Clear Glass Light"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Night", "Pearl Night", "Aurora Night", "Gallery Night", "Prism Night", "Liquid Glass Dark", "Clear Glass Dark"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })
@@ -160,8 +196,8 @@ class ThemeCatalogTest {
     @Test
     fun everyThemeHasALightDayAndADarkNight() {
         // 18 Nov: each theme has a day version (light page, dark text) and a night one (deep page, white text). Six
-        // since Pearl came over from Skywing and Deepak's Liquid Glass was added (20 Nov).
-        assertEquals(6, GlassThemes.families.size)
+        // since Pearl came over from Skywing and Deepak's Liquid Glass was added (20 Nov); seven with Clear Glass (21 Nov).
+        assertEquals(7, GlassThemes.families.size)
         GlassThemes.families.forEach { family ->
             assertFalse(family.day.isDark, family.name)
             assertTrue(family.night.isDark, family.name)

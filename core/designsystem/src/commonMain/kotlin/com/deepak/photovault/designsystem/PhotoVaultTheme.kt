@@ -45,6 +45,10 @@ data class GlassSettings(
     val lensEnabled: Boolean = false,
     /** How strong the blur is: 1 = the theme's own, 0 = none (a clear film only). The Blur slider (0 to 4) sets it. */
     val blurScale: Float = 1f,
+    /** Clear Glass: Tinted instead of Clear (iOS 26.1's choice): the glass less see-through, with more contrast. */
+    val tinted: Boolean = false,
+    /** Clear Glass: Apple's motion (Settings > About > Test: iOS motion): bars that shrink, swelling presses, menus that grow. */
+    val iosMotion: Boolean = false,
 )
 
 val LocalGlassTheme = staticCompositionLocalOf { GlassThemes.default }

@@ -1,8 +1,11 @@
 package com.deepak.photovault.designsystem
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 
@@ -21,6 +24,16 @@ interface LensGlass {
 
     /** Composes the lens modifier against this screen's recording. */
     val drawLens: @Composable (Shape, Color, Boolean, LiquidGlassOptics?) -> Modifier
+
+    /** Changes every time the recorded content is drawn again, so a bar knows when to look behind itself again. */
+    val version: Long
+
+    /**
+     * How bright the recorded content is behind [rect] (root coordinates), as average linear luminance from 0 (black)
+     * to 1 (white), with [backdrop] where it is see-through. Null when it can't tell (nothing recorded yet). Clear Glass
+     * uses it to turn a bar dark over dark photos and light over light ones (21 Nov).
+     */
+    suspend fun brightnessBehind(rect: Rect, backdrop: Color): Float?
 }
 
 @Composable
@@ -37,7 +50,9 @@ val LocalLensGlass = staticCompositionLocalOf<LensGlass?> { null }
 /**
  * Liquid Glass through the Android lens (21 Nov: clear, never blurred). [backdrop] shows where the recorded content is
  * see-through (the page itself is not recorded), [fallback] is drawn until the lens is ready, and [inkFloor] and
- * [inkCeiling] keep the words readable over any photo (see [LiquidGlassInk]).
+ * [inkCeiling] keep the words readable over any photo (see [LiquidGlassInk]). Clear Glass adds [frost] of [frostColor]
+ * over the picture (Tinted, and its chosen tab), the light's direction ([light], from the phone's tilt) and how dark the
+ * glass is right now ([darkness], while a bar changes over); both are read while drawing.
  */
 data class LiquidGlassOptics(
     val dark: Boolean,
@@ -45,6 +60,10 @@ data class LiquidGlassOptics(
     val fallback: Color,
     val inkFloor: Float = LiquidGlassInk.DAY_FLOOR,
     val inkCeiling: Float = LiquidGlassInk.NIGHT_CEILING,
+    val frost: Float = 0f,
+    val frostColor: Color = Color.White,
+    val light: State<Offset>? = null,
+    val darkness: State<Float>? = null,
 )
 
 @Composable
