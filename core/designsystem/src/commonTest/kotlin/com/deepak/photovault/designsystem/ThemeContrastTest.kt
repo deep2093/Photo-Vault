@@ -94,6 +94,48 @@ class ThemeContrastTest {
     }
 
     @Test
+    fun liquidGlassLensKeepsWordsReadableOverAnyPhoto() {
+        // 21 Nov: clear glass, never blurred. Behind the middle of the glass the lens brightens the photo (day) or smokes
+        // it (night) just enough for the words; checked over the photos hardest for each, including the selected tab.
+        val photos = listOf(
+            Color.Black, Color.White, Contrast.BRIGHT_PHOTO, Color(0xFF808080), Color(0xFF404040),
+            Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Cyan, Color.Magenta,
+            Color(0xFF0B1E3F), Color(0xFFFFE9A8), Color(0xFF1B4D2B),
+        )
+        val bad = mutableListOf<String>()
+        for (theme in listOf(GlassThemes.LiquidGlassLight, GlassThemes.LiquidGlassDark)) {
+            for (photo in photos) {
+                val glass = LiquidGlassInk.throughGlass(photo, theme.isDark)
+                for (ink in listOf(theme.onGlass, theme.onGlassSecondary)) {
+                    val ratio = Contrast.ratio(ink, glass)
+                    if (ratio < Contrast.TEXT) bad += "${theme.displayName}: words over $photo $ratio"
+                }
+                val selected = LiquidGlassInk.throughGlass(
+                    photo, theme.isDark, LiquidGlassInk.SELECTED_DAY_FLOOR, LiquidGlassInk.SELECTED_NIGHT_CEILING,
+                )
+                val ratio = Contrast.ratio(theme.onAccent, selected)
+                if (ratio < Contrast.TEXT) bad += "${theme.displayName}: selected tab over $photo $ratio"
+            }
+        }
+        assertTrue(bad.isEmpty(), bad.joinToString("; "))
+    }
+
+    @Test
+    fun liquidGlassIsClearNotFrosted() {
+        // Never blurs (21 Nov).
+        assertEquals(0f, GlassThemes.LiquidGlassLight.blurRadius.value)
+        assertEquals(0f, GlassThemes.LiquidGlassDark.blurRadius.value)
+        // Bright photos pass the day glass untouched and dark ones the night glass: nothing is laid over them.
+        assertEquals(Color.White, LiquidGlassInk.throughGlass(Color.White, dark = false))
+        assertEquals(Color.Black, LiquidGlassInk.throughGlass(Color.Black, dark = true))
+        // A dark photo brightened by day keeps its colour instead of turning a milky grey.
+        val navy = LiquidGlassInk.throughGlass(Color(0xFF0B1E3F), dark = false)
+        assertTrue(navy.blue - navy.red > 0.05f, "navy through the day glass: $navy")
+        val forest = LiquidGlassInk.throughGlass(Color(0xFF1B4D2B), dark = false)
+        assertTrue(forest.green - forest.red > 0.1f, "forest through the day glass: $forest")
+    }
+
+    @Test
     fun adaptiveThemesAreDistinct() {
         // Feedback 22 and 23 Oct: they looked alike. Each needs its own wallpaper shape among the day themes and among
         // the night ones (18 Nov: a theme's day and night versions share theirs).

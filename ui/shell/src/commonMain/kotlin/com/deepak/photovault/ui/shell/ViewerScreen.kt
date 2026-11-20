@@ -136,8 +136,6 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 
 /**
  * Full-screen viewer: swipe between photos, pinch or double-tap to zoom, tap to fade the filmstrip and actions
@@ -242,11 +240,6 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     // HDR video plays on a separate Android surface outside the Compose backdrop.
     val canSampleBackdrop = !liquidGlass || !videoStarted || !video.hdr
     val lens = if (canSampleBackdrop) rememberLensGlass() else null
-    val liquidHaze = if (liquidGlass && canSampleBackdrop && LocalGlassSettings.current.blurEnabled && lens == null) {
-        remember { HazeState() }
-    } else {
-        null
-    }
 
     // 0 = photo only, 1 = details panel fully open.
     val progress = remember { Animatable(0f) }
@@ -326,8 +319,8 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
             }
         }
 
-        // Older Android versions can use Haze for the Liquid Glass viewer controls.
-        CompositionLocalProvider(LocalHazeState provides liquidHaze) {
+        // Liquid Glass never blurs (21 Nov): nothing here is recorded for a blur; the lens looks through instead.
+        CompositionLocalProvider(LocalHazeState provides null) {
             HorizontalPager(
                 state = pager,
                 key = { ids[it] },
@@ -335,7 +328,6 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (areaPx != null) Modifier.height(with(density) { areaPx.toDp() }) else Modifier.fillMaxHeight())
-                    .then(if (liquidHaze != null) Modifier.hazeSource(liquidHaze) else Modifier)
                     // No black painted behind the photo here (unlike the Secured viewer): it would cover the grid that
                     // shows through while a photo is pulled down to close. The Liquid Glass lens fills see-through parts
                     // with its own dark backdrop, so the bars look the same.

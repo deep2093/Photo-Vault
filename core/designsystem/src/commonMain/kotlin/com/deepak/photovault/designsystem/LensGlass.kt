@@ -5,7 +5,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.unit.Dp
 
 /**
  * Lens glass (24 Oct, experimental, Phase 5): instead of only blurring what is behind a floating bar, the bar acts
@@ -35,12 +34,17 @@ internal fun LensGlass.lens(
 /** Given only to floating bars and pills, never to anything inside the content they record (it would draw itself). */
 val LocalLensGlass = staticCompositionLocalOf<LensGlass?> { null }
 
-/** The Android lens uses this palette to composite transparent parts of the recorded layer. */
+/**
+ * Liquid Glass through the Android lens (21 Nov: clear, never blurred). [backdrop] shows where the recorded content is
+ * see-through (the page itself is not recorded), [fallback] is drawn until the lens is ready, and [inkFloor] and
+ * [inkCeiling] keep the words readable over any photo (see [LiquidGlassInk]).
+ */
 data class LiquidGlassOptics(
-    val blur: Dp,
     val dark: Boolean,
     val backdrop: Color,
     val fallback: Color,
+    val inkFloor: Float = LiquidGlassInk.DAY_FLOOR,
+    val inkCeiling: Float = LiquidGlassInk.NIGHT_CEILING,
 )
 
 @Composable

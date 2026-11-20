@@ -150,9 +150,17 @@ fun Modifier.pressDip(source: androidx.compose.foundation.interaction.Interactio
 @Composable
 fun Modifier.glassRim(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
+    // Liquid Glass (21 Nov): the lit edge of a droplet, drawn under the words; a plain line while the glass effect is off.
+    if (theme.isLiquidGlass) {
+        return if (LocalGlassSettings.current.blurEnabled) liquidGlassEdge(shape) else border(1.dp, calmEdge(theme), shape)
+    }
     // Calm glass (18 Nov): one clean, even line instead of the bright glint.
-    // Liquid Glass (20 Nov) keeps its own polished edge, as it was designed with it.
-    if (GlassFinish.CALM && !theme.isLiquidGlass) return border(1.dp, calmEdge(theme), shape)
+    if (GlassFinish.CALM) return border(1.dp, calmEdge(theme), shape)
+    return gradientRim(theme, shape)
+}
+
+/** The bright edge as a gradient line: the look before calm glass, and Liquid Glass's edge on Android 12 and older. */
+internal fun Modifier.gradientRim(theme: GlassTheme, shape: Shape): Modifier {
     val rim = theme.glassRim
     val k = theme.rimStrength
     return border(
@@ -228,7 +236,11 @@ fun Modifier.solidGlass(shape: Shape): Modifier {
     return this.clip(shape).background(theme.glassFallback).glassRim(shape)
 }
 
-/** Liquid Glass pairs a polished rounded edge with the live backdrop captured by the screen. */
+/**
+ * Liquid Glass on a floating bar (21 Nov, made like iOS's): clear, never blurred. On Android 13+ the lens looks through
+ * to the photos, bends them at the rounded edge like a droplet and lights the edge itself. Where there is no lens
+ * (Android 12 and older, or a screen that records nothing) it is a clear tinted pane with the same lit edge.
+ */
 @Composable
 private fun Modifier.liquidGlassChrome(
     shape: Shape,
@@ -237,35 +249,22 @@ private fun Modifier.liquidGlassChrome(
     settings: GlassSettings,
 ): Modifier {
     val lens = LocalLensGlass.current
-    val haze = LocalHazeState.current
-    val blur = theme.blurRadius * settings.blurScale
-    val tint = theme.glassTint
-    val shadowColor = Color.Black.copy(alpha = if (theme.isDark) 0.48f else 0.21f)
+    // A soft, lifted shadow, so the glass floats above the photos.
+    val shadowColor = Color.Black.copy(alpha = if (theme.isDark) 0.42f else 0.17f)
     val surface = when {
-        !settings.blurEnabled -> Modifier.background(theme.glassFallback)
+        // "Turn off glass effect": plain and solid.
+        !settings.blurEnabled -> Modifier.background(theme.glassFallback).border(1.dp, calmEdge(theme), shape)
         lens != null -> lens.lens(
             shape = shape,
-            tint = tint,
+            tint = theme.glassTint,
             active = true,
-            liquid = LiquidGlassOptics(blur, theme.isDark, theme.wallpaper.first(), theme.glassFallback),
+            liquid = LiquidGlassOptics(theme.isDark, theme.wallpaper.first(), theme.glassFallback),
         )
-        haze == null -> Modifier.background(theme.glassFallback).liquidGlassSheen(theme.isDark)
-        settings.blurScale == 0f -> Modifier.background(tint).liquidGlassSheen(theme.isDark)
-        else -> Modifier.hazeEffect(
-            state = haze,
-            style = HazeStyle(
-                backgroundColor = theme.wallpaper.first(),
-                tints = listOf(HazeTint(tint)),
-                blurRadius = blur,
-                noiseFactor = 0f,
-                fallbackTint = HazeTint(theme.glassFallback),
-            ),
-        ).liquidGlassSheen(theme.isDark)
+        else -> Modifier.background(theme.glassTint).liquidGlassEdge(shape)
     }
     return shadow(elevation * 0.7f, shape, ambientColor = shadowColor, spotColor = shadowColor)
         .clip(shape)
         .then(surface)
-        .glassRim(shape)
 }
 
 /** Glass for panels and cards that sit on the wallpaper. No blur needed: the wallpaper is calm. */
@@ -273,8 +272,9 @@ private fun Modifier.liquidGlassChrome(
 fun Modifier.glassPanel(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val film = theme.panelFill
+    // Liquid Glass (21 Nov): a clear film with the lit droplet edge, no sheen across it.
     if (theme.isLiquidGlass && film != null && LocalGlassSettings.current.blurEnabled) {
-        return clip(shape).background(film).liquidGlassSheen(theme.isDark).glassRim(shape)
+        return clip(shape).background(film).liquidGlassEdge(shape)
     }
     // A see-through frosted film with depth (29 Oct) while the glass effect is on; solid when "Turn off glass effect" is on.
     return if (film != null && LocalGlassSettings.current.blurEnabled) {
@@ -292,7 +292,8 @@ fun Modifier.glassPanel(shape: Shape): Modifier {
 fun Modifier.glassDepth(): Modifier {
     if (!LocalGlassSettings.current.blurEnabled) return this
     val theme = LocalGlassTheme.current
-    if (theme.isLiquidGlass) return liquidGlassSheen(theme.isDark)
+    // Liquid Glass (21 Nov): clear; its depth is in the lit edge (glassRim), not a sheen across it.
+    if (theme.isLiquidGlass) return this
     // Calm glass (18 Nov): only a faint light along the top, no shade along the bottom.
     val top = if (GlassFinish.CALM) 0.07f else 0.16f
     val bottom = if (GlassFinish.CALM) 0f else 0.14f
@@ -313,8 +314,9 @@ fun Modifier.glassDepth(): Modifier {
 fun Modifier.frostedEdge(shape: Shape): Modifier {
     val theme = LocalGlassTheme.current
     val edge = theme.glassRim
-    // Calm glass (18 Nov): an even line on night themes; day themes' soft shade needs none. Liquid Glass (20 Nov) keeps
-    // the fine bright edge it was designed with.
+    // Liquid Glass (21 Nov): the lit droplet edge, like every Liquid Glass surface.
+    if (theme.isLiquidGlass && theme.accentFill != null) return glassRim(shape)
+    // Calm glass (18 Nov): an even line on night themes; day themes' soft shade needs none.
     if (GlassFinish.CALM && !theme.isLiquidGlass) return if (theme.accentFill == null || !theme.isDark) this else this.border(1.dp, Color.White.copy(alpha = 0.18f), shape)
     return if (theme.accentFill == null) this else this.border(
         1.dp,

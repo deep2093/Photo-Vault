@@ -308,26 +308,31 @@ object GlassThemes {
     ).copy(lustre = listOf(Color(0x0CE38AC4), Color(0x10FFFFFF), Color(0x0C6FD6CF)))
 
     // ---- Liquid Glass (20 Nov, Deepak's own iOS-style theme, made as a patch on main and merged here) ----
-    // The bars bend the photos behind their rounded edges and catch a light on them (Android 13 and newer; blur on
-    // Android 12; a solid fill before that). Its own neutral pages, frost and polished edge, not the calm look.
+    // 21 Nov, made as close to iOS as it can be: clear glass like water droplets, never frosted or blurred. On Android
+    // 13 and newer the bars look straight through to the photos and bend them at their rounded edges, which catch the
+    // light (LiquidGlassAgsl); panels and buttons get the same lit edge. Android 12 and older: a clear tinted pane.
+    // The words stay readable through LiquidGlassInk (checked by ThemeContrastTest).
 
     val LiquidGlassLight: GlassTheme = LiquidDay.pale!!.copy(
         id = GlassThemeId.LIQUID_GLASS_LIGHT,
         displayName = "Liquid Glass Light",
-        bestFor = "Clear, rounded glass over a neutral light gallery",
+        bestFor = "Clear glass droplets over a neutral light gallery",
         wallpaper = listOf(Color(0xFFF8F9FB), Color(0xFFEEF1F5), Color(0xFFE6EAF0)),
         glows = emptyList(),
+        // Only where there is no lens (Android 12 and older): a clear pane, tinted enough for the words, not blurred.
         glassTint = Color(0xA4F8FAFD),
         glassFallback = Color(0xFFEFF2F7),
         glassRim = White,
         onGlass = Color(0xFF171C24),
-        onGlassSecondary = Color(0xFF2C3440),
+        // 21 Nov: a touch darker, so it reads at 4.5:1 through the clearer glass (LiquidGlassInk.DAY_FLOOR).
+        onGlassSecondary = Color(0xFF20262F),
         onWallpaper = Color(0xFF171C24),
         accent = Color(0xFF171C24),
         onAccent = Color(0xFF171C24),
         accentFill = Color(0x76FFFFFF),
         panelFill = Color(0x54FFFFFF),
-        blurRadius = 7.dp,
+        // Never blurs (21 Nov).
+        blurRadius = 0.dp,
         rimWidth = 0.75.dp,
         rimStrength = 0.75f,
     )
@@ -335,7 +340,7 @@ object GlassThemes {
     val LiquidGlassDark: GlassTheme = LiquidGlassLight.copy(
         id = GlassThemeId.LIQUID_GLASS_DARK,
         displayName = "Liquid Glass Dark",
-        bestFor = "Smoked, rounded glass over a neutral dark gallery",
+        bestFor = "Smoked glass droplets over a neutral dark gallery",
         isDark = true,
         wallpaper = listOf(Color(0xFF101217), Color(0xFF171B22), Color(0xFF1D232C)),
         glassTint = Color(0xAB131720),
@@ -426,7 +431,7 @@ object GlassThemes {
         ThemeFamily("LUMINOUS", "Aurora", "Lilac and mint by day, northern lights at night", AuroraGlassLight.pale!!, LuminousNight),
         ThemeFamily("PHOTO", "Gallery", "Warm paper by day, graphite at night, one soft light from your photos", PhotoDay, AdaptiveMidnight),
         ThemeFamily("VIVID", "Prism", "Colours from your photos: pastels by day, deep jewels at night", VividDay, AdaptiveVivid),
-        ThemeFamily("LIQUID_GLASS", "Liquid Glass", "Clear, rounded glass like iOS that bends what's behind it: light by day, smoked at night", LiquidGlassLight, LiquidGlassDark),
+        ThemeFamily("LIQUID_GLASS", "Liquid Glass", "Clear glass like iOS, never blurred: its edges bend the photos like water droplets. Light by day, smoked at night", LiquidGlassLight, LiquidGlassDark),
     )
 
     /** The theme a saved id belongs to, whether it was saved as the day or the night version; else Liquid. */

@@ -105,8 +105,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 
 /**
  * Moving phone photos and videos into the Secured folder (Phase 8A, 1 Nov): asks once, encrypts and checks each copy,
@@ -603,18 +601,13 @@ private fun SecuredViewer(
     // HDR video plays on a separate Android surface outside the Compose backdrop.
     val canSampleBackdrop = !liquidGlass || !videoStarted || !video.hdr
     val lens = if (canSampleBackdrop) rememberLensGlass() else null
-    val liquidHaze = if (liquidGlass && canSampleBackdrop && LocalGlassSettings.current.blurEnabled && lens == null) {
-        remember { HazeState() }
-    } else {
-        null
-    }
-    CompositionLocalProvider(LocalHazeState provides liquidHaze) {
+    // Liquid Glass never blurs (21 Nov): nothing here is recorded for a blur; the lens looks through instead.
+    CompositionLocalProvider(LocalHazeState provides null) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
             state = pager,
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (liquidHaze != null) Modifier.hazeSource(liquidHaze) else Modifier)
                 .then(lens?.source(lensOn, if (liquidGlass) Color.Black else Color.Unspecified) ?: Modifier),
             userScrollEnabled = !zoomed,
             key = { items[it].id },

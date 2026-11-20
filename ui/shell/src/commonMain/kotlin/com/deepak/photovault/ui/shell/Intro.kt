@@ -100,12 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-20-4"
+    const val ID = "2026-11-21-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Liquid Glass theme", "Your iOS-style theme: rounded glass that bends the photos behind the bars and catches the light at its edges. Light by day, Dark at night. Settings > Appearance."),
-        Change(ChangeKind.NEW, "Pearl Day with depth", "Light from above and a deeper pearl lower down, so cards and bars stand off the page like they do at night."),
-        Change(ChangeKind.NEW, "Smoothness meter by screen", "Tap the meter at the top to see which screens the late frames came from, worst first. Count again starts over."),
+        Change(ChangeKind.CHANGED, "Liquid Glass, like iOS", "Clear glass now, never frosted or blurred. The bars look straight through to your photos and bend them at their rounded edges like water droplets, with light catching the edges and a soft shadow below. Android 13 and newer."),
+        Change(ChangeKind.NEW, "The selected tab is a droplet", "In Liquid Glass the section you're on is a small drop of brighter glass that magnifies what passes under it."),
+        Change(ChangeKind.CHANGED, "Glossy edges on cards and buttons", "Liquid Glass cards, buttons and menus get the same lit glass edge: a bright line at the top left and a glint at the bottom right."),
+        Change(ChangeKind.REMOVED, "Blur slider in Liquid Glass", "Liquid Glass never blurs, so it has no Blur slider. The other themes keep theirs."),
     )
 }
 

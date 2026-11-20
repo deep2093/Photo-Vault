@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
 import com.deepak.photovault.designsystem.LensGlass
+import com.deepak.photovault.designsystem.LiquidGlassAgsl
 import com.deepak.photovault.designsystem.LiquidGlassOptics
 
 @Composable
@@ -40,8 +41,9 @@ actual fun lensGlassSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSIO
 
 /**
  * The scrolling content is drawn into [sourceLayer] as well as on screen. The bar draws that layer behind itself,
- * shifted so it lines up, through a small blur and an AGSL shader that bends the picture near the bar's edge, like
- * looking through the edge of a thick piece of glass. Only for Android 13 and newer (AGSL).
+ * shifted so it lines up, through an AGSL shader that bends the picture near the bar's edge, like looking through the
+ * edge of a thick piece of glass (the other themes' lens adds a small blur; Liquid Glass none, see LiquidGlassAgsl).
+ * Only for Android 13 and newer (AGSL).
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGlass {
@@ -69,7 +71,7 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
         val effectLayer = rememberGraphicsLayer()
         val shader = remember(active, liquid != null) {
             if (!active) null else try {
-                RuntimeShader(if (liquid == null) LENS_SHADER else LIQUID_GLASS_SHADER)
+                RuntimeShader(if (liquid == null) LENS_SHADER else LiquidGlassAgsl.LENS)
             } catch (_: IllegalArgumentException) {
                 null
             }
@@ -96,7 +98,8 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
 
                 val outline = shape.createOutline(size, layoutDirection, this)
                 val radius = if (outline is Outline.Rounded) outline.roundRect.topLeftCornerRadius.x else 0f
-                val blurPx = liquid?.let { it.blur.toPx() } ?: 6f
+                // Liquid Glass is clear (21 Nov): no blur at all, only the bend and the light at its edge.
+                val blurPx = if (liquid == null) 6f else 0f
                 val dpPx = 1.dp.toPx()
                 if (applied[0] != size.width || applied[1] != size.height || applied[2] != radius ||
                     applied[3] != blurPx || applied[4] != dpPx
@@ -112,6 +115,8 @@ private class AndroidLensGlass(private val sourceLayer: GraphicsLayer) : LensGla
                             "backdrop",
                             liquid.backdrop.red, liquid.backdrop.green, liquid.backdrop.blue,
                         )
+                        shader.setFloatUniform("inkFloor", liquid.inkFloor)
+                        shader.setFloatUniform("inkCeiling", liquid.inkCeiling)
                     }
                     val refraction = RenderEffect.createRuntimeShaderEffect(shader, "content")
                     effectLayer.renderEffect = if (blurPx > 0f) {

@@ -120,8 +120,8 @@ import com.deepak.photovault.designsystem.MinTouchTarget
 import com.deepak.photovault.designsystem.NavigationLayout
 import com.deepak.photovault.designsystem.PhotoVaultTheme
 import com.deepak.photovault.designsystem.glassChrome
-import com.deepak.photovault.designsystem.glassDepth
 import com.deepak.photovault.designsystem.liquidGlassTouch
+import com.deepak.photovault.designsystem.liquidGlassDroplet
 import com.deepak.photovault.designsystem.pressDip
 import com.deepak.photovault.designsystem.glassPanel
 import com.deepak.photovault.designsystem.GlassIcon
@@ -1617,10 +1617,11 @@ private fun FloatingNavigationBar(indicator: () -> Float, onSelect: (Destination
                     scaleX = 1f + 0.10f * stretch
                     scaleY = 1f - 0.08f * stretch
                 } else Modifier)
-                .clip(shape)
-                .background(theme.accentSurface)
-                .then(if (theme.isLiquidGlass) Modifier.glassDepth() else Modifier)
-                .frostedEdge(shape),
+                .then(
+                    // Liquid Glass (21 Nov): the selected tab is a small droplet of brighter glass, as on iOS.
+                    if (theme.isLiquidGlass) Modifier.liquidGlassDroplet(shape)
+                    else Modifier.clip(shape).background(theme.accentSurface).frostedEdge(shape),
+                ),
         )
         Row(Modifier.selectableGroup()) {
             Destination.entries.forEach { destination ->

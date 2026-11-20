@@ -486,7 +486,8 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
             { on -> state.updateAppearance { it.copy(blurOn = on) } },
             icon = Icons.Rounded.BlurOn,
         )
-        if (state.appearance.blurOn) BlurSlider(state)
+        // Liquid Glass never blurs (21 Nov): it is clear glass that bends the light, so it has no Blur slider.
+        if (state.appearance.blurOn && !LocalGlassTheme.current.isLiquidGlass) BlurSlider(state)
         // Tablets only (18 Nov): the side bar, on by default; off brings back the floating bar at the bottom.
         val tabletDevice = LocalTabletDevice.current
         if (tabletDevice) {
@@ -584,7 +585,7 @@ internal fun appearanceSummary(state: ShellState): String {
     return "${state.themeFamily.name} · ${mode.label}"
 }
 
-/** How much the glass blurs what is behind it. The Liquid Glass lens stays active at zero. */
+/** How much the glass blurs what is behind it (not shown for Liquid Glass, which never blurs). */
 @Composable
 private fun BlurSlider(state: ShellState) {
     val theme = LocalGlassTheme.current
@@ -593,11 +594,7 @@ private fun BlurSlider(state: ShellState) {
         Icon(Icons.Rounded.BlurOn, contentDescription = null, tint = theme.onGlassSecondary)
         Spacer(Modifier.width(16.dp))
         Text("Blur", color = theme.onGlass, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        val strength = when {
-            step > 0 -> "$step of 4"
-            theme.isLiquidGlass -> "Clear"
-            else -> "None"
-        }
+        val strength = if (step > 0) "$step of 4" else "None"
         Text(strength, color = theme.onGlassSecondary, style = MaterialTheme.typography.bodyMedium)
     }
     Slider(
