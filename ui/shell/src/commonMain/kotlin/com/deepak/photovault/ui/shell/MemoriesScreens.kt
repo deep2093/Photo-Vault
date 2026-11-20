@@ -178,7 +178,7 @@ private fun MemoryRow(list: List<Memory>, byId: Map<Long, MediaItem>, state: She
         items(list, key = { "${it.year}-${it.month}" }) { m ->
             // Small cards move too when their living photo is ready (made while charging, 7D-3); each starts a bit later.
             MemoryCard(
-                m, byId, width = 150.dp, height = 200.dp, big = false, modifier = Modifier.animateItem(),
+                m, byId, width = 150.dp, height = 200.dp, big = false, modifier = calmItem(),
                 living = state.living, makeNow = false, delayMs = (list.indexOf(m) % 4) * 1500,
             ) {
                 // Plays like a story (16 Nov), carrying on into the memories after it.
@@ -206,7 +206,7 @@ internal fun MemoriesStrip(state: ShellState, gallery: GalleryState) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(fresh, key = { it.key }) { m ->
-            MemoryCard(m, byId, width = 112.dp, height = 156.dp, big = false, modifier = Modifier.animateItem()) {
+            MemoryCard(m, byId, width = 112.dp, height = 156.dp, big = false, modifier = calmItem()) {
                 state.open(Overlay.Story(fresh, fresh.indexOf(m).coerceAtLeast(0)))
             }
         }
@@ -327,7 +327,7 @@ fun TagsScreen(state: ShellState, gallery: GalleryState) {
                 Modifier
                     .cardWidth()
                     .padding(horizontal = SCREEN_MARGIN)
-                    .animateItem()
+                    .then(calmItem())
                     .glassPanel(com.deepak.photovault.designsystem.GlassCardShape)
                     .clip(com.deepak.photovault.designsystem.GlassCardShape)
                     .combinedClickable(

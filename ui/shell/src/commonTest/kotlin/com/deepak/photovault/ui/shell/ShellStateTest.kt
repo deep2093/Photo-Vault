@@ -162,4 +162,21 @@ class ShellStateTest {
         assertEquals(5, again.gridColumns)
         assertEquals(4, again.albumSize)
     }
+
+    @Test
+    fun foldedAndOpenScreensKeepTheirOwnGridSize() {
+        val store = MemoryAppearanceStore()
+        val state = ShellState(store)
+        // A size saved before (one per page) counts on both kinds of screen until each is pinched.
+        state.zoomGrid(+1, currentColumns = 4, maxColumns = 8)
+        assertEquals(3, state.gridColumnsFor(GRID_PHOTOS, large = false))
+        assertEquals(3, state.gridColumnsFor(GRID_PHOTOS, large = true))
+        state.setGridColumns(GRID_PHOTOS, large = true, columns = 6)
+        state.setGridColumns(GRID_PHOTOS, large = false, columns = 4)
+        assertEquals(6, state.gridColumnsFor(GRID_PHOTOS, large = true))
+        assertEquals(4, state.gridColumnsFor(GRID_PHOTOS, large = false))
+        val again = ShellState(store)
+        assertEquals(6, again.gridColumnsFor(GRID_PHOTOS, large = true))
+        assertEquals(4, again.gridColumnsFor(GRID_PHOTOS, large = false))
+    }
 }

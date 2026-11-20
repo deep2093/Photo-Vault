@@ -39,6 +39,7 @@ internal class StreamSource(private val input: InputStream) : ByteSource {
  *
  * Storage saver (24 Oct): JPEG and HEIC photos are shrunk to 16 megapixels (good-quality prints up to 24 x 16 in) and saved as JPEG at quality 85,
  * keeping date, camera and location details. If that wouldn't be smaller, the original is used. Videos never.
+ * HDR photos (Phase 12, 20 Nov) are left as they are, so their extra brightness is never lost on the drive.
  */
 class AndroidMediaReader(context: Context) : MediaReader {
     private val context = context.applicationContext
@@ -89,6 +90,7 @@ class AndroidMediaReader(context: Context) : MediaReader {
     }
 
     private fun shrink(item: MediaItem, uri: Uri): PreparedFile? {
+        if (looksHdr(uri)) return null
         val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             val w = info.size.width
@@ -98,6 +100,11 @@ class AndroidMediaReader(context: Context) : MediaReader {
                 val scale = sqrt(MAX_PIXELS.toDouble() / pixels)
                 decoder.setTargetSize((w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1))
             }
+        }
+        // A brightness map Android found while reading it (Android 14 and newer, also HEIC): HDR, left as it is.
+        if (android.os.Build.VERSION.SDK_INT >= 34 && bitmap.hasGainmap()) {
+            bitmap.recycle()
+            return null
         }
         val dir = File(context.cacheDir, "storage-saver").apply { mkdirs() }
         val out = File(dir, UUID.randomUUID().toString() + ".jpg")
@@ -119,6 +126,24 @@ class AndroidMediaReader(context: Context) : MediaReader {
         }
     }
 
+    /**
+     * An Ultra HDR photo says so near its start: its description names the HDR brightness map (Adobe's "hdrgm" or the
+     * ISO 21496 gain map). Read from the first part of the file only, so it costs almost nothing on any Android.
+     */
+    private fun looksHdr(uri: Uri): Boolean = runCatching {
+        resolver.openInputStream(uri)?.use { input ->
+            val head = ByteArray(HDR_SCAN_BYTES)
+            var read = 0
+            while (read < head.size) {
+                val n = input.read(head, read, head.size - read)
+                if (n <= 0) break
+                read += n
+            }
+            val text = String(head, 0, read, Charsets.ISO_8859_1)
+            HDR_MARKS.any { text.contains(it) }
+        } ?: false
+    }.getOrDefault(false)
+
     /** Date, camera and location details from the original onto the smaller copy. */
     private fun copyDetails(from: Uri, to: File, width: Int, height: Int) {
         val source = resolver.openInputStream(from)?.use { ExifInterface(it) } ?: return
@@ -136,6 +161,9 @@ class AndroidMediaReader(context: Context) : MediaReader {
         const val QUALITY = 85
         const val THUMB_PX = 512
         val COMPRESSIBLE = setOf("image/jpeg", "image/jpg", "image/heic", "image/heif")
+        /** How much of a photo is read to see whether it is Ultra HDR (its description sits near the start). */
+        const val HDR_SCAN_BYTES = 128 * 1024
+        val HDR_MARKS = listOf("hdrgm:", "http://ns.adobe.com/hdr-gain-map/", "urn:iso:std:iso:ts:21496")
         val EXIF_TAGS = listOf(
             ExifInterface.TAG_DATETIME, ExifInterface.TAG_DATETIME_ORIGINAL, ExifInterface.TAG_DATETIME_DIGITIZED,
             ExifInterface.TAG_OFFSET_TIME, ExifInterface.TAG_OFFSET_TIME_ORIGINAL, ExifInterface.TAG_OFFSET_TIME_DIGITIZED,

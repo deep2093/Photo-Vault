@@ -201,11 +201,12 @@ private fun RingCard(
         val isGoogle = places.getOrNull(pager.currentPage) == true
         // With both places (18 Nov): a tap on the heading shows the other one too, not only a swipe.
         val ringScope = androidx.compose.runtime.rememberCoroutineScope()
+        val still = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
         Row(
             Modifier
                 .then(
                     if (places.size > 1) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (isGoogle) "Show the family drive" else "Show Google Drive") {
-                        ringScope.launch { pager.animateScrollToPage((pager.currentPage + 1) % places.size) }
+                        ringScope.launch { val next = (pager.currentPage + 1) % places.size; if (still) pager.scrollToPage(next) else pager.animateScrollToPage(next) }
                     } else Modifier,
                 )
                 .heightIn(min = 40.dp),

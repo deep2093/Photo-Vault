@@ -100,11 +100,15 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-20-1"
+    const val ID = "2026-11-20-2"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Side bar tests on tablets", "In Settings > About: try the page moving up and down, or fading, when you pick a section, and a side bar that folds out wide. Off, it works as before."),
-        Change(ChangeKind.FIXED, "Video strip on tablets", "The whole video fits the strip, centred, with the line moving across. The time and sound buttons line up with its ends. Phones are unchanged."),
+        Change(ChangeKind.NEW, "Smoother pinch", "Photos grow and shrink with your fingers, and the photo under them stays where it is. Let go and it settles on the nearer size."),
+        Change(ChangeKind.NEW, "Swipe down to close a photo", "The photo follows your finger and shrinks back into its own place in the grid, even after you swiped to other photos."),
+        Change(ChangeKind.NEW, "Foldable phones", "Folded and open, each screen keeps its own photo size, and an open photo or a playing video stays when you fold or unfold. Half folded like a small laptop, the photo sits on the top half and the buttons on the bottom."),
+        Change(ChangeKind.NEW, "HDR badge and Storage saver", "A small HDR label shows on HDR photos and videos. Storage saver leaves HDR photos as they are, so they keep their brightness on the drive."),
+        Change(ChangeKind.NEW, "Smoothness meter (test)", "In Settings > About: a counter at the top shows how many frames came late while you use the app. Tap it to count again."),
+        Change(ChangeKind.FIXED, "Reduce motion everywhere", "With reduce motion on (or Android's \"Remove animations\"), lists, the tour, back to top, zooming and the other last moving parts now change at once."),
     )
 }
 
@@ -297,6 +301,7 @@ private fun WelcomeTour(onClose: () -> Unit) {
     val pager = rememberPagerState { pages.size }
     val scope = rememberCoroutineScope()
     val last = pager.currentPage == pages.lastIndex
+    val still = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
     Box(Modifier.fillMaxSize().background(theme.wallpaper.first())) {
         Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -326,7 +331,7 @@ private fun WelcomeTour(onClose: () -> Unit) {
             GlassButton(
                 if (last) "Get started" else "Next",
                 primary = true,
-                onClick = { if (last) onClose() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
+                onClick = { if (last) onClose() else scope.launch { if (still) pager.scrollToPage(pager.currentPage + 1) else pager.animateScrollToPage(pager.currentPage + 1) } },
                 modifier = Modifier.width(176.dp),
                 centered = true,
             )

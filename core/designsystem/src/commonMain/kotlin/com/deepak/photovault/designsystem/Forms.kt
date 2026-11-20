@@ -264,9 +264,9 @@ fun GlassSheet(
                     Modifier.fillMaxWidth().pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onDragEnd = {
-                                if (pull.value > 96.dp.toPx()) dismissNow() else scope.launch { pull.animateTo(0f) }
+                                if (pull.value > 96.dp.toPx()) dismissNow() else scope.launch { if (still) pull.snapTo(0f) else pull.animateTo(0f) }
                             },
-                            onDragCancel = { scope.launch { pull.animateTo(0f) } },
+                            onDragCancel = { scope.launch { if (still) pull.snapTo(0f) else pull.animateTo(0f) } },
                         ) { change, dy ->
                             change.consume()
                             val to = (pull.value + dy).coerceAtLeast(0f)

@@ -350,8 +350,8 @@ private fun GoogleStorage(
     // Tells the person it is checking (15 Nov), while the last numbers stay on screen.
     androidx.compose.animation.AnimatedVisibility(
         visible = google.usageLoading,
-        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+        enter = androidx.compose.animation.fadeIn(com.deepak.photovault.designsystem.motionSpec()) + androidx.compose.animation.expandVertically(com.deepak.photovault.designsystem.motionSpec()),
+        exit = androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec()) + androidx.compose.animation.shrinkVertically(com.deepak.photovault.designsystem.motionSpec()),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
             androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = theme.onGlassSecondary, strokeWidth = 2.dp)

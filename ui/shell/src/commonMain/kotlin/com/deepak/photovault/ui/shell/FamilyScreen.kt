@@ -332,8 +332,10 @@ private val AVATAR_TILE = 80.dp
 @Composable
 private fun BackingUpDot(modifier: Modifier = Modifier) {
     val theme = LocalGlassTheme.current
+    // 20 Nov: it holds still with reduce motion (a steady dot says the same).
+    val still = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
     val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "backing up")
-    val alpha by pulse.animateFloat(
+    val breathing by pulse.animateFloat(
         initialValue = 0.45f,
         targetValue = 0.9f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
@@ -345,7 +347,7 @@ private fun BackingUpDot(modifier: Modifier = Modifier) {
     androidx.compose.foundation.layout.Box(
         modifier
             .size(10.dp)
-            .graphicsLayer { this.alpha = alpha }
+            .graphicsLayer { this.alpha = if (still) 0.9f else breathing }
             .clip(androidx.compose.foundation.shape.CircleShape)
             .background(theme.accent)
             .semantics { contentDescription = "Backing up now" },

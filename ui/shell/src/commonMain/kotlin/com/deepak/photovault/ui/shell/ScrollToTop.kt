@@ -125,6 +125,8 @@ fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0, rows: GridRows? 
     val firstSignal = remember { signal }
     val firstTaps = remember { extraTaps }
     val currentRows by rememberUpdatedState(rows)
+    // 20 Nov: with reduce motion the page goes straight to the top instead of gliding there.
+    val still by rememberUpdatedState(com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion)
     // The height of everything above the first photo item (the Memories row and the like), measured whenever the
     // page is at the top, since it can't be worked out from row counts (17 Nov).
     val headerSpan = remember { floatArrayOf(-1f) }
@@ -141,6 +143,10 @@ fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0, rows: GridRows? 
     }
     LaunchedEffect(signal, extraTaps) {
         if (signal == firstSignal && extraTaps == firstTaps) return@LaunchedEffect
+        if (still) {
+            state.scrollToItem(0)
+            return@LaunchedEffect
+        }
         val info = { state.layoutInfo }
         // Rows above, from the tiles on screen: the smallest width is a tile, so a row is one of its height.
         fun guess(): Float {
@@ -199,8 +205,13 @@ fun ScrollToTopEffect(state: LazyGridState, extraTaps: Int = 0, rows: GridRows? 
 fun ScrollToTopEffect(state: LazyListState): Modifier {
     val signal = LocalScrollToTop.current
     val firstSignal = remember { signal }
+    val still by rememberUpdatedState(com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion)
     LaunchedEffect(signal) {
         if (signal == firstSignal) return@LaunchedEffect
+        if (still) {
+            state.scrollToItem(0)
+            return@LaunchedEffect
+        }
         fun distance(): Float {
             val visible = state.layoutInfo.visibleItemsInfo
             if (visible.isEmpty()) return 0f

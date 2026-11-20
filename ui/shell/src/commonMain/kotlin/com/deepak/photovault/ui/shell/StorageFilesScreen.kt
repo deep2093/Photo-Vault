@@ -301,7 +301,7 @@ fun StorageFilesScreen(
                         selected = file.ref in selected,
                         selecting = selecting,
                         onThumbPlaced = { thumbs[file.ref] = it },
-                        modifier = Modifier.cardWidth().animateItem(),
+                        modifier = Modifier.cardWidth().then(calmItem()),
                     )
                 }
             }

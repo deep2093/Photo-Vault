@@ -229,6 +229,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
     val flight = LocalDeleteFlight.current
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val still = LocalGlassSettings.current.reduceMotion
     var items by remember { mutableStateOf<List<SecuredItem>?>(null) }
     var failed by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
@@ -498,7 +499,7 @@ internal fun SecuredFolderContent(state: ShellState, sec: SecuredState) {
                 )
                 BackToTopButton(
                     grid = gridState,
-                    onClick = { scope.launch { gridState.animateScrollToItem(0) } },
+                    onClick = { scope.launch { if (still) gridState.scrollToItem(0) else gridState.animateScrollToItem(0) } },
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = padding.calculateBottomPadding() + 14.dp),
                 )
             }
@@ -614,8 +615,8 @@ private fun SecuredViewer(
         }
         AnimatedVisibility(
             visible = barsVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(com.deepak.photovault.designsystem.motionSpec()),
+            exit = fadeOut(com.deepak.photovault.designsystem.motionSpec()),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Column(

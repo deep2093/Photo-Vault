@@ -223,7 +223,7 @@ internal fun StoryScreen(story: Overlay.Story, state: ShellState, gallery: Galle
             }
             Spacer(Modifier.weight(1f))
             // The memory's name, large, on its first picture only.
-            AnimatedVisibility(visible = slide == 0, enter = fadeIn(tween(300)), exit = fadeOut(tween(300))) {
+            AnimatedVisibility(visible = slide == 0, enter = fadeIn(com.deepak.photovault.designsystem.motionSpec(300)), exit = fadeOut(com.deepak.photovault.designsystem.motionSpec(300))) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         if (memory.month > 0) memory.title else memory.ago,

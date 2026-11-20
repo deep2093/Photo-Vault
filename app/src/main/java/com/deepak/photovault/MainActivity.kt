@@ -62,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -326,6 +327,23 @@ class MainActivity : ComponentActivity(), MediaActions {
             }.onFailure { openBatterySettings() }
         }
         shell = state
+        // Smoothness meter (Phase 12, 20 Nov; a test in Settings > About).
+        state.frameMeter = com.deepak.photovault.smooth.AndroidFrameMeter(this)
+        // Foldables (Phase 12, 20 Nov): half open like a small laptop (tabletop), the viewer puts the photo above the
+        // fold and its buttons below. Android tells where the fold is; nothing is reported on other phones.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                androidx.window.layout.WindowInfoTracker.getOrCreate(this@MainActivity)
+                    .windowLayoutInfo(this@MainActivity)
+                    .collect { info ->
+                        val fold = info.displayFeatures.filterIsInstance<androidx.window.layout.FoldingFeature>().firstOrNull {
+                            it.state == androidx.window.layout.FoldingFeature.State.HALF_OPENED &&
+                                it.orientation == androidx.window.layout.FoldingFeature.Orientation.HORIZONTAL
+                        }
+                        state.tabletopFold = fold?.bounds?.let { com.deepak.photovault.ui.shell.FoldLine(it.top, it.bottom) }
+                    }
+            }
+        }
         state.remote = remote.state
         state.encryption = com.deepak.photovault.ui.shell.EncryptionState(AndroidEncryption(this))
         state.secured = com.deepak.photovault.ui.shell.SecuredState(AndroidSecured(this))
@@ -978,6 +996,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         railMotion = prefs.getString("rail_motion", null) ?: "SIDEWAYS",
         railFoldTest = prefs.getBoolean("rail_fold_test", false),
         railOpen = prefs.getBoolean("rail_open", false),
+        frameMeterTest = prefs.getBoolean("frame_meter_test", false),
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
@@ -1019,6 +1038,7 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putString("rail_motion", settings.railMotion)
             .putBoolean("rail_fold_test", settings.railFoldTest)
             .putBoolean("rail_open", settings.railOpen)
+            .putBoolean("frame_meter_test", settings.frameMeterTest)
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putInt("blur_step", settings.blurStep)

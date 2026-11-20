@@ -310,7 +310,7 @@ fun GlassSwitchRow(
 private fun GlassToggle(checked: Boolean) {
     val theme = LocalGlassTheme.current
     val shape = RoundedCornerShape(percent = 50)
-    val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, label = "knob")
+    val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 22.dp else 0.dp, motionSpec(180), label = "knob")
     // Easier to see (29 Oct): off is a darker track with a clear edge, on is a bright track. The knob is solid: a
     // see-through knob let its shadow show through.
     val dark = theme.isDark

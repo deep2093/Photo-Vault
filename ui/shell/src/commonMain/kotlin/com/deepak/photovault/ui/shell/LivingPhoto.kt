@@ -168,7 +168,7 @@ fun LivingPhotoScreen(photoId: Long, state: ShellState, gallery: GalleryState, a
         }
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Crossfade(targetState = layers?.background != null, animationSpec = tween(500), label = "living") { ready ->
+        Crossfade(targetState = layers?.background != null, animationSpec = com.deepak.photovault.designsystem.motionSpec(500), label = "living") { ready ->
             val l = layers
             if (ready && l != null) {
                 LivingPhoto(l, Modifier.fillMaxSize())

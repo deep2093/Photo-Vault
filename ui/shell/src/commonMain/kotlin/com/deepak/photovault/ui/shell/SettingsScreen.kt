@@ -53,6 +53,7 @@ import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.ViewSidebar
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Science
@@ -742,6 +743,15 @@ private fun AboutSection(state: ShellState) {
                 icon = Icons.Rounded.ViewSidebar,
             )
         }
+        // 20 Nov (Phase 12): checks smoothness on a real phone.
+        GlassSwitchRow(
+            "Test: smoothness meter",
+            state.appearance.frameMeterTest,
+            { on -> state.updateAppearance { it.copy(frameMeterTest = on) } },
+            description = "A small counter at the top of the screen: how many frames came late while you scroll, pinch " +
+                "and open photos. Tap it to count again. Turn it off when you're done.",
+            icon = androidx.compose.material.icons.Icons.Rounded.Speed,
+        )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

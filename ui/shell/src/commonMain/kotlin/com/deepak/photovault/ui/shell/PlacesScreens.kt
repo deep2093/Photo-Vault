@@ -243,6 +243,7 @@ private fun PlacesSheet(
     val theme = LocalGlassTheme.current
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val still = com.deepak.photovault.designsystem.LocalGlassSettings.current.reduceMotion
     val full = screenHeight * 0.78f
     val small = 64.dp + bottomPadding
     val middle = (if (trips.isEmpty()) 190.dp else 360.dp) + bottomPadding
@@ -260,7 +261,8 @@ private fun PlacesSheet(
             else -> stops.minBy { kotlin.math.abs(it - now) }
         }
         scope.launch {
-            shownPx.animateTo(target, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 380f), initialVelocity = -velocity)
+            if (still) shownPx.snapTo(target)
+            else shownPx.animateTo(target, androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 380f), initialVelocity = -velocity)
         }
     }
     val drag = androidx.compose.foundation.gestures.rememberDraggableState { delta ->

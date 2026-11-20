@@ -1,0 +1,11 @@
+# Pixallery's own start-up and scrolling paths (Phase 12, 20 Nov). Compose, Coil and the other libraries bring their
+# own profiles; these add the app's code on the way to the first screen and while photos scroll, pinch and open, so it
+# is ready-compiled instead of warming up each time. Installed by androidx.profileinstaller for hand-installed builds.
+HSPLcom/deepak/photovault/*;->**(**)**
+HSPLcom/deepak/photovault/ui/shell/**->**(**)**
+HSPLcom/deepak/photovault/designsystem/**->**(**)**
+HSPLcom/deepak/photovault/core/media/**->**(**)**
+Lcom/deepak/photovault/*;
+Lcom/deepak/photovault/ui/shell/**
+Lcom/deepak/photovault/designsystem/**
+Lcom/deepak/photovault/core/media/**

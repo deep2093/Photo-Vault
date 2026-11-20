@@ -387,7 +387,7 @@ fun AlbumsScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                     selected = card.id in selected,
                     lifted = card.id == movingCard,
                     away = card.id == movingCard && dragPos != null,
-                    modifier = Modifier.animateItem(),
+                    modifier = calmItem(),
                 )
             }
         }

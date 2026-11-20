@@ -371,6 +371,11 @@ fun PhotoVaultApp(
                     IntroHost(state.intro)
                     JoinRequestPrompt(drive, signals.foreground)
                     MessageBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = system.calculateBottomPadding() + 96.dp))
+                    // The smoothness meter (a test in Settings > About, 20 Nov), at the top in the middle.
+                    val meter = state.frameMeter
+                    if (state.appearance.frameMeterTest && meter != null) {
+                        FrameMeterBadge(meter, Modifier.align(Alignment.TopCenter).padding(top = system.calculateTopPadding() + 4.dp))
+                    }
                 }
             }
         }
@@ -471,6 +476,9 @@ private class PageEntry(val overlay: Overlay, shown: Float) {
     var landed by mutableStateOf(true)
     val reveal = Animatable(1f)
     var copyOn by mutableStateOf(false)
+
+    /** How dark the black behind a closing viewer starts (lighter when its photo was pulled down to close it, 20 Nov). */
+    var backdropFrom = 1f
 }
 
 /**
@@ -479,22 +487,37 @@ private class PageEntry(val overlay: Overlay, shown: Float) {
  * little and fades). [aspect] is the photo's width / height (0 = unknown). [px] is the picture size the grid already
  * has in memory, so the copy shows at once.
  */
-private data class Fly(val uri: String, val isVideo: Boolean, val px: Int, val aspect: Float, val tile: androidx.compose.ui.geometry.Rect?) {
+private data class Fly(
+    val uri: String,
+    val isVideo: Boolean,
+    val px: Int,
+    val aspect: Float,
+    val tile: androidx.compose.ui.geometry.Rect?,
+    /** Half folded (tabletop, 20 Nov): the height of the part above the fold, where the viewer shows the photo. */
+    val area: Float? = null,
+    /** Pulled down to close (20 Nov): the photo's size and how far down it was when let go; the flight starts there. */
+    val endScale: Float = 1f,
+    val endShiftY: Float = 0f,
+) {
     /** Where the copy is at [p] (0 = on the tile, 1 = in the viewer), on a page [w] by [h]. */
     fun rect(p: Float, w: Float, h: Float): androidx.compose.ui.geometry.Rect {
-        val page = w / h
+        val areaH = area ?: h
+        val page = w / areaH
         val a = if (aspect > 0f) aspect else page
-        val fitW = if (a >= page) w else h * a
+        val fitW = if (a >= page) w else areaH * a
         val fitH = fitW / a
-        val left = (w - fitW) / 2f
-        val top = (h - fitH) / 2f
+        // The photo's place in the viewer, shrunk and moved as the finger left it when it was pulled down.
+        val endW = fitW * endScale
+        val endH = fitH * endScale
+        val cx = w / 2f
+        val cy = areaH / 2f + endShiftY
         val t = tile
         if (t == null) {
             val k = OVERLAY_SCALE + (1f - OVERLAY_SCALE) * p
-            return androidx.compose.ui.geometry.Rect(w / 2f - fitW * k / 2f, h / 2f - fitH * k / 2f, w / 2f + fitW * k / 2f, h / 2f + fitH * k / 2f)
+            return androidx.compose.ui.geometry.Rect(cx - endW * k / 2f, cy - endH * k / 2f, cx + endW * k / 2f, cy + endH * k / 2f)
         }
         fun mix(from: Float, to: Float) = from + (to - from) * p
-        return androidx.compose.ui.geometry.Rect(mix(t.left, left), mix(t.top, top), mix(t.right, left + fitW), mix(t.bottom, top + fitH))
+        return androidx.compose.ui.geometry.Rect(mix(t.left, cx - endW / 2f), mix(t.top, cy - endH / 2f), mix(t.right, cx + endW / 2f), mix(t.bottom, cy + endH / 2f))
     }
 }
 
@@ -528,6 +551,7 @@ private fun OverlayHost(
     system: PaddingValues,
 ) {
     val reduceMotion = LocalGlassSettings.current.reduceMotion
+    androidx.compose.runtime.SideEffect { state.reduceMotionNow = reduceMotion }
     val scope = rememberCoroutineScope()
     val entries = remember { mutableStateListOf<PageEntry>().also { list -> state.overlays.forEach { list.add(PageEntry(it, 1f)) } } }
     val wanted = state.overlays.toList()
@@ -544,7 +568,9 @@ private fun OverlayHost(
         // The shape its tile's picture was drawn in (right way up); the phone's listed width and height only when
         // that isn't known, as they can be sideways for a photo taken upright.
         val aspect = thumbShapes[id] ?: if (item.width > 0 && item.height > 0) item.width / item.height.toFloat() else 0f
-        return Fly(item.uri, item.isVideo, px, aspect, tile)
+        // Half folded, the viewer shows the photo above the fold, so the flight goes there.
+        val area = state.tabletopFold?.let { fold -> (fold.top - hostOrigin[1]).takeIf { it > 0f } }
+        return Fly(item.uri, item.isVideo, px, aspect, tile, area = area)
     }
     LaunchedEffect(wanted) {
         // The page the back gesture already moved away is removed at once; the rest slide.
@@ -558,6 +584,9 @@ private fun OverlayHost(
         val leaving = live.drop(same)
         leaving.forEachIndexed { i, entry ->
             entry.closing = true
+            // A photo pulled down to close it (20 Nov): where the finger let go, and how light the black was by then.
+            val letGo = if (entry.overlay is Overlay.Viewer) state.viewerLetGo.also { state.viewerLetGo = null } else null
+            if (entry.overlay is Overlay.Viewer) entry.backdropFrom = viewerBackdrop(state.viewerDrag)
             if (skip || reduceMotion) {
                 entries.remove(entry)
             } else if (commit && i == leaving.lastIndex && entry.overlay.slidesSideways()) {
@@ -580,12 +609,20 @@ private fun OverlayHost(
                 // The page under a viewer is kept built, so its tile can be asked for at once.
                 if (viewer != null) {
                     entry.fly = flyFor(showing, tileOf(showing, depthBelow), entry.fly?.px ?: 256)
+                        ?.let { f -> if (letGo != null) f.copy(endScale = letGo.scale, endShiftY = letGo.shiftY) else f }
                     entry.copyOn = entry.fly != null
                 }
                 entry.slide = scope.launch {
                     // The viewer's buttons fade away quickly under the copy; the viewer itself is taken apart only
                     // after the flight, so nothing heavy happens while the photo moves.
                     if (entry.fly != null) launch { entry.reveal.animateTo(0f, tween(90)) }
+                    // 20 Nov: a photo swiped to in the viewer that isn't on screen in the grid below: the grid brings
+                    // it into view first (out of sight under the copy and the black), so it lands in its own tile.
+                    val fly = entry.fly
+                    if (viewer != null && fly != null && fly.tile == null && state.revealTile(showing, depthBelow)) {
+                        withFrameNanos { }
+                        tileOf(showing, depthBelow)?.let { tile -> entry.fly = fly.copy(tile = tile) }
+                    }
                     entry.p.animateTo(0f, pageSpec(entry.overlay))
                     entries.remove(entry)
                 }
@@ -665,7 +702,13 @@ private fun OverlayHost(
                     val sideways = entry.overlay.slidesSideways()
                     // Black comes in behind the flying photo (and goes out again on closing).
                     // It also takes the taps while the viewer isn't built yet, so they don't reach the grid.
-                    if (entry.fly != null) Box(Modifier.fillMaxSize().blockTouchesBelow().drawBehind { drawRect(Color.Black, alpha = entry.p.value.coerceIn(0f, 1f)) })
+                    // 20 Nov: it thins out as the photo is pulled down to close it, so the grid shows through.
+                    if (entry.fly != null) Box(
+                        Modifier.fillMaxSize().blockTouchesBelow().drawBehind {
+                            val backdrop = if (entry.closing) entry.backdropFrom else viewerBackdrop(state.viewerDrag)
+                            drawRect(Color.Black, alpha = entry.p.value.coerceIn(0f, 1f) * backdrop)
+                        },
+                    )
                     Box(
                         Modifier
                             .fillMaxSize()
@@ -1094,7 +1137,8 @@ private fun TestSideBarLayout(screens: Screens, system: PaddingValues, motion: R
     val open = foldable && state.appearance.railOpen
     val openness by androidx.compose.animation.core.animateFloatAsState(
         if (open) 1f else 0f,
-        androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+        if (LocalGlassSettings.current.reduceMotion) androidx.compose.animation.core.snap()
+        else androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
         label = "railOpen",
     )
     // The sideways try keeps today's pager; the other two show one section at a time.

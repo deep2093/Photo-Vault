@@ -1,7 +1,6 @@
 package com.deepak.photovault.ui.shell
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -529,10 +528,12 @@ fun EditorScreen(photoId: Long, state: ShellState, gallery: GalleryState, action
         }
     }
     val toolsPanel: @Composable () -> Unit = {
-        // The tools of the chosen tab, then the tabs.
+        // The tools of the chosen tab, then the tabs. (20 Nov: no fade with reduce motion.)
+        val tabIn = com.deepak.photovault.designsystem.motionSpec<Float>(160)
+        val tabOut = com.deepak.photovault.designsystem.motionSpec<Float>(120)
         AnimatedContent(
             targetState = tab,
-            transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) },
+            transitionSpec = { fadeIn(tabIn) togetherWith fadeOut(tabOut) },
             modifier = Modifier.fillMaxWidth().heightIn(min = 132.dp),
             contentAlignment = Alignment.Center,
             label = "editTools",

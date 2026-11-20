@@ -74,6 +74,8 @@ data class AppearanceSettings(
     /** Test (20 Nov): a side bar that folds out wide with a menu button; [railOpen] is whether it is open. */
     val railFoldTest: Boolean = false,
     val railOpen: Boolean = false,
+    /** Test (20 Nov, Settings > About): the smoothness meter at the top of the screen (Phase 12 jank checks). */
+    val frameMeterTest: Boolean = false,
     /** The person picked a theme themselves. Until then they follow the default (Liquid Day since 29 Oct). */
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
@@ -270,8 +272,33 @@ class ShellState(private val store: AppearanceStore) {
     internal fun tileRect(id: Long, depth: Int): androidx.compose.ui.geometry.Rect? =
         tileLookups.asReversed().firstOrNull { it.first == depth }?.second?.invoke(id)
 
+    /** Each photo grid on screen can scroll a photo into view (20 Nov), with how deep its page is, as [tileLookups]. */
+    internal val tileRevealers = ArrayList<Pair<Int, suspend (Long) -> Boolean>>()
+
+    /** Asks the grid on the page at [depth] to bring photo [id] onto the screen; true when it is there now. */
+    internal suspend fun revealTile(id: Long, depth: Int): Boolean =
+        tileRevealers.asReversed().firstOrNull { it.first == depth }?.second?.invoke(id) ?: false
+
     /** The photo the viewer is showing (it may have been swiped along since it opened); for the closing animation. */
     internal var viewerShowing: Long? = null
+
+    /**
+     * How far the viewer's photo is pulled down to close it, as a share of the screen's height (20 Nov). The page host
+     * reads it while drawing, so the black behind the photo thins out and the photos under it show through.
+     */
+    internal var viewerDrag by androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    /** Where the finger let go of a photo pulled down to close it; the closing flight starts from there. */
+    internal var viewerLetGo: ViewerLetGo? = null
+
+    /**
+     * A foldable half open like a small laptop (tabletop, 20 Nov): where its fold runs across the screen, in window
+     * pixels. Null when it is flat or closed, and on other phones and tablets. Set by the Android app.
+     */
+    var tabletopFold by mutableStateOf<FoldLine?>(null)
+
+    /** Counts drawn and late frames for the smoothness meter (Settings > About); set by the Android app. */
+    var frameMeter: FrameMeter? = null
 
     /**
      * Copies saved from the editor or the video trimmer (17 Nov, Deepak: the copy didn't show in the viewer's strip
@@ -446,10 +473,14 @@ class ShellState(private val store: AppearanceStore) {
         back()
     }
 
-    /** The gesture was cancelled: the page slides back where it was. */
+    /** The gesture was cancelled: the page slides back where it was (at once with reduce motion, 20 Nov). */
     suspend fun cancelBack() {
-        pageBack.animateTo(0f, tween((BACK_SETTLE_MS * pageBack.value).toInt().coerceAtLeast(60), easing = PageEasing))
+        if (reduceMotionNow) pageBack.snapTo(0f)
+        else pageBack.animateTo(0f, tween((BACK_SETTLE_MS * pageBack.value).toInt().coerceAtLeast(60), easing = PageEasing))
     }
+
+    /** Whether motion is reduced right now (app setting or Android's "Remove animations"); kept up to date by the page host. */
+    internal var reduceMotionNow = false
 
     /** Photos is showing Months or Years (or came there from one): back steps up a level before the app closes. */
     var canStepBack by mutableStateOf(false)
@@ -555,6 +586,21 @@ class ShellState(private val store: AppearanceStore) {
 
     /** Photos' grid columns. */
     val gridColumns: Int? get() = gridColumnsFor(GRID_PHOTOS)
+
+    /**
+     * A page's grid columns on a screen of this kind (20 Nov, foldables): [large] for an open foldable or a tablet, else
+     * a phone-sized screen. Each kind is remembered on its own; the single size saved before this still counts for both
+     * until a new one is pinched.
+     */
+    fun gridColumnsFor(page: String, large: Boolean): Int? = appearance.gridSizes[sizeKey(page, large)] ?: appearance.gridSizes[page]
+
+    /** Remembers [columns] for [page] on a screen of this kind. */
+    fun setGridColumns(page: String, large: Boolean, columns: Int) {
+        val key = sizeKey(page, large)
+        if (appearance.gridSizes[key] != columns) updateAppearance { it.copy(gridSizes = it.gridSizes + (key to columns)) }
+    }
+
+    private fun sizeKey(page: String, large: Boolean) = page + if (large) "@large" else "@compact"
 
     /** Whether the phone is in dark mode; the app sets it at start and whenever it changes (18 Nov). */
     var systemDark by mutableStateOf(false)
@@ -671,3 +717,6 @@ private const val BACK_SETTLE_MS = 640
 
 /** One message for [ShellState.message]; [id] tells two messages with the same words apart. */
 data class AppMessage(val text: String, val id: Int, val actionLabel: String? = null, val action: (() -> Unit)? = null)
+
+/** Where a foldable's fold runs across the screen (window pixels, from the top): the upper half ends at [top]. */
+data class FoldLine(val top: Int, val bottom: Int)

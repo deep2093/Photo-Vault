@@ -123,6 +123,11 @@ import com.deepak.photovault.core.media.Thumb
 import com.deepak.photovault.core.media.Timeline
 import com.deepak.photovault.designsystem.GlassIconButton
 import com.deepak.photovault.designsystem.LocalGlassTheme
+import com.deepak.photovault.designsystem.solidGlass
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.glassChrome
 import com.deepak.photovault.designsystem.motionSpec
@@ -136,7 +141,11 @@ import kotlinx.datetime.toLocalDateTime
  * in or out, play videos. Photos are shown on black, never tinted. There is no top bar: back is the system back gesture.
  *
  * Swipe up (or tap Details) to slide the photo up and reveal the details panel, as in Samsung Gallery
- * (feedback 22 Oct). Swipe down, tap the photo or press back to close it.
+ * (feedback 22 Oct). Swipe down or press back to close it: since 20 Nov (Phase 12) the photo follows the finger down,
+ * shrinking, with the grid showing through behind it, and when let go it shrinks back into its own tile.
+ *
+ * On a foldable half open like a small laptop (tabletop), the photo or video sits on the upper half and the buttons on
+ * the lower half (20 Nov).
  */
 @Composable
 fun ViewerScreen(viewer: Overlay.Viewer, state: ShellState, gallery: GalleryState, actions: MediaActions) {
@@ -180,7 +189,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
         val at = ids.indexOf(target)
         if (at >= 0) {
             state.showCopy = null
-            pager.animateScrollToPage(at)
+            if (state.reduceMotionNow) pager.scrollToPage(at) else pager.animateScrollToPage(at)
         }
     }
     var barsVisible by rememberSaveable { mutableStateOf(true) }
@@ -209,8 +218,9 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
         if (duration > 0) PreloadVideoFrames(current.uri, remember(current.id, duration) { ScrubberMath.frameTimes(duration) }, FRAME_PX)
     }
     var touches by remember { mutableStateOf(0) }
-    LaunchedEffect(barsVisible, videoStarted, video.playing, touches) {
-        if (barsVisible && videoStarted && video.playing) {
+    LaunchedEffect(barsVisible, videoStarted, video.playing, touches, state.tabletopFold) {
+        // Half folded (tabletop) the buttons have the lower half to themselves, so they stay (20 Nov).
+        if (barsVisible && videoStarted && video.playing && state.tabletopFold == null) {
             kotlinx.coroutines.delay(VIDEO_BARS_MS)
             barsVisible = false
         }
@@ -235,12 +245,51 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
     }
     DisposableEffect(Unit) { onDispose { state.detailsOpen = false } }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+    // Swipe down to close (20 Nov): how far the photo is pulled down, in pixels, while a pull is under way.
+    val dismiss = remember { Animatable(0f) }
+    var dismissing by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        state.viewerDrag = 0f
+        state.viewerLetGo = null
+        onDispose { state.viewerDrag = 0f }
+    }
+    // Tabletop (20 Nov): where this page starts on the screen, to know how much of it is above the fold.
+    var pageTop by remember { mutableStateOf(0f) }
+
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { pageTop = it.positionInRoot().y }
+            // The black thins out as the photo is pulled down, so the photos behind show through.
+            .drawBehind { drawRect(Color.Black, alpha = viewerBackdrop(state.viewerDrag)) },
+    ) {
         val density = LocalDensity.current
+        val heightPx = with(density) { maxHeight.toPx() }
+        // Half folded: the photo has the part above the fold (null when the phone is flat or not a foldable).
+        val areaPx = state.tabletopFold?.let { fold -> (fold.top - pageTop).takeIf { it > heightPx * 0.25f && it < heightPx } }
         // The panel is as tall as its (compact) details; until measured, assume about 40% of the screen.
         var measuredPanelPx by remember { mutableStateOf(0) }
         val panelPx = if (measuredPanelPx > 0) measuredPanelPx.toFloat() else with(density) { (maxHeight * DETAILS_SHARE).toPx() }
+        /** Let go far enough down: the photo shrinks back into its tile from where the finger left it. */
+        fun closeByDrag() {
+            val f = (dismiss.value / heightPx).coerceIn(0f, 1f)
+            state.viewerLetGo = ViewerLetGo(scale = 1f - DISMISS_SHRINK * f, shiftY = dismiss.value)
+            state.back()
+        }
         fun settle(velocity: Float) {
+            if (dismissing) {
+                if (dismiss.value > heightPx * DISMISS_SHARE || velocity > DISMISS_FLING) {
+                    closeByDrag()
+                } else {
+                    scope.launch {
+                        if (reduceMotion) dismiss.snapTo(0f)
+                        else dismiss.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 500f)) { state.viewerDrag = (value / heightPx).coerceIn(0f, 1f) }
+                        state.viewerDrag = 0f
+                        dismissing = false
+                    }
+                }
+                return
+            }
             // Open past a third of the way, or on an upward fling; close otherwise.
             val open = if (kotlin.math.abs(velocity) > 800f) velocity < 0 else progress.value > 0.33f
             state.detailsOpen = open
@@ -249,7 +298,22 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 else progress.animateTo(if (open) 1f else 0f, tween(DETAILS_MS, easing = FastOutSlowInEasing), initialVelocity = -velocity / panelPx)
             }
         }
-        val drag = rememberDraggableState { dy -> scope.launch { progress.snapTo((progress.value - dy / panelPx).coerceIn(0f, 1f)) } }
+        val drag = rememberDraggableState { dy ->
+            if (dismissing || (dy > 0f && progress.value == 0f && !state.detailsOpen)) {
+                if (!dismissing) {
+                    dismissing = true
+                    // The grid under the viewer brings this photo into view now, while the black still hides it.
+                    val depthBelow = state.overlays.indexOfLast { it is Overlay.Viewer }
+                    if (depthBelow >= 0) scope.launch { state.revealTile(current.id, depthBelow) }
+                }
+                scope.launch {
+                    dismiss.snapTo((dismiss.value + dy).coerceAtLeast(0f))
+                    state.viewerDrag = (dismiss.value / heightPx).coerceIn(0f, 1f)
+                }
+            } else {
+                scope.launch { progress.snapTo((progress.value - dy / panelPx).coerceIn(0f, 1f)) }
+            }
+        }
 
         // No blur source here: the bars use solid glass over the photo.
         CompositionLocalProvider(LocalHazeState provides null) {
@@ -258,12 +322,18 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 key = { ids[it] },
                 beyondViewportPageCount = 1,
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
+                    .then(if (areaPx != null) Modifier.height(with(density) { areaPx.toDp() }) else Modifier.fillMaxHeight())
                     .then(lens?.source(lensOn) ?: Modifier)
                     .trackSpot(photoSpot)
                     .graphicsLayer {
-                        // The photo slides up as the panel rises, leaving it fully visible above the panel.
-                        translationY = -progress.value * panelPx * 0.62f
+                        // The photo slides up as the panel rises, leaving it fully visible above the panel; pulled
+                        // down to close, it follows the finger and shrinks a little.
+                        val pulled = dismiss.value
+                        translationY = -progress.value * panelPx * 0.62f + pulled
+                        val k = 1f - DISMISS_SHRINK * (pulled / heightPx).coerceIn(0f, 1f)
+                        scaleX = k
+                        scaleY = k
                     }
                     // Vertical swipes (not taken by zoom or the pager) open and close the panel.
                     .draggable(
@@ -334,11 +404,15 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
 
             // 18 Nov (Deepak): play and pause in the middle of the screen while a video plays, in the same glass as
             // the other buttons here; it comes and goes with them.
+            val pulledAway = Modifier.graphicsLayer { alpha = (1f - state.viewerDrag * 4f).coerceIn(0f, 1f) }
             AnimatedVisibility(
                 visible = barsVisible && !state.detailsOpen && videoStarted && current.isVideo,
                 enter = fadeIn(motionSpec()),
                 exit = fadeOut(motionSpec()),
-                modifier = Modifier.align(Alignment.Center),
+                modifier = (
+                    if (areaPx != null) Modifier.align(Alignment.TopCenter).padding(top = with(density) { (areaPx / 2f).toDp() } - CENTRE_BUTTON / 2)
+                    else Modifier.align(Alignment.Center)
+                    ).then(pulledAway),
             ) {
                 CentrePlayButton(
                     playing = video.playing,
@@ -350,12 +424,32 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                 )
             }
 
+            // A small HDR badge (Phase 12, 20 Nov) while an HDR photo, or a playing HDR video, is showing.
+            val hdrShown = if (current.isVideo) videoStarted && video.hdr else hdrPhotos[current.id] == true
+            AnimatedVisibility(
+                visible = hdrShown && barsVisible && !state.detailsOpen,
+                enter = fadeIn(motionSpec()),
+                exit = fadeOut(motionSpec()),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = system.calculateTopPadding() + 12.dp, end = 16.dp).then(pulledAway),
+            ) {
+                Text(
+                    "HDR",
+                    color = LocalGlassTheme.current.onGlass,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .solidGlass(RoundedCornerShape(percent = 50))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .semantics { contentDescription = if (current.isVideo) "HDR video" else "HDR photo" },
+                )
+            }
+
             // A tap on the photo fades the filmstrip and actions away and back, as in Samsung Gallery.
             AnimatedVisibility(
                 visible = barsVisible && !state.detailsOpen,
                 enter = fadeIn(motionSpec()),
                 exit = fadeOut(motionSpec()),
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).then(pulledAway),
             ) {
                 Column(
                     Modifier
@@ -479,6 +573,22 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
 private const val DETAILS_MS = 320
 private const val SCRUB_MS = 260
 private const val DETAILS_SHARE = 0.4f
+
+// Swipe down to close (Phase 12, 20 Nov), like Google Photos.
+/** How much smaller the photo gets when pulled all the way down. */
+private const val DISMISS_SHRINK = 0.35f
+/** Let go past this share of the screen's height (or flicked down) and the photo closes. */
+private const val DISMISS_SHARE = 0.12f
+/** A flick down this fast (pixels a second) closes it from any distance. */
+private const val DISMISS_FLING = 1200f
+/** How fast the black thins out as the photo is pulled down (gone at 40 % of the screen). */
+private const val BACKDROP_FADE = 2.5f
+
+/** How dark the viewer's black is when its photo is pulled [drag] of the screen's height down (1 = fully black). */
+internal fun viewerBackdrop(drag: Float): Float = (1f - drag * BACKDROP_FADE).coerceIn(0f, 1f)
+
+/** Where the finger left a photo pulled down to close it: shrunk to [scale] and moved [shiftY] pixels down. */
+internal data class ViewerLetGo(val scale: Float, val shiftY: Float)
 
 private val THUMB_W = 42.dp
 private val THUMB_H = 56.dp
@@ -885,6 +995,8 @@ private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit
     val scale = remember(item.id) { Animatable(1f) }
     val offset = remember(item.id) { Animatable(Offset.Zero, Offset.VectorConverter) }
     val context = LocalPlatformContext.current
+    // 20 Nov: with reduce motion a double tap zooms at once, and a photo let go below its size is put back at once.
+    val still by androidx.compose.runtime.rememberUpdatedState(LocalGlassSettings.current.reduceMotion)
     // A photo that is no longer the one shown goes back to normal size (7 Nov: picking another photo from the strip
     // while zoomed showed it under the still-zoomed one).
     LaunchedEffect(isCurrent) {
@@ -904,14 +1016,25 @@ private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit
                     onDoubleTap = { tap ->
                         scope.launch {
                             if (scale.value > 1.05f) {
-                                launch { offset.animateTo(Offset.Zero) }
-                                scale.animateTo(1f)
+                                if (still) {
+                                    offset.snapTo(Offset.Zero)
+                                    scale.snapTo(1f)
+                                } else {
+                                    launch { offset.animateTo(Offset.Zero) }
+                                    scale.animateTo(1f)
+                                }
                             } else {
                                 // Zoom towards where the finger tapped.
                                 val target = 2.5f
                                 val centre = Offset(size.width / 2f, size.height / 2f)
-                                launch { offset.animateTo(clampOffset((centre - tap) * (target - 1f), target, size.width, size.height)) }
-                                scale.animateTo(target)
+                                val towards = clampOffset((centre - tap) * (target - 1f), target, size.width, size.height)
+                                if (still) {
+                                    offset.snapTo(towards)
+                                    scale.snapTo(target)
+                                } else {
+                                    launch { offset.animateTo(towards) }
+                                    scale.animateTo(target)
+                                }
                             }
                         }
                     },
@@ -936,8 +1059,13 @@ private fun ZoomablePhoto(item: MediaItem, isCurrent: Boolean, onTap: () -> Unit
                     } while (event.changes.any { it.pressed })
                     if (scale.value < 1.05f) {
                         scope.launch {
-                            launch { offset.animateTo(Offset.Zero) }
-                            scale.animateTo(1f)
+                            if (still) {
+                                offset.snapTo(Offset.Zero)
+                                scale.snapTo(1f)
+                            } else {
+                                launch { offset.animateTo(Offset.Zero) }
+                                scale.animateTo(1f)
+                            }
                         }
                     }
                 }

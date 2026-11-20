@@ -166,9 +166,9 @@ fun MediaGrid(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val width = maxWidth.value.toInt()
         val maxColumns = AdaptiveLayout.maxColumns(width)
-        val columns = state.gridColumnsFor(gridKey)?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
-        val currentColumns by rememberUpdatedState(columns)
-        val currentMax by rememberUpdatedState(maxColumns)
+        // Foldables (20 Nov): the folded and the open screen each keep their own photo size (a tablet counts as open).
+        val large = LocalTabletDevice.current
+        val columns = state.gridColumnsFor(gridKey, large)?.let { AdaptiveLayout.clampColumns(it, width) } ?: AdaptiveLayout.defaultColumns(width)
         val tileDp = maxWidth / columns
         // Mixed sizes: the photos cut into plain runs and two-row blocks; null for the plain grid.
         val flat = remember(sections) { sections.flatMap { it.items } }
@@ -345,6 +345,73 @@ fun MediaGrid(
             }
         }
 
+        /** The grid item that holds photo [id] (a mixed-size block holds several). */
+        fun gridIndexOf(id: Long): Int? {
+            val planned = parts
+            if (planned != null) {
+                val at = positionOf[id] ?: return null
+                var index = headerItems
+                for (part in planned) {
+                    when (part) {
+                        is Mosaic.Run -> {
+                            if (at < part.to) return index + (at - part.from).coerceAtLeast(0)
+                            index += part.to - part.from
+                        }
+                        is Mosaic.Block -> {
+                            if (at < part.from + Mosaic.photosIn(columns)) return index
+                            index += 1
+                        }
+                    }
+                }
+                return null
+            }
+            var index = headerItems
+            for (section in sections) {
+                if (!continuous) index += 1
+                val k = section.items.indexOfFirst { it.id == id }
+                if (k >= 0) return index + k
+                index += section.items.size
+            }
+            return null
+        }
+
+        // The pinch (Phase 12, 20 Nov): the grid grows with the fingers and changes size without a jump (GridPinch).
+        val pinch = remember(gridState) { GridPinch(scope, gridState) }
+        val pinchHost = remember(pinch) { GridPinchHost().also { pinch.host = it } }
+        val pictureA = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        val pictureB = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        val ticks = com.deepak.photovault.designsystem.rememberHaptics()
+        androidx.compose.runtime.SideEffect {
+            pinchHost.columns = columns
+            pinchHost.maxColumns = maxColumns
+            pinchHost.reduceMotion = reduceMotion
+            pinchHost.width = widthPx
+            pinchHost.height = heightPx
+            pinchHost.photoAtFn = handler::photoAt
+            pinchHost.tileOfFn = { id -> visibleTiles().firstOrNull { it.first == id }?.second }
+            pinchHost.indexOfFn = ::gridIndexOf
+            pinchHost.setColumnsFn = { c -> state.setGridColumns(gridKey, large, c) }
+            pinchHost.pastSmallestFn = { currentZoomOut?.let { it(); true } ?: false }
+            pinchHost.tickFn = { ticks.tick() }
+        }
+
+        /**
+         * Brings photo [id] onto the screen if it isn't fully there (20 Nov): the viewer asks, out of sight under the
+         * photo, so a photo swiped to in the viewer can shrink back into its own tile.
+         */
+        suspend fun bringIntoView(id: Long): Boolean {
+            val top = topPadPx
+            val bottom = heightPx - bottomPadPx
+            visibleTiles().firstOrNull { it.first == id }?.second?.let { r -> if (r.top >= top - 1f && r.bottom <= bottom + 1f) return true }
+            val index = gridIndexOf(id) ?: return false
+            gridState.scrollToItem(index)
+            val r = visibleTiles().firstOrNull { it.first == id }?.second ?: return false
+            gridState.scrollBy(r.center.y - (top + bottom) / 2f)
+            return true
+        }
+        val revealHere: suspend (Long) -> Boolean = { id -> bringIntoView(id) }
+        val revealNow = rememberUpdatedState(revealHere)
+
         // Tells the delete animation where each photo is drawn (window coordinates).
         val spots = LocalTileSpots.current
         val gridOrigin = remember { floatArrayOf(0f, 0f) }
@@ -363,6 +430,12 @@ fun MediaGrid(
             state.tileLookups += ask
             onDispose { state.tileLookups -= ask }
         }
+        DisposableEffect(state, depth) {
+            val ask: suspend (Long) -> Boolean = { id -> revealNow.value(id) }
+            val reveal = depth to ask
+            state.tileRevealers += reveal
+            onDispose { state.tileRevealers -= reveal }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             state = gridState,
@@ -372,12 +445,10 @@ fun MediaGrid(
             modifier = Modifier
                 .fillMaxSize()
                 .then(topFade)
+                .pinchDrawing(pinch, pictureA, pictureB)
                 .onGloballyPositioned { val p = it.positionInRoot(); gridOrigin[0] = p.x; gridOrigin[1] = p.y }
                 .photoGridGestures(gridState, handler)
-                .pinchToZoom { zoomIn ->
-                    val past = currentZoomOut
-                    if (!zoomIn && currentColumns >= currentMax && past != null) past() else state.zoomGrid(if (zoomIn) +1 else -1, currentColumns, currentMax, gridKey)
-                },
+                .pinchGesture(pinch),
         ) {
             header?.invoke(this)
             // One tile, the same in the plain grid and inside a mixed-size block.
@@ -400,11 +471,11 @@ fun MediaGrid(
                 planned.forEach { part ->
                     when (part) {
                         is Mosaic.Run -> items(flat.subList(part.from, part.to), key = { it.id }, contentType = { "tile" }) { item ->
-                            tile(item, tileDp, if (reduceMotion) Modifier else Modifier.animateItem())
+                            tile(item, tileDp, if (reduceMotion || pinch.resized) Modifier else Modifier.animateItem())
                         }
                         is Mosaic.Block -> item(key = "block-${flat[part.from].id}", span = { GridItemSpan(maxLineSpan) }, contentType = "block") {
                             val slots = remember(columns, part.right) { Mosaic.slots(columns, part.right) }
-                            BoxWithConstraints((if (reduceMotion) Modifier else Modifier.animateItem()).fillMaxWidth()) {
+                            BoxWithConstraints((if (reduceMotion || pinch.resized) Modifier else Modifier.animateItem()).fillMaxWidth()) {
                                 val cell = (maxWidth - GRID_SPACING * (columns - 1)) / columns
                                 val step = cell + GRID_SPACING
                                 Box(Modifier.fillMaxWidth().height(cell * 2 + GRID_SPACING)) {
@@ -427,8 +498,9 @@ fun MediaGrid(
                     SectionHeader(if (where != null) "${section.label} · $where" else section.label, Modifier.padding(start = SCREEN_MARGIN + 4.dp, end = SCREEN_MARGIN, top = 12.dp, bottom = 4.dp), onWallpaper = true)
                 }
                 items(section.items, key = { it.id }, contentType = { "tile" }) { item ->
-                    // Photos glide to their new place when the grid changes size (instant with reduce motion).
-                    tile(item, tileDp, if (reduceMotion) Modifier else Modifier.animateItem())
+                    // Photos glide to their new place when the list changes (instant with reduce motion); while a pinch
+                    // fades between sizes they jump, as the fade covers the change (20 Nov).
+                    tile(item, tileDp, if (reduceMotion || pinch.resized) Modifier else Modifier.animateItem())
                 }
             }
             footer?.invoke(this)

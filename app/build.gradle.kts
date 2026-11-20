@@ -124,6 +124,11 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    // Foldables (Phase 12, 20 Nov): where the fold is when the phone is half open (tabletop).
+    implementation("androidx.window:window:1.3.0")
+    // Start-up and scrolling (Phase 12, 20 Nov): installs src/main/baseline-prof.txt when the app is put on by hand
+    // (Play does it itself), so the code those paths use is ready-compiled instead of warming up on every run.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // Scheduled and background backups (Phase 4).
     implementation("androidx.work:work-runtime-ktx:2.10.1")
     // Keeps date, camera and location details when Storage saver shrinks a photo.
