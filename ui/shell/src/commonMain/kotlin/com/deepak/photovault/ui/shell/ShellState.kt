@@ -66,6 +66,14 @@ data class AppearanceSettings(
     val mirrorTest: Boolean = false,
     /** With [mirrorTest]: every backup of this person shows (true), or only what is on this device. */
     val showAllBackups: Boolean = true,
+    /**
+     * Test (20 Nov, Settings > About, tablets): how sections change beside the side bar. SIDEWAYS is today's slide;
+     * the others are tries Deepak may keep or drop. Saved as the [RailMotion] name.
+     */
+    val railMotion: String = RailMotion.SIDEWAYS.name,
+    /** Test (20 Nov): a side bar that folds out wide with a menu button; [railOpen] is whether it is open. */
+    val railFoldTest: Boolean = false,
+    val railOpen: Boolean = false,
     /** The person picked a theme themselves. Until then they follow the default (Liquid Day since 29 Oct). */
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
@@ -106,6 +114,17 @@ data class AppearanceSettings(
 )
 
 /** As the phone, always the day version, or always the night version of the chosen theme (18 Nov). */
+/** How sections change beside the tablet's side bar (20 Nov test). */
+enum class RailMotion(val label: String) {
+    SIDEWAYS("Sideways"),
+    VERTICAL("Up and down"),
+    FADE("Fade");
+
+    companion object {
+        fun of(name: String): RailMotion = entries.firstOrNull { it.name == name } ?: SIDEWAYS
+    }
+}
+
 enum class ThemeMode(val label: String) { SYSTEM("As the phone"), LIGHT("Day"), DARK("Night") }
 
 /** The Photos page's grid. */

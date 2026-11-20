@@ -714,6 +714,34 @@ private fun AboutSection(state: ShellState) {
                 "Your other phone or tablet must be in the family as you.",
             icon = Icons.Rounded.Devices,
         )
+        // 20 Nov (Deepak): side bar tries on tablets, off by default; today's side bar is untouched until one is kept.
+        if (LocalTabletDevice.current) {
+            val theme = LocalGlassTheme.current
+            Text(
+                "Test: side bar motion",
+                color = theme.onGlass,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(top = 12.dp, start = 4.dp),
+            )
+            Text(
+                "How the page changes when you pick a section. Sideways is how it works now.",
+                color = theme.onGlassSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+            )
+            com.deepak.photovault.designsystem.GlassSegmented(
+                RailMotion.entries.map { it.label },
+                selectedIndex = RailMotion.of(state.appearance.railMotion).ordinal,
+                onSelect = { i -> state.updateAppearance { it.copy(railMotion = RailMotion.entries[i].name) } },
+            )
+            GlassSwitchRow(
+                "Test: side bar that folds out",
+                state.appearance.railFoldTest,
+                { on -> state.updateAppearance { it.copy(railFoldTest = on) } },
+                description = "A menu button at the top of the side bar opens it wide, with each section's name beside its icon.",
+                icon = Icons.Rounded.ViewSidebar,
+            )
+        }
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

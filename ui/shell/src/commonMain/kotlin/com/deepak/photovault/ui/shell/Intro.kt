@@ -100,13 +100,11 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-18-10"
+    const val ID = "2026-11-20-1"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.CHANGED, "Two separate views", "With the backups test on, the tablet icon shows only what's on this device, and the cloud only your backups that aren't on it."),
-        Change(ChangeKind.FIXED, "Backup photos show after a restart", "Your backup list kept on this device shows the moment the app opens, without pulling down."),
-        Change(ChangeKind.CHANGED, "New theme names", "Ocean, Aurora, Gallery and Prism, named after how they look. Your choice stays the same."),
-        Change(ChangeKind.NEW, "Add your own second device", "A new phone or tablet joining as you asks your other device, not the owner. Approve it when both show the same code, and send your private key over too."),
+        Change(ChangeKind.NEW, "Side bar tests on tablets", "In Settings > About: try the page moving up and down, or fading, when you pick a section, and a side bar that folds out wide. Off, it works as before."),
+        Change(ChangeKind.FIXED, "Video strip on tablets", "The whole video fits the strip, centred, with the line moving across. The time and sound buttons line up with its ends. Phones are unchanged."),
     )
 }
 

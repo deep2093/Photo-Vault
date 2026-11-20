@@ -975,6 +975,9 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
         tabletSideBar = prefs.getBoolean("tablet_side_bar", true),
         mirrorTest = prefs.getBoolean("mirror_test", false),
         showAllBackups = prefs.getBoolean("show_all_backups", true),
+        railMotion = prefs.getString("rail_motion", null) ?: "SIDEWAYS",
+        railFoldTest = prefs.getBoolean("rail_fold_test", false),
+        railOpen = prefs.getBoolean("rail_open", false),
         // Older versions saved the theme on any change, so only a theme picked since 24 Oct counts as chosen.
         themeChosen = prefs.getBoolean("theme_chosen", false),
         lensGlass = prefs.getBoolean("lens_glass", false),
@@ -1013,6 +1016,9 @@ private class PrefsAppearanceStore(context: Context) : AppearanceStore {
             .putBoolean("tablet_side_bar", settings.tabletSideBar)
             .putBoolean("mirror_test", settings.mirrorTest)
             .putBoolean("show_all_backups", settings.showAllBackups)
+            .putString("rail_motion", settings.railMotion)
+            .putBoolean("rail_fold_test", settings.railFoldTest)
+            .putBoolean("rail_open", settings.railOpen)
             .putBoolean("theme_chosen", settings.themeChosen)
             .putBoolean("lens_glass", settings.lensGlass)
             .putInt("blur_step", settings.blurStep)

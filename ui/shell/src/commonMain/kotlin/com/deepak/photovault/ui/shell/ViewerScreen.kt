@@ -22,6 +22,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.produceState
@@ -365,7 +366,13 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     val playingHere = videoStarted && current.isVideo
-                    if (playingHere) VideoBar(video, onTouch = { touches++ })
+                    // 20 Nov (Deepak, tablet): the time and sound buttons line up with the ends of the video's strip;
+                    // phones keep the full-width row they have.
+                    val tablet = LocalTabletDevice.current
+                    if (playingHere) {
+                        if (tablet) VideoBar(video, onTouch = { touches++ }, modifier = Modifier.fillMaxWidth(TABLET_STRIP_SHARE).widthIn(max = TABLET_STRIP_MAX))
+                        else VideoBar(video, onTouch = { touches++ })
+                    }
                     // The frame strip opens out of the video's thumbnail and folds back into it (23 Oct: it popped).
                     val growIn = motionSpec<androidx.compose.ui.unit.IntSize>(SCRUB_MS)
                     val fadeSpec = motionSpec<Float>(SCRUB_MS)
@@ -384,7 +391,9 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                         label = "strip",
                     ) { scrub ->
                         if (scrub) {
-                            VideoScrubber(current, video, onTouch = { touches++ })
+                            // 20 Nov: on a tablet the whole video fits the strip and the line moves; phones unchanged.
+                            if (tablet) FittedVideoTimeline(current, video, onTouch = { touches++ })
+                            else VideoScrubber(current, video, onTouch = { touches++ })
                         } else if (ids.size > 1) {
                             Filmstrip(ids, find, pager, onCurrentClick = if (playingHere) ({ scrubbing = true; touches++ }) else null)
                         }
@@ -1051,9 +1060,9 @@ private val CENTRE_BUTTON = 68.dp
 
 /** Play or pause, where it is, and sound on or off: one small row above the frame strip. */
 @Composable
-internal fun VideoBar(video: VideoControls, onTouch: () -> Unit) {
+internal fun VideoBar(video: VideoControls, onTouch: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -1174,6 +1183,106 @@ private fun VideoScrubber(item: MediaItem, video: VideoControls, onTouch: () -> 
         Box(Modifier.width(3.dp).height(THUMB_H + 8.dp).clip(RoundedCornerShape(2.dp)).background(Color.White))
     }
 }
+
+/**
+ * The tablet's video strip (20 Nov, Deepak: "on the tablet the strip isn't aligned"; phones keep [VideoScrubber]).
+ * The whole video fits the strip, centred and the same width every time, using the frames already read ahead; the
+ * white line moves across as it plays. Tap or drag anywhere on it to jump there.
+ */
+@Composable
+private fun FittedVideoTimeline(item: MediaItem, video: VideoControls, onTouch: () -> Unit) {
+    val duration = (if (item.durationMillis > 0) item.durationMillis else video.durationMs).coerceAtLeast(1L)
+    val times = remember(item.id, duration) { ScrubberMath.frameTimes(duration) }
+    var dragging by remember { mutableStateOf(false) }
+    var fraction by remember { mutableStateOf(0f) }
+    fun seekTo(f: Float) {
+        val at = f.coerceIn(0f, 1f)
+        fraction = at
+        video.seek((at * duration).toLong())
+        onTouch()
+    }
+    // The line follows the video on every screen frame, carried forward by the clock between the player's reports
+    // (the same easing as the phone's strip, so it glides rather than steps).
+    LaunchedEffect(item.id, duration) {
+        var seen = -1L
+        var base = video.positionMs.toDouble()
+        var baseAt = 0L
+        while (true) {
+            val now = androidx.compose.runtime.withFrameNanos { it }
+            val reported = video.positionMs
+            val guess = if (video.playing && baseAt != 0L) base + (now - baseAt) / 1_000_000.0 else base
+            if (reported != seen) {
+                seen = reported
+                base = ScrubberMath.follow(guess, reported.toDouble())
+                baseAt = now
+            } else if (!video.playing) {
+                base = reported.toDouble()
+                baseAt = now
+            }
+            if (!dragging) {
+                val at = (if (video.playing) base + (now - baseAt) / 1_000_000.0 else base).coerceIn(0.0, duration.toDouble())
+                val f = (at / duration).toFloat()
+                if (kotlin.math.abs(f - fraction) > 0.0005f) fraction = f
+            }
+        }
+    }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth(TABLET_STRIP_SHARE)
+            .widthIn(max = TABLET_STRIP_MAX)
+            .height(THUMB_H + 8.dp)
+            .semantics { contentDescription = "Video timeline. Drag to move through the video" },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        val widthPx = constraints.maxWidth.toFloat()
+        val cells = (maxWidth / FRAME_W).toInt().coerceIn(4, times.size.coerceAtLeast(4))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(THUMB_H)
+                .clip(RoundedCornerShape(8.dp))
+                .pointerInput(item.id, duration) {
+                    androidx.compose.foundation.gestures.detectTapGestures { o -> seekTo(o.x / size.width) }
+                }
+                .pointerInput(item.id, duration) {
+                    androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                        onDragStart = { o ->
+                            dragging = true
+                            seekTo(o.x / size.width)
+                        },
+                        onDragEnd = { dragging = false },
+                        onDragCancel = { dragging = false },
+                    ) { change, _ -> seekTo(change.position.x / size.width) }
+                },
+        ) {
+            repeat(cells) { c ->
+                val time = times[(c * (times.size - 1)) / (cells - 1).coerceAtLeast(1)]
+                Box(Modifier.weight(1f).height(THUMB_H)) {
+                    AsyncImage(Thumb(item.uri, true, 160), null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                    AsyncImage(
+                        model = VideoFrame(item.uri, time, FRAME_PX),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+            }
+        }
+        // The playhead, moving across.
+        Box(
+            Modifier
+                .offset { androidx.compose.ui.unit.IntOffset((fraction * widthPx - 1.5.dp.toPx()).roundToInt(), 0) }
+                .width(3.dp)
+                .height(THUMB_H + 8.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color.White),
+        )
+    }
+}
+
+/** The tablet's video strip and its time row: the same share of the width, never wider than this (20 Nov). */
+private const val TABLET_STRIP_SHARE = 0.78f
+private val TABLET_STRIP_MAX = 720.dp
 
 /** Pure maths of the frame strip, tested. */
 object ScrubberMath {

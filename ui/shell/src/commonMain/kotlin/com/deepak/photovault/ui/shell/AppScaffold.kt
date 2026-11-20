@@ -22,6 +22,8 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.automirrored.rounded.MenuOpen
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -339,7 +341,14 @@ fun PhotoVaultApp(
                     CompositionLocalProvider(LocalTablet provides (layout == NavigationLayout.SIDE_RAIL), LocalTabletDevice provides tabletDevice) {
                         // 18 Nov (Deepak): tablets get the side bar by default; Settings > Appearance can switch it back
                         // to the floating bar at the bottom. Phones always have the bottom bar.
-                        if (tabletDevice && state.appearance.tabletSideBar) SideBarLayout(screens, system) else BottomBarLayout(screens, system)
+                        if (tabletDevice && state.appearance.tabletSideBar) {
+                            // 20 Nov: side bar tries from Settings > About; with them off, today's side bar exactly.
+                            val motion = RailMotion.of(state.appearance.railMotion)
+                            if (motion == RailMotion.SIDEWAYS && !state.appearance.railFoldTest) SideBarLayout(screens, system)
+                            else TestSideBarLayout(screens, system, motion, state.appearance.railFoldTest)
+                        } else {
+                            BottomBarLayout(screens, system)
+                        }
                     }
                     // First-time backup questions after joining a family drive (10 Nov).
                     FirstSetupPopups(state, drive, backup)
@@ -1069,6 +1078,347 @@ private fun RailItem(destination: Destination, indicator: Float, onClick: () -> 
     }
 }
 
+// ---- Side bar tries (20 Nov, Deepak: "add both animations as tests, with toggles in About; don't touch the current one") ----
+
+/**
+ * The side bar with the tries from Settings > About. [motion]: how the page changes when a section is picked (up and
+ * down to match the bar, or Material's fade-through; sideways is today's). [foldable]: a menu button at the top opens
+ * the bar wide with each section's name beside its icon. In landscape the pages move over to make room; in portrait
+ * the open bar lies over the page with a light shade and closes when a section is picked.
+ */
+@Composable
+private fun TestSideBarLayout(screens: Screens, system: PaddingValues, motion: RailMotion, foldable: Boolean) {
+    val state = screens.state
+    val start = system.calculateStartPadding(LayoutDirection.Ltr)
+    val selecting = state.selecting || state.albumsSelected.isNotEmpty()
+    val open = foldable && state.appearance.railOpen
+    val openness by androidx.compose.animation.core.animateFloatAsState(
+        if (open) 1f else 0f,
+        androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+        label = "railOpen",
+    )
+    // The sideways try keeps today's pager; the other two show one section at a time.
+    val nav = if (motion == RailMotion.SIDEWAYS) rememberSectionNav(state) else null
+    val stack = if (motion != RailMotion.SIDEWAYS) rememberSectionStack(state) else null
+    val indicator: () -> Float = { nav?.indicator?.value ?: stack?.position() ?: state.destination.ordinal.toFloat() }
+    fun close() = state.updateAppearance { it.copy(railOpen = false) }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { translationX = -state.sectionCover() * size.width / DRIFT_DIVISOR }
+            .dimmedBy { state.sectionCover() * PAGE_DIM },
+    ) {
+        val portrait = maxHeight > maxWidth
+        val barWidth = androidx.compose.ui.unit.lerp(RAIL_WIDTH, RAIL_OPEN_WIDTH, openness)
+        val pagesStart = start + if (portrait) RAIL_WIDTH else barWidth
+        CompositionLocalProvider(
+            LocalScreenInsets provides PaddingValues(
+                start = 0.dp,
+                top = system.calculateTopPadding(),
+                end = system.calculateEndPadding(LayoutDirection.Ltr),
+                bottom = system.calculateBottomPadding(),
+            ),
+        ) {
+            Box(Modifier.fillMaxSize().padding(start = pagesStart)) {
+                if (nav != null) SectionPager(nav.pager, screens)
+                if (stack != null) SectionStackPages(stack, screens, motion)
+            }
+        }
+        // Portrait: a light shade over the page while the bar is open; a tap on it closes the bar.
+        if (portrait && openness > 0f) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = openness }
+                    .background(Color.Black.copy(alpha = 0.28f))
+                    .then(
+                        if (open) {
+                            Modifier.clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null,
+                                onClickLabel = "Close the side bar",
+                                onClick = { close() },
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ),
+            )
+        }
+        val pick: (Destination) -> Unit = { d ->
+            state.tapSection(d)
+            if (portrait && open) close()
+        }
+        val padding = PaddingValues(start = start, top = system.calculateTopPadding() + 8.dp)
+        if (foldable) {
+            FoldingSideRail(
+                indicator = indicator,
+                onSelect = pick,
+                enabled = !selecting,
+                familyDot = screens.familyDot,
+                settingsDot = screens.settingsDot,
+                openness = openness,
+                open = open,
+                onToggle = { state.updateAppearance { it.copy(railOpen = !it.railOpen) } },
+                modifier = Modifier.fillMaxHeight().width(start + barWidth),
+                contentPadding = padding,
+            )
+        } else {
+            SideRail(
+                indicator = indicator,
+                onSelect = pick,
+                enabled = !selecting,
+                familyDot = screens.familyDot,
+                settingsDot = screens.settingsDot,
+                modifier = Modifier.fillMaxHeight().width(start + RAIL_WIDTH),
+                contentPadding = padding,
+            )
+        }
+    }
+}
+
+/** One section at a time for the up-and-down and fade tries: the one shown, and the one leaving while it changes. */
+private class SectionStack(first: Int) {
+    var shown by mutableStateOf(first)
+    var leaving by mutableStateOf<Int?>(null)
+    val progress = Animatable(1f)
+
+    /** Where the bar's highlight is: sliding from the leaving section to the shown one. */
+    fun position(): Float {
+        val from = leaving ?: return shown.toFloat()
+        return from + (shown - from) * progress.value
+    }
+}
+
+@Composable
+private fun rememberSectionStack(state: ShellState): SectionStack {
+    val stack = remember { SectionStack(state.destination.ordinal) }
+    val reduceMotion = LocalGlassSettings.current.reduceMotion
+    LaunchedEffect(state.destination) {
+        val target = state.destination.ordinal
+        if (target == stack.shown) return@LaunchedEffect
+        stack.leaving = stack.shown
+        stack.shown = target
+        stack.progress.snapTo(0f)
+        if (reduceMotion) stack.progress.snapTo(1f) else stack.progress.animateTo(1f, tween(STACK_MS, easing = FastOutSlowInEasing))
+        stack.leaving = null
+    }
+    return stack
+}
+
+/**
+ * Every section stays ready (as in the pager, so nothing is rebuilt and scroll places are kept), but only the shown
+ * one, and the leaving one while it changes, are laid out and drawn. Up and down: the new page rises from below when
+ * you go down the bar (from above going up) while the old one drifts the other way and fades. Fade: Material's
+ * fade-through, the old page fading out first, then the new one fading in from slightly smaller.
+ */
+@Composable
+private fun SectionStackPages(stack: SectionStack, screens: Screens, motion: RailMotion) {
+    val shiftPx = with(androidx.compose.ui.platform.LocalDensity.current) { STACK_SHIFT.toPx() }
+    androidx.compose.ui.layout.Layout(
+        content = {
+            Destination.entries.forEach { d ->
+                val i = d.ordinal
+                Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        val leaving = stack.leaving
+                        val t = stack.progress.value
+                        val dir = if (leaving == null) 0f else (stack.shown - leaving).sign.toFloat()
+                        translationY = 0f
+                        alpha = 1f
+                        scaleX = 1f
+                        scaleY = 1f
+                        if (leaving != null && i == stack.shown) {
+                            if (motion == RailMotion.VERTICAL) {
+                                translationY = (1f - t) * dir * shiftPx
+                                alpha = t
+                            } else {
+                                val a = ((t - FADE_OUT_SHARE) / (1f - FADE_OUT_SHARE)).coerceIn(0f, 1f)
+                                alpha = a
+                                scaleX = 0.92f + 0.08f * a
+                                scaleY = scaleX
+                            }
+                        } else if (i == leaving) {
+                            if (motion == RailMotion.VERTICAL) {
+                                translationY = -t * dir * shiftPx
+                                alpha = 1f - t
+                            } else {
+                                alpha = (1f - t / FADE_OUT_SHARE).coerceIn(0f, 1f)
+                            }
+                        }
+                    },
+                ) { SectionContent(d, screens) }
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) { measurables, constraints ->
+        val order = listOfNotNull(stack.leaving, stack.shown)
+        val placeables = order.map { measurables[it].measure(constraints) }
+        layout(constraints.maxWidth, constraints.maxHeight) { placeables.forEach { it.place(0, 0) } }
+    }
+}
+
+/**
+ * The fold-out side bar try: closed it looks like today's bar with a menu button on top; open, the highlight
+ * stretches into a wide pill and each name slides in beside its icon. Everything moves with [openness].
+ */
+@Composable
+private fun FoldingSideRail(
+    indicator: () -> Float,
+    onSelect: (Destination) -> Unit,
+    enabled: Boolean,
+    familyDot: Boolean,
+    settingsDot: Boolean,
+    openness: Float,
+    open: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier,
+    contentPadding: PaddingValues,
+) {
+    val theme = LocalGlassTheme.current
+    val film = theme.panelFill
+    val fill = if (film != null && com.deepak.photovault.designsystem.LocalGlassSettings.current.blurEnabled) film else theme.glassFallback
+    val edge = if (theme.isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+    val dim by androidx.compose.animation.core.animateFloatAsState(if (enabled) 1f else 0.38f, motionSpec(CHROME_MS), label = "railDim")
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    fun mix(a: androidx.compose.ui.unit.Dp, b: androidx.compose.ui.unit.Dp) = androidx.compose.ui.unit.lerp(a, b, openness)
+    BoxWithConstraints(
+        modifier
+            .background(fill)
+            .drawBehind { drawRect(edge, topLeft = androidx.compose.ui.geometry.Offset(size.width - 1.dp.toPx(), 0f), size = androidx.compose.ui.geometry.Size(1.dp.toPx(), size.height)) }
+            .padding(contentPadding)
+            .graphicsLayer { alpha = dim },
+    ) {
+        val inner = maxWidth
+        Column {
+            // The menu button, and the app's name beside it once open.
+            Box(Modifier.fillMaxWidth().height(RAIL_HEADER)) {
+                Box(
+                    Modifier
+                        .offset(x = mix(inner / 2 - 24.dp, 12.dp))
+                        .size(48.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .clickable(role = Role.Button, onClickLabel = if (open) "Fold the side bar" else "Open the side bar") {
+                            haptics.tick()
+                            onToggle()
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    com.deepak.photovault.designsystem.DepthIcon(
+                        if (open) androidx.compose.material.icons.Icons.AutoMirrored.Rounded.MenuOpen else androidx.compose.material.icons.Icons.Rounded.Menu,
+                        if (open) "Fold the side bar" else "Open the side bar",
+                        theme.onGlass,
+                        Modifier.size(24.dp),
+                    )
+                }
+                if (openness > 0.4f) {
+                    Text(
+                        "Pixallery",
+                        color = theme.onGlass,
+                        style = com.deepak.photovault.designsystem.titled(MaterialTheme.typography.titleLarge),
+                        maxLines = 1,
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 72.dp)
+                            .graphicsLayer { alpha = ((openness - 0.4f) / 0.6f).coerceIn(0f, 1f) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth().selectableGroup()) {
+                // The highlight: the small pill behind the icon, stretching to a wide pill behind the whole row.
+                val pillW = mix(RAIL_INDICATOR_WIDTH, inner - 24.dp)
+                val pillH = mix(RAIL_INDICATOR_HEIGHT, 48.dp)
+                Box(
+                    Modifier
+                        .offset {
+                            IntOffset(
+                                mix(inner / 2 - RAIL_INDICATOR_WIDTH / 2, 12.dp).roundToPx(),
+                                ((RAIL_ITEM_HEIGHT + RAIL_ITEM_GAP) * indicator() + mix(0.dp, (RAIL_ITEM_HEIGHT - 48.dp) / 2)).roundToPx(),
+                            )
+                        }
+                        .size(pillW, pillH)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(theme.accentSurface)
+                        .frostedEdge(RoundedCornerShape(percent = 50)),
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(RAIL_ITEM_GAP)) {
+                    Destination.entries.forEach { d ->
+                        val closeness = (1f - kotlin.math.abs(indicator() - d.ordinal)).coerceIn(0f, 1f)
+                        val selected = closeness > 0.5f
+                        val dot = (familyDot && d == Destination.FAMILY) || (settingsDot && d == Destination.SETTINGS)
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(RAIL_ITEM_HEIGHT)
+                                .clip(RoundedCornerShape(16.dp))
+                                .selectable(selected = selected, enabled = enabled, role = Role.Tab, onClick = {
+                                    haptics.tick()
+                                    onSelect(d)
+                                })
+                                .semantics { contentDescription = d.label }
+                                .then(if (dot) Modifier.semantics { stateDescription = "A phone is waiting for approval" } else Modifier),
+                        ) {
+                            com.deepak.photovault.designsystem.DepthIcon(
+                                d.icon,
+                                null,
+                                lerp(theme.onGlass, theme.onAccent, closeness),
+                                Modifier
+                                    .offset(x = mix(inner / 2 - 12.dp, 28.dp), y = mix(4.dp, (RAIL_ITEM_HEIGHT - 24.dp) / 2))
+                                    .size(24.dp),
+                            )
+                            if (dot) {
+                                Box(
+                                    Modifier
+                                        .offset(x = mix(inner / 2 + 8.dp, 46.dp), y = mix(3.dp, 16.dp))
+                                        .size(10.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(theme.badgePhoneOnly),
+                                )
+                            }
+                            // The name under the icon (closed) fades out as the one beside it (open) slides in.
+                            com.deepak.photovault.designsystem.DepthText(
+                                d.label,
+                                color = theme.onGlass,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 36.dp)
+                                    .graphicsLayer { alpha = (1f - openness / 0.4f).coerceIn(0f, 1f) },
+                            )
+                            if (openness > 0.5f) {
+                                com.deepak.photovault.designsystem.DepthText(
+                                    d.label,
+                                    color = lerp(theme.onGlass, theme.onAccent, closeness),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                                    maxLines = 1,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterStart)
+                                        .padding(start = 68.dp)
+                                        .graphicsLayer {
+                                            val a = ((openness - 0.5f) / 0.5f).coerceIn(0f, 1f)
+                                            alpha = a
+                                            translationX = (1f - a) * -12.dp.toPx()
+                                        },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val STACK_MS = 300
+private const val FADE_OUT_SHARE = 0.35f
+private val STACK_SHIFT = 48.dp
+private val RAIL_OPEN_WIDTH = 256.dp
+private val RAIL_HEADER = 56.dp
+
 /** The rail's sizes: Material 3's 80 dp rail with a little more room for the names, its 56 x 32 dp pill. */
 private val RAIL_WIDTH = 88.dp
 private val RAIL_ITEM_WIDTH = 80.dp
@@ -1169,18 +1519,24 @@ private fun SectionPager(pager: PagerState, screens: Screens) {
         userScrollEnabled = !state.selecting && state.albumsSelected.isEmpty(),
         modifier = Modifier.fillMaxSize(),
     ) { page ->
-        val destination = Destination.entries[page]
-        CompositionLocalProvider(
-            LocalShell provides state,
-            LocalScrollToTop provides (state.reselects[destination] ?: 0),
-            LocalChrome provides if (destination in Destination.hidesChrome) state.chrome else null,
-        ) {
-            when (destination) {
-                Destination.PHOTOS -> PhotosScreen(state, screens.gallery, screens.actions, screens.drive)
-                Destination.ALBUMS -> AlbumsScreen(state, screens.gallery, screens.actions, screens.drive)
-                Destination.FAMILY -> FamilyScreen(state, screens.drive, screens.actions)
-                Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher, screens.backup, screens.gallery, screens.actions)
-            }
+        SectionContent(Destination.entries[page], screens)
+    }
+}
+
+/** One section's page, as the pager and (20 Nov) the side bar tests show it. */
+@Composable
+private fun SectionContent(destination: Destination, screens: Screens) {
+    val state = screens.state
+    CompositionLocalProvider(
+        LocalShell provides state,
+        LocalScrollToTop provides (state.reselects[destination] ?: 0),
+        LocalChrome provides if (destination in Destination.hidesChrome) state.chrome else null,
+    ) {
+        when (destination) {
+            Destination.PHOTOS -> PhotosScreen(state, screens.gallery, screens.actions, screens.drive)
+            Destination.ALBUMS -> AlbumsScreen(state, screens.gallery, screens.actions, screens.drive)
+            Destination.FAMILY -> FamilyScreen(state, screens.drive, screens.actions)
+            Destination.SETTINGS -> SettingsScreen(state, screens.drive, screens.iconSwitcher, screens.backup, screens.gallery, screens.actions)
         }
     }
 }

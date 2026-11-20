@@ -185,6 +185,8 @@ Deepak: the new support address (B7) and whether the Private DNS notice still sh
   Built 18 Nov on `feature/redesign` (`AndroidEditor.saveAsJpeg`): the JPEG is saved first, then Android is asked
   to move the original to Recently deleted; if the person says no, both stay.
   18 Nov (Deepak): HEIC saved as JPEG works on his phone. HDR and the other Save cases still to try.
+  19 Nov (Deepak, tablet): HDR video now plays in true colour with the right sound; deleting a drive photo is
+  instant (the drive catches up in the background).
 - [ ] **D19 · Finding a drive that moved: a switch, explained during set-up.** Who: Claude built it, Deepak tests.
   (Added 17 Nov, Deepak.) "Find the drive if its address changes": on the set-up page and in Settings > Drive.
   Off for new set-ups, on for phones already set up. When off and the drive doesn't answer, the message says to
