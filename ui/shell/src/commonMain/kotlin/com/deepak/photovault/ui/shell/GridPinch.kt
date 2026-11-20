@@ -118,7 +118,7 @@ internal interface PinchableGrid {
     fun indexOf(id: Long): Int?
 
     /** Lays the grid out with [columns] and remembers it as this page's size. */
-    fun setColumns(columns: Int)
+    fun changeColumns(columns: Int)
 
     /** Pinched out past the smallest photos: true when the page went somewhere else (Photos: to Months). */
     fun pastSmallest(): Boolean
@@ -138,14 +138,14 @@ internal class GridPinchHost : PinchableGrid {
     var photoAtFn: (Offset) -> Long? = { null }
     var tileOfFn: (Long) -> Rect? = { null }
     var indexOfFn: (Long) -> Int? = { null }
-    var setColumnsFn: (Int) -> Unit = {}
+    var changeColumnsFn: (Int) -> Unit = {}
     var pastSmallestFn: () -> Boolean = { false }
     var tickFn: () -> Unit = {}
 
     override fun photoAt(point: Offset): Long? = photoAtFn(point)
     override fun tileOf(id: Long): Rect? = tileOfFn(id)
     override fun indexOf(id: Long): Int? = indexOfFn(id)
-    override fun setColumns(columns: Int) = setColumnsFn(columns)
+    override fun changeColumns(columns: Int) = changeColumnsFn(columns)
     override fun pastSmallest(): Boolean = pastSmallestFn()
     override fun tick() = tickFn()
 }
@@ -272,7 +272,7 @@ internal class GridPinch(private val scope: CoroutineScope, private val grid: La
         val anchor = anchorNow()
         keepOldPicture()
         host.tick()
-        host.setColumns(columns)
+        host.changeColumns(columns)
         awaitColumns(columns)
         shown = columns
         val s = PinchMath.drawScale(wanted, shown, host.maxColumns)
@@ -292,7 +292,7 @@ internal class GridPinch(private val scope: CoroutineScope, private val grid: La
         val grow = wanted / columns
         keepOldPicture()
         host.tick()
-        host.setColumns(columns)
+        host.changeColumns(columns)
         awaitColumns(columns)
         shown = columns
         zoom = start / columns.toFloat()

@@ -390,7 +390,7 @@ fun MediaGrid(
             pinchHost.photoAtFn = handler::photoAt
             pinchHost.tileOfFn = { id -> visibleTiles().firstOrNull { it.first == id }?.second }
             pinchHost.indexOfFn = ::gridIndexOf
-            pinchHost.setColumnsFn = { c -> state.setGridColumns(gridKey, large, c) }
+            pinchHost.changeColumnsFn = { c -> state.setGridColumns(gridKey, large, c) }
             pinchHost.pastSmallestFn = { currentZoomOut?.let { it(); true } ?: false }
             pinchHost.tickFn = { ticks.tick() }
         }
