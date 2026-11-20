@@ -114,7 +114,7 @@ private fun LevelCard(photos: List<MediaItem>, title: String, detail: String, bi
             .aspectRatio(if (big) 1.25f else 1.6f)
             .clip(RoundedCornerShape(24.dp))
             .background(theme.onGlass.copy(alpha = 0.08f))
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(role = Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick(onClick))
             .semantics(mergeDescendants = true) { contentDescription = description },
     ) {
         if (photos.size >= 3) {

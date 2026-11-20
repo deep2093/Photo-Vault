@@ -59,7 +59,7 @@ import androidx.compose.foundation.layout.imePadding
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.glassChrome
-import com.deepak.photovault.designsystem.AdaptiveGlass
+import com.deepak.photovault.designsystem.DarkGlass
 import dev.chrisbanes.haze.hazeSource
 
 /**
@@ -150,26 +150,15 @@ fun GlassScreen(
         }
         // A soft fade behind the status bar, so the clock and icons stay readable over scrolling photos.
         val theme = LocalGlassTheme.current
-        if (theme.isClearGlass && LocalGlassSettings.current.blurEnabled) {
-            // Clear Glass (21 Nov, iOS's scroll edge effect, without blur): the photos fade toward the page's colour under
-            // the status bar and the top pills, so they read over anything.
-            val wall = theme.wallpaper.first()
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(insets.calculateTopPadding() + barRoom + 4.dp)
-                    .background(Brush.verticalGradient(0f to wall.copy(alpha = 0.85f), 0.55f to wall.copy(alpha = 0.45f), 1f to wall.copy(alpha = 0f))),
-            )
-        } else {
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(insets.calculateTopPadding() + 20.dp)
-                    .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
-            )
-        }
+        // (Clear Glass had a taller fade to the page's colour here for a day; with dark glass at the top it is the same
+        // short one as every theme, 21 Nov.)
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(insets.calculateTopPadding() + 20.dp)
+                .background(Brush.verticalGradient(listOf(theme.glassFallback, theme.glassFallback.copy(alpha = 0f)))),
+        )
         // Only the chrome gets the lens, never the content: anything inside the recorded content would draw itself.
         CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
         val barPadding = Modifier.padding(
@@ -187,10 +176,11 @@ fun GlassScreen(
             exit = androidx.compose.animation.slideOutVertically(com.deepak.photovault.designsystem.motionSpec(220)) { it } + androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(220)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = systemBottom + 12.dp),
         ) {
-            // Clear Glass: at the bottom the glass turns dark over dark photos and light over light ones, like iOS.
-            lastBottom?.let { actions -> AdaptiveGlass { adapt -> FloatingPill(adapt, content = actions) } }
+            lastBottom?.let { actions -> DarkGlass { FloatingPill(Modifier, content = actions) } }
         }
-        // Clear Glass: everything at the top shares one firmer film, so the pills look alike over any photos.
+        // Clear Glass: everything at the top is dark glass by day and night (21 Nov), and shares one firmer film, so
+        // the pills look alike over any photos.
+        DarkGlass {
         CompositionLocalProvider(com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.TOP_FILM) {
         if (title == null) {
             // The top pills (Years / Months / All, Search, an album's back button) always stay in view (24 Oct);
@@ -225,6 +215,7 @@ fun GlassScreen(
                     top = insets.calculateTopPadding() + 8.dp,
                 ),
         )
+        }
         }
         }
         if (overlay != null) overlay.invoke(this@Box)

@@ -796,7 +796,9 @@ private fun AboutSection(state: ShellState) {
             description = "In every theme: the heart pops when you favourite a photo; the bottom bar's icon bounces when you " +
                 "choose it; a wrong PIN shakes; a soft shine moves over photos that are still loading; the date's numbers " +
                 "roll as you scroll; Back up now shows a spinner, then a tick; menu rows come in one after another; a " +
-                "photo dips a little before it opens; confetti the first time everything is backed up. Off with Reduce motion.",
+                "photo dips a little before it opens; confetti the first time everything is backed up; the app icon opens " +
+                "up as a window when the app starts, and the photos arrive in a wave; the Backup page's numbers count up. " +
+                "Off with Reduce motion.",
             icon = Icons.Rounded.AutoAwesome,
         )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")

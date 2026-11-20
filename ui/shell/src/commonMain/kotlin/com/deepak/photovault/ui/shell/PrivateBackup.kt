@@ -144,7 +144,7 @@ internal fun PrivacyChoiceScreen(state: ShellState, drive: DriveState, backup: B
 @Composable
 private fun ChoiceCard(title: String, tag: String, selected: Boolean, lines: List<String>, onClick: () -> Unit) {
     val theme = LocalGlassTheme.current
-    GlassCard(Modifier.cardWidth().clip(RoundedCornerShape(24.dp)).clickable(onClickLabel = title, onClick = onClick)) {
+    GlassCard(Modifier.cardWidth().clip(RoundedCornerShape(24.dp)).clickable(onClickLabel = title, onClick = com.deepak.photovault.designsystem.hapticClick(onClick))) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             androidx.compose.material3.Icon(if (title == "Private") Icons.Rounded.Lock else Icons.Rounded.LockOpen, null, tint = theme.onGlass)
             Column(Modifier.weight(1f)) {

@@ -362,17 +362,18 @@ fun Modifier.frostedEdge(shape: Shape): Modifier {
 internal fun Modifier.solidButtonEdge(shape: Shape): Modifier {
     if (!LocalGlassSettings.current.blurEnabled) return this
     return drawWithContent {
-        drawRect(
-            Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.20f),
-                0.42f to Color.Transparent,
-                0.62f to Color.Transparent,
-                1f to Color.Black.copy(alpha = 0.16f),
-            ),
-        )
+        drawRect(SolidGlassSheen)
         drawContent()
     }.liquidGlassEdge(shape)
 }
+
+/** The light along the top and the shade along the bottom of a solid piece of Liquid Glass; its middle is untouched. */
+internal val SolidGlassSheen: Brush = Brush.verticalGradient(
+    0f to Color.White.copy(alpha = 0.20f),
+    0.42f to Color.Transparent,
+    0.62f to Color.Transparent,
+    1f to Color.Black.copy(alpha = 0.16f),
+)
 
 /** The calm glass's edge: a faint white line on night themes, a faint dark one on day themes. */
 private fun calmEdge(theme: GlassTheme): Color = if (theme.isDark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.08f)

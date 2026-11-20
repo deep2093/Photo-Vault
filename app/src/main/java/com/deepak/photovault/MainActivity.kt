@@ -429,6 +429,8 @@ class MainActivity : ComponentActivity(), MediaActions {
                         glyph = glyph,
                         background = if (dark) androidx.compose.ui.graphics.Color(0xFF0B0E14) else androidx.compose.ui.graphics.Color(0xFFF7F9FC),
                         onDone = { showIntro = false; shell.intro.start() },
+                        // Extra animations (Settings > About): the icon opens up as a window on the app.
+                        reveal = state.appearance.extraMotion,
                     )
                 }
             }

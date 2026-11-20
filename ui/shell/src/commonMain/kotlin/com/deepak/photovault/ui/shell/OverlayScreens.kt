@@ -213,7 +213,7 @@ private fun AlbumPickRow(title: String, detail: String?, cover: com.deepak.photo
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick(onClick))
             .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
@@ -507,7 +507,7 @@ private fun SearchTagsRow(state: ShellState, gallery: GalleryState, onPick: (Str
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button) { state.open(Overlay.Tags) }
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick { state.open(Overlay.Tags) })
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             )
         }
@@ -551,7 +551,7 @@ private fun SearchIdeasRow(state: ShellState, gallery: GalleryState, onPick: (St
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Clear recent searches", onClick = onClear)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Clear recent searches", onClick = com.deepak.photovault.designsystem.hapticClick(onClear))
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                 )
             }

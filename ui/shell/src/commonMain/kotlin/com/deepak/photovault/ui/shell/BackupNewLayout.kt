@@ -167,7 +167,7 @@ private fun Warnings(state: ShellState, backup: BackupState, actions: MediaActio
 
 @Composable
 private fun Tappable(onClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick)) { content() }
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = com.deepak.photovault.designsystem.hapticClick(onClick))) { content() }
 }
 
 /**
@@ -198,6 +198,15 @@ private fun RingCard(
     val places = listOfNotNull(if (driveReady) false else null, if (googleReady) true else null)
     val pager = androidx.compose.foundation.pager.rememberPagerState { places.size }
     var note by remember { mutableStateOf<String?>(null) }
+    // A tick as the card moves between the family drive and Google Drive (21 Nov).
+    val placeHaptics = com.deepak.photovault.designsystem.rememberHaptics()
+    LaunchedEffect(pager) {
+        var first = true
+        androidx.compose.runtime.snapshotFlow { pager.currentPage }.collect {
+            if (!first) placeHaptics.tick()
+            first = false
+        }
+    }
     GlassCard(Modifier.cardWidth()) {
         val isGoogle = places.getOrNull(pager.currentPage) == true
         // With both places (18 Nov): a tap on the heading shows the other one too, not only a swipe.
@@ -226,6 +235,7 @@ private fun RingCard(
             // Extra animations (21 Nov): after a tap the button shows a turning ring until the backup is under way;
             // when a run ends well it shows a tick for a moment; and the first time nothing is left waiting, confetti.
             val lively = com.deepak.photovault.designsystem.extraMotionOn()
+            val doneHaptics = com.deepak.photovault.designsystem.rememberHaptics()
             var starting by remember(g) { mutableStateOf(false) }
             var justDone by remember(g) { mutableStateOf(false) }
             var wasRunning by remember(g) { mutableStateOf(running) }
@@ -237,6 +247,7 @@ private fun RingCard(
                 } else if (wasRunning && lively && endedWell) {
                     wasRunning = false
                     justDone = true
+                    doneHaptics.toggle(true)
                     kotlinx.coroutines.delay(2200)
                     justDone = false
                 }
@@ -264,15 +275,16 @@ private fun RingCard(
                             colors = RING + theme.onGlass.copy(alpha = 0.10f),
                         )
                         val pct = if (total == 0) 0 else (saved * 100L / total).toInt()
-                        Text("$pct%", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        // Extra animations (21 Nov): the share and the counts run up to their value.
+                        Text("${com.deepak.photovault.designsystem.countingUp(pct)}%", color = theme.onGlass, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         // No nudge (16 Nov): measured on Deepak's screenshot, the clear part of the hole (below the inner
                         // wall the ring's depth shows) is centred on the whole ring, so the number sits plain in the middle.
                     }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        CompactLegend(RING[0], "Backed up", LibraryCounts.grouped(saved))
-                        CompactLegend(RING[1], "Waiting", LibraryCounts.grouped(waiting))
-                        CompactLegend(theme.onGlass.copy(alpha = 0.25f), "Skipped", LibraryCounts.grouped(skipped))
+                        CompactLegend(RING[0], "Backed up", LibraryCounts.grouped(com.deepak.photovault.designsystem.countingUp(saved)))
+                        CompactLegend(RING[1], "Waiting", LibraryCounts.grouped(com.deepak.photovault.designsystem.countingUp(waiting)))
+                        CompactLegend(theme.onGlass.copy(alpha = 0.25f), "Skipped", LibraryCounts.grouped(com.deepak.photovault.designsystem.countingUp(skipped)))
                     }
                 }
                 // When, then the button (or the progress while it runs).

@@ -557,7 +557,7 @@ private fun RowShortcuts(items: List<Shortcut>, tablet: Boolean) {
                         Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
-                            .clickable(enabled = item.enabled, role = Role.Button, onClick = item.onClick)
+                            .clickable(enabled = item.enabled, role = Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick(item.onClick))
                             .semantics(mergeDescendants = true) {}
                             .padding(horizontal = if (tablet) 12.dp else 8.dp, vertical = if (tablet) 12.dp else 8.dp),
                         verticalAlignment = Alignment.CenterVertically,

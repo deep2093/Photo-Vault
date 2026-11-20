@@ -295,7 +295,7 @@ private fun MembersCard(state: ShellState, drive: DriveState) {
                     Modifier
                         .width(AVATAR_TILE)
                         .clip(RoundedCornerShape(16.dp))
-                        .clickable(onClickLabel = "Open ${member.name}") { state.open(Overlay.Member(member.userId)) }
+                        .clickable(onClickLabel = "Open ${member.name}", onClick = com.deepak.photovault.designsystem.hapticClick { state.open(Overlay.Member(member.userId)) })
                         .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {

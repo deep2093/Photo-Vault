@@ -37,3 +37,16 @@ fun rememberHaptics(): Haptics {
     val feedback = LocalHapticFeedback.current
     return remember(feedback) { Haptics(feedback) }
 }
+
+/**
+ * [onClick] with the light touch feedback every button gives (21 Nov, Deepak: "other parts of the app give haptic
+ * feedback"): for rows, cards and pills that are tapped but aren't one of the shared buttons.
+ */
+@Composable
+fun hapticClick(onClick: () -> Unit): () -> Unit {
+    val haptics = rememberHaptics()
+    return {
+        haptics.tap()
+        onClick()
+    }
+}

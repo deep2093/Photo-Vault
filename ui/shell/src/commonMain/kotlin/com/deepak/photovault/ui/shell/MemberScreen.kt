@@ -110,7 +110,7 @@ fun MemberScreen(userId: String, state: ShellState, drive: DriveState, actions: 
                 Box {
                     Avatar(
                         member, drive, size = 132.dp,
-                        modifier = Modifier.clickable(onClickLabel = "Picture options") { forPicture { pictureMenu = true } },
+                        modifier = Modifier.clickable(onClickLabel = "Picture options", onClick = com.deepak.photovault.designsystem.hapticClick { forPicture { pictureMenu = true } }),
                     )
                     if (true) {
                         Box(

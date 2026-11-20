@@ -38,6 +38,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +50,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -190,6 +194,56 @@ fun RollingText(
                 Text(shown, color = color, style = style, fontWeight = fontWeight, maxLines = 1, softWrap = false)
             }
         }
+    }
+}
+
+/**
+ * A number that runs up to [target] when it first shows and whenever it changes (the Backup page's share and counts).
+ * With the extra animations off it is just [target].
+ */
+@Composable
+fun countingUp(target: Int): Int {
+    if (!extraMotionOn()) return target
+    val shown = remember { Animatable(0f) }
+    LaunchedEffect(target) { shown.animateTo(target.toFloat(), tween(700, easing = LinearOutSlowInEasing)) }
+    return shown.value.roundToInt()
+}
+
+/**
+ * The photos arriving in a wave from the top of the screen down, once, as the app opens (after the logo reveal).
+ * [play] runs it; while [playing], tiles with [openingWave] fade and rise into place, the lower ones a little later.
+ */
+object OpeningWave {
+    internal val progress = Animatable(1f)
+
+    var playing by mutableStateOf(false)
+        private set
+
+    suspend fun play() {
+        playing = true
+        try {
+            progress.snapTo(0f)
+            progress.animateTo(1f, tween(620, easing = LinearEasing))
+        } finally {
+            playing = false
+        }
+    }
+}
+
+/** One tile of the opening wave (see [OpeningWave]). Nothing is attached except while the wave is playing. */
+@Composable
+fun Modifier.openingWave(): Modifier {
+    if (!OpeningWave.playing) return this
+    // Where this tile is down the screen: [0] its top, [1] the screen's height.
+    val place = remember { floatArrayOf(0f, 1f) }
+    return onGloballyPositioned {
+        place[0] = it.positionInRoot().y
+        place[1] = it.findRootCoordinates().size.height.toFloat().coerceAtLeast(1f)
+    }.graphicsLayer {
+        val start = (place[0] / place[1]).coerceIn(0f, 1f) * 0.55f
+        val k = ((OpeningWave.progress.value - start) / 0.45f).coerceIn(0f, 1f)
+        alpha = k
+        translationY = (1f - k) * 26.dp.toPx()
     }
 }
 

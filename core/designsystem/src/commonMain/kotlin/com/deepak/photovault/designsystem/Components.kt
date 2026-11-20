@@ -106,6 +106,7 @@ fun GlassButton(
             .heightIn(min = MinTouchTarget)
             .then(
                 when {
+                    danger && theme.isLiquidGlass -> Modifier.clip(shape).background(DangerColor).solidButtonEdge(shape)
                     danger -> Modifier.clip(shape).background(DangerColor).glassDepth().glassRim(shape)
                     // Clear Glass (iOS's prominent glass): the main button is blue glass with white words.
                     primary && prominent != null -> Modifier.clip(shape).background(prominent).solidButtonEdge(shape)
@@ -170,6 +171,8 @@ fun GlassChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: M
             .padding(vertical = 4.dp)
             .glassPanel(Capsule)
             .background(background)
+            // Liquid Glass: the chosen chip has the same glass depth as a main button (21 Nov).
+            .then(if (selected && theme.isLiquidGlass) Modifier.solidButtonEdge(Capsule) else Modifier)
             .selectable(selected = selected, role = Role.RadioButton, onClick = {
                 haptics.tick()
                 onClick()
@@ -215,6 +218,11 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
     val thumbText = if (theme.isClearGlass) theme.onGlass else readableOn(theme.accent)
     val track = theme.segmentTrack
     val raised = theme.isClearGlass
+    // Liquid Glass and Clear Glass (21 Nov, Deepak: "these buttons don't have the glass depth effect"): the marker is a
+    // glass droplet like the buttons: a soft light along its top, a little shade along its bottom and the lit edge.
+    val glassy = theme.isLiquidGlass && LocalGlassSettings.current.blurEnabled && liquidGlassEdgeSupported()
+    val glassDark = theme.isDark
+    val glassLight = LocalGlassLight.current
     Box(
         modifier
             .fillMaxWidth()
@@ -247,6 +255,12 @@ fun GlassSegmented(options: List<String>, selectedIndex: Int, onSelect: (Int) ->
                         size = androidx.compose.ui.geometry.Size(segment.toFloat(), size.height),
                         cornerRadius = corner,
                     )
+                    if (glassy) {
+                        androidx.compose.ui.graphics.drawscope.inset(left = left, top = 0f, right = (size.width - left - segment).coerceAtLeast(0f), bottom = 0f) {
+                            drawRoundRect(SolidGlassSheen, cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+                            drawLiquidGlassEdge(size.height / 2f, if (glassDark) 1f else 0f, glassLight?.value ?: DefaultGlassLight)
+                        }
+                    }
                 }
             },
     ) {
@@ -377,6 +391,13 @@ private fun GlassToggle(checked: Boolean, press: androidx.compose.foundation.int
             .size(width = 52.dp, height = 30.dp)
             .clip(shape)
             .background(track)
+            // Liquid Glass (21 Nov): the track is a shallow groove (a little shade inside its top edge) and the knob a
+            // glass droplet, so switches have the same depth as the buttons.
+            .then(
+                if (theme.isLiquidGlass && settings.blurEnabled) Modifier.drawBehind {
+                    drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.22f), 0.55f to Color.Transparent))
+                } else Modifier,
+            )
             .border(1.5.dp, edge.copy(alpha = edgeAlpha), shape)
             .padding(3.dp),
     ) {
@@ -389,7 +410,7 @@ private fun GlassToggle(checked: Boolean, press: androidx.compose.foundation.int
                 .graphicsLayer { scaleX = 1f + 0.12f * held; scaleY = 1f + 0.12f * held }
                 .clip(CircleShape)
                 .background(knob.copy(alpha = 1f - 0.8f * held))
-                .then(if (held > 0.01f) Modifier.liquidGlassEdge(CircleShape) else Modifier)
+                .then(if (theme.isLiquidGlass) Modifier.solidButtonEdge(CircleShape) else Modifier)
                 .then(if (dark || held > 0.5f) Modifier else Modifier.border(1.dp, ink.copy(alpha = 0.25f), CircleShape)),
         )
     }
@@ -425,7 +446,12 @@ fun GlassProgressBar(fraction: Float, modifier: Modifier = Modifier, label: Stri
             .background(theme.onGlass.copy(alpha = 0.12f))
             .semantics { contentDescription = label },
     ) {
-        Box(Modifier.fillMaxWidth(shown).height(10.dp).clip(Capsule).background(theme.accent))
+        // Liquid Glass (21 Nov): the filled part has a soft light along its top, like the other solid glass.
+        val glassy = theme.isLiquidGlass && LocalGlassSettings.current.blurEnabled
+        Box(
+            Modifier.fillMaxWidth(shown).height(10.dp).clip(Capsule).background(theme.accent)
+                .then(if (glassy) Modifier.drawBehind { drawRect(SolidGlassSheen) } else Modifier),
+        )
     }
 }
 

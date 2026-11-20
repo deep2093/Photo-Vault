@@ -265,7 +265,7 @@ internal fun SettingRow(
             .fillMaxWidth()
             .heightIn(min = if (dense) 42.dp else 52.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .clickable(onClickLabel = title, onClick = onClick)
+            .clickable(onClickLabel = title, onClick = com.deepak.photovault.designsystem.hapticClick(onClick))
             .padding(vertical = if (dense) 2.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

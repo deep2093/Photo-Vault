@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import com.deepak.photovault.designsystem.accentSurface
+import com.deepak.photovault.designsystem.frostedEdge
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.liquidGlassTouch
 import com.deepak.photovault.designsystem.iosSwell
@@ -292,6 +293,7 @@ internal fun BackupsSwitch(state: ShellState, large: Boolean = false) {
                     .size(box)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(background)
+                    .then(if (selected && theme.isLiquidGlass) Modifier.frostedEdge(androidx.compose.foundation.shape.CircleShape) else Modifier)
                     .selectable(selected = selected, role = Role.RadioButton, onClick = {
                         if (!selected) {
                             haptics.tick()
@@ -329,13 +331,15 @@ private fun ViewButtons(gallery: GalleryState) {
                     .heightIn(min = 30.dp)
                     .clip(RoundedCornerShape(percent = 50))
                     .background(background)
+                    // Liquid Glass (21 Nov): the chosen one has the lit glass edge, like the other glass buttons.
+                    .then(if (selected && theme.isLiquidGlass) Modifier.frostedEdge(RoundedCornerShape(percent = 50)) else Modifier)
                     .then(if (press != null) Modifier.liquidGlassTouch(press) else Modifier)
                     .selectable(
                         selected = selected,
                         interactionSource = press,
                         indication = LocalIndication.current,
                         role = Role.RadioButton,
-                        onClick = {
+                        onClick = com.deepak.photovault.designsystem.hapticClick {
                             gallery.viewHistory.clear()
                             gallery.view = option
                         },
@@ -370,7 +374,7 @@ internal fun SmallPillButton(icon: androidx.compose.ui.graphics.vector.ImageVect
                 indication = LocalIndication.current,
                 role = Role.Button,
                 onClickLabel = label,
-                onClick = onClick,
+                onClick = com.deepak.photovault.designsystem.hapticClick(onClick),
             ),
         contentAlignment = Alignment.Center,
     ) {

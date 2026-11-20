@@ -100,14 +100,13 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-21-5"
+    const val ID = "2026-11-21-6"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.NEW, "Extra animations", "In every theme: the heart pops when you favourite a photo, the bottom bar's icon bounces, a wrong PIN shakes, photos still loading from the drive get a soft shine, the date's numbers roll, the backup button shows a ring and then a tick, menu rows come in one after another, a photo dips before it opens, and confetti falls the first time everything is backed up. Turn them off in Settings > About."),
-        Change(ChangeKind.CHANGED, "Clear Glass at night", "Cards are black glass now instead of dark grey."),
-        Change(ChangeKind.FIXED, "The small bottom pill", "Clear Glass with the iOS motion test: the shrunk bar is one clear pill, the same glass as the Search circle beside it, not a grey pill with two rings."),
-        Change(ChangeKind.FIXED, "Search shown twice", "While Search is at the bottom beside the shrunk bar, the Search button at the top steps aside, and comes back with the bar."),
-        Change(ChangeKind.FIXED, "The pills at the top", "Clear Glass: Years / Months / All, the date and Search share one even tint, so they look alike over any photos."),
+        Change(ChangeKind.CHANGED, "Clear Glass is dark glass", "By day and at night, every floating bar, pill and menu is dark glass, and it no longer changes colour as you scroll. The white tint under the bottom bar by day is gone."),
+        Change(ChangeKind.FIXED, "Glass depth", "Liquid Glass and Clear Glass: the chosen option in a chooser, chosen chips, switches, the red delete buttons and progress bars now have the same glass edge and shine as the other buttons."),
+        Change(ChangeKind.NEW, "More touch feedback", "A small vibration when you swipe or drag between sections, change Years / Months / All, open a menu or a photo, tap rows, cards and pills, and when a backup finishes."),
+        Change(ChangeKind.NEW, "Opening the app", "With Extra animations on: the app icon opens up as a window onto your photos, which arrive in a wave. On the Backup page the numbers count up."),
     )
 }
 

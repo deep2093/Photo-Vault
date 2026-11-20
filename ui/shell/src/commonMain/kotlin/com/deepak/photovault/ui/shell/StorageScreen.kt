@@ -396,7 +396,7 @@ private fun GoogleStorage(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClickLabel = "Show ${u.email}") { state.storageGoogleAccount = u.email }
+                        .clickable(onClickLabel = "Show ${u.email}", onClick = com.deepak.photovault.designsystem.hapticClick { state.storageGoogleAccount = u.email })
                         .padding(vertical = 8.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -524,7 +524,7 @@ private fun ShowAll(open: Boolean, count: Int, onClick: () -> Unit) {
         modifier = Modifier
             .padding(top = 4.dp)
             .clip(RoundedCornerShape(percent = 50))
-            .clickable(onClick = onClick)
+            .clickable(onClick = com.deepak.photovault.designsystem.hapticClick(onClick))
             .padding(horizontal = 8.dp, vertical = 6.dp),
     )
 }
@@ -537,7 +537,7 @@ private fun ToolRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClickLabel = title, onClick = onClick)
+            .clickable(onClickLabel = title, onClick = com.deepak.photovault.designsystem.hapticClick(onClick))
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -688,7 +688,7 @@ private fun YearBars(years: List<StorageSlice>, onYear: (String) -> Unit) {
     ) {
         shown.forEach { y ->
             Column(
-                Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Show ${y.label}") { onYear(y.label) }.padding(horizontal = 6.dp),
+                Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Show ${y.label}", onClick = com.deepak.photovault.designsystem.hapticClick { onYear(y.label) }).padding(horizontal = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(DetailsFormat.size(y.bytes), color = theme.onGlassSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
@@ -796,7 +796,7 @@ internal fun CompactLegend(color: Color, label: String, detail: String, onClick:
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Show $label", onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = "Show $label", onClick = com.deepak.photovault.designsystem.hapticClick(onClick)) else Modifier)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

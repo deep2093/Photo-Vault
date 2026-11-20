@@ -985,7 +985,7 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable(role = Role.Button) { actions.openMap(lat, lon, item.displayName) }
+                    .clickable(role = Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick { actions.openMap(lat, lon, item.displayName) })
                     .padding(horizontal = 10.dp, vertical = 12.dp),
             )
         }
@@ -994,7 +994,7 @@ private fun LocationRow(d: MediaDetails?, item: MediaItem, actions: MediaActions
                 .fillMaxWidth()
                 .clip(shape)
                 .background(com.deepak.photovault.designsystem.Stage.card)
-                .clickable(role = Role.Button) { actions.requestLocationAccess() }
+                .clickable(role = Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick { actions.requestLocationAccess() })
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

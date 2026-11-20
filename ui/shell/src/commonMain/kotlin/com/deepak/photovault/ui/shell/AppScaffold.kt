@@ -411,6 +411,16 @@ fun PhotoVaultApp(
 /** Extra animations (21 Nov): confetti over the whole app, the first time every photo is backed up. */
 @Composable
 private fun ConfettiHost(state: ShellState) {
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
+    val lively = com.deepak.photovault.designsystem.extraMotionOn()
+    LaunchedEffect(state.confettiBursts) {
+        if (state.confettiBursts > 0 && lively) {
+            repeat(4) {
+                haptics.tick()
+                kotlinx.coroutines.delay(110)
+            }
+        }
+    }
     com.deepak.photovault.designsystem.Confetti(state.confettiBursts, Modifier.fillMaxSize())
 }
 
@@ -453,17 +463,16 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
         if (act != null && label != null) {
             // 18 Nov (Deepak: "just Undo delete, short, with an undo arrow, in the centre"): a small pill in the middle,
             // the whole pill the button. TalkBack reads the full sentence, then the button.
-            // Clear Glass: dark over dark photos and light over light ones, like the bar under it.
-            com.deepak.photovault.designsystem.AdaptiveGlass(grouped = false) { adapt ->
+            // Clear Glass: dark glass by day and night, like the bar under it.
+            com.deepak.photovault.designsystem.DarkGlass {
             val glass = LocalGlassTheme.current
             Row(
                 Modifier
-                    .then(adapt)
                     .glassChrome(RoundedCornerShape(percent = 50), elevation = 8.dp)
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick {
                         state.dismissMessage(shown)
                         act()
-                    }
+                    })
                     .semantics(mergeDescendants = true) {
                         liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite
                         contentDescription = "${shown.text} $label"
@@ -480,6 +489,8 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
             return@AnimatedVisibility
         }
         val shape = RoundedCornerShape(24.dp)
+        com.deepak.photovault.designsystem.DarkGlass {
+        val glass = LocalGlassTheme.current
         Row(
             Modifier
                 .widthIn(max = 560.dp)
@@ -492,7 +503,8 @@ private fun MessageBar(state: ShellState, modifier: Modifier = Modifier) {
                 .padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(shown.text, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 14.dp))
+            Text(shown.text, color = glass.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).padding(vertical = 14.dp))
+        }
         }
     }
 }
@@ -1002,12 +1014,8 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     // switching to a lens theme while the app is open works at once instead of after a restart.
     val lensOn = lensGlassActive()
     val lens = rememberLensGlass()
-    // Clear Glass: the bar, Back to top and the selection bar change between light and dark glass together, and the
-    // fade under them goes with them (21 Nov).
-    val glassGroup = com.deepak.photovault.designsystem.rememberAdaptiveGlassGroup()
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
-            com.deepak.photovault.designsystem.LocalAdaptiveGlassGroup provides glassGroup,
             LocalScreenInsets provides PaddingValues(
                 start = system.calculateStartPadding(LayoutDirection.Ltr),
                 top = system.calculateTopPadding(),
@@ -1028,14 +1036,10 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                 }
             }
         }
-        // Clear Glass (21 Nov, iOS's scroll edge effect, without blur): the photos fade softly toward the page's colour
-        // under the bar, so it reads over anything. It goes with the bar.
-        if (glassTheme.isClearGlass && glassSettings.blurEnabled) {
-            // The fade is light under light glass and dark under dark glass, so the two always go together.
-            val family = remember(glassTheme.id) { com.deepak.photovault.designsystem.GlassThemes.familyOf(glassTheme.id.name) }
-            val dayWall = family.day.wallpaper.first()
-            val nightWall = family.night.wallpaper.first()
-            val homeDark = glassTheme.isDark
+        // Clear Glass at night: the photos fade softly toward the black page under the bar. By day there is no fade
+        // (21 Nov, Deepak: "remove the white tint below the bottom toolbar in day"; the bar is dark glass there now).
+        if (glassTheme.isClearGlass && glassTheme.isDark && glassSettings.blurEnabled) {
+            val wall = glassTheme.wallpaper.first()
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -1045,26 +1049,19 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                         val y = maxOf(shift.value, travel * state.sectionCover())
                         alpha = 1f - (y / travel).coerceIn(0f, 1f)
                     }
-                    .drawBehind {
-                        val t = glassGroup?.darkness?.value ?: if (homeDark) 1f else 0f
-                        val wall = androidx.compose.ui.graphics.lerp(dayWall, nightWall, t)
-                        drawRect(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                0f to wall.copy(alpha = 0f),
-                                0.45f to wall.copy(alpha = 0.42f),
-                                1f to wall.copy(alpha = 0.8f),
-                            ),
-                        )
-                    },
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            0f to wall.copy(alpha = 0f),
+                            0.45f to wall.copy(alpha = 0.42f),
+                            1f to wall.copy(alpha = 0.8f),
+                        ),
+                    ),
             )
         }
         // Only the bar gets the lens; anything inside the recorded sections would otherwise draw itself.
-        CompositionLocalProvider(
-            com.deepak.photovault.designsystem.LocalLensGlass provides lens,
-            com.deepak.photovault.designsystem.LocalAdaptiveGlassGroup provides glassGroup,
-        ) {
-        // Clear Glass: the bar turns dark over dark photos and light over light ones (iOS); other themes as they were.
-        com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
+        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides lens) {
+        // Clear Glass: the bar is dark glass by day and night, and never changes (21 Nov); other themes as they were.
+        com.deepak.photovault.designsystem.DarkGlass {
         FloatingNavigationBar(
             indicator = { nav.indicator.value },
             onSelect = state::tapSection,
@@ -1083,8 +1080,7 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
                     val y = maxOf(shift.value, travel * state.sectionCover())
                     alpha = 1f - (y / travel).coerceIn(0f, 1f)
                 }
-                .padding(bottom = system.calculateBottomPadding() + 12.dp)
-                .then(adapt),
+                .padding(bottom = system.calculateBottomPadding() + 12.dp),
         )
         }
         }
@@ -1646,6 +1642,16 @@ private fun rememberSectionNav(state: ShellState): SectionNav {
             if (!nav.jumping) nav.indicator.snapTo(position.coerceIn(0f, (Destination.entries.size - 1).toFloat()))
         }
     }
+    // A tick as a finger swipe crosses into the next section (21 Nov, Deepak: "when I switch between sections there
+    // should be some haptic feedback"); a tap on the bar gives its own.
+    val sectionHaptics = com.deepak.photovault.designsystem.rememberHaptics()
+    LaunchedEffect(nav) {
+        var first = true
+        snapshotFlow { pager.currentPage }.collect {
+            if (!first && !nav.jumping) sectionHaptics.tick()
+            first = false
+        }
+    }
     // Swipe -> the settled page becomes the current section.
     LaunchedEffect(nav) {
         snapshotFlow { pager.settledPage }.collect { page ->
@@ -1718,6 +1724,7 @@ private fun FloatingNavigationBar(
     val settings = LocalGlassSettings.current
     val flexible = theme.isLiquidGlass && settings.blurEnabled && !settings.reduceMotion
     val count = Destination.entries.size
+    val barHaptics = com.deepak.photovault.designsystem.rememberHaptics()
     BoxWithConstraints(
         modifier
             .widthIn(max = 480.dp)
@@ -1760,7 +1767,10 @@ private fun FloatingNavigationBar(
                                     val at = ((dragX ?: 0f) / itemPx + 0.5f).toInt().coerceIn(0, count - 1)
                                     dragX = null
                                     // Let go on the section already open: nothing (a tap there scrolls to the top).
-                                    if (at != indicator().roundToInt()) onSelect(Destination.entries[at])
+                                    if (at != indicator().roundToInt()) {
+                                        barHaptics.tick()
+                                        onSelect(Destination.entries[at])
+                                    }
                                 },
                                 onDragCancel = { dragX = null },
                             ) { change, amount ->
@@ -1826,7 +1836,7 @@ private fun FloatingNavigationBar(
                     .size(side)
                     .glassChrome(androidx.compose.foundation.shape.CircleShape)
                     .liquidGlassTouch(press)
-                    .clickable(interactionSource = press, indication = LocalIndication.current, role = Role.Button, onClickLabel = "Search", onClick = onSearch),
+                    .clickable(interactionSource = press, indication = LocalIndication.current, role = Role.Button, onClickLabel = "Search", onClick = com.deepak.photovault.designsystem.hapticClick(onSearch)),
                 contentAlignment = Alignment.Center,
             ) {
                 com.deepak.photovault.designsystem.DepthIcon(androidx.compose.material.icons.Icons.Rounded.Search, "Search", theme.onGlass, Modifier.size(26.dp))

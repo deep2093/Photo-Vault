@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -59,25 +60,62 @@ data class IconPieces(val centerX: Float, val centerY: Float, val cuts: List<Flo
  * caller skips it then). It can't be skipped by tapping, by request.
  */
 @Composable
-fun OpeningAnimation(icon: ImageBitmap, glyph: IconGlyph, background: Color, onDone: () -> Unit) {
+fun OpeningAnimation(icon: ImageBitmap, glyph: IconGlyph, background: Color, onDone: () -> Unit, reveal: Boolean = false) {
     val pieces = remember(glyph) { IconPieces.of(glyph) }
     val flight = remember { Animatable(0f) }
     val fade = remember { Animatable(1f) }
+    // Extra animations (21 Nov, Deepak: "do logo reveal"): once the pieces have joined, the icon dips a little and then
+    // grows past the edges of the screen as a window, the app showing through its shape; the photos then arrive in a
+    // wave. Without it the icon fades away as before.
+    val grow = remember { Animatable(0f) }
+    val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     LaunchedEffect(Unit) {
         flight.animateTo(1f, tween(FLIGHT_MS, easing = FastOutSlowInEasing))
         delay(HOLD_MS)
-        fade.animateTo(0f, tween(FADE_MS, easing = LinearEasing))
+        if (reveal) {
+            haptics.tick()
+            launch {
+                delay((REVEAL_MS * REVEAL_DIP).toLong())
+                com.deepak.photovault.designsystem.OpeningWave.play()
+            }
+            grow.animateTo(1f, tween(REVEAL_MS, easing = LinearEasing))
+        } else {
+            fade.animateTo(0f, tween(FADE_MS, easing = LinearEasing))
+        }
         onDone()
     }
     Canvas(
         Modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = fade.value },
+            .graphicsLayer {
+                val g = grow.value
+                alpha = fade.value * (1f - ((g - 0.72f) / 0.28f).coerceIn(0f, 1f))
+                // The window is cut out of this layer only, so the app shows through it.
+                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+            },
     ) {
         drawRect(background)
         val t = flight.value
         val iconPx = ICON_SIZE.toPx()
         val center = Offset(size.width / 2f, size.height / 2f)
+        val g = grow.value
+        if (g > 0f) {
+            // First a small dip (the icon itself), then the icon's shape as a growing window.
+            val window = g >= REVEAL_DIP
+            val zoom = if (!window) 1f - 0.12f * (g / REVEAL_DIP) else 0.88f + (REVEAL_ZOOM - 0.88f) * ((g - REVEAL_DIP) / (1f - REVEAL_DIP)).pow(2.4f)
+            val topLeft = Offset(center.x - iconPx * pieces.centerX, center.y - iconPx * pieces.centerY)
+            androidx.compose.ui.graphics.drawscope.scale(zoom, zoom, pivot = center) {
+                drawImage(
+                    icon,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(icon.width, icon.height),
+                    dstOffset = IntOffset(topLeft.x.toInt(), topLeft.y.toInt()),
+                    dstSize = IntSize(iconPx.toInt(), iconPx.toInt()),
+                    blendMode = if (window) androidx.compose.ui.graphics.BlendMode.DstOut else androidx.compose.ui.graphics.BlendMode.SrcOver,
+                )
+            }
+            return@Canvas
+        }
         // Where the icon's own centre point lands on screen.
         val iconTopLeft = Offset(center.x - iconPx * pieces.centerX, center.y - iconPx * pieces.centerY)
         val pivot = Offset(iconTopLeft.x + iconPx * pieces.centerX, iconTopLeft.y + iconPx * pieces.centerY)
@@ -129,5 +167,10 @@ private val ICON_SIZE = 240.dp
 private const val FLIGHT_MS = 850
 private const val HOLD_MS = 120L
 private const val FADE_MS = 230
+
+/** The logo reveal: how long, the share of it spent on the dip, and how many times its size the window grows to. */
+private const val REVEAL_MS = 520
+private const val REVEAL_DIP = 0.22f
+private const val REVEAL_ZOOM = 30f
 private const val SPIRAL_DEGREES = 220f
 private const val SPIN_DEGREES = 180f

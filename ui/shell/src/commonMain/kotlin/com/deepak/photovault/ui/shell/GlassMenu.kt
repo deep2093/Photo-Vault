@@ -55,6 +55,8 @@ internal fun BoxScope.GlassMenuLayer(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!expanded) return
+    val openHaptics = com.deepak.photovault.designsystem.rememberHaptics()
+    androidx.compose.runtime.LaunchedEffect(Unit) { openHaptics.tick() }
     val insets = LocalScreenInsets.current
     Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null, onClick = onDismiss))
     val shape = RoundedCornerShape(20.dp)
@@ -72,9 +74,8 @@ internal fun BoxScope.GlassMenuLayer(
         }
         g
     } else null
-    // Clear Glass: the menu turns dark over dark photos and light over light ones, like the bars. It decides for
-    // itself: it floats on its own, away from them.
-    com.deepak.photovault.designsystem.AdaptiveGlass(grouped = false) { adapt ->
+    // Clear Glass: menus are dark glass by day and night, like the bars (21 Nov).
+    com.deepak.photovault.designsystem.DarkGlass {
     // Extra animations (21 Nov): the rows come in one after another, very quickly.
     androidx.compose.runtime.CompositionLocalProvider(
         com.deepak.photovault.designsystem.LocalMenuStagger provides androidx.compose.runtime.remember { com.deepak.photovault.designsystem.MenuStagger() },
@@ -103,7 +104,6 @@ internal fun BoxScope.GlassMenuLayer(
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, if (bottom != null) 1f else 0f)
                 } else Modifier,
             )
-            .then(adapt)
             .glassChrome(shape, elevation = 12.dp)
             .then(legibilityTint)
             .padding(vertical = 4.dp),
@@ -129,7 +129,7 @@ internal fun GlassMenuItem(
             .staggeredIn()
             .fillMaxWidth()
             .heightIn(min = 36.dp)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(role = Role.Button, onClick = com.deepak.photovault.designsystem.hapticClick(onClick))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

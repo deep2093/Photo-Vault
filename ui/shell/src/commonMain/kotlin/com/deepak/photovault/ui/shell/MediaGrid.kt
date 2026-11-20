@@ -17,6 +17,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.clickable
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.shimmer
+import com.deepak.photovault.designsystem.openingWave
 import com.deepak.photovault.designsystem.solidGlass
 import com.deepak.photovault.designsystem.glassChrome
 import com.deepak.photovault.designsystem.lensGlassActive
@@ -317,6 +318,8 @@ fun MediaGrid(
                         state.toggleSelected(id)
                     } else {
                         val item = shown[id] ?: gallery.find(id) ?: return
+                        // A light touch as a photo opens (21 Nov).
+                        haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
                         if (!dipOnOpen) {
                             currentOnOpen(item)
                         } else {
@@ -536,8 +539,8 @@ fun MediaGrid(
         }
 
         androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides gridLens) {
-        // Clear Glass (21 Nov): the date keeps the page's look like the pills above it; Back to top, at the bottom,
-        // turns dark over dark photos and light over light ones together with the bar.
+        // Clear Glass (21 Nov): the date and Back to top are dark glass by day and night, like every floating bar.
+        com.deepak.photovault.designsystem.DarkGlass {
         if (continuous) androidx.compose.runtime.CompositionLocalProvider(
             com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.TOP_FILM,
         ) {
@@ -556,12 +559,13 @@ fun MediaGrid(
                 ),
             )
         }
-        if (topButton) com.deepak.photovault.designsystem.AdaptiveGlass { adapt ->
+        if (topButton) {
             BackToTopButton(
                 grid = gridState,
                 onClick = { topTaps++ },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp).then(adapt),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = contentPadding.calculateBottomPadding() + 14.dp),
             )
+        }
         }
         }
         if (parts != null) {
@@ -618,7 +622,7 @@ internal fun BackToTopButton(grid: LazyGridState, onClick: () -> Unit, modifier:
                     if (theme.isLiquidGlass) Modifier.glassChrome(androidx.compose.foundation.shape.CircleShape, elevation = 0.dp)
                     else Modifier.solidGlass(androidx.compose.foundation.shape.CircleShape),
                 )
-                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = onClick),
+                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Back to top", onClick = com.deepak.photovault.designsystem.hapticClick(onClick)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Rounded.ArrowUpward, "Back to top", tint = theme.onGlass, modifier = Modifier.size(24.dp))
@@ -796,6 +800,8 @@ private fun PhotoTile(
         modifier
             .aspectRatio(1f)
             // Square tiles: rounded corners look odd with hairline gaps (23 Oct).
+            // Extra animations (21 Nov): as the app opens the photos arrive in a wave, after the logo reveal.
+            .openingWave()
             .background(theme.onGlass.copy(alpha = 0.08f))
             .shimmer(item.isDriveOnly && !arrived, theme.onGlass)
             .semantics {

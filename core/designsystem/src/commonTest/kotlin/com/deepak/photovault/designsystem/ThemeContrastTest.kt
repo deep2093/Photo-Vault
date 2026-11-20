@@ -170,23 +170,19 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun adaptiveGlassKeepsThePagesLookUnlessPhotosAreClearlyTheOtherWay() {
-        // 21 Nov (Deepak's recordings): at night the bar turned white over grey album cards, and bars flickered.
-        // A day page: light glass, dark only over clearly dark photos, light again once they are clearly not.
-        assertFalse(adaptNight(night = false, luma = 0.50f, home = false))
-        assertFalse(adaptNight(night = false, luma = 0.12f, home = false))
-        assertTrue(adaptNight(night = false, luma = 0.05f, home = false))
-        assertTrue(adaptNight(night = true, luma = 0.12f, home = false))
-        assertFalse(adaptNight(night = true, luma = 0.20f, home = false))
-        // A night page: dark glass, light only over clearly light photos (grey cards, about 0.14, stay dark).
-        assertTrue(adaptNight(night = true, luma = 0.14f, home = true))
-        assertTrue(adaptNight(night = true, luma = 0.35f, home = true))
-        assertFalse(adaptNight(night = true, luma = 0.60f, home = true))
-        assertFalse(adaptNight(night = false, luma = 0.35f, home = true))
-        assertTrue(adaptNight(night = false, luma = 0.25f, home = true))
-        // A gap each way, so glass over mid-grey photos never flickers.
-        assertTrue(DAY_PAGE_BACK_TO_LIGHT - DAY_PAGE_TO_DARK >= 0.05f)
-        assertTrue(NIGHT_PAGE_TO_LIGHT - NIGHT_PAGE_BACK_TO_DARK >= 0.05f)
+    fun clearGlassFloatingGlassIsTheNightLookByDayToo() {
+        // 21 Nov (Deepak: "make this the default glass in day, don't change colour when scrolling"): by day the bars
+        // take the night theme's glass and words. Those words must read on that glass even where the day's white page
+        // shows through it (the lens puts the page's colour behind see-through content).
+        val night = GlassThemes.familyOf(GlassThemeId.CLEAR_GLASS_LIGHT.name).night
+        val ink = night.glassInk!!
+        for (behind in GlassThemes.ClearGlassLight.wallpaper + listOf(Color.White, Color.Black)) {
+            for (film in listOf(LiquidGlassInk.CLEAR_FILM, LiquidGlassInk.TOP_FILM, LiquidGlassInk.TINTED_FROST)) {
+                val glass = LiquidGlassInk.throughGlass(behind, true, ink.dayFloor, ink.nightCeiling, film, LiquidGlassInk.tintedFrostColor(true))
+                assertTrue(Contrast.ratio(night.onGlass, glass) >= Contrast.TEXT, "words over $behind with film $film")
+                assertTrue(Contrast.ratio(night.onGlassSecondary, glass) >= Contrast.TEXT, "small words over $behind with film $film")
+            }
+        }
     }
 
     @Test
