@@ -194,6 +194,8 @@ class ThemeContrastTest {
         // 21 Nov (Deepak: "Tinted and Clear differences hard to find, specially in day"). A black and a white photo
         // behind the glass: Clear keeps them well apart, Tinted brings them close together.
         assertTrue(LiquidGlassInk.TINTED_FROST - LiquidGlassInk.CLEAR_FILM >= 0.35f)
+        // The pills at the top share a film between the two: even, but still glass.
+        assertTrue(LiquidGlassInk.TOP_FILM > LiquidGlassInk.CLEAR_FILM && LiquidGlassInk.TOP_FILM < LiquidGlassInk.TINTED_FROST)
         for (theme in listOf(GlassThemes.ClearGlassLight, GlassThemes.ClearGlassDark)) {
             val ink = theme.glassInk!!
             fun spread(frost: Float): Double {
@@ -207,6 +209,26 @@ class ThemeContrastTest {
             assertTrue(clear >= 1.5, "${theme.displayName}: Clear still shows the photo ($clear)")
             assertTrue(tinted <= 1.35, "${theme.displayName}: Tinted is nearly solid ($tinted)")
         }
+    }
+
+    @Test
+    fun clearGlassNightCardsAreBlackGlass() {
+        // 21 Nov (Deepak picked "black glass" over the dark grey): cards are nearly black on every part of the page, and
+        // the words on them read.
+        val theme = GlassThemes.ClearGlassDark
+        for (card in Contrast.panelBackgrounds(theme)) {
+            // (panelBackgrounds adds the glass's own faint sheen, so "nearly black" is a little above the bare fill.)
+            assertTrue(Contrast.relativeLuminance(card) < 0.03, "card $card is not nearly black")
+            assertTrue(Contrast.ratio(theme.onGlass, card) >= 12.0)
+            assertTrue(Contrast.ratio(theme.onGlassSecondary, card) >= Contrast.TEXT)
+        }
+    }
+
+    @Test
+    fun extraAnimationsAreOnUnlessTurnedOff() {
+        // 21 Nov: small animations in every theme, with a switch in Settings > About.
+        assertTrue(GlassSettings().extraMotion)
+        assertFalse(GlassSettings().iosMotion)
     }
 
     @Test

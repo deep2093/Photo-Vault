@@ -16,6 +16,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.clickable
 import com.deepak.photovault.designsystem.accentSurface
+import com.deepak.photovault.designsystem.shimmer
 import com.deepak.photovault.designsystem.solidGlass
 import com.deepak.photovault.designsystem.glassChrome
 import com.deepak.photovault.designsystem.lensGlassActive
@@ -257,6 +258,9 @@ fun MediaGrid(
         val positionOf = remember(order) { order.withIndex().associate { (i, id) -> id to i } }
         val shown = remember(sections) { sections.flatMap { it.items }.associateBy { it.id } }
         val currentOnOpen by rememberUpdatedState(onOpen)
+        // Extra animations (21 Nov): a tapped photo dips a little, then opens (70 ms later, too short to feel like a wait).
+        var dippedId by remember { mutableStateOf<Long?>(null) }
+        val dipOnOpen by rememberUpdatedState(com.deepak.photovault.designsystem.extraMotionOn())
         val spacingPx = with(density) { GRID_SPACING.toPx() }
         val startPadPx = with(density) { contentPadding.calculateStartPadding(LayoutDirection.Ltr).toPx() }
         val endPadPx = with(density) { contentPadding.calculateEndPadding(LayoutDirection.Ltr).toPx() }
@@ -309,7 +313,22 @@ fun MediaGrid(
 
                 override fun onTap(id: Long) {
                     // Looked up among this grid's own photos, so Recently deleted ones open too (24 Oct).
-                    if (state.selecting) state.toggleSelected(id) else (shown[id] ?: gallery.find(id))?.let(currentOnOpen)
+                    if (state.selecting) {
+                        state.toggleSelected(id)
+                    } else {
+                        val item = shown[id] ?: gallery.find(id) ?: return
+                        if (!dipOnOpen) {
+                            currentOnOpen(item)
+                        } else {
+                            dippedId = id
+                            scope.launch {
+                                delay(TILE_DIP_MS)
+                                currentOnOpen(item)
+                                delay(400)
+                                if (dippedId == id) dippedId = null
+                            }
+                        }
+                    }
                 }
 
                 override fun onDragSelectStart(id: Long) {
@@ -470,6 +489,7 @@ fun MediaGrid(
                     selected = item.id in state.selected,
                     label = tileLabel?.invoke(item),
                     mark = tileMark?.invoke(item),
+                    dipped = dippedId == item.id,
                     onClick = { handler.onTap(item.id) },
                     onLongClick = { state.toggleSelected(item.id) },
                     modifier = tileModifier,
@@ -518,7 +538,9 @@ fun MediaGrid(
         androidx.compose.runtime.CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides gridLens) {
         // Clear Glass (21 Nov): the date keeps the page's look like the pills above it; Back to top, at the bottom,
         // turns dark over dark photos and light over light ones together with the bar.
-        if (continuous) {
+        if (continuous) androidx.compose.runtime.CompositionLocalProvider(
+            com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.TOP_FILM,
+        ) {
             FloatingDate(
                 grid = gridState,
                 photos = gridFirst,
@@ -751,9 +773,14 @@ private fun PhotoTile(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
     mark: FloatArray? = null,
+    dipped: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
     var shape by remember(item.id) { mutableStateOf(0f) }
+    // A photo that is only on the drive takes a moment to arrive: until then (or until it can't be read) a soft
+    // shine moves across its tile (extra animations, 21 Nov).
+    var arrived by remember(item.id) { mutableStateOf(false) }
+    val dip by animateFloatAsState(if (dipped) 0.93f else 1f, androidx.compose.animation.core.tween(TILE_DIP_MS.toInt()), label = "tile dip")
     val adaptive = theme.adaptive != null
     val open = onClick
     val select = onLongClick
@@ -770,6 +797,7 @@ private fun PhotoTile(
             .aspectRatio(1f)
             // Square tiles: rounded corners look odd with hairline gaps (23 Oct).
             .background(theme.onGlass.copy(alpha = 0.08f))
+            .shimmer(item.isDriveOnly && !arrived, theme.onGlass)
             .semantics {
                 // Touch is handled by the grid (tap, long-press, slide-select); TalkBack uses these actions.
                 onClick(label = "Open") { open(); true }
@@ -806,8 +834,10 @@ private fun PhotoTile(
                     shape = img.width.toFloat() / img.height
                     thumbShapes[item.id] = shape
                 }
+                arrived = true
             },
-            modifier = Modifier.fillMaxSize().scale(inset).clip(RoundedCornerShape(if (selected) 10.dp else 0.dp)),
+            onError = { arrived = true },
+            modifier = Modifier.fillMaxSize().scale(inset * dip).clip(RoundedCornerShape(if (selected) 10.dp else 0.dp)),
         )
         if (mark != null && shape > 0f) {
             // The tile shows the middle of the photo, cropped to a square: place the circle the same way.
@@ -1029,12 +1059,12 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         if (shown <= 0f) return
         // On a frosted bar of its own, so it reads over any photo, in the title serif; its words start where "Years"
         // starts above it. Solid frost, not blur: inside the scrolling photos the blur drew nothing.
-        Text(
+        // Extra animations (21 Nov): each part of the date rolls to its new value as the photos scroll.
+        com.deepak.photovault.designsystem.RollingText(
             text,
             color = theme.onGlass,
             style = com.deepak.photovault.designsystem.titled(MaterialTheme.typography.titleSmall),
             fontWeight = FontWeight.Bold,
-            maxLines = 1,
             modifier = modifier
                 .graphicsLayer { alpha = shown }
                 // Liquid Glass (21 Nov): clear glass over the photos, the lens keeping the date readable. No shadow:
@@ -1056,6 +1086,9 @@ private fun FloatingDate(grid: LazyGridState, photos: List<MediaItem>, headerIte
         modifier = modifier,
     )
 }
+
+/** How long a tapped photo dips before it opens (extra animations). */
+private const val TILE_DIP_MS = 70L
 
 /** How long the date stays after the photos stop moving (18 Nov). */
 private const val DATE_LINGER_MS = 2000L

@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.SideEffect
 import com.deepak.photovault.designsystem.accentSurface
 import com.deepak.photovault.designsystem.chosenRowFill
+import com.deepak.photovault.designsystem.bounceWhenChosen
 import com.deepak.photovault.designsystem.frostedEdge
 import com.deepak.photovault.designsystem.PageEasing
 import androidx.compose.ui.graphics.Brush
@@ -390,6 +391,7 @@ fun PhotoVaultApp(
                     DeleteFlightLayer(LocalDeleteFlight.current)
                     DeletePromptHost(LocalDeletePrompt.current)
                     IntroHost(state.intro)
+                    ConfettiHost(state)
                     JoinRequestPrompt(drive, signals.foreground)
                     }
                     CompositionLocalProvider(com.deepak.photovault.designsystem.LocalLensGlass provides messageLens) {
@@ -404,6 +406,12 @@ fun PhotoVaultApp(
             }
         }
     }
+}
+
+/** Extra animations (21 Nov): confetti over the whole app, the first time every photo is backed up. */
+@Composable
+private fun ConfettiHost(state: ShellState) {
+    com.deepak.photovault.designsystem.Confetti(state.confettiBursts, Modifier.fillMaxSize())
 }
 
 /**
@@ -978,8 +986,12 @@ private fun BottomBarLayout(screens: Screens, system: PaddingValues) {
     val tucked = selectingNow || (scrollHidden && !iosBar)
     // The bar shrinks even with "Keep the bottom bar in place" on (21 Nov, Deepak: "when the iOS toggle is on the
     // bottom bar should shrink, currently it does nothing"): it stays on the screen, only smaller.
+    // Search is beside the shrunk bar then, so the Search button at the top steps aside (21 Nov, Deepak: "when search
+    // comes at the bottom it should go away from the top, and come back when the bottom search goes away").
+    val bottomSearch = iosBar && scrolledAway && !selectingNow
+    SideEffect { state.chrome.bottomSearch = bottomSearch }
     val shrink = androidx.compose.animation.core.animateFloatAsState(
-        if (iosBar && scrolledAway && !selectingNow) 1f else 0f,
+        if (bottomSearch) 1f else 0f,
         androidx.compose.animation.core.spring(dampingRatio = 0.78f, stiffness = 380f),
         label = "bar shrink",
     )
@@ -1789,9 +1801,11 @@ private fun FloatingNavigationBar(
             // Shrunk (Apple's motion): only the section you're on, in its droplet; a tap brings the whole bar back.
             if (shrunk) {
                 val current = Destination.entries[indicator().roundToInt().coerceIn(0, count - 1)]
+                // One clear pill, the same glass as the Search circle beside it (21 Nov, Deepak's screenshots: the chosen
+                // tab's grey droplet inside the pill gave it two rings and a muddy dark grey). Its icon and name are in
+                // the glass's own words colour, which reads on clear glass over any photo.
                 Box(Modifier.size(itemWidth, NAV_ITEM_HEIGHT).graphicsLayer { alpha = shrink() }) {
-                    Box(Modifier.matchParentSize().liquidGlassDroplet(shape))
-                    NavItem(current, current.ordinal.toFloat(), onExpand, Modifier.fillMaxSize())
+                    NavItem(current, current.ordinal.toFloat(), onExpand, Modifier.fillMaxSize(), tint = theme.onGlass)
                 }
             }
         }
@@ -1837,11 +1851,13 @@ private fun NavItem(
     modifier: Modifier,
     height: Dp = NAV_ITEM_HEIGHT,
     dot: Boolean = false,
+    /** One colour for the icon and name whatever is chosen (the shrunk bar's single pill); null: the usual blend. */
+    tint: Color? = null,
 ) {
     val theme = LocalGlassTheme.current
     val haptics = com.deepak.photovault.designsystem.rememberHaptics()
     val closeness = (1f - kotlin.math.abs(indicator - destination.ordinal)).coerceIn(0f, 1f)
-    val fg = lerp(theme.onGlass, theme.onAccent, closeness)
+    val fg = tint ?: lerp(theme.onGlass, theme.onAccent, closeness)
     val selected = closeness > 0.5f
     val press = if (theme.isLiquidGlass && LocalGlassSettings.current.blurEnabled) {
         remember { MutableInteractionSource() }
@@ -1868,7 +1884,8 @@ private fun NavItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box {
+        // Extra animations (21 Nov): the icon gives a small bounce when its section is chosen.
+        Box(Modifier.bounceWhenChosen(selected && tint == null)) {
             com.deepak.photovault.designsystem.DepthIcon(destination.icon, null, fg, Modifier.size(24.dp))
             if (dot) {
                 Box(

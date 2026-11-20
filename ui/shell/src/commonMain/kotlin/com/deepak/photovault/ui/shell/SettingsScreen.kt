@@ -788,6 +788,17 @@ private fun AboutSection(state: ShellState) {
                 "glass while held. Off: it moves like the other themes.",
             icon = Icons.Rounded.AutoAwesome,
         )
+        // 21 Nov (Deepak: "make all animations for all themes but give a toggle in About").
+        GlassSwitchRow(
+            "Extra animations",
+            state.appearance.extraMotion,
+            { on -> state.updateAppearance { it.copy(extraMotion = on) } },
+            description = "In every theme: the heart pops when you favourite a photo; the bottom bar's icon bounces when you " +
+                "choose it; a wrong PIN shakes; a soft shine moves over photos that are still loading; the date's numbers " +
+                "roll as you scroll; Back up now shows a spinner, then a tick; menu rows come in one after another; a " +
+                "photo dips a little before it opens; confetti the first time everything is backed up. Off with Reduce motion.",
+            icon = Icons.Rounded.AutoAwesome,
+        )
         InfoRow(Icons.Rounded.Storage, "Phone and drive in one timeline", "Done")
         InfoRow(Icons.Rounded.Groups, "Family Album", "Done")
         InfoRow(Icons.Rounded.VpnKey, "Away from home (VPN)", "Done")

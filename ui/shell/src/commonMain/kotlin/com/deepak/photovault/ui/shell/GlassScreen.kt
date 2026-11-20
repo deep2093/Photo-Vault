@@ -190,6 +190,8 @@ fun GlassScreen(
             // Clear Glass: at the bottom the glass turns dark over dark photos and light over light ones, like iOS.
             lastBottom?.let { actions -> AdaptiveGlass { adapt -> FloatingPill(adapt, content = actions) } }
         }
+        // Clear Glass: everything at the top shares one firmer film, so the pills look alike over any photos.
+        CompositionLocalProvider(com.deepak.photovault.designsystem.LocalGlassFilm provides com.deepak.photovault.designsystem.LiquidGlassInk.TOP_FILM) {
         if (title == null) {
             // The top pills (Years / Months / All, Search, an album's back button) always stay in view (24 Oct);
             // only the navigation bar tucks away while scrolling.
@@ -223,6 +225,7 @@ fun GlassScreen(
                     top = insets.calculateTopPadding() + 8.dp,
                 ),
         )
+        }
         }
         if (overlay != null) overlay.invoke(this@Box)
         }

@@ -96,6 +96,13 @@ object LiquidGlassInk {
      * nearly solid, so the two are easy to tell apart (they were 0 and 0.55, hard to tell apart by day).
      */
     const val CLEAR_FILM = 0.40f
+
+    /**
+     * Clear Glass's pills at the top (Years / Months / All, the date, Search) share a firmer film, so the three look
+     * alike whatever photo is behind each (21 Nov, Deepak: "all three of the top bar should look similar": one was
+     * over a dark room, one over a bright wall).
+     */
+    const val TOP_FILM = 0.68f
     const val TINTED_FROST = 0.86f
 
     /** Clear Glass's chosen tab: a light film by day, iOS's dark grey glass by night. */
@@ -172,6 +179,9 @@ val LocalGlassDarkness = staticCompositionLocalOf<State<Float>?> { null }
 
 /** Clear Glass ([AdaptiveGlass]): how bright the photos behind this bar are (linear, 0 to 1), once known. */
 val LocalBackdropLuma = staticCompositionLocalOf<State<Float?>?> { null }
+
+/** Clear Glass: the glass below has at least this much film ([LiquidGlassInk.TOP_FILM] for the pills at the top). */
+val LocalGlassFilm = staticCompositionLocalOf<Float?> { null }
 
 /** The page's own colour behind see-through content, kept when a bar flips to the other look. */
 val LocalGlassBackdrop = staticCompositionLocalOf<Color?> { null }

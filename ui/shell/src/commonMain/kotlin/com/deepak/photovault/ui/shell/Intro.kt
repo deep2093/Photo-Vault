@@ -100,16 +100,14 @@ class Change(val kind: ChangeKind, val title: String, val body: String)
  * never carry old entries forward.
  */
 object WhatsNew {
-    const val ID = "2026-11-21-4"
+    const val ID = "2026-11-21-5"
     const val TITLE = "What's new"
     val items: List<Change> = listOf(
-        Change(ChangeKind.FIXED, "You can see what's chosen", "Clear Glass: Day or Night, Clear or Tinted and every other chooser now show the chosen option on a grey strip with a raised marker, as on iPhone. Switches are green when on."),
-        Change(ChangeKind.FIXED, "Glass changing colour", "Clear Glass: the bottom bar no longer gets stuck on the wrong colour, the fade under it changes with it, and it only turns for clearly dark or light photos. The pills and the date at the top stay light by day and dark at night."),
-        Change(ChangeKind.CHANGED, "Clear and Tinted", "Clear has a light film so a photo's own words don't show through the bar's. Tinted is now almost solid, so the two are easy to tell apart."),
-        Change(ChangeKind.FIXED, "Move to bin and Undo delete", "Liquid Glass and Clear Glass: main buttons like Move to bin have the glass edge and shine, and Undo delete is the same glass as the bar."),
-        Change(ChangeKind.CHANGED, "Open photos", "One toolbar again in Clear Glass. Liquid Glass and Clear Glass get a soft dark shade at the bottom, so the buttons stand out over screenshots."),
-        Change(ChangeKind.FIXED, "Test: iOS motion", "The bottom bar now shrinks while you scroll even with Keep the bottom bar in place on."),
-        Change(ChangeKind.CHANGED, "Glass effect switch", "Settings > Appearance: the switch is now called Glass effect, and is on when the glass is on."),
+        Change(ChangeKind.NEW, "Extra animations", "In every theme: the heart pops when you favourite a photo, the bottom bar's icon bounces, a wrong PIN shakes, photos still loading from the drive get a soft shine, the date's numbers roll, the backup button shows a ring and then a tick, menu rows come in one after another, a photo dips before it opens, and confetti falls the first time everything is backed up. Turn them off in Settings > About."),
+        Change(ChangeKind.CHANGED, "Clear Glass at night", "Cards are black glass now instead of dark grey."),
+        Change(ChangeKind.FIXED, "The small bottom pill", "Clear Glass with the iOS motion test: the shrunk bar is one clear pill, the same glass as the Search circle beside it, not a grey pill with two rings."),
+        Change(ChangeKind.FIXED, "Search shown twice", "While Search is at the bottom beside the shrunk bar, the Search button at the top steps aside, and comes back with the bar."),
+        Change(ChangeKind.FIXED, "The pills at the top", "Clear Glass: Years / Months / All, the date and Search share one even tint, so they look alike over any photos."),
     )
 }
 

@@ -153,7 +153,14 @@ fun PhotosScreen(state: ShellState, gallery: GalleryState, actions: MediaActions
                 if (state.appearance.mirrorTest) BackupsSwitch(state)
                 // Memories (8 Nov): a button with a dot on days with On this day photos, instead of a row on top.
                 MemoriesButton(state, gallery)
-                SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
+                // Clear Glass with Apple's motion: while Search is beside the shrunk bar at the bottom, this one is away.
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !state.chrome.bottomSearch,
+                    enter = androidx.compose.animation.fadeIn(com.deepak.photovault.designsystem.motionSpec(180)) + androidx.compose.animation.expandHorizontally(com.deepak.photovault.designsystem.motionSpec(180)),
+                    exit = androidx.compose.animation.fadeOut(com.deepak.photovault.designsystem.motionSpec(140)) + androidx.compose.animation.shrinkHorizontally(com.deepak.photovault.designsystem.motionSpec(180)),
+                ) {
+                    SmallPillButton(Icons.Rounded.Search, "Search") { state.open(Overlay.Search) }
+                }
             }
             if (pillTheme === baseTheme) buttons()
             else androidx.compose.runtime.CompositionLocalProvider(LocalGlassTheme provides pillTheme) { buttons() }

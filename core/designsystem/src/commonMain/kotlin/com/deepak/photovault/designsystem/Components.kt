@@ -90,6 +90,8 @@ fun GlassButton(
     icon: ImageVector? = null,
     centered: Boolean = false,
     danger: Boolean = false,
+    /** Starting something (extra animations, 21 Nov): a small ring turns where the icon was, and taps wait. */
+    busy: Boolean = false,
 ) {
     val theme = LocalGlassTheme.current
     val haptics = rememberHaptics()
@@ -117,7 +119,7 @@ fun GlassButton(
                 },
             )
             .liquidGlassTouch(press)
-            .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = {
+            .clickable(enabled = !busy, interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = {
                 haptics.tap()
                 onClick()
             })
@@ -126,7 +128,7 @@ fun GlassButton(
         horizontalArrangement = if (centered) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
     ) {
         val fg = if (danger || (primary && prominent != null)) Color.White else if (primary && GlassFinish.CALM) readableOn(theme.accent) else if (primary) theme.onAccent else theme.onGlass
-        if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
+        if (busy) Spinner(fg) else if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
         Text(text, color = fg, style = MaterialTheme.typography.labelLarge)
     }
 }

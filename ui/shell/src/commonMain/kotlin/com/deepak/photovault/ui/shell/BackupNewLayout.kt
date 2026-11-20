@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -222,6 +223,38 @@ private fun RingCard(
             val waiting = (total - saved).coerceAtLeast(0)
             val skipped = (phoneCount - total).coerceAtLeast(0)
             val running = if (g) status.running else backup.running
+            // Extra animations (21 Nov): after a tap the button shows a turning ring until the backup is under way;
+            // when a run ends well it shows a tick for a moment; and the first time nothing is left waiting, confetti.
+            val lively = com.deepak.photovault.designsystem.extraMotionOn()
+            var starting by remember(g) { mutableStateOf(false) }
+            var justDone by remember(g) { mutableStateOf(false) }
+            var wasRunning by remember(g) { mutableStateOf(running) }
+            val endedWell = if (g) status.message == null else backup.history.firstOrNull()?.succeeded != false
+            val nothingWaiting = total > 0 && waiting == 0
+            LaunchedEffect(running) {
+                if (running) {
+                    starting = false
+                } else if (wasRunning && lively && endedWell) {
+                    wasRunning = false
+                    justDone = true
+                    kotlinx.coroutines.delay(2200)
+                    justDone = false
+                }
+                wasRunning = running
+            }
+            // If the backup can't start (no Wi-Fi yet, say), the ring stops after a few seconds.
+            LaunchedEffect(starting) {
+                if (starting) {
+                    kotlinx.coroutines.delay(4000)
+                    starting = false
+                }
+            }
+            LaunchedEffect(justDone, nothingWaiting) {
+                if (justDone && nothingWaiting && !state.appearance.celebratedBackup) {
+                    state.updateAppearance { it.copy(celebratedBackup = true) }
+                    state.celebrate()
+                }
+            }
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(112.dp), contentAlignment = Alignment.Center) {
@@ -266,10 +299,12 @@ private fun RingCard(
                     }
                 } else {
                     GlassButton(
-                        if (waiting == 0 && total > 0) "Back up again" else "Back up ${LibraryCounts.grouped(waiting)} now",
+                        if (justDone) "Backed up" else if (waiting == 0 && total > 0) "Back up again" else "Back up ${LibraryCounts.grouped(waiting)} now",
                         primary = waiting > 0,
-                        icon = if (g) Icons.Rounded.CloudUpload else Icons.Rounded.Upload,
+                        icon = if (justDone) Icons.Rounded.Check else if (g) Icons.Rounded.CloudUpload else Icons.Rounded.Upload,
+                        busy = starting,
                         onClick = {
+                            if (lively) starting = true
                             val mobile = if (g) googleView.mobileData else backup.settings.mobileData
                             note = if (backup.onMobileData() && !mobile) "On mobile data: it starts once you're on Wi-Fi." else null
                             if (!backup.notificationsAllowed()) actions.requestNotifications()

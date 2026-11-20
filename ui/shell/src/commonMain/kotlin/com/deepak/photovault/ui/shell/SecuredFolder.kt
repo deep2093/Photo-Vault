@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.deepak.photovault.core.media.MediaItem
+import com.deepak.photovault.designsystem.shakeOn
 import com.deepak.photovault.designsystem.GlassButton
 import com.deepak.photovault.designsystem.GlassCard
 import com.deepak.photovault.designsystem.GlassTextField
@@ -238,12 +239,13 @@ fun SecuredFolderScreen(state: ShellState) {
 }
 
 @Composable
-internal fun PinEntry(pin: String, onChange: (String) -> Unit, fingerprint: (() -> Unit)? = null) {
+internal fun PinEntry(pin: String, onChange: (String) -> Unit, fingerprint: (() -> Unit)? = null, wrongTries: Int = 0) {
     val theme = LocalGlassTheme.current
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     fun tick() = haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 10.dp)) {
+        // Extra animations (21 Nov): the dots shake side to side after a wrong PIN, as an iPhone's do.
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 10.dp).shakeOn(wrongTries)) {
             repeat(SecuredRules.PIN_LENGTH) { i ->
                 Box(
                     Modifier
@@ -288,6 +290,7 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
     val theme = LocalGlassTheme.current
     var pin by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
+    var wrongTries by remember { mutableStateOf(0) }
     var forgot by rememberSaveable { mutableStateOf(false) }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val buzzScope = rememberCoroutineScope()
@@ -322,10 +325,12 @@ private fun SecuredLockScreen(state: ShellState, sec: SecuredState) {
                                     }
                                 }
                                 message = if (r.waitMillis > 0) "Too many tries. Wait ${(r.waitMillis + 999) / 1000} seconds." else "That PIN isn't right."
+                                wrongTries++
                             }
                         }
                     },
                     fingerprint = if (sec.platform.biometricReady) ({ sec.platform.askBiometric { ok -> if (ok) sec.unlocked = true } }) else null,
+                    wrongTries = wrongTries,
                 )
                 message?.let { Text(it, color = theme.onGlass, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp)) }
             }

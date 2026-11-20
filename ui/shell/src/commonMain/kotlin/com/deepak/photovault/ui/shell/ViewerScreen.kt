@@ -132,6 +132,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import com.deepak.photovault.designsystem.LocalHazeState
 import com.deepak.photovault.designsystem.glassChrome
+import com.deepak.photovault.designsystem.heartPop
 import com.deepak.photovault.designsystem.motionSpec
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
@@ -564,6 +565,7 @@ private fun ViewerBody(viewer: Overlay.Viewer, state: ShellState, gallery: Galle
                                 }
                             }),
                             binModifier = Modifier.trackSpot(bin),
+                            heartKey = current.id,
                             // Make it move is now Edit > Motion (15 Nov).
                             onMore = if (current.isVideo && (gallery.isExternal(current) || current.isDriveOnly)) null else ({ moreOpen = !moreOpen }),
                             // The photo flies to the More button when it goes to the Secured folder.
@@ -746,6 +748,8 @@ private fun ViewerActions(
     onLiving: (() -> Unit)? = null,
     onMore: (() -> Unit)? = null,
     moreModifier: Modifier = Modifier,
+    /** The photo the heart belongs to: it pops when this photo becomes a favourite, not when another photo comes in. */
+    heartKey: Any? = null,
 ) {
     // One pill in every theme (21 Nov, Deepak: "make a single toolbar"; Clear Glass had two groups for a day, as iOS).
     // Same size buttons with the same gap (8 Nov: seven didn't fit and the last was cut off); the rarer ones are in More.
@@ -757,7 +761,15 @@ private fun ViewerActions(
         GlassIconButton(Icons.Rounded.Share, "Share", onClick = onShare)
         if (onSave != null) GlassIconButton(Icons.Rounded.Download, "Save to this phone", onClick = onSave)
         if (onFamily != null) GlassIconButton(Icons.Rounded.Groups, "Share to Family Album", onClick = onFamily)
-        if (onFavourite != null) GlassIconButton(if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (favourite) "Remove from favourites" else "Add to favourites", onClick = onFavourite)
+        if (onFavourite != null) {
+            GlassIconButton(
+                if (favourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                if (favourite) "Remove from favourites" else "Add to favourites",
+                onClick = onFavourite,
+                // Extra animations (21 Nov): the heart springs up with a ring and sparks when you favourite a photo.
+                modifier = Modifier.heartPop(favourite, heartKey, LocalGlassTheme.current.onGlass),
+            )
+        }
         if (onLiving != null) GlassIconButton(Icons.Rounded.AutoAwesome, "Make it move", onClick = onLiving)
         if (onDelete != null) GlassIconButton(Icons.Rounded.Delete, "Move to Recently deleted", onClick = onDelete, modifier = binModifier)
         // More (8 Nov): Set as wallpaper and Move to Secured folder.

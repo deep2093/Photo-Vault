@@ -37,6 +37,7 @@ import com.deepak.photovault.designsystem.glassChrome
 import com.deepak.photovault.designsystem.LocalGlassSettings
 import com.deepak.photovault.designsystem.LocalGlassTheme
 import com.deepak.photovault.designsystem.glassRim
+import com.deepak.photovault.designsystem.staggeredIn
 
 /**
  * A small menu in the app's own glass (31 Oct), drawn inside the screen (not a pop-up window) so it is made exactly
@@ -74,6 +75,10 @@ internal fun BoxScope.GlassMenuLayer(
     // Clear Glass: the menu turns dark over dark photos and light over light ones, like the bars. It decides for
     // itself: it floats on its own, away from them.
     com.deepak.photovault.designsystem.AdaptiveGlass(grouped = false) { adapt ->
+    // Extra animations (21 Nov): the rows come in one after another, very quickly.
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.deepak.photovault.designsystem.LocalMenuStagger provides androidx.compose.runtime.remember { com.deepak.photovault.designsystem.MenuStagger() },
+    ) {
     Column(
         Modifier
             .align(if (bottom != null) Alignment.BottomEnd else Alignment.TopEnd)
@@ -105,6 +110,7 @@ internal fun BoxScope.GlassMenuLayer(
         content = content,
     )
     }
+    }
 }
 
 /** One row of a [GlassMenu]: icon, label and, if wanted, something at the end (a tick or an arrow). */
@@ -120,6 +126,7 @@ internal fun GlassMenuItem(
     val theme = LocalGlassTheme.current
     Row(
         modifier
+            .staggeredIn()
             .fillMaxWidth()
             .heightIn(min = 36.dp)
             .clickable(role = Role.Button, onClick = onClick)

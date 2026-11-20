@@ -449,7 +449,9 @@ object GlassThemes {
         // iOS blue for dark mode, on the chosen tab's darker glass.
         onAccent = Color(0xFF0A84FF),
         accentFill = Color(0xF72C2C2E),
-        panelFill = Color(0x2EFFFFFF),
+        // Black glass (21 Nov, Deepak picked it over the dark grey 2EFFFFFF): nearly black cards, like iOS's own dark
+        // pages, so photos stand out and the lit glass edge does the work.
+        panelFill = Color(0xF217171A),
     )
 
     // ---- Dark themes ----

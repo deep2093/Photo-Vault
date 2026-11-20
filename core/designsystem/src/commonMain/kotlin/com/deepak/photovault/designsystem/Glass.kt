@@ -276,7 +276,11 @@ private fun Modifier.liquidGlassChrome(
                 fallback = theme.glassFallback,
                 inkFloor = ink.dayFloor,
                 inkCeiling = ink.nightCeiling,
-                frost = if (tinted) LiquidGlassInk.TINTED_FROST else if (theme.isClearGlass) LiquidGlassInk.CLEAR_FILM else 0f,
+                frost = when {
+                    tinted -> LiquidGlassInk.TINTED_FROST
+                    theme.isClearGlass -> maxOf(LiquidGlassInk.CLEAR_FILM, LocalGlassFilm.current ?: 0f)
+                    else -> 0f
+                },
                 frostColor = LocalGlassDarkness.current?.let { LiquidGlassInk.tintedFrostColor(it.value) } ?: LiquidGlassInk.tintedFrostColor(theme.isDark),
                 light = LocalGlassLight.current,
                 darkness = LocalGlassDarkness.current,

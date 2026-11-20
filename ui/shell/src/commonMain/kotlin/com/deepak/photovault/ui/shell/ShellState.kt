@@ -39,6 +39,9 @@ enum class Destination(val label: String, val icon: ImageVector) {
 @Stable
 class ChromeState {
     var hidden by mutableStateOf(false)
+
+    /** Clear Glass with Apple's motion: Search is showing beside the shrunk bar, so the one at the top steps aside. */
+    var bottomSearch by mutableStateOf(false)
 }
 
 /** Given only to sections that hide their chrome on scroll; null elsewhere. */
@@ -83,6 +86,10 @@ data class AppearanceSettings(
      * beside it, presses that swell and bounce, menus growing out of their button, glass switch knobs, dragging the tab.
      */
     val iosMotionTest: Boolean = false,
+    /** Small extra animations in every theme (21 Nov): Settings > About. On by default; never with Reduce motion. */
+    val extraMotion: Boolean = true,
+    /** The confetti for "every photo is backed up" has played once on this phone (extra animations). */
+    val celebratedBackup: Boolean = false,
     /** The person picked a theme themselves. Until then they follow the default (Liquid Day since 29 Oct). */
     val themeChosen: Boolean = false,
     /** Lens glass on the bottom bar of the Clear themes (experimental, Android 13+; off by default, 24 Oct). */
@@ -635,6 +642,14 @@ class ShellState(private val store: AppearanceStore) {
      */
     var message by mutableStateOf<AppMessage?>(null)
         private set
+
+    /** Goes up each time confetti should fall over the app (extra animations: the first complete backup). */
+    var confettiBursts by mutableStateOf(0)
+        private set
+
+    fun celebrate() {
+        confettiBursts++
+    }
     private var messages = 0
 
     /** Shows [text]; with [actionLabel] and [action] (18 Nov) the bar offers that too, such as Undo. */
@@ -701,6 +716,7 @@ class ShellState(private val store: AppearanceStore) {
         blurScale = BLUR_SCALES[appearance.blurStep.coerceIn(0, 4)],
         tinted = appearance.glassTinted,
         iosMotion = appearance.iosMotionTest,
+        extraMotion = appearance.extraMotion,
     )
 
     /** Fewer, larger photos (positive [step]) or more, smaller photos (negative), within the screen's range. */

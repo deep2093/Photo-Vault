@@ -49,7 +49,8 @@ fun Skeleton(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(8.
         val pulse = rememberInfiniteTransition(label = "skeleton")
         val a = pulse.animateFloat(0.07f, 0.17f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "skeletonAlpha")
         val ink = theme.onGlass
-        Box(modifier.clip(shape).drawBehind { drawRect(ink, alpha = a.value) })
+        // With the extra animations (21 Nov) a soft shine also moves across it.
+        Box(modifier.clip(shape).drawBehind { drawRect(ink, alpha = a.value) }.shimmer(true, ink))
     }
 }
 

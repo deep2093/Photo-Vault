@@ -49,6 +49,8 @@ data class GlassSettings(
     val tinted: Boolean = false,
     /** Clear Glass: Apple's motion (Settings > About > Test: iOS motion): bars that shrink, swelling presses, menus that grow. */
     val iosMotion: Boolean = false,
+    /** Small extra animations in every theme (Settings > About). Use [extraMotionOn], which also honours Reduce motion. */
+    val extraMotion: Boolean = true,
 )
 
 val LocalGlassTheme = staticCompositionLocalOf { GlassThemes.default }
