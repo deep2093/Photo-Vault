@@ -95,8 +95,8 @@ class ThemeContrastTest {
 class ThemeCatalogTest {
     @Test
     fun themesAreSortedIntoLightAndDarkSectionsWithUniqueIds() {
-        assertEquals(listOf("Ocean Day", "Aurora Day", "Gallery Day", "Prism Day"), GlassThemes.lightThemes.map { it.displayName })
-        assertEquals(listOf("Ocean Night", "Aurora Night", "Gallery Night", "Prism Night"), GlassThemes.darkThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Day", "Pearl Day", "Aurora Day", "Gallery Day", "Prism Day"), GlassThemes.lightThemes.map { it.displayName })
+        assertEquals(listOf("Ocean Night", "Pearl Night", "Aurora Night", "Gallery Night", "Prism Night"), GlassThemes.darkThemes.map { it.displayName })
         assertEquals(GlassThemes.all.size, GlassThemes.all.map { it.id }.toSet().size)
         assertTrue(GlassThemes.adaptiveThemes.all { it.adaptive != null })
         assertTrue(GlassThemes.fixed.all { it.adaptive == null })
@@ -104,8 +104,9 @@ class ThemeCatalogTest {
 
     @Test
     fun everyThemeHasALightDayAndADarkNight() {
-        // 18 Nov: four themes, each with a day version (light page, dark text) and a night one (deep page, white text).
-        assertEquals(4, GlassThemes.families.size)
+        // 18 Nov: each theme has a day version (light page, dark text) and a night one (deep page, white text). Five
+        // since Pearl came over from Skywing (20 Nov).
+        assertEquals(5, GlassThemes.families.size)
         GlassThemes.families.forEach { family ->
             assertFalse(family.day.isDark, family.name)
             assertTrue(family.night.isDark, family.name)
@@ -128,6 +129,21 @@ class ThemeCatalogTest {
             val ratio = Contrast.ratio(theme.onGlass, theme.glassTint.compositeOver(Color.Black))
             assertTrue(ratio >= Contrast.TEXT, "${theme.displayName}: dark words over a black photo $ratio")
         }
+    }
+
+    @Test
+    fun pearlIsSkywingsLiquidDayWithANight() {
+        // 20 Nov: the nearly white page of Skywing's Liquid Day, with its lustre, and a black pearl at night.
+        val pearl = GlassThemes.familyOf(GlassThemeId.PEARL_NIGHT.name)
+        assertEquals("Pearl", pearl.name)
+        assertEquals(GlassThemes.PearlDay, pearl.day)
+        assertEquals(GlassThemes.PearlNight, pearl.night)
+        assertTrue(pearl.day.wallpaper.all { Contrast.relativeLuminance(it) > 0.8 }, "Pearl Day's page is nearly white")
+        assertTrue(pearl.night.wallpaper.all { Contrast.relativeLuminance(it) < 0.02 }, "Pearl Night's page is nearly black")
+        assertEquals(3, pearl.day.lustre?.size)
+        assertEquals(3, pearl.night.lustre?.size)
+        // The other themes keep their calm pages.
+        assertTrue(GlassThemes.all.filter { it.id != GlassThemeId.PEARL_DAY && it.id != GlassThemeId.PEARL_NIGHT }.all { it.lustre == null })
     }
 
     @Test

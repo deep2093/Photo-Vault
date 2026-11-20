@@ -100,6 +100,21 @@ internal fun DrawScope.drawWallpaper(theme: GlassTheme, alpha: Float = 1f) {
             alpha = alpha,
         )
     }
+    // Pearl's lustre (20 Nov): a faint band of colour across the page, like the sheen on a pearl.
+    theme.lustre?.takeIf { it.size == 3 }?.let { (from, middle, to) ->
+        drawRect(
+            Brush.linearGradient(
+                0f to Color.Transparent,
+                0.36f to from,
+                0.5f to middle,
+                0.64f to to,
+                1f to Color.Transparent,
+                start = Offset(0f, size.height * 0.15f),
+                end = Offset(size.width, size.height * 0.65f),
+            ),
+            alpha = alpha,
+        )
+    }
     // Calm glass (18 Nov): no diagonal sheen across the page.
     if (GlassFinish.CALM) return
     drawRect(

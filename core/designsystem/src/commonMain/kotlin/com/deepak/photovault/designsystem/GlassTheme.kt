@@ -15,6 +15,8 @@ enum class GlassThemeId {
     LIQUID_DAY,
     /** The night versions of Luminous and Liquid, and the day versions of Photo and Vivid (18 Nov). */
     LUMINOUS_DARK, LIQUID_DARK, PHOTO_DAY, VIVID_DAY,
+    /** Pearl (20 Nov): Skywing's Liquid Day brought over and improved, with a night version. */
+    PEARL_DAY, PEARL_NIGHT,
 }
 
 /**
@@ -97,6 +99,11 @@ data class GlassTheme(
     val pale: GlassTheme? = null,
     /** iOS-style milky glass (light themes): almost no tint, just the blurred picture behind with a light edge, like iOS. Over very bright photos white text can be hard to read, so contrast is checked on the wallpaper only. */
     val milky: Boolean = false,
+    /**
+     * A faint band of colour across the page, like the sheen on a pearl (Pearl, 20 Nov): three colours, from one side
+     * of the band to the other. Null for the other themes, whose pages stay calm.
+     */
+    val lustre: List<Color>? = null,
 ) {
     /** The pale-background version: white text on a pale page can only reach 3:1 on its glass cards, so tests allow that for it. */
     val isPaleVariant: Boolean get() = !isDark
@@ -244,6 +251,52 @@ object GlassThemes {
         smoke = 0x05161F, solid = 0x0F2433,
     )
 
+    // ---- Pearl (20 Nov, Deepak: "Liquid Day from Skywing's latest build; improve on it, rename it, add a night version") ----
+
+    /**
+     * Pearl Day: Skywing's Liquid Day, improved. The same nearly white, cool page and clear glass, with a pearl's soft play
+     * of colour (a warm light at the top, a hint of aqua and of rose) and a faint lustre across it. Its bars use the calm
+     * frost, so dark words stay readable over dark photos too (Skywing's almost clear bars let them vanish there), and the
+     * chosen item is a soft shade of the text colour instead of a white film that disappeared on the white page.
+     */
+    val PearlDay: GlassTheme = glass(
+        GlassThemeId.PEARL_DAY, "Pearl Day", "Pearl white with clear glass",
+        // The deep page under the pale one is never shown; the pale version below is the theme.
+        wallpaper = listOf(0xFF2B3642, 0xFF394655, 0xFF465566),
+        glows = emptyList(),
+        rim = 0xFFD5DEE8, onDrive = 0xFF3F5A8A,
+        hues = listOf(0xFFB9C4D6, 0xFFD8C8DA, 0xFFA9C9D4, 0xFFE3D6C8, 0xFF9DB0C8),
+        milky = false,
+    ).let { deep ->
+        pale(
+            deep,
+            listOf(0xFFF7F8FB, 0xFFF3F1F6, 0xFFE9EEF4),
+            listOf(
+                Glow(0.85f, 0.08f, 0.8f, Color(0x38FFD9A0)),
+                Glow(0.08f, 0.6f, 0.8f, Color(0x2659C8FF)),
+                Glow(0.8f, 0.98f, 0.7f, Color(0x2ED9A6E0)),
+                Glow(0.35f, 0.18f, 0.45f, Color(0x80FFFFFF)),
+            ),
+            ink = 0xFF14171C,
+            frost = 0xF8F9FB,
+        )
+    }.copy(lustre = listOf(Color(0x1AFFD6E8), Color(0x26FFFFFF), Color(0x1AD6F2FF)))
+
+    /** Pearl Night: a black pearl. Cool charcoal with a moonlit light and soft teal and rose sheens, silver-edged glass. */
+    val PearlNight: GlassTheme = glass(
+        GlassThemeId.PEARL_NIGHT, "Pearl Night", "Black pearl: charcoal with a soft teal and rose sheen",
+        wallpaper = listOf(0xFF1C1F27, 0xFF13151B, 0xFF0B0C10),
+        glows = listOf(
+            Glow(0.85f, 0.05f, 0.5f, Color(0x1FFFFFFF)),
+            Glow(0.05f, 0.6f, 0.6f, Color(0x1F3CC8C0)),
+            Glow(0.85f, 0.98f, 0.6f, Color(0x24D985C0)),
+        ),
+        rim = 0xFFD5DEE8, onDrive = 0xFF3F5A8A,
+        hues = listOf(0xFF5B6475, 0xFF6E5A6E, 0xFF4F6E73, 0xFF7A6C5E, 0xFF55607A),
+        milky = false,
+        smoke = 0x0B0C10, solid = 0x1B1D24,
+    ).copy(lustre = listOf(Color(0x0CE38AC4), Color(0x10FFFFFF), Color(0x0C6FD6CF)))
+
     // ---- Dark themes ----
 
     /** Night sky: nearly black, with one soft light of your photos' colour at the top. */
@@ -312,11 +365,12 @@ object GlassThemes {
         ),
     ).copy(id = GlassThemeId.VIVID_DAY, displayName = "Prism Day", bestFor = "Pastel colours from your photos")
 
-    /** The four themes, each with its day and night (18 Nov). Liquid first: it is the one everyone starts on. */
+    /** The five themes, each with its day and night (18 Nov; Pearl added 20 Nov). Liquid first: everyone starts on it. */
     val families: List<ThemeFamily> = listOf(
         // 18 Nov (Deepak: "name them after what they look like"): new names only; the saved keys stay, so everyone keeps
         // the theme they chose.
         ThemeFamily("LIQUID", "Ocean", "Sky blue by day, a deep sea at night", LiquidDay.pale!!, LiquidNight),
+        ThemeFamily("PEARL", "Pearl", "Pearl white and clear glass by day, a black pearl's soft sheen at night", PearlDay, PearlNight),
         ThemeFamily("LUMINOUS", "Aurora", "Lilac and mint by day, northern lights at night", AuroraGlassLight.pale!!, LuminousNight),
         ThemeFamily("PHOTO", "Gallery", "Warm paper by day, graphite at night, one soft light from your photos", PhotoDay, AdaptiveMidnight),
         ThemeFamily("VIVID", "Prism", "Colours from your photos: pastels by day, deep jewels at night", VividDay, AdaptiveVivid),

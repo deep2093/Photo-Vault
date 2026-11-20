@@ -523,20 +523,26 @@ private fun AppearanceSection(state: ShellState, iconSwitcher: AppIconSwitcher) 
     }
 }
 
-/** Every theme as a round swatch, light to dark, three to a row. No names: the chosen one has a ring and a tick. */
+/** Every theme as a round swatch, named underneath; the chosen one has a ring and a tick. */
 @Composable
 private fun ThemeGrid(state: ShellState) {
     val theme = LocalGlassTheme.current
     val night = state.nightNow
     val chosen = state.themeFamily
-    // 18 Nov: four themes, each shown in the version you'd see now (day or night), named underneath.
+    // 18 Nov: each theme shown in the version you'd see now (day or night), named underneath.
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val perRow = if (maxWidth < 300.dp) 2 else 4
+        // 20 Nov (five themes with Pearl): as many as fit side by side, then the rows evened out and the shorter one
+        // centred, so a phone shows three and two instead of four and one left alone.
+        val families = GlassThemes.families
+        val fit = (maxWidth / THEME_CELL).toInt().coerceIn(2, families.size)
+        val rows = (families.size + fit - 1) / fit
+        val perRow = (families.size + rows - 1) / rows
+        val cell = maxWidth / perRow
         Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlassThemes.families.chunked(perRow).forEach { row ->
-                Row(Modifier.fillMaxWidth()) {
+            families.chunked(perRow).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                     row.forEach { family ->
-                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(Modifier.width(cell), horizontalAlignment = Alignment.CenterHorizontally) {
                             ThemeSwatch(
                                 family.pick(night),
                                 selected = family.key == chosen.key,
@@ -818,3 +824,6 @@ private fun OpenWithContent(actions: MediaActions) {
         GlassButton("Open Android settings", primary = true, onClick = actions::openDefaultAppSettings, modifier = Modifier.padding(top = 10.dp))
     }
 }
+
+/** Room for one theme swatch (72 dp) and a little space beside it. */
+private val THEME_CELL = 80.dp
