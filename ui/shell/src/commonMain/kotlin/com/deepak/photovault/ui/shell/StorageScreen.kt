@@ -435,7 +435,8 @@ private fun GoogleStorage(
             Modifier.fillMaxWidth(),
         ) { GlassButton("Open Backup", primary = true, onClick = { state.open(Overlay.Backup) }) }
     } else {
-        Breakdown(files, zone, onOpen, albumsTitle = "Backed-up albums")
+        // Google's lists stay as they were opened (only the family drive's follow the drive).
+        Breakdown(files, zone, { title, list, _ -> onOpen(title, list) }, albumsTitle = "Backed-up albums")
     }
 }
 
